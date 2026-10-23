@@ -22,6 +22,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Musli gebruikt je microfoon om wat je dicteert om te zetten naar tekst.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Musli neemt de audio van je call op om er een transcript van te maken.</string>
 	<key>ATSApplicationFontsPath</key>
 	<string>Fonts</string>
 	<key>NSHighResolutionCapable</key>
