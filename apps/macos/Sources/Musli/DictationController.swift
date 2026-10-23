@@ -20,6 +20,8 @@ final class DictationController {
     private var recordingApp: String?
     private var isRecording = false
     private var insertion: Task<Void, Never>?
+    private var recordingStarted: Date?
+    weak var meeting: MeetingController?
 
     init(state: AppState) {
         self.state = state
@@ -88,6 +90,7 @@ final class DictationController {
             return
         }
         isRecording = true
+        recordingStarted = Date()
         status.recordingStarted(handsFree: gesture.isHandsFree)
         render()
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -103,6 +106,8 @@ final class DictationController {
         ticker = nil
         guard isRecording else { return [] }
         isRecording = false
+        if let started = recordingStarted { meeting?.markDictation(from: started, to: Date()) }
+        recordingStarted = nil
         return recorder.stop()
     }
 

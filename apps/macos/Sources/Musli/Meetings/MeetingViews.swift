@@ -55,6 +55,11 @@ private struct RecordingView: View {
                 Button("Stop opname") { meeting.stop() }.keyboardShortcut(.defaultAction)
             }
             .font(.figtree(12))
+            if meeting.consentCopied {
+                Text("Toestemmingszin gekopieerd — plak hem in de chat van je call.")
+                    .font(.figtree(12))
+                    .foregroundStyle(Theme.muted)
+            }
             if meeting.systemAudioMissing {
                 Text("Nog geen geluid van je computer ontvangen. Hoor je de anderen? Geef Musli toegang bij Systeeminstellingen → Privacy en beveiliging → Systeemaudio-opname.")
                     .font(.figtree(12))

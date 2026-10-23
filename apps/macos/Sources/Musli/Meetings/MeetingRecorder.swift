@@ -66,8 +66,14 @@ final class MeetingRecorder {
     var elapsed: TimeInterval { startedAt.map { Date().timeIntervalSince($0) } ?? 0 }
 
     /// `tapProcesses` is re-evaluated on every (re)start so helpers that appear later are included.
-    func start(session: MeetingSession, tapProcesses: (() -> [AudioObjectID])? = nil) throws {
+    private var echoCancellation = true
+
+    /// When the recording began, for mapping wall-clock moments (dictation) onto the meeting timeline.
+    var startDate: Date? { startedAt }
+
+    func start(session: MeetingSession, tapProcesses: (() -> [AudioObjectID])? = nil, echoCancellation: Bool = true) throws {
         self.tapProcesses = tapProcesses
+        self.echoCancellation = echoCancellation
         let dir = URL(fileURLWithPath: session.dir())
         me = TrackWriter(speaker: .me, session: session, url: dir.appendingPathComponent("ik.m4a"))
         others = TrackWriter(speaker: .others, session: session, url: dir.appendingPathComponent("anderen.m4a"))
@@ -104,6 +110,16 @@ final class MeetingRecorder {
     private func startMicrophone() throws {
         guard let me else { return }
         let input = engine.inputNode
+        if echoCancellation {
+            // Apple's echo canceller removes what the speakers play from the mic; keep other audio at full volume.
+            do {
+                try input.setVoiceProcessingEnabled(true)
+                input.voiceProcessingOtherAudioDuckingConfiguration =
+                    AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
+            } catch {
+                log.error("voice processing unavailable: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         let format = input.outputFormat(forBus: 0)
         guard AudioInput.isUsable(sampleRate: format.sampleRate, channels: format.channelCount) else {
             throw NoInputDevice()

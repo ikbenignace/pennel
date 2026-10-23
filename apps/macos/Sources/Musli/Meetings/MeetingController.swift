@@ -1,3 +1,4 @@
+import AppKit
 import CoreAudio
 import Foundation
 @preconcurrency import MusliCore
@@ -21,6 +22,8 @@ final class MeetingController {
     private(set) var systemAudioMissing = false
     private(set) var error: String?
     private(set) var detectedApp: String?
+    private(set) var consentCopied = false
+    static let consentSentence = "Ik neem notities met transcript via Musli."
     var title = ""
     var notes = "" {
         didSet { scheduleNotesSave() }
@@ -54,7 +57,13 @@ final class MeetingController {
         do {
             let session = try state.engine.startMeetingWith(title: defaultTitle, attendees: attendees, keys: state.keys())
             let tapProcesses: (() -> [AudioObjectID])? = detectedApp.map { app in { MicUsageMonitor.processObjects(bundleId: app) } }
-            try recorder.start(session: session, tapProcesses: tapProcesses)
+            try recorder.start(session: session, tapProcesses: tapProcesses, echoCancellation: state.settings.echoCancellation)
+            consentCopied = false
+            if state.settings.consentEnabled {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(Self.consentSentence, forType: .string)
+                consentCopied = true
+            }
             self.session = session
             meetingId = session.id()
             systemAudioMissing = !recorder.systemAudioAvailable
@@ -98,6 +107,13 @@ final class MeetingController {
             error = "Samenvatten mislukt: \(failure)"
         }
         onLibraryChanged?()
+    }
+
+    /// Keeps a dictation done during the meeting out of its transcript.
+    func markDictation(from start: Date, to end: Date) {
+        guard phase == .recording, let session, let began = recorder.startDate else { return }
+        let toMs: (Date) -> UInt64 = { UInt64(max(0, $0.timeIntervalSince(began)) * 1000) }
+        session.markDictation(startMs: toMs(start), endMs: toMs(end))
     }
 
     /// Quitting mid-meeting: close the audio files and transcribe what's left, but skip the summary.

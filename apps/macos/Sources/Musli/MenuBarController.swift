@@ -10,9 +10,17 @@ final class MenuBarController: NSObject {
     private let windows: WindowPresenter
     private let dictation: DictationController
     private let meeting: MeetingController
+    private let calendar: CalendarProvider
     private let hintItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
-    init(state: AppState, windows: WindowPresenter, dictation: DictationController, meeting: MeetingController) {
+    init(
+        state: AppState,
+        windows: WindowPresenter,
+        dictation: DictationController,
+        meeting: MeetingController,
+        calendar: CalendarProvider
+    ) {
+        self.calendar = calendar
         self.state = state
         self.windows = windows
         self.dictation = dictation
@@ -120,7 +128,7 @@ final class MenuBarController: NSObject {
 
     @objc func openSettings() {
         windows.show(id: "settings", title: "Instellingen", size: NSSize(width: 640, height: 520)) {
-            SettingsView(state: state)
+            SettingsView(state: state, calendar: calendar)
         }
     }
 
