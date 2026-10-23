@@ -40,7 +40,9 @@ final class DictationController {
                 }
             )
         }
-        return monitor?.start() ?? false
+        let started = monitor?.start() ?? false
+        log.notice("hotkey tap started=\(started, privacy: .public) accessibility=\(Permissions.accessibilityTrusted, privacy: .public)")
+        return started
     }
 
     func setTrigger(_ trigger: HotkeyTrigger) {
@@ -49,6 +51,7 @@ final class DictationController {
     }
 
     private func handle(_ edge: KeyEdge, at time: TimeInterval) {
+        log.debug("hotkey \(String(describing: edge), privacy: .public)")
         perform(gesture.handle(edge, at: time))
     }
 

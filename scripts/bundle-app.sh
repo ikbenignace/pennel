@@ -4,7 +4,12 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 pkg="$root/apps/macos"
 app="$root/build/Musli.app"
-identity="${MUSLI_SIGN_IDENTITY:--}"
+# Prefer the stable local certificate so macOS keeps Musli's permissions across rebuilds.
+default_identity="-"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q '"Musli Local Dev"'; then
+  default_identity="Musli Local Dev"
+fi
+identity="${MUSLI_SIGN_IDENTITY:-$default_identity}"
 
 swift build -c release --package-path "$pkg"
 bin="$(swift build -c release --package-path "$pkg" --show-bin-path)/Musli"
