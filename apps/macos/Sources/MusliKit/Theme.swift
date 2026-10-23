@@ -11,7 +11,7 @@ public enum Theme {
     public static let wave = Color(hex: 0xF2B48E)
 }
 
-extension Color {
+public extension Color {
     init(hex: UInt32) {
         self.init(
             red: Double((hex >> 16) & 0xFF) / 255,
