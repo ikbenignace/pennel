@@ -1,9 +1,11 @@
 uniffi::setup_scaffolding!();
 
 mod error;
+mod http;
 mod provider;
 mod settings;
 mod speech;
+mod stt;
 mod wav;
 
 pub use error::MusliError;
