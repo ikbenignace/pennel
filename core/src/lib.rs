@@ -6,6 +6,7 @@ mod error;
 mod history;
 mod http;
 mod llm;
+mod local_stt;
 mod models;
 mod provider;
 mod settings;

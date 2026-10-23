@@ -7,12 +7,13 @@ use crate::cleanup::{accept_cleanup, cleanup_messages, resolve_style, strip_wrap
 use crate::error::MusliError;
 use crate::history::{HistoryEntry, HistoryStore};
 use crate::llm::chat_complete;
+use crate::local_stt::LocalWhisper;
 use crate::models::{CancelFlag, DownloadListener, ModelState, ModelStore};
 use crate::provider::{requires_key, ProviderAccount, ProviderConfig, ProviderKind};
 use crate::settings::{DictationMode, Settings};
 use crate::speech::{has_speech, is_hallucination};
 use crate::stt::transcribe;
-use crate::wav::encode_wav;
+use crate::wav::{decode_wav, encode_wav};
 
 const MAX_PROMPT_CHARS: usize = 800;
 
@@ -58,6 +59,7 @@ pub struct MusliEngine {
     history: Mutex<HistoryStore>,
     models: ModelStore,
     downloads: Mutex<HashMap<String, CancelFlag>>,
+    local: LocalWhisper,
 }
 
 struct Transcript {
@@ -90,6 +92,7 @@ impl MusliEngine {
             history: Mutex::new(history),
             models: ModelStore::new(&dir),
             downloads: Mutex::new(HashMap::new()),
+            local: LocalWhisper::default(),
         }))
     }
 
@@ -151,6 +154,12 @@ impl MusliEngine {
         self.history.lock().unwrap().delete(&id)
     }
 
+    /// Called periodically by the app so an idle local model does not stay in memory.
+    pub fn unload_idle_models(&self) -> bool {
+        let minutes = u64::from(self.settings.read().unwrap().local_unload_minutes);
+        self.local.unload_if_idle(std::time::Duration::from_secs(minutes * 60), std::time::Instant::now())
+    }
+
     pub fn model_state(&self, id: String) -> ModelState {
         self.models.state(&id)
     }
@@ -180,16 +189,13 @@ impl MusliEngine {
         let prompt: Option<String> = (!settings.dictionary.is_empty())
             .then(|| settings.dictionary.join(", ").chars().take(MAX_PROMPT_CHARS).collect());
         let (account, model) = settings.resolve(&settings.dictation_stt).ok_or(MusliError::NotFound)?;
-        if account.kind == ProviderKind::Local {
-            return Err(MusliError::ModelNotDownloaded);
-        }
-        let raw = transcribe(
-            &endpoint(&account, model),
-            keys.get(&account),
-            wav,
-            prompt.as_deref(),
-            settings.language.as_deref(),
-        )?;
+        let raw = if account.kind == ProviderKind::Local {
+            let path = self.models.path(&model).ok_or(MusliError::ModelNotDownloaded)?;
+            let (samples, _) = decode_wav(wav).ok_or(MusliError::InvalidResponse { message: "bad audio".into() })?;
+            self.local.transcribe(&path, &samples, settings.language.as_deref(), prompt.as_deref())?
+        } else {
+            transcribe(&endpoint(&account, model), keys.get(&account), wav, prompt.as_deref(), settings.language.as_deref())?
+        };
         if is_hallucination(&raw) {
             return Err(MusliError::NoSpeech);
         }
@@ -411,6 +417,13 @@ mod tests {
         assert_eq!(engine.download_model("nope".into(), Arc::new(Silent)).unwrap_err(), MusliError::NotFound);
         engine.cancel_download("whisper-small-q5_1".into());
         engine.delete_model("whisper-small-q5_1".into()).unwrap();
+    }
+
+    #[test]
+    fn unload_idle_models_without_loaded_model_is_noop() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = MusliEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        assert!(!engine.unload_idle_models());
     }
 
     #[test]

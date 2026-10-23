@@ -8,6 +8,8 @@ lib_dir="$root/core/target/$target/release"
 bindings="$root/build/bindings"
 framework="$root/apps/macos/Frameworks/MusliCoreFFI.xcframework"
 
+command -v cmake >/dev/null || { echo "cmake is required to build whisper.cpp: brew install cmake" >&2; exit 1; }
+
 cargo build --manifest-path "$root/core/Cargo.toml" --release --target "$target" --lib
 
 rm -rf "$bindings"

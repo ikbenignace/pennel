@@ -11,6 +11,7 @@ Ontwerp: [`docs/superpowers/specs/2026-10-23-musli-design.md`](docs/superpowers/
 - macOS 14.4 of nieuwer op Apple Silicon
 - Xcode (Swift 6)
 - Rust (`rustup`, target `aarch64-apple-darwin`)
+- CMake (`brew install cmake`) voor de ingebouwde whisper.cpp
 
 ## Bouwen
 
