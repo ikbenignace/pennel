@@ -41,14 +41,14 @@ struct ProvidersPane: View {
             .frame(width: 190, alignment: .leading)
 
             Group {
-                if let index = state.settings.providers.firstIndex(where: { $0.id == selection }) {
+                if let selection, let account = state.account(selection) {
                     ProviderDetail(
                         state: state,
-                        account: $state.settings.providers[index],
+                        account: binding(for: selection, fallback: account),
                         canDelete: state.settings.providers.count > 1,
-                        onDelete: { delete(state.settings.providers[index]) }
+                        onDelete: { delete(account) }
                     )
-                    .id(state.settings.providers[index].id)
+                    .id(selection)
                 } else {
                     Text("Kies een provider").foregroundStyle(Theme.muted).frame(maxWidth: .infinity, minHeight: 200)
                 }
@@ -56,6 +56,17 @@ struct ProvidersPane: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .onAppear { selection = selection ?? state.settings.providers.first?.id }
+    }
+
+    /// Looks the provider up by id on every access, so a deleted provider can't index past the array.
+    private func binding(for id: String, fallback: ProviderAccount) -> Binding<ProviderAccount> {
+        Binding(
+            get: { state.account(id) ?? fallback },
+            set: { updated in
+                guard let index = state.settings.providers.firstIndex(where: { $0.id == id }) else { return }
+                state.settings.providers[index] = updated
+            }
+        )
     }
 
     private var addableKinds: [ProviderKind] {
@@ -126,7 +137,7 @@ private struct ProviderDetail: View {
                     FieldRow(label: requiresKey(kind: account.kind) ? "API-sleutel" : "Sleutel (optioneel)") {
                         SecureField("Plak je sleutel", text: $apiKey)
                             .textFieldStyle(.roundedBorder)
-                            .onChange(of: apiKey) { Keychain.set(apiKey, for: account.id) }
+                            .onChange(of: apiKey) { state.setKey(apiKey, for: account) }
                     }
                     HStack {
                         if let testResult {

@@ -68,9 +68,12 @@ final class ModelDownloads {
         engine.cancelDownload(id: id)
     }
 
+    var onModelsChanged: (() -> Void)?
+
     func delete(_ id: String) {
         try? engine.deleteModel(id: id)
         refresh()
+        onModelsChanged?()
     }
 
     private func finish(_ id: String, _ result: Result<Void, Error>) {
@@ -78,6 +81,7 @@ final class ModelDownloads {
         switch result {
         case .success:
             errors[id] = nil
+            onModelsChanged?()
         case .failure(let error):
             if case .Cancelled = error as? MusliError {
                 errors[id] = nil

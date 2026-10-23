@@ -83,14 +83,15 @@ impl MusliEngine {
         let dir = PathBuf::from(data_dir);
         std::fs::create_dir_all(&dir).map_err(MusliError::storage)?;
         let settings_path = dir.join("settings.json");
-        let settings = Settings::load(&settings_path)?;
+        let models = ModelStore::new(&dir);
+        let settings = Settings::load(&settings_path)?.normalized_with(&models.downloaded());
         let history = HistoryStore::open(&dir)?;
         history.prune(settings.history_retention_days, now_ms())?;
         Ok(Arc::new(Self {
             settings_path,
             settings: RwLock::new(settings),
             history: Mutex::new(history),
-            models: ModelStore::new(&dir),
+            models,
             downloads: Mutex::new(HashMap::new()),
             local: LocalWhisper::default(),
         }))
@@ -101,7 +102,7 @@ impl MusliEngine {
     }
 
     pub fn update_settings(&self, settings: Settings) -> Result<(), MusliError> {
-        let settings = settings.normalized();
+        let settings = settings.normalized_with(&self.models.downloaded());
         settings.save(&self.settings_path)?;
         *self.settings.write().unwrap() = settings;
         Ok(())
@@ -179,8 +180,11 @@ impl MusliEngine {
         }
     }
 
+    /// Also moves dictation off the deleted model when another local model is available.
     pub fn delete_model(&self, id: String) -> Result<(), MusliError> {
-        self.models.delete(&id)
+        self.models.delete(&id)?;
+        let settings = self.settings();
+        self.update_settings(settings)
     }
 }
 

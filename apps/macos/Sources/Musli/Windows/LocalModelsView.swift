@@ -74,7 +74,10 @@ struct LocalModelsView: View {
                     Button("Verwijder") { downloads.delete(model.id) }
                 }
             case .partial:
-                Button("Verder downloaden") { downloads.start(model.id) }
+                HStack(spacing: 8) {
+                    Button("Verder downloaden") { downloads.start(model.id) }
+                    Button("Verwijder") { downloads.delete(model.id) }
+                }
             case .notDownloaded:
                 Button("Downloaden") { downloads.start(model.id) }
             }

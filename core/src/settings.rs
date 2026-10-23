@@ -139,18 +139,34 @@ impl Settings {
             .map(|p| (p.clone(), choice.model.clone()))
     }
 
-    /// Points every task whose provider no longer exists at the first provider that can do it.
-    pub fn normalized(mut self) -> Settings {
+    pub fn normalized(self) -> Settings {
+        self.normalized_with(&[])
+    }
+
+    /// Points every task whose provider no longer exists at the first provider that can do it,
+    /// and keeps local choices on a model that is actually downloaded.
+    pub fn normalized_with(mut self, downloaded_local: &[String]) -> Settings {
         for (task, slot) in [
             (ProviderTask::DictationStt, &mut self.dictation_stt),
             (ProviderTask::MeetingStt, &mut self.meeting_stt),
             (ProviderTask::Llm, &mut self.llm),
         ] {
-            if self.providers.iter().any(|p| p.id == slot.provider_id) {
-                continue;
-            }
-            if let Some(fallback) = self.providers.iter().find(|p| supports(p.kind, task)) {
-                *slot = choice(fallback, task);
+            let current = self.providers.iter().find(|p| p.id == slot.provider_id);
+            let account = match current {
+                Some(account) => account,
+                None => match self.providers.iter().find(|p| supports(p.kind, task)) {
+                    Some(fallback) => {
+                        *slot = choice(fallback, task);
+                        fallback
+                    }
+                    None => continue,
+                },
+            };
+            if account.kind == ProviderKind::Local
+                && !downloaded_local.contains(&slot.model)
+                && let Some(first) = downloaded_local.first()
+            {
+                slot.model = first.clone();
             }
         }
         self
@@ -304,6 +320,22 @@ mod tests {
         let s = s.normalized();
         assert_eq!(s.dictation_stt, ModelChoice { provider_id: "local".into(), model: "whisper-large-v3-turbo-q5_0".into() });
         assert_eq!(s.llm.provider_id, "groq");
+    }
+
+    #[test]
+    fn fallback_to_local_prefers_downloaded_model() {
+        let mut s = default_settings();
+        s.providers.retain(|p| p.id != "groq");
+        let s = s.normalized_with(&["whisper-small-q5_1".to_owned()]);
+        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "local".into(), model: "whisper-small-q5_1".into() });
+    }
+
+    #[test]
+    fn local_choice_with_deleted_model_moves_to_downloaded_one() {
+        let mut s = default_settings();
+        s.dictation_stt = ModelChoice { provider_id: "local".into(), model: "whisper-large-v3-turbo-q5_0".into() };
+        let s = s.normalized_with(&["whisper-small-q5_1".to_owned()]);
+        assert_eq!(s.dictation_stt.model, "whisper-small-q5_1");
     }
 
     #[test]

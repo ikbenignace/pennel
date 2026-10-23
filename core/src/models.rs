@@ -11,6 +11,9 @@ use crate::error::MusliError;
 use crate::http;
 
 const PROGRESS_STEP: u64 = 1024 * 1024;
+const CHUNK_BYTES: u64 = 16 * 1024 * 1024;
+/// Per-chunk budget; 16 MB in 120 s still allows ~140 KB/s connections.
+const CHUNK_TIMEOUT_SECS: u64 = 120;
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct LocalModel {
@@ -79,6 +82,7 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
 pub struct ModelStore {
     dir: PathBuf,
     catalog: Vec<ModelEntry>,
+    chunk_bytes: u64,
 }
 
 impl ModelStore {
@@ -87,7 +91,7 @@ impl ModelStore {
     }
 
     pub fn with_catalog(data_dir: &Path, catalog: Vec<ModelEntry>) -> Self {
-        Self { dir: data_dir.join("models"), catalog }
+        Self { dir: data_dir.join("models"), catalog, chunk_bytes: CHUNK_BYTES }
     }
 
     fn entry(&self, id: &str) -> Option<&ModelEntry> {
@@ -117,6 +121,12 @@ impl ModelStore {
         path.exists().then_some(path)
     }
 
+    pub fn downloaded(&self) -> Vec<String> {
+        self.catalog.iter().filter(|e| self.final_path(&e.id).exists()).map(|e| e.id.clone()).collect()
+    }
+
+    /// Downloads in bounded Range requests so a stalled connection times out instead of hanging,
+    /// and cancel takes effect within one chunk.
     pub fn download(&self, id: &str, listener: &dyn DownloadListener, cancel: &AtomicBool) -> Result<(), MusliError> {
         let entry = self.entry(id).ok_or(MusliError::NotFound)?.clone();
         if self.path(id).is_some() {
@@ -124,55 +134,47 @@ impl ModelStore {
         }
         std::fs::create_dir_all(&self.dir).map_err(MusliError::storage)?;
         let part = self.part_path(id);
-        let mut have = std::fs::metadata(&part).map_or(0, |m| m.len());
-
+        let mut file = OpenOptions::new().create(true).append(true).open(&part).map_err(MusliError::storage)?;
+        let mut have = file.metadata().map_err(MusliError::storage)?.len();
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_connect(Some(Duration::from_secs(15)))
+            .timeout_recv_response(Some(Duration::from_secs(30)))
+            .timeout_recv_body(Some(Duration::from_secs(CHUNK_TIMEOUT_SECS)))
             .http_status_as_error(false)
             .build()
             .into();
-        let mut request = agent.get(&entry.url);
-        if have > 0 {
-            request = request.header("Range", format!("bytes={have}-"));
-        }
-        let mut response = request.call().map_err(|e| MusliError::Network { message: e.to_string() })?;
-        let status = response.status().as_u16();
-        let append = match status {
-            206 => true,
-            200 => {
-                have = 0;
-                false
-            }
-            _ => {
-                let body = response.body_mut().read_to_string().unwrap_or_default();
-                return Err(http::map_status(status, &body));
-            }
-        };
+        let mut restarted = false;
+        let mut progress = Progress { listener, total: entry.size_bytes, next_report: have + PROGRESS_STEP };
 
-        let mut file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .append(append)
-            .truncate(!append)
-            .open(&part)
-            .map_err(MusliError::storage)?;
-        let mut reader = response.into_body().into_with_config().limit(u64::MAX).reader();
-        let mut buf = vec![0u8; 64 * 1024];
-        let mut next_report = have + PROGRESS_STEP;
-        loop {
+        while have < entry.size_bytes {
             if cancel.load(Ordering::SeqCst) {
                 return Err(MusliError::Cancelled);
             }
-            let n = reader.read(&mut buf).map_err(|e| MusliError::Network { message: e.to_string() })?;
-            if n == 0 {
-                break;
+            let range = range_header(have, entry.size_bytes, self.chunk_bytes);
+            let mut response = agent
+                .get(&entry.url)
+                .header("Range", range)
+                .call()
+                .map_err(|e| MusliError::Network { message: e.to_string() })?;
+            match response.status().as_u16() {
+                206 => {}
+                200 => {
+                    file.set_len(0).map_err(MusliError::storage)?;
+                    have = 0;
+                }
+                416 if !restarted => {
+                    restarted = true;
+                    file.set_len(0).map_err(MusliError::storage)?;
+                    have = 0;
+                    continue;
+                }
+                status => {
+                    let body = response.body_mut().read_to_string().unwrap_or_default();
+                    return Err(http::map_status(status, &body));
+                }
             }
-            file.write_all(&buf[..n]).map_err(MusliError::storage)?;
-            have += n as u64;
-            if have >= next_report {
-                listener.on_progress(have, entry.size_bytes);
-                next_report = have + PROGRESS_STEP;
-            }
+            let reader = response.into_body().into_with_config().limit(u64::MAX).reader();
+            have = append_body(reader, &mut file, have, &mut progress, cancel)?;
         }
         file.flush().map_err(MusliError::storage)?;
         drop(file);
@@ -194,6 +196,41 @@ impl ModelStore {
             }
         }
         Ok(())
+    }
+}
+
+pub(crate) fn range_header(have: u64, size: u64, chunk: u64) -> String {
+    format!("bytes={have}-{}", (have + chunk).min(size) - 1)
+}
+
+struct Progress<'a> {
+    listener: &'a dyn DownloadListener,
+    total: u64,
+    next_report: u64,
+}
+
+fn append_body(
+    mut reader: impl Read,
+    file: &mut File,
+    mut have: u64,
+    progress: &mut Progress,
+    cancel: &AtomicBool,
+) -> Result<u64, MusliError> {
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(MusliError::Cancelled);
+        }
+        let n = reader.read(&mut buf).map_err(|e| MusliError::Network { message: e.to_string() })?;
+        if n == 0 {
+            return Ok(have);
+        }
+        file.write_all(&buf[..n]).map_err(MusliError::storage)?;
+        have += n as u64;
+        if have >= progress.next_report {
+            progress.listener.on_progress(have, progress.total);
+            progress.next_report = have + PROGRESS_STEP;
+        }
     }
 }
 
@@ -288,13 +325,52 @@ mod tests {
         assert_eq!(store.state("tiny"), ModelState::Partial { bytes: MB as u64 });
         let mock = server
             .mock("GET", "/m.bin")
-            .match_header("range", "bytes=1048576-")
+            .match_header("range", mockito::Matcher::Regex("^bytes=1048576-".into()))
             .with_status(206)
             .with_body(&bytes[MB..])
             .create();
         store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap();
         mock.assert();
         assert_eq!(std::fs::read(store.path("tiny").unwrap()).unwrap(), bytes);
+    }
+
+    #[test]
+    fn complete_part_is_verified_without_request() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let bytes = payload();
+        let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(dir.path().join("models/tiny.part"), &bytes).unwrap();
+        store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        assert_eq!(store.state("tiny"), ModelState::Downloaded);
+    }
+
+    #[test]
+    fn range_not_satisfiable_restarts_from_zero() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let bytes = payload();
+        let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(dir.path().join("models/tiny.part"), &bytes[..MB]).unwrap();
+        server
+            .mock("GET", "/m.bin")
+            .match_header("range", mockito::Matcher::Regex("^bytes=1048576-".into()))
+            .with_status(416)
+            .create();
+        server
+            .mock("GET", "/m.bin")
+            .match_header("range", mockito::Matcher::Regex("^bytes=0-".into()))
+            .with_status(206)
+            .with_body(&bytes)
+            .create();
+        store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        assert_eq!(std::fs::read(store.path("tiny").unwrap()).unwrap(), bytes);
+    }
+
+    #[test]
+    fn ranges_are_bounded_chunks() {
+        assert_eq!(range_header(0, 10, 4), "bytes=0-3");
+        assert_eq!(range_header(8, 10, 4), "bytes=8-9");
     }
 
     #[test]
@@ -330,6 +406,18 @@ mod tests {
         store.delete("tiny").unwrap();
         assert_eq!(store.state("tiny"), ModelState::NotDownloaded);
         assert_eq!(store.path("tiny"), None);
+    }
+
+    /// Downloads the real small model from Hugging Face in chunked Range requests.
+    #[test]
+    #[ignore]
+    fn real_download_small_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        let started = std::time::Instant::now();
+        store.download("whisper-small-q5_1", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        eprintln!("downloaded in {:?}", started.elapsed());
+        assert_eq!(store.state("whisper-small-q5_1"), ModelState::Downloaded);
     }
 
     #[test]
