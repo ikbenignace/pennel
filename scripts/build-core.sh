@@ -3,6 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 target=aarch64-apple-darwin
+export MACOSX_DEPLOYMENT_TARGET=14.4
 lib_dir="$root/core/target/$target/release"
 bindings="$root/build/bindings"
 framework="$root/apps/macos/Frameworks/MusliCoreFFI.xcframework"
