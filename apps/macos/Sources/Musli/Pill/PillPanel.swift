@@ -1,11 +1,11 @@
 import AppKit
+import MusliKit
 import SwiftUI
 
 @MainActor
 final class PillPanel {
     let model = PillModel()
     private let panel: NSPanel
-    private var hideTask: Task<Void, Never>?
 
     init() {
         panel = NonActivatingPanel(
@@ -24,7 +24,7 @@ final class PillPanel {
     }
 
     func show(_ state: PillState) {
-        hideTask?.cancel()
+        guard state != model.state || state != .hidden else { return }
         model.state = state
         if case .hidden = state {
             panel.orderOut(nil)
@@ -32,13 +32,6 @@ final class PillPanel {
         }
         position()
         panel.orderFrontRegardless()
-        if case .error = state {
-            hideTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(2))
-                guard !Task.isCancelled else { return }
-                self?.show(.hidden)
-            }
-        }
     }
 
     private func position() {

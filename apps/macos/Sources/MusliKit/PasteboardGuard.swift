@@ -8,6 +8,9 @@ public protocol PasteboardLike: AnyObject {
 }
 
 public enum PasteboardGuard {
+    /// Apps read the pasteboard whenever they handle Cmd-V; busy Electron apps can take several hundred ms.
+    public static let restoreDelay: Duration = .milliseconds(700)
+
     public struct Token: Sendable {
         let saved: [[String: Data]]
         let changeCountAfterSet: Int

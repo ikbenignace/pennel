@@ -3,20 +3,22 @@ import AppKit
 import MusliKit
 import os
 
-
 @MainActor
 final class DictationController {
+    private static let noticeDuration: Duration = .seconds(2)
+
     private let state: AppState
     private let pill = PillPanel()
     private let recorder = AudioRecorder()
     private let queue = PasteQueue<String>()
     private let log = Logger(subsystem: "dev.musli.Musli", category: "dictation")
     private var gesture = HotkeyGesture()
+    private var status = DictationStatus()
     private var monitor: HotkeyMonitor?
     private var ticker: Timer?
+    private var noticeTask: Task<Void, Never>?
     private var recordingApp: String?
     private var isRecording = false
-    private var inFlight = 0
     private var insertion: Task<Void, Never>?
 
     init(state: AppState) {
@@ -28,9 +30,15 @@ final class DictationController {
     /// Starts the hotkey tap; returns false while Accessibility/Input Monitoring is not granted yet.
     func start() -> Bool {
         if monitor == nil {
-            monitor = HotkeyMonitor(trigger: state.settings.hotkey) { [weak self] edge, time in
-                MainActor.assumeIsolated { self?.handle(edge, at: time) }
-            }
+            monitor = HotkeyMonitor(
+                trigger: state.settings.hotkey,
+                onEdge: { [weak self] edge, time in
+                    MainActor.assumeIsolated { self?.handle(edge, at: time) }
+                },
+                onInterrupt: { [weak self] in
+                    MainActor.assumeIsolated { self?.interrupt() }
+                }
+            )
         }
         return monitor?.start() ?? false
     }
@@ -42,6 +50,10 @@ final class DictationController {
 
     private func handle(_ edge: KeyEdge, at time: TimeInterval) {
         perform(gesture.handle(edge, at: time))
+    }
+
+    private func interrupt() {
+        perform(gesture.interrupt())
     }
 
     private func perform(_ actions: [GestureAction]) {
@@ -56,7 +68,7 @@ final class DictationController {
 
     private func beginRecording() {
         guard Permissions.microphone == .authorized else {
-            pill.show(.error("Geen toegang tot de microfoon"))
+            notify("Geen toegang tot de microfoon")
             return
         }
         recordingApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -64,13 +76,17 @@ final class DictationController {
             try recorder.start { [weak self] level in
                 Task { @MainActor in self?.pill.model.level = level }
             }
+        } catch is NoInputDevice {
+            notify("Geen microfoon gevonden")
+            return
         } catch {
             log.error("recorder start failed: \(error.localizedDescription)")
-            pill.show(.error("Opnemen lukt niet"))
+            notify("Opnemen lukt niet")
             return
         }
         isRecording = true
-        pill.show(gesture.isHandsFree ? .handsFree : .listening)
+        status.recordingStarted(handsFree: gesture.isHandsFree)
+        render()
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
@@ -89,13 +105,15 @@ final class DictationController {
 
     private func cancelRecording() {
         _ = stopRecording()
-        refreshPill()
+        status.recordingCancelled()
+        render()
     }
 
     private func submitRecording() {
         let samples = stopRecording()
         guard !samples.isEmpty else {
-            refreshPill()
+            status.recordingCancelled()
+            render()
             return
         }
         let seq = queue.reserve()
@@ -107,8 +125,8 @@ final class DictationController {
         )
         let engine = state.engine
         let released = ContinuousClock.now
-        inFlight += 1
-        refreshPill()
+        status.recordingSubmitted()
+        render()
         Task.detached(priority: .userInitiated) {
             let outcome = Result { try engine.dictate(request: request) }
             await MainActor.run { self.finish(seq, outcome, released: released) }
@@ -116,20 +134,21 @@ final class DictationController {
     }
 
     private func finish(_ seq: Int, _ outcome: Result<DictationResult, Error>, released: ContinuousClock.Instant) {
-        inFlight -= 1
         let text: String?
+        let notice: String?
         switch outcome {
         case .success(let result):
             text = result.text
-            if case .failed(let message) = result.cleanup {
-                log.notice("cleanup failed, pasted raw text: \(message)")
-            }
+            notice = Self.notice(for: result.cleanup)
         case .failure(let error):
             text = nil
-            if let message = Self.message(for: error) {
-                pill.show(.error(message))
-            }
+            notice = Self.notice(for: error)
         }
+        status.dictationFinished(notice: notice)
+        if notice != nil { scheduleNoticeExpiry() }
+        render()
+        NotificationCenter.default.post(name: .musliHistoryChanged, object: nil)
+
         let ready = queue.fulfill(seq, with: text)
         let previous = insertion
         insertion = Task {
@@ -141,28 +160,41 @@ final class DictationController {
                 log.info("release→paste \(released.duration(to: .now).formatted(.units(allowed: [.milliseconds])))")
             }
         }
-        if case .success = outcome { refreshPill() }
     }
 
-    private func refreshPill() {
-        if isRecording {
-            pill.show(gesture.isHandsFree ? .handsFree : .listening)
-        } else if inFlight > 0 {
-            pill.show(.working)
-        } else if case .error = pill.model.state {
-            return
-        } else {
-            pill.show(.hidden)
+    private func notify(_ message: String) {
+        status.showNotice(message)
+        scheduleNoticeExpiry()
+        render()
+    }
+
+    private func scheduleNoticeExpiry() {
+        noticeTask?.cancel()
+        noticeTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.noticeDuration)
+            guard !Task.isCancelled, let self else { return }
+            self.status.noticeExpired()
+            self.render()
         }
     }
 
-    private static func message(for error: Error) -> String? {
+    private func render() {
+        pill.show(status.pill)
+    }
+
+    private static func notice(for cleanup: CleanupStatus) -> String? {
+        if case .failed = cleanup { return "Opkuisen mislukt — ruwe tekst geplakt" }
+        return nil
+    }
+
+    private static func notice(for error: Error) -> String? {
         switch error as? MusliError {
         case .NoSpeech: nil
         case .MissingApiKey: "Geen API-sleutel ingesteld"
-        case .Http(let status, _) where status == 401 || status == 403: "API-sleutel geweigerd"
+        case .Http(let status, _) where status == 401 || status == 403: "API-sleutel geweigerd — bewaard in geschiedenis"
         case .Network: "Geen verbinding — bewaard in geschiedenis"
-        default: "Mislukt — bewaard in geschiedenis"
+        case .Http, .InvalidResponse: "Mislukt — bewaard in geschiedenis"
+        default: "Mislukt"
         }
     }
 }

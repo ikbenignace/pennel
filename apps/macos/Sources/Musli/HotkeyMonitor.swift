@@ -6,14 +6,20 @@ import MusliKit
 /// Listens system-wide for the dictation modifier key via a listen-only event tap.
 final class HotkeyMonitor {
     private let onEdge: (KeyEdge, TimeInterval) -> Void
+    private let onInterrupt: () -> Void
     private var trigger: HotkeyTrigger
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var isDown = false
 
-    init(trigger: HotkeyTrigger, onEdge: @escaping (KeyEdge, TimeInterval) -> Void) {
+    init(
+        trigger: HotkeyTrigger,
+        onEdge: @escaping (KeyEdge, TimeInterval) -> Void,
+        onInterrupt: @escaping () -> Void
+    ) {
         self.trigger = trigger
         self.onEdge = onEdge
+        self.onInterrupt = onInterrupt
     }
 
     deinit { stop() }
@@ -27,7 +33,7 @@ final class HotkeyMonitor {
 
     func start() -> Bool {
         guard tap == nil else { return true }
-        let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+        let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue | 1 << CGEventType.keyDown.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, refcon in
             guard let refcon else { return Unmanaged.passUnretained(event) }
             let monitor = Unmanaged<HotkeyMonitor>.fromOpaque(refcon).takeUnretainedValue()
@@ -59,6 +65,10 @@ final class HotkeyMonitor {
     private func handle(type: CGEventType, event: CGEvent) {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            return
+        }
+        if type == .keyDown {
+            if isDown { onInterrupt() }
             return
         }
         guard type == .flagsChanged,

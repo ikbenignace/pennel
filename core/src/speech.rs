@@ -4,8 +4,6 @@ const MIN_RMS: f32 = 0.005;
 /// Phrases speech-to-text models emit on silence or noise, compared after normalizing.
 const HALLUCINATIONS: &[&str] = &[
     "",
-    "you",
-    "thank you",
     "thanks for watching",
     "thank you for watching",
     "ondertiteld door de amara.org gemeenschap",
@@ -57,8 +55,14 @@ mod tests {
     #[test]
     fn filters_known_hallucinations() {
         assert!(is_hallucination(" Ondertiteld door de Amara.org gemeenschap "));
-        assert!(is_hallucination("Thank you."));
+        assert!(is_hallucination("Thank you for watching."));
         assert!(is_hallucination(""));
         assert!(!is_hallucination("Thank you, Sarah, see you tomorrow."));
+    }
+
+    #[test]
+    fn real_short_replies_are_kept() {
+        assert!(!is_hallucination("Thank you."));
+        assert!(!is_hallucination("You?"));
     }
 }

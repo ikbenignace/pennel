@@ -49,3 +49,29 @@ final class HotkeyGestureTests: XCTestCase {
         XCTAssertEqual(gesture.handle(.up, at: 1), [.submit])
     }
 }
+
+final class HotkeyInterruptTests: XCTestCase {
+    func testOtherKeyWhileHoldingCancels() {
+        var gesture = HotkeyGesture()
+        _ = gesture.handle(.down, at: 0)
+        XCTAssertEqual(gesture.interrupt(), [.cancel])
+        XCTAssertEqual(gesture.handle(.up, at: 1), [])
+        XCTAssertEqual(gesture.handle(.down, at: 1.1), [.start])
+        XCTAssertFalse(gesture.isHandsFree)
+    }
+
+    func testOtherKeyInHandsFreeIsIgnored() {
+        var gesture = HotkeyGesture()
+        _ = gesture.handle(.down, at: 0)
+        _ = gesture.handle(.up, at: 0.1)
+        _ = gesture.handle(.down, at: 0.2)
+        _ = gesture.handle(.up, at: 0.3)
+        XCTAssertEqual(gesture.interrupt(), [])
+        XCTAssertEqual(gesture.handle(.down, at: 3), [.submit])
+    }
+
+    func testOtherKeyWhenIdleDoesNothing() {
+        var gesture = HotkeyGesture()
+        XCTAssertEqual(gesture.interrupt(), [])
+    }
+}

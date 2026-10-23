@@ -2,7 +2,13 @@ use crate::error::MusliError;
 use crate::http;
 use crate::provider::ProviderConfig;
 
-const TIMEOUT_SECS: u64 = 30;
+const BASE_TIMEOUT_SECS: u64 = 30;
+/// Budget for a slow uplink (~2 Mbit/s) so long hands-free recordings can still upload.
+const UPLOAD_BYTES_PER_SEC: u64 = 250_000;
+
+pub fn timeout_secs(upload_bytes: usize) -> u64 {
+    BASE_TIMEOUT_SECS + upload_bytes as u64 / UPLOAD_BYTES_PER_SEC
+}
 
 pub fn transcribe(
     provider: &ProviderConfig,
@@ -18,7 +24,7 @@ pub fn transcribe(
     let body = multipart(&boundary, &fields, wav);
 
     let url = format!("{}/audio/transcriptions", provider.base_url.trim_end_matches('/'));
-    let request = http::agent(TIMEOUT_SECS)
+    let request = http::agent(timeout_secs(body.len()))
         .post(&url)
         .header("Content-Type", format!("multipart/form-data; boundary={boundary}"));
     let response = http::send(http::with_auth(request, api_key), &body)?;
@@ -62,6 +68,12 @@ mod tests {
             model: "whisper-large-v3-turbo".into(),
             keychain_account: "groq".into(),
         }
+    }
+
+    #[test]
+    fn timeout_grows_with_upload_size() {
+        assert_eq!(timeout_secs(0), 30);
+        assert!(timeout_secs(19_200_000) >= 100, "{}", timeout_secs(19_200_000));
     }
 
     #[test]

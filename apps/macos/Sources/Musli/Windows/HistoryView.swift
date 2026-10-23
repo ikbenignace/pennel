@@ -3,6 +3,10 @@ import AppKit
 import MusliKit
 import SwiftUI
 
+extension Notification.Name {
+    static let musliHistoryChanged = Notification.Name("dev.musli.historyChanged")
+}
+
 struct HistoryView: View {
     let state: AppState
     @State private var entries: [HistoryEntry] = []
@@ -33,6 +37,8 @@ struct HistoryView: View {
         .frame(minWidth: 520, minHeight: 420)
         .background(Theme.paper)
         .onAppear(perform: reload)
+        .onReceive(NotificationCenter.default.publisher(for: .musliHistoryChanged)) { _ in reload() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in reload() }
     }
 
     private func row(_ entry: HistoryEntry) -> some View {

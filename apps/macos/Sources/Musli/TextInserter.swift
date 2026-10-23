@@ -45,7 +45,7 @@ enum TextInserter {
             event?.flags = .maskCommand
             event?.post(tap: .cghidEventTap)
         }
-        try? await Task.sleep(for: .milliseconds(250))
+        try? await Task.sleep(for: PasteboardGuard.restoreDelay)
         PasteboardGuard.end(pasteboard, token)
     }
 }

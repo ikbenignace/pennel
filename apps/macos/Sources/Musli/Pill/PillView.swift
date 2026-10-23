@@ -2,14 +2,6 @@ import MusliKit
 import Observation
 import SwiftUI
 
-enum PillState: Equatable {
-    case hidden
-    case listening
-    case handsFree
-    case working
-    case error(String)
-}
-
 @MainActor
 @Observable
 final class PillModel {

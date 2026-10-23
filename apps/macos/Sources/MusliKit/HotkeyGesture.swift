@@ -63,6 +63,13 @@ public struct HotkeyGesture: Sendable {
         }
     }
 
+    /// Another key pressed while holding means the hotkey is used as a modifier (fn+arrow, ⌘+C), not to dictate.
+    public mutating func interrupt() -> [GestureAction] {
+        guard case .holding = phase else { return [] }
+        phase = .awaitingRelease
+        return [.cancel]
+    }
+
     public mutating func tick(at t: TimeInterval) -> [GestureAction] {
         switch phase {
         case .holding(let startedAt) where t - startedAt >= maxDuration:

@@ -1,4 +1,7 @@
 import AVFoundation
+import MusliKit
+
+struct NoInputDevice: Error {}
 
 /// Records the default input as 16 kHz mono Float32. The engine only runs while recording.
 final class AudioRecorder: @unchecked Sendable {
@@ -19,6 +22,9 @@ final class AudioRecorder: @unchecked Sendable {
         lock.withLock { samples.removeAll(keepingCapacity: true) }
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
+        guard AudioInput.isUsable(sampleRate: inputFormat.sampleRate, channels: inputFormat.channelCount) else {
+            throw NoInputDevice()
+        }
         converter = AVAudioConverter(from: inputFormat, to: outputFormat)
         input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 2048, format: inputFormat) { [weak self] buffer, _ in
