@@ -3,6 +3,8 @@ uniffi::setup_scaffolding!();
 mod error;
 mod provider;
 mod settings;
+mod speech;
+mod wav;
 
 pub use error::MusliError;
 pub use provider::{preset, ProviderConfig, ProviderKind, ProviderTask};
