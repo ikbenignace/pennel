@@ -3,6 +3,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::MusliError;
+use crate::rules::{AppRule, CalendarRule, EventRule};
 use crate::provider::{
     default_base_url, default_model, new_account, supports, ProviderAccount, ProviderKind, ProviderTask,
 };
@@ -63,6 +64,26 @@ pub struct Settings {
     pub meeting_audio_retention_days: u32,
     #[serde(default = "default_template_id")]
     pub default_template: String,
+    #[serde(default)]
+    pub app_rules: Vec<AppRule>,
+    #[serde(default)]
+    pub calendar_rules: Vec<CalendarRule>,
+    #[serde(default)]
+    pub event_rules: Vec<EventRule>,
+    #[serde(default)]
+    pub calendar_enabled: bool,
+    #[serde(default = "enabled")]
+    pub echo_cancellation: bool,
+    #[serde(default = "enabled")]
+    pub record_shortcut_enabled: bool,
+    #[serde(default)]
+    pub consent_enabled: bool,
+    #[serde(default = "enabled")]
+    pub auto_detect: bool,
+}
+
+fn enabled() -> bool {
+    true
 }
 
 fn default_template_id() -> String {
@@ -113,6 +134,14 @@ pub fn default_settings() -> Settings {
         meetings_dir: String::new(),
         meeting_audio_retention_days: 0,
         default_template: default_template_id(),
+        app_rules: Vec::new(),
+        calendar_rules: Vec::new(),
+        event_rules: Vec::new(),
+        calendar_enabled: false,
+        echo_cancellation: true,
+        record_shortcut_enabled: true,
+        consent_enabled: false,
+        auto_detect: true,
     }
 }
 
@@ -244,6 +273,7 @@ impl LegacySettings {
             meetings_dir: String::new(),
             meeting_audio_retention_days: 0,
             default_template: default_template_id(),
+            ..default_settings()
         }
     }
 }
