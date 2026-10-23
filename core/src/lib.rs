@@ -1,7 +1,9 @@
 uniffi::setup_scaffolding!();
 
+mod cleanup;
 mod error;
 mod http;
+mod llm;
 mod provider;
 mod settings;
 mod speech;
