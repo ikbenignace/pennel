@@ -8,6 +8,9 @@ use crate::error::MusliError;
 use crate::history::{HistoryEntry, HistoryStore};
 use crate::llm::chat_complete;
 use crate::local_stt::LocalWhisper;
+use crate::meetings::{MeetingInfo, MeetingStore, Segment};
+use crate::session::MeetingSession;
+use crate::settings::ModelChoice;
 use crate::models::{CancelFlag, DownloadListener, ModelState, ModelStore};
 use crate::provider::{requires_key, ProviderAccount, ProviderConfig, ProviderKind};
 use crate::settings::{DictationMode, Settings};
@@ -161,6 +164,74 @@ impl MusliEngine {
         self.local.unload_if_idle(std::time::Duration::from_secs(minutes * 60), std::time::Instant::now())
     }
 
+    pub fn start_meeting(self: Arc<Self>, title: String, keys: ApiKeys) -> Result<Arc<MeetingSession>, MusliError> {
+        let store = self.meeting_store();
+        let id = store.create(&title, chrono::Local::now())?;
+        Ok(MeetingSession::start(self.clone(), store, id, keys))
+    }
+
+    pub fn meetings(&self) -> Vec<MeetingInfo> {
+        self.meeting_store().list()
+    }
+
+    pub fn search_meetings(&self, query: String) -> Vec<MeetingInfo> {
+        self.meeting_store().search(&query)
+    }
+
+    pub fn meeting_info(&self, id: String) -> Option<MeetingInfo> {
+        self.meeting_store().info(&id)
+    }
+
+    pub fn meeting_notes(&self, id: String) -> String {
+        self.meeting_store().read_notes(&id)
+    }
+
+    pub fn meeting_markdown(&self, id: String) -> Option<String> {
+        self.meeting_store().read_meeting(&id)
+    }
+
+    pub fn meeting_transcript(&self, id: String) -> Vec<Segment> {
+        self.meeting_store().read_transcript(&id)
+    }
+
+    pub fn meeting_dir(&self, id: String) -> String {
+        self.meeting_store().dir_of(&id).to_string_lossy().into_owned()
+    }
+
+    pub fn rename_meeting(&self, id: String, title: String) -> Result<String, MusliError> {
+        self.meeting_store().rename(&id, &title)
+    }
+
+    pub fn delete_meeting(&self, id: String) -> Result<(), MusliError> {
+        self.meeting_store().delete(&id)
+    }
+
+    pub fn prune_meeting_audio(&self) -> u32 {
+        let days = self.settings.read().unwrap().meeting_audio_retention_days;
+        self.meeting_store().prune_audio(days, std::time::SystemTime::now())
+    }
+
+    /// Retries chunks whose transcription failed during the meeting; returns how many were recovered.
+    pub fn retranscribe_failed(&self, id: String, keys: ApiKeys) -> Result<u32, MusliError> {
+        let store = self.meeting_store();
+        let settings = self.settings();
+        let mut segments = store.read_transcript(&id);
+        let mut recovered = 0;
+        for segment in segments.iter_mut().filter(|s| s.failed) {
+            let path = crate::session::failed_path(&store.dir_of(&id), segment.speaker, segment.start_ms);
+            let Ok(wav) = std::fs::read(&path) else { continue };
+            if let Ok(text) = self.stt(&settings, &settings.meeting_stt, &wav, &keys) {
+                segment.text = if is_hallucination(&text) { String::new() } else { text };
+                segment.failed = false;
+                let _ = std::fs::remove_file(&path);
+                recovered += 1;
+            }
+        }
+        segments.retain(|s| s.failed || !s.text.is_empty());
+        store.write_transcript(&id, &segments)?;
+        Ok(recovered)
+    }
+
     pub fn model_state(&self, id: String) -> ModelState {
         self.models.state(&id)
     }
@@ -190,16 +261,7 @@ impl MusliEngine {
 
 impl MusliEngine {
     fn process(&self, settings: &Settings, wav: &[u8], app: Option<&str>, keys: &ApiKeys) -> Result<Transcript, MusliError> {
-        let prompt: Option<String> = (!settings.dictionary.is_empty())
-            .then(|| settings.dictionary.join(", ").chars().take(MAX_PROMPT_CHARS).collect());
-        let (account, model) = settings.resolve(&settings.dictation_stt).ok_or(MusliError::NotFound)?;
-        let raw = if account.kind == ProviderKind::Local {
-            let path = self.models.path(&model).ok_or(MusliError::ModelNotDownloaded)?;
-            let (samples, _) = decode_wav(wav).ok_or(MusliError::InvalidResponse { message: "bad audio".into() })?;
-            self.local.transcribe(&path, &samples, settings.language.as_deref(), prompt.as_deref())?
-        } else {
-            transcribe(&endpoint(&account, model), keys.get(&account), wav, prompt.as_deref(), settings.language.as_deref())?
-        };
+        let raw = self.stt(settings, &settings.dictation_stt, wav, keys)?;
         if is_hallucination(&raw) {
             return Err(MusliError::NoSpeech);
         }
@@ -208,6 +270,39 @@ impl MusliEngine {
             DictationMode::Clean => clean(settings, &raw, app, keys),
         };
         Ok(Transcript { raw, text, cleanup })
+    }
+
+    /// Speech-to-text for one WAV via the provider in `choice`, cloud or local.
+    pub(crate) fn stt(
+        &self,
+        settings: &Settings,
+        choice: &ModelChoice,
+        wav: &[u8],
+        keys: &ApiKeys,
+    ) -> Result<String, MusliError> {
+        let prompt: Option<String> = (!settings.dictionary.is_empty())
+            .then(|| settings.dictionary.join(", ").chars().take(MAX_PROMPT_CHARS).collect());
+        let (account, model) = settings.resolve(choice).ok_or(MusliError::NotFound)?;
+        if account.kind == ProviderKind::Local {
+            let path = self.models.path(&model).ok_or(MusliError::ModelNotDownloaded)?;
+            let (samples, _) = decode_wav(wav).ok_or(MusliError::InvalidResponse { message: "bad audio".into() })?;
+            return self.local.transcribe(&path, &samples, settings.language.as_deref(), prompt.as_deref());
+        }
+        let key = keys.get(&account);
+        if requires_key(account.kind) && key.is_none() {
+            return Err(MusliError::MissingApiKey { task: "stt".into() });
+        }
+        transcribe(&endpoint(&account, model), key, wav, prompt.as_deref(), settings.language.as_deref())
+    }
+
+    pub(crate) fn meeting_store(&self) -> MeetingStore {
+        let configured = self.settings.read().unwrap().meetings_dir.clone();
+        let dir = if configured.is_empty() {
+            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("Musli")
+        } else {
+            PathBuf::from(configured)
+        };
+        MeetingStore::new(&dir)
     }
 }
 
