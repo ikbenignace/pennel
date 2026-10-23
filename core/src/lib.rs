@@ -1,5 +1,6 @@
 uniffi::setup_scaffolding!();
 
+mod chunker;
 mod cleanup;
 mod engine;
 mod error;
