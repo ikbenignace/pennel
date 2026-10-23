@@ -5,7 +5,8 @@ import MusliKit
 
 /// Polls Core Audio for processes that currently capture audio input and classifies them as calls.
 final class MicUsageMonitor: @unchecked Sendable {
-    static let callTitleHints = ["Meet", "Teams", "Zoom", "Whereby", "Webex"]
+    /// Title fragments of call tabs; specific enough that "Meeting notes" doesn't match.
+    static let callTitleHints = ["Meet - ", "Google Meet", "Microsoft Teams", "| Teams", "Zoom Meeting", "Zoom Workplace", "Whereby", "Webex"]
 
     private let callApps: [String]
     private let browsers: [String]
@@ -36,23 +37,27 @@ final class MicUsageMonitor: @unchecked Sendable {
     }
 
     private func snapshot() -> Set<MicUser> {
-        var users = Set<MicUser>()
-        for process in Self.processList() where Self.isRunningInput(process) {
+        var recording = Set<String>()
+        var playing = Set<String>()
+        for process in Self.processList() {
             guard let bundleId = Self.bundleId(process) else { continue }
-            users.insert(classify(bundleId))
+            let app = owner(of: bundleId)
+            if Self.isRunning(process, kAudioProcessPropertyIsRunningInput) { recording.insert(app) }
+            if Self.isRunning(process, kAudioProcessPropertyIsRunningOutput) { playing.insert(app) }
         }
-        return users
+        return Set(recording.map { app in
+            MicUser(bundleId: app, isCall: isCall(app), isPlaying: playing.contains(app))
+        })
     }
 
     /// Helper processes (e.g. `com.google.Chrome.helper`) are attributed to their main app.
-    private func classify(_ bundleId: String) -> MicUser {
-        if let app = callApps.first(where: { bundleId.hasPrefix($0) }) {
-            return MicUser(bundleId: app, isCall: true)
-        }
-        if let browser = browsers.first(where: { bundleId.hasPrefix($0) }) {
-            return MicUser(bundleId: browser, isCall: Self.browserShowsCall(browser))
-        }
-        return MicUser(bundleId: bundleId, isCall: false)
+    private func owner(of bundleId: String) -> String {
+        (callApps + browsers).first(where: { bundleId.hasPrefix($0) }) ?? bundleId
+    }
+
+    private func isCall(_ app: String) -> Bool {
+        if callApps.contains(app) { return true }
+        return browsers.contains(app) && Self.browserShowsCall(app)
     }
 
     private static func browserShowsCall(_ bundleId: String) -> Bool {
@@ -95,9 +100,9 @@ final class MicUsageMonitor: @unchecked Sendable {
         return objects
     }
 
-    private static func isRunningInput(_ process: AudioObjectID) -> Bool {
+    private static func isRunning(_ process: AudioObjectID, _ selector: AudioObjectPropertySelector) -> Bool {
         var address = AudioObjectPropertyAddress(
-            mSelector: kAudioProcessPropertyIsRunningInput,
+            mSelector: selector,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )

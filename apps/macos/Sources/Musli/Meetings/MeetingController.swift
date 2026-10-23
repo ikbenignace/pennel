@@ -47,7 +47,7 @@ final class MeetingController {
 
     /// `detectedApp` is set when a detected call started this recording; only then does the call's end stop it.
     func start(title eventTitle: String? = nil, attendees: [String] = [], detectedApp: String? = nil) {
-        guard phase != .recording, phase != .summarizing else { return }
+        guard phase != .recording else { return }
         defaultTitle = eventTitle ?? "Meeting \(Date().formatted(date: .omitted, time: .shortened))"
         title = defaultTitle
         notes = ""
@@ -99,6 +99,11 @@ final class MeetingController {
     }
 
     private func finish(id: String, summary: Result<String, Error>) {
+        // A back-to-back call may already be recording; only the library needs to learn about this one.
+        guard phase == .summarizing else {
+            onLibraryChanged?()
+            return
+        }
         meetingId = id
         detectedApp = nil
         session = nil
@@ -109,11 +114,10 @@ final class MeetingController {
         onLibraryChanged?()
     }
 
-    /// Keeps a dictation done during the meeting out of its transcript.
-    func markDictation(from start: Date, to end: Date) {
-        guard phase == .recording, let session, let began = recorder.startDate else { return }
-        let toMs: (Date) -> UInt64 = { UInt64(max(0, $0.timeIntervalSince(began)) * 1000) }
-        session.markDictation(startMs: toMs(start), endMs: toMs(end))
+    /// Silences the user's microphone in the meeting while they dictate into another app.
+    func setDictating(_ dictating: Bool) {
+        guard phase == .recording else { return }
+        session?.setDictating(dictating: dictating)
     }
 
     /// Quitting mid-meeting: close the audio files and transcribe what's left, but skip the summary.

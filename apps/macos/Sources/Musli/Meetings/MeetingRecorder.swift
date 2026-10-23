@@ -154,13 +154,25 @@ final class MeetingRecorder {
                 guard let converted = resampler.convert(buffer) else { return }
                 others.append(converted)
                 if silence.feed(converted.monoSamples) {
-                    Task { @MainActor in self?.onSystemAudioSilent?() }
+                    Task { @MainActor in self?.systemAudioSilent() }
                 }
             }
             systemAudioAvailable = true
         } catch {
             log.error("system audio tap failed: \(String(describing: error), privacy: .public)")
             systemAudioAvailable = false
+        }
+    }
+
+    /// Some apps play call audio from another process (FaceTime via avconferenced), so an app-only
+    /// tap can stay silent; fall back to all system audio before telling the user.
+    private func systemAudioSilent() {
+        if tapProcesses != nil {
+            log.notice("app tap silent; falling back to global system audio")
+            tapProcesses = nil
+            restartSystemAudio()
+        } else {
+            onSystemAudioSilent?()
         }
     }
 

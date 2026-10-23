@@ -16,7 +16,7 @@
 - Browsers (`com.google.Chrome`, `com.apple.Safari`, `company.thebrowser.Browser`, `com.microsoft.edgemac`, `org.mozilla.firefox`, `com.brave.Browser`): enkel als call tellen als een venstertitel `Meet`, `Teams`, `Zoom`, `Whereby` of `Webex` bevat (via Accessibility).
 - Bij een herkende call: tap enkel op de processen van die app (`CATapDescription(stereoMixdownOfProcesses:)`); handmatig blijft globaal.
 - Agenda: EventKit, enkel als de gebruiker het aanzet (`calendar_enabled`, standaard uit). Lopend event = niet hele dag, `start - 5 min ≤ nu ≤ end`. Titel → meetingtitel; deelnemers → frontmatter `attendees: [naam, …]`.
-- Echo: microfoon met `setVoiceProcessingEnabled(true)` (instelling `echo_cancellation`, standaard aan) + ontdubbelen: een "Ik"-segment vervalt als een "Anderen"-segment binnen ±5 s ≥ 80 % dezelfde woorden heeft (token-overlap op het kleinste segment).
+- Echo: microfoon met `setVoiceProcessingEnabled(true)` (instelling `echo_cancellation`, standaard aan) + ontdubbelen: een "Ik"-segment vervalt als een "Anderen"-segment binnen ±5 s ≥ 80 % dezelfde woorden heeft (≥ 80 % van de eigen woorden komt voor bij de anderen én de lengtes verschillen hoogstens 40 %).
 - Dicteren tijdens een meeting: "Ik"-segmenten die voor > 50 % binnen een dictaatperiode vallen, vervallen.
 - Globale sneltoets ⌘⇧R (start/stop opname), instelling `record_shortcut_enabled` (standaard aan), wordt ingeslikt zodat de app vooraan hem niet krijgt.
 - Toestemmingszin (instelling `consent_enabled`, standaard uit): bij start wordt `Ik neem notities met transcript via Musli.` naar het klembord gekopieerd en meldt het pilletje "Toestemmingszin gekopieerd — plak in de chat".

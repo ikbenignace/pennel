@@ -2,7 +2,8 @@ import CoreGraphics
 import Foundation
 
 /// Global ⌘⇧R that is swallowed, so the app in front (a browser's hard reload) never sees it.
-final class ShortcutTap {
+/// Only touched from the main run loop, where the tap and its callback live.
+final class ShortcutTap: @unchecked Sendable {
     private static let rKey: Int64 = 15
     private let onTrigger: () -> Void
     private var tap: CFMachPort?
@@ -26,7 +27,10 @@ final class ShortcutTap {
                 return Unmanaged.passUnretained(event)
             }
             guard shortcut.matches(event) else { return Unmanaged.passUnretained(event) }
-            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { shortcut.onTrigger() }
+            // Return at once: a swallowing tap delays every keystroke on the Mac while it runs.
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                DispatchQueue.main.async { shortcut.onTrigger() }
+            }
             return nil
         }
         guard let tap = CGEvent.tapCreate(

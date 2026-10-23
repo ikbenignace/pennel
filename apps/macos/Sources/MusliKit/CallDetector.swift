@@ -4,10 +4,13 @@ public struct MicUser: Hashable, Sendable {
     public let bundleId: String
     /// A known call app, or a browser whose window title looks like a call.
     public let isCall: Bool
+    /// Calls play audio; recording a voice message does not.
+    public let isPlaying: Bool
 
-    public init(bundleId: String, isCall: Bool) {
+    public init(bundleId: String, isCall: Bool, isPlaying: Bool) {
         self.bundleId = bundleId
         self.isCall = isCall
+        self.isPlaying = isPlaying
     }
 }
 
@@ -34,10 +37,11 @@ public struct CallDetector: Sendable {
     }
 
     public mutating func update(users: Set<MicUser>, at t: TimeInterval) -> [CallEvent] {
-        let calls = Set(users.filter { $0.isCall && $0.bundleId != ownBundleId }.map(\.bundleId))
+        let calls = Set(users.filter { $0.isCall && $0.isPlaying && $0.bundleId != ownBundleId }.map(\.bundleId))
 
         if let active = activeCall {
-            if calls.contains(active) {
+            // Once a call runs, any mic use by that app keeps it alive (a browser may show another tab).
+            if users.contains(where: { $0.bundleId == active }) {
                 lastSeen = t
                 return []
             }

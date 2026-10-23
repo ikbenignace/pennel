@@ -49,6 +49,7 @@ pub struct MeetingSession {
     store: MeetingStore,
     chunkers: Mutex<[Chunker; 2]>,
     pushed_samples: Mutex<[u64; 2]>,
+    dictating: std::sync::atomic::AtomicBool,
     sender: Mutex<Option<Sender<Job>>>,
     worker: Mutex<Option<JoinHandle<()>>>,
     progress: Arc<Mutex<Progress>>,
@@ -85,6 +86,7 @@ impl MeetingSession {
             store,
             chunkers: Mutex::new([Chunker::new(SAMPLE_RATE), Chunker::new(SAMPLE_RATE)]),
             pushed_samples: Mutex::new([0, 0]),
+            dictating: std::sync::atomic::AtomicBool::new(false),
             sender: Mutex::new(Some(sender)),
             worker: Mutex::new(Some(worker)),
             progress,
@@ -139,6 +141,11 @@ impl MeetingSession {
 
     /// Accepts 16 kHz mono samples; transcription happens on a background thread.
     pub fn push_audio(&self, speaker: Speaker, samples: Vec<f32>) {
+        let samples = if speaker == Speaker::Me && self.dictating.load(std::sync::atomic::Ordering::SeqCst) {
+            vec![0.0; samples.len()]
+        } else {
+            samples
+        };
         self.pushed_samples.lock().unwrap()[index(speaker)] += samples.len() as u64;
         let chunks = self.chunkers.lock().unwrap()[index(speaker)].push(&samples);
         self.enqueue(speaker, chunks);
@@ -150,6 +157,11 @@ impl MeetingSession {
 
     pub fn transcript(&self) -> Vec<Segment> {
         self.progress.lock().unwrap().visible()
+    }
+
+    /// While true, the user's microphone is replaced by silence: they are dictating into another app.
+    pub fn set_dictating(&self, dictating: bool) {
+        self.dictating.store(dictating, std::sync::atomic::Ordering::SeqCst);
     }
 
     /// Marks a period (meeting timeline, ms) in which the user dictated into another app.
@@ -294,6 +306,20 @@ mod tests {
         stt_ok(&mut server, "tweede");
         assert_eq!(engine.retranscribe_failed(session.id(), keys()).unwrap(), 1);
         assert!(engine.meeting_transcript(session.id()).iter().all(|s| !s.failed));
+    }
+
+    #[test]
+    fn audio_while_dictating_is_silenced() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let mock = stt_ok(&mut server, "stuur de planning naar Sarah").expect(0);
+        let session = engine.clone().start_meeting("Dictaat".into(), keys()).unwrap();
+        session.set_dictating(true);
+        session.push_audio(Speaker::Me, tone(8.0));
+        session.set_dictating(false);
+        session.stop().unwrap();
+        mock.assert();
+        assert!(session.transcript().is_empty());
     }
 
     #[test]

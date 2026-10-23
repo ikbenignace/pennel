@@ -5,6 +5,8 @@ use crate::meetings::{Segment, Speaker};
 const ECHO_WINDOW_MS: u64 = 5_000;
 const ECHO_OVERLAP: f32 = 0.8;
 const MIN_ECHO_TOKENS: usize = 3;
+/// Echo is a copy of what the others said, so both sides have roughly the same length.
+const MIN_LENGTH_RATIO: f32 = 0.6;
 
 fn tokens(text: &str) -> HashSet<String> {
     text.split_whitespace()
@@ -17,9 +19,12 @@ fn is_echo(me: &Segment, others: &Segment) -> bool {
     if me.start_ms.abs_diff(others.start_ms) > ECHO_WINDOW_MS {
         return false;
     }
-    let (a, b) = (tokens(&me.text), tokens(&others.text));
-    let smallest = a.len().min(b.len());
-    smallest >= MIN_ECHO_TOKENS && a.intersection(&b).count() as f32 / smallest as f32 >= ECHO_OVERLAP
+    let (mine, theirs) = (tokens(&me.text), tokens(&others.text));
+    if mine.len() < MIN_ECHO_TOKENS || theirs.is_empty() {
+        return false;
+    }
+    let ratio = mine.len().min(theirs.len()) as f32 / mine.len().max(theirs.len()) as f32;
+    ratio >= MIN_LENGTH_RATIO && mine.intersection(&theirs).count() as f32 / mine.len() as f32 >= ECHO_OVERLAP
 }
 
 fn mostly_dictation(segment: &Segment, dictations: &[(u64, u64)]) -> bool {
@@ -89,6 +94,24 @@ mod tests {
     #[test]
     fn short_segments_are_not_deduped() {
         let segments = [seg(10, 11, Speaker::Others, "Ja."), seg(10, 11, Speaker::Me, "ja")];
+        assert_eq!(filter_segments(&segments, &[]).len(), 2);
+    }
+
+    #[test]
+    fn long_own_speech_with_short_reply_is_kept() {
+        let segments = [
+            seg(10, 12, Speaker::Others, "ok dat is goed"),
+            seg(11, 36, Speaker::Me, "ok dus dat is goed maar we moeten nog de planning bekijken en de demo voor vrijdag voorbereiden met het hele team"),
+        ];
+        assert_eq!(filter_segments(&segments, &[]).len(), 2);
+    }
+
+    #[test]
+    fn short_own_reply_inside_long_others_is_kept() {
+        let segments = [
+            seg(10, 40, Speaker::Others, "we hebben gekeken naar de cijfers en ja dat klopt wel ongeveer met wat we vorige week dachten"),
+            seg(12, 14, Speaker::Me, "ja dat klopt"),
+        ];
         assert_eq!(filter_segments(&segments, &[]).len(), 2);
     }
 
