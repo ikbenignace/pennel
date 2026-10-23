@@ -36,7 +36,7 @@ struct OnboardingView: View {
             step(
                 ok: keyOK,
                 title: "Provider",
-                detail: "Kies waar je spraak naartoe gaat en plak je API-sleutel bij Instellingen → Providers.",
+                detail: "Plak een API-sleutel bij Instellingen → Providers, of download daar een lokaal model.",
                 actionTitle: nil,
                 action: {}
             )
@@ -55,8 +55,8 @@ struct OnboardingView: View {
     private func refresh() {
         micOK = Permissions.microphone == .authorized
         axOK = Permissions.accessibilityTrusted
-        let account = state.settings.dictationStt.keychainAccount
-        keyOK = account.isEmpty || Keychain.get(account) != nil
+        state.downloads.refresh()
+        keyOK = state.isReady(state.settings.dictationStt)
     }
 
     private func requestMicrophone() {

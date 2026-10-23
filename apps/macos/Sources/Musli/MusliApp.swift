@@ -7,6 +7,7 @@ final class MusliApp: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     private var dictation: DictationController?
     private var permissionPoll: Timer?
+    private var unloadTimer: Timer?
     private let windows = WindowPresenter()
 
     static func main() {
@@ -26,6 +27,10 @@ final class MusliApp: NSObject, NSApplicationDelegate {
             state.onHotkeyChange = { [weak dictation] trigger in dictation?.setTrigger(trigger) }
             menuBar = MenuBarController(state: state, windows: windows, dictation: dictation)
             startDictation(dictation)
+            let engine = state.engine
+            unloadTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+                DispatchQueue.global(qos: .utility).async { _ = engine.unloadIdleModels() }
+            }
             if state.needsOnboarding {
                 windows.show(id: "onboarding", title: "Welkom bij Musli", size: NSSize(width: 520, height: 560)) {
                     OnboardingView(state: state)

@@ -275,6 +275,29 @@ mod tests {
     }
 
     #[test]
+    fn migrates_v1_with_keyless_lm_studio() {
+        let v1 = V1_GROQ
+            .replacen(
+                r#""dictation_stt": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"whisper-large-v3-turbo","keychain_account":"groq"}"#,
+                r#""dictation_stt": {"kind":"lm_studio","base_url":"http://localhost:1234/v1","model":"w","keychain_account":""}"#,
+                1,
+            )
+            .replacen(
+                r#""meeting_stt": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"whisper-large-v3-turbo","keychain_account":"groq"}"#,
+                r#""meeting_stt": {"kind":"open_router","base_url":"https://openrouter.ai/api/v1","model":"openai/whisper-large-v3-turbo","keychain_account":"openrouter"}"#,
+                1,
+            );
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, v1).unwrap();
+        let s = Settings::load(&path).unwrap();
+        assert_eq!(ids(&s), ["lmstudio", "openrouter", "groq", "local"]);
+        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "lmstudio".into(), model: "w".into() });
+        assert_eq!(s.providers[0].base_url, "http://localhost:1234/v1");
+        assert_eq!(s.llm.provider_id, "groq");
+    }
+
+    #[test]
     fn removed_provider_falls_back() {
         let mut s = default_settings();
         s.providers.retain(|p| p.id != "groq");

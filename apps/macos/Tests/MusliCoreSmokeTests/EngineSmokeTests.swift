@@ -20,7 +20,7 @@ final class EngineSmokeTests: XCTestCase {
             samples: [Float](repeating: 0, count: 16000),
             sampleRate: 16000,
             appBundleId: nil,
-            keys: ApiKeys(stt: "k", llm: "k")
+            keys: ApiKeys(byProvider: ["groq": "k"])
         )
         XCTAssertThrowsError(try engine.dictate(request: request)) { error in
             XCTAssertEqual(error as? MusliError, .NoSpeech)

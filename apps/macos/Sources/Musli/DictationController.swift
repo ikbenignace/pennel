@@ -191,6 +191,7 @@ final class DictationController {
         switch error as? MusliError {
         case .NoSpeech: nil
         case .MissingApiKey: "Geen API-sleutel ingesteld"
+        case .ModelNotDownloaded: "Model nog niet gedownload — bewaard in geschiedenis"
         case .Http(let status, _) where status == 401 || status == 403: "API-sleutel geweigerd — bewaard in geschiedenis"
         case .Network: "Geen verbinding — bewaard in geschiedenis"
         case .Http, .InvalidResponse: "Mislukt — bewaard in geschiedenis"
