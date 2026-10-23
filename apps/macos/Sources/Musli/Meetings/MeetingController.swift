@@ -1,3 +1,4 @@
+import CoreAudio
 import Foundation
 @preconcurrency import MusliCore
 import Observation
@@ -19,6 +20,7 @@ final class MeetingController {
     private(set) var liveTranscript: [Segment] = []
     private(set) var systemAudioMissing = false
     private(set) var error: String?
+    private(set) var detectedApp: String?
     var title = ""
     var notes = "" {
         didSet { scheduleNotesSave() }
@@ -40,16 +42,19 @@ final class MeetingController {
 
     var isRecording: Bool { phase == .recording }
 
-    func start() {
+    /// `detectedApp` is set when a detected call started this recording; only then does the call's end stop it.
+    func start(title eventTitle: String? = nil, attendees: [String] = [], detectedApp: String? = nil) {
         guard phase != .recording, phase != .summarizing else { return }
-        defaultTitle = "Meeting \(Date().formatted(date: .omitted, time: .shortened))"
+        defaultTitle = eventTitle ?? "Meeting \(Date().formatted(date: .omitted, time: .shortened))"
         title = defaultTitle
         notes = ""
         liveTranscript = []
         error = nil
+        self.detectedApp = detectedApp
         do {
-            let session = try state.engine.startMeeting(title: defaultTitle, keys: state.keys())
-            try recorder.start(session: session)
+            let session = try state.engine.startMeetingWith(title: defaultTitle, attendees: attendees, keys: state.keys())
+            let tapProcesses: (() -> [AudioObjectID])? = detectedApp.map { app in { MicUsageMonitor.processObjects(bundleId: app) } }
+            try recorder.start(session: session, tapProcesses: tapProcesses)
             self.session = session
             meetingId = session.id()
             systemAudioMissing = !recorder.systemAudioAvailable
@@ -86,6 +91,7 @@ final class MeetingController {
 
     private func finish(id: String, summary: Result<String, Error>) {
         meetingId = id
+        detectedApp = nil
         session = nil
         phase = .finished
         if case .failure(let failure) = summary, (failure as? MusliError) != .NoSpeech {

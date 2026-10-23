@@ -9,6 +9,7 @@ final class MusliApp: NSObject, NSApplicationDelegate {
     private var permissionPoll: Timer?
     private var unloadTimer: Timer?
     private var meeting: MeetingController?
+    private var calls: CallCoordinator?
     private let windows = WindowPresenter()
 
     static func main() {
@@ -34,6 +35,10 @@ final class MusliApp: NSObject, NSApplicationDelegate {
                 menuBar?.updateIcon()
                 NotificationCenter.default.post(name: .musliMeetingsChanged, object: nil)
             }
+            let calls = CallCoordinator(state: state, meeting: meeting, calendar: CalendarProvider())
+            self.calls = calls
+            calls.refresh()
+            state.onRecordingSettingsChange = { [weak calls] in calls?.refresh() }
             startDictation(dictation)
             let engine = state.engine
             DispatchQueue.global(qos: .utility).async { _ = engine.pruneMeetingAudio() }

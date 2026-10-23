@@ -180,6 +180,16 @@ impl MeetingStore {
         self.write_file(id, "meeting.md", &render_meeting(&front, body))
     }
 
+    pub fn set_attendees(&self, id: &str, attendees: &[String]) -> Result<(), MusliError> {
+        let (mut front, body) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
+        front.extra.retain(|line| !line.starts_with("attendees:"));
+        if !attendees.is_empty() {
+            let names: Vec<String> = attendees.iter().map(|a| a.replace([',', '[', ']'], " ").trim().to_owned()).collect();
+            front.extra.push(format!("attendees: [{}]", names.join(", ")));
+        }
+        self.write_file(id, "meeting.md", &render_meeting(&front, &body))
+    }
+
     pub fn set_duration(&self, id: &str, duration_min: u32) -> Result<(), MusliError> {
         let (mut front, body) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
         front.duration_min = duration_min;
@@ -397,6 +407,18 @@ mod tests {
         let md = std::fs::read_to_string(dir.path().join(&id).join("meeting.md")).unwrap();
         assert!(md.contains("tags: [q8, klant]"), "{md}");
         assert!(md.contains("title: Nieuw"), "{md}");
+    }
+
+    #[test]
+    fn attendees_are_written_to_frontmatter() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("T", start()).unwrap();
+        store.set_attendees(&id, &["Sarah Peeters".into(), "Tom".into()]).unwrap();
+        store.write_meeting(&id, 3, "algemeen", "body").unwrap();
+        let md = std::fs::read_to_string(dir.path().join(&id).join("meeting.md")).unwrap();
+        assert_eq!(md.matches("attendees:").count(), 1, "{md}");
+        assert!(md.contains("attendees: [Sarah Peeters, Tom]"), "{md}");
     }
 
     #[test]

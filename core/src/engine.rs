@@ -165,8 +165,18 @@ impl MusliEngine {
     }
 
     pub fn start_meeting(self: Arc<Self>, title: String, keys: ApiKeys) -> Result<Arc<MeetingSession>, MusliError> {
+        self.start_meeting_with(title, Vec::new(), keys)
+    }
+
+    pub fn start_meeting_with(
+        self: Arc<Self>,
+        title: String,
+        attendees: Vec<String>,
+        keys: ApiKeys,
+    ) -> Result<Arc<MeetingSession>, MusliError> {
         let store = self.meeting_store();
         let id = store.create(&title, chrono::Local::now())?;
+        store.set_attendees(&id, &attendees)?;
         Ok(MeetingSession::start(self.clone(), store, id, keys))
     }
 

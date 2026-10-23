@@ -60,11 +60,14 @@ final class MeetingRecorder {
     private var outputListener: AudioObjectPropertyListenerBlock?
     private let silence = SilenceProbe()
     private(set) var systemAudioAvailable = true
+    private var tapProcesses: (() -> [AudioObjectID])?
     var onSystemAudioSilent: (() -> Void)?
 
     var elapsed: TimeInterval { startedAt.map { Date().timeIntervalSince($0) } ?? 0 }
 
-    func start(session: MeetingSession) throws {
+    /// `tapProcesses` is re-evaluated on every (re)start so helpers that appear later are included.
+    func start(session: MeetingSession, tapProcesses: (() -> [AudioObjectID])? = nil) throws {
+        self.tapProcesses = tapProcesses
         let dir = URL(fileURLWithPath: session.dir())
         me = TrackWriter(speaker: .me, session: session, url: dir.appendingPathComponent("ik.m4a"))
         others = TrackWriter(speaker: .others, session: session, url: dir.appendingPathComponent("anderen.m4a"))
@@ -95,6 +98,7 @@ final class MeetingRecorder {
         me = nil
         others = nil
         startedAt = nil
+        tapProcesses = nil
     }
 
     private func startMicrophone() throws {
@@ -128,7 +132,7 @@ final class MeetingRecorder {
         guard let others else { return }
         silence.reset()
         do {
-            let resampler = MonoResampler(from: try tap.prepare())
+            let resampler = MonoResampler(from: try tap.prepare(processes: tapProcesses?()))
             let silence = silence
             try tap.start { [weak self] buffer in
                 guard let converted = resampler.convert(buffer) else { return }

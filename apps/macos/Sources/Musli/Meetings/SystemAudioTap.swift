@@ -20,8 +20,13 @@ final class SystemAudioTap: @unchecked Sendable {
     private var format: AVAudioFormat?
 
     /// Creates the tap and returns the format its buffers will have.
-    func prepare() throws -> AVAudioFormat {
-        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: ownProcessObject().map { [$0] } ?? [])
+    /// `processes` limits it to one app's audio (a detected call); nil taps everything except Musli.
+    func prepare(processes: [AudioObjectID]? = nil) throws -> AVAudioFormat {
+        let description = if let processes, !processes.isEmpty {
+            CATapDescription(stereoMixdownOfProcesses: processes)
+        } else {
+            CATapDescription(stereoGlobalTapButExcludeProcesses: ownProcessObject().map { [$0] } ?? [])
+        }
         description.uuid = UUID()
         description.muteBehavior = .unmuted
         description.isPrivate = true

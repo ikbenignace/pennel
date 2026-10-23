@@ -10,6 +10,7 @@ final class AppState {
     var settings: Settings
     var lastError: String?
     var onHotkeyChange: ((HotkeyTrigger) -> Void)?
+    var onRecordingSettingsChange: (() -> Void)?
     /// Keychain is not observable; bumping this re-renders views that show key status.
     private var keyRevision = 0
 
