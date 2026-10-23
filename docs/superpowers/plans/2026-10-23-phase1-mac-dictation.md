@@ -110,7 +110,7 @@ Preset-waarden:
 | Kind | base_url | DictationStt / MeetingStt model | Llm model | keychain_account |
 |---|---|---|---|---|
 | OpenAi | `https://api.openai.com/v1` | `gpt-4o-mini-transcribe` | `gpt-4.1-mini` | `openai` |
-| OpenRouter | `https://openrouter.ai/api/v1` | `openai/whisper-large-v3-turbo` | `google/gemini-2.5-flash` | `openrouter` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `openai/whisper-large-v3-turbo` | `google/gemini-3.5-flash-lite` | `openrouter` |
 | Groq | `https://api.groq.com/openai/v1` | `whisper-large-v3-turbo` | `llama-3.3-70b-versatile` | `groq` |
 | Mistral | `https://api.mistral.ai/v1` | `voxtral-mini-latest` | `mistral-small-latest` | `mistral` |
 | Ollama | `http://localhost:11434/v1` | `""` | `gemma3:4b` | `""` |
