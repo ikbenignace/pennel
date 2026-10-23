@@ -24,7 +24,9 @@ struct Progress {
     pending: u32,
 }
 
+/// Keyed by whole seconds because transcript.md only keeps `[mm:ss]`, so a reread start must find the file.
 pub(crate) fn failed_path(meeting_dir: &Path, speaker: Speaker, start_ms: u64) -> PathBuf {
+    let start_ms = start_ms / 1000 * 1000;
     let who = match speaker {
         Speaker::Me => "me",
         Speaker::Others => "others",
@@ -256,6 +258,28 @@ mod tests {
         assert!(!fixed[0].failed);
         assert_eq!(fixed[0].text, "hersteld");
         assert!(!PathBuf::from(session.dir()).join("failed/me-0.wav").exists());
+    }
+
+    #[test]
+    fn failed_chunk_off_the_second_is_retranscribed() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let first = stt_ok(&mut server, "eerste");
+        let session = engine.clone().start_meeting("Gat".into(), keys()).unwrap();
+        let quiet = vec![0.0; SR];
+        session.push_audio(Speaker::Me, [tone(20.0), quiet, tone(25.0)].concat());
+        wait_idle(&session);
+        first.remove();
+        let failing = server.mock("POST", "/audio/transcriptions").with_status(503).expect(2).create();
+        session.stop().unwrap();
+        failing.assert();
+        let failed = session.transcript().into_iter().find(|s| s.failed).unwrap();
+        assert_ne!(failed.start_ms % 1000, 0, "test needs an off-second chunk start");
+
+        failing.remove();
+        stt_ok(&mut server, "tweede");
+        assert_eq!(engine.retranscribe_failed(session.id(), keys()).unwrap(), 1);
+        assert!(engine.meeting_transcript(session.id()).iter().all(|s| !s.failed));
     }
 
     #[test]

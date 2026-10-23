@@ -52,6 +52,8 @@ struct Frontmatter {
     start_iso: String,
     duration_min: u32,
     template: String,
+    /// Lines the user added (tags, attendees, …), written back untouched.
+    extra: Vec<String>,
 }
 
 pub struct MeetingStore {
@@ -125,6 +127,7 @@ impl MeetingStore {
             start_iso: start.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
             duration_min: 0,
             template: String::new(),
+            extra: Vec::new(),
         };
         self.write_file(&id, "meeting.md", &render_meeting(&front, ""))?;
         Ok(id)
@@ -155,7 +158,7 @@ impl MeetingStore {
         let body: String = sorted
             .iter()
             .map(|s| {
-                let text = if s.failed { FAILED_MARK } else { s.text.as_str() };
+                let text = if s.failed { FAILED_MARK.to_owned() } else { s.text.split_whitespace().collect::<Vec<_>>().join(" ") };
                 format!("[{}] **{}:** {}\n", timestamp(s.start_ms), s.speaker.label(), text)
             })
             .collect();
@@ -270,8 +273,9 @@ impl MeetingStore {
 }
 
 fn render_meeting(front: &Frontmatter, body: &str) -> String {
+    let extra: String = front.extra.iter().map(|line| format!("{line}\n")).collect();
     format!(
-        "---\ntitle: {}\nstart: {}\nduration_min: {}\ntemplate: {}\n---\n\n{}\n",
+        "---\ntitle: {}\nstart: {}\nduration_min: {}\ntemplate: {}\n{extra}---\n\n{}\n",
         front.title,
         front.start_iso,
         front.duration_min,
@@ -279,6 +283,8 @@ fn render_meeting(front: &Frontmatter, body: &str) -> String {
         body.trim()
     )
 }
+
+const KNOWN_FIELDS: &[&str] = &["title", "start", "duration_min", "template"];
 
 fn parse_meeting(text: &str) -> Option<(Frontmatter, String)> {
     let rest = text.strip_prefix("---\n")?;
@@ -295,6 +301,11 @@ fn parse_meeting(text: &str) -> Option<(Frontmatter, String)> {
         start_iso: field("start"),
         duration_min: field("duration_min").parse().unwrap_or(0),
         template: field("template"),
+        extra: head
+            .lines()
+            .filter(|l| !KNOWN_FIELDS.iter().any(|k| l.split(':').next().is_some_and(|key| key.trim() == *k)))
+            .map(str::to_owned)
+            .collect(),
     };
     Some((front, body.trim().to_owned()))
 }
@@ -362,6 +373,30 @@ mod tests {
         assert_eq!(back[0].text, "Hallo allemaal");
         assert_eq!(back[0].start_ms, 5_000);
         assert!(back[1].failed);
+    }
+
+    #[test]
+    fn transcript_keeps_multiline_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("T", start()).unwrap();
+        store.write_transcript(&id, &[seg(0, Speaker::Me, "eerste zin\ntweede zin")]).unwrap();
+        assert_eq!(store.read_transcript(&id)[0].text, "eerste zin tweede zin");
+    }
+
+    #[test]
+    fn rewriting_keeps_frontmatter_added_by_user() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("T", start()).unwrap();
+        let path = dir.path().join(&id).join("meeting.md");
+        let edited = std::fs::read_to_string(&path).unwrap().replace("template: \n", "template: \ntags: [q8, klant]\n");
+        std::fs::write(&path, edited).unwrap();
+        store.write_meeting(&id, 5, "algemeen", "body").unwrap();
+        let id = store.rename(&id, "Nieuw").unwrap();
+        let md = std::fs::read_to_string(dir.path().join(&id).join("meeting.md")).unwrap();
+        assert!(md.contains("tags: [q8, klant]"), "{md}");
+        assert!(md.contains("title: Nieuw"), "{md}");
     }
 
     #[test]

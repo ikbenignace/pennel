@@ -51,12 +51,12 @@ struct LibraryView: View {
             Button("Annuleren", role: .cancel) {}
         }
         .confirmationDialog(
-            "\(deleting?.title ?? "") verwijderen?",
+            "\(deleting?.title ?? "") naar de prullenmand?",
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })
         ) {
-            Button("Verwijderen", role: .destructive) { delete() }
+            Button("Naar prullenmand", role: .destructive) { delete() }
         } message: {
-            Text("Notities, transcript en audio van deze meeting worden verwijderd.")
+            Text("Notities, transcript en audio gaan naar de prullenmand.")
         }
     }
 
@@ -105,6 +105,16 @@ struct LibraryView: View {
         .contentShape(Rectangle())
         .onTapGesture { selection = info.id }
         .contextMenu {
+            if info.id == meeting.meetingId && meeting.isRecording {
+                Text("Opname loopt")
+            } else {
+                menuItems(info)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func menuItems(_ info: MeetingInfo) -> some View {
             Button("Hernoemen…") {
                 newTitle = info.title
                 renaming = info
@@ -113,8 +123,7 @@ struct LibraryView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: state.engine.meetingDir(id: info.id))])
             }
             Divider()
-            Button("Verwijderen…", role: .destructive) { deleting = info }
-        }
+            Button("Naar prullenmand…", role: .destructive) { deleting = info }
     }
 
     private var groups: [(String, [MeetingInfo])] {
@@ -157,7 +166,7 @@ struct LibraryView: View {
 
     private func delete() {
         guard let info = deleting else { return }
-        try? state.engine.deleteMeeting(id: info.id)
+        try? FileManager.default.trashItem(at: URL(fileURLWithPath: state.engine.meetingDir(id: info.id)), resultingItemURL: nil)
         if selection == info.id { selection = nil }
         deleting = nil
         reload()

@@ -56,44 +56,37 @@ final class MeetingRecorder {
     private var me: TrackWriter?
     private var others: TrackWriter?
     private var startedAt: Date?
+    private var configObserver: NSObjectProtocol?
+    private var outputListener: AudioObjectPropertyListenerBlock?
+    private let silence = SilenceProbe()
     private(set) var systemAudioAvailable = true
+    var onSystemAudioSilent: (() -> Void)?
 
     var elapsed: TimeInterval { startedAt.map { Date().timeIntervalSince($0) } ?? 0 }
 
     func start(session: MeetingSession) throws {
         let dir = URL(fileURLWithPath: session.dir())
-        let me = TrackWriter(speaker: .me, session: session, url: dir.appendingPathComponent("ik.m4a"))
-        let others = TrackWriter(speaker: .others, session: session, url: dir.appendingPathComponent("anderen.m4a"))
-        self.me = me
-        self.others = others
-
-        let input = engine.inputNode
-        let micFormat = input.outputFormat(forBus: 0)
-        guard AudioInput.isUsable(sampleRate: micFormat.sampleRate, channels: micFormat.channelCount) else {
-            throw NoInputDevice()
+        me = TrackWriter(speaker: .me, session: session, url: dir.appendingPathComponent("ik.m4a"))
+        others = TrackWriter(speaker: .others, session: session, url: dir.appendingPathComponent("anderen.m4a"))
+        try startMicrophone()
+        startSystemAudio()
+        // AirPods connecting or switching profile reconfigures the engine and silently stops its tap.
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.restartMicrophone() }
         }
-        let micResampler = MonoResampler(from: micFormat)
-        input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 4096, format: micFormat) { buffer, _ in
-            if let converted = micResampler.convert(buffer) { me.append(converted) }
-        }
-        engine.prepare()
-        try engine.start()
-
-        do {
-            let resampler = MonoResampler(from: try tap.prepare())
-            try tap.start { buffer in
-                if let converted = resampler.convert(buffer) { others.append(converted) }
-            }
-            systemAudioAvailable = true
-        } catch {
-            log.error("system audio tap failed: \(String(describing: error), privacy: .public)")
-            systemAudioAvailable = false
+        outputListener = SystemAudioTap.observeOutputChanges { [weak self] in
+            Task { @MainActor in self?.restartSystemAudio() }
         }
         startedAt = Date()
     }
 
     func stop() {
+        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+        if let outputListener { SystemAudioTap.stopObserving(outputListener) }
+        configObserver = nil
+        outputListener = nil
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         tap.stop()
@@ -102,5 +95,80 @@ final class MeetingRecorder {
         me = nil
         others = nil
         startedAt = nil
+    }
+
+    private func startMicrophone() throws {
+        guard let me else { return }
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard AudioInput.isUsable(sampleRate: format.sampleRate, channels: format.channelCount) else {
+            throw NoInputDevice()
+        }
+        let resampler = MonoResampler(from: format)
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
+            if let converted = resampler.convert(buffer) { me.append(converted) }
+        }
+        engine.prepare()
+        try engine.start()
+    }
+
+    private func restartMicrophone() {
+        guard startedAt != nil else { return }
+        engine.stop()
+        do {
+            try startMicrophone()
+            log.notice("microphone restarted after configuration change")
+        } catch {
+            log.error("microphone restart failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func startSystemAudio() {
+        guard let others else { return }
+        silence.reset()
+        do {
+            let resampler = MonoResampler(from: try tap.prepare())
+            let silence = silence
+            try tap.start { [weak self] buffer in
+                guard let converted = resampler.convert(buffer) else { return }
+                others.append(converted)
+                if silence.feed(converted.monoSamples) {
+                    Task { @MainActor in self?.onSystemAudioSilent?() }
+                }
+            }
+            systemAudioAvailable = true
+        } catch {
+            log.error("system audio tap failed: \(String(describing: error), privacy: .public)")
+            systemAudioAvailable = false
+        }
+    }
+
+    private func restartSystemAudio() {
+        guard startedAt != nil else { return }
+        tap.stop()
+        startSystemAudio()
+        log.notice("system audio restarted after output change")
+    }
+}
+
+/// Thread-safe wrapper so the IOProc can feed the silence watch.
+private final class SilenceProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var watch = SilenceWatch()
+    private var samples = 0
+
+    func reset() {
+        lock.withLock {
+            watch = SilenceWatch()
+            samples = 0
+        }
+    }
+
+    func feed(_ chunk: [Float]) -> Bool {
+        lock.withLock {
+            samples += chunk.count
+            return watch.feed(chunk, at: Double(samples) / 16_000)
+        }
     }
 }

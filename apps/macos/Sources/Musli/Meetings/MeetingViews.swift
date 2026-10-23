@@ -56,7 +56,7 @@ private struct RecordingView: View {
             }
             .font(.figtree(12))
             if meeting.systemAudioMissing {
-                Text("Systeemaudio niet beschikbaar — enkel je microfoon wordt opgenomen.")
+                Text("Nog geen geluid van je computer ontvangen. Hoor je de anderen? Geef Musli toegang bij Systeeminstellingen → Privacy en beveiliging → Systeemaudio-opname.")
                     .font(.figtree(12))
                     .foregroundStyle(Theme.accent)
             }

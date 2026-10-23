@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import CoreAudio
+import MusliKit
 
 struct SystemAudioTapError: Error {
     let step: String
@@ -15,6 +16,7 @@ final class SystemAudioTap: @unchecked Sendable {
     private let queue = DispatchQueue(label: "dev.musli.systemaudio", qos: .userInitiated)
 
     private var description: CATapDescription?
+    private var tapOnly: UnsafeMutableAudioBufferListPointer?
     private var format: AVAudioFormat?
 
     /// Creates the tap and returns the format its buffers will have.
@@ -52,8 +54,16 @@ final class SystemAudioTap: @unchecked Sendable {
         ]
         try check("create aggregate device", AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID))
 
+        let wanted = format.isInterleaved ? 1 : Int(format.channelCount)
+        let tapOnly = AudioBufferList.allocate(maximumBuffers: wanted)
+        self.tapOnly = tapOnly
         try check("create io proc", AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { _, input, _, _, _ in
-            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: input, deallocator: nil) else { return }
+            let all = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
+            guard let range = TapBuffers.range(total: all.count, interleaved: format.isInterleaved, channels: Int(format.channelCount))
+            else { return }
+            for (slot, index) in range.enumerated() { tapOnly[slot] = all[index] }
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: tapOnly.unsafePointer, deallocator: nil)
+            else { return }
             onBuffer(buffer)
         })
         try check("start device", AudioDeviceStart(aggregateID, procID))
@@ -73,9 +83,34 @@ final class SystemAudioTap: @unchecked Sendable {
         procID = nil
         aggregateID = AudioObjectID(kAudioObjectUnknown)
         tapID = AudioObjectID(kAudioObjectUnknown)
+        tapOnly?.unsafeMutablePointer.deallocate()
+        tapOnly = nil
+        description = nil
+        format = nil
     }
 
     deinit { stop() }
+
+    /// Calls `handler` on the main queue when the default output device changes (headphones in/out).
+    static func observeOutputChanges(_ handler: @escaping @Sendable () -> Void) -> AudioObjectPropertyListenerBlock {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let block: AudioObjectPropertyListenerBlock = { _, _ in handler() }
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, block)
+        return block
+    }
+
+    static func stopObserving(_ block: @escaping AudioObjectPropertyListenerBlock) {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, block)
+    }
 
     private func check(_ step: String, _ status: OSStatus) throws {
         guard status == noErr else { throw SystemAudioTapError(step: step, status: status) }
@@ -95,7 +130,7 @@ final class SystemAudioTap: @unchecked Sendable {
 
     private func defaultOutputUID() throws -> String {
         var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultSystemOutputDevice,
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )

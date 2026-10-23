@@ -35,6 +35,7 @@ final class MeetingController {
 
     init(state: AppState) {
         self.state = state
+        recorder.onSystemAudioSilent = { [weak self] in self?.systemAudioMissing = true }
     }
 
     var isRecording: Bool { phase == .recording }
@@ -91,6 +92,17 @@ final class MeetingController {
             error = "Samenvatten mislukt: \(failure)"
         }
         onLibraryChanged?()
+    }
+
+    /// Quitting mid-meeting: close the audio files and transcribe what's left, but skip the summary.
+    func stopForQuit() async {
+        guard phase == .recording, let session else { return }
+        ticker?.invalidate()
+        recorder.stop()
+        saveNotesNow()
+        await Task.detached { try? session.stop() }.value
+        self.session = nil
+        phase = .finished
     }
 
     func reset() {

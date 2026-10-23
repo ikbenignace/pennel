@@ -8,6 +8,7 @@ final class MusliApp: NSObject, NSApplicationDelegate {
     private var dictation: DictationController?
     private var permissionPoll: Timer?
     private var unloadTimer: Timer?
+    private var meeting: MeetingController?
     private let windows = WindowPresenter()
 
     static func main() {
@@ -26,6 +27,7 @@ final class MusliApp: NSObject, NSApplicationDelegate {
             self.dictation = dictation
             state.onHotkeyChange = { [weak dictation] trigger in dictation?.setTrigger(trigger) }
             let meeting = MeetingController(state: state)
+            self.meeting = meeting
             let menuBar = MenuBarController(state: state, windows: windows, dictation: dictation, meeting: meeting)
             self.menuBar = menuBar
             meeting.onLibraryChanged = { [weak menuBar] in
@@ -50,6 +52,15 @@ final class MusliApp: NSObject, NSApplicationDelegate {
             alert.runModal()
             NSApp.terminate(nil)
         }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let meeting, meeting.isRecording else { return .terminateNow }
+        Task {
+            await meeting.stopForQuit()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     /// The event tap can only be created once Accessibility is granted, which may happen after launch.
