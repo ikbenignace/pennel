@@ -25,9 +25,16 @@ final class MusliApp: NSObject, NSApplicationDelegate {
             let dictation = DictationController(state: state)
             self.dictation = dictation
             state.onHotkeyChange = { [weak dictation] trigger in dictation?.setTrigger(trigger) }
-            menuBar = MenuBarController(state: state, windows: windows, dictation: dictation)
+            let meeting = MeetingController(state: state)
+            let menuBar = MenuBarController(state: state, windows: windows, dictation: dictation, meeting: meeting)
+            self.menuBar = menuBar
+            meeting.onLibraryChanged = { [weak menuBar] in
+                menuBar?.updateIcon()
+                NotificationCenter.default.post(name: .musliMeetingsChanged, object: nil)
+            }
             startDictation(dictation)
             let engine = state.engine
+            DispatchQueue.global(qos: .utility).async { _ = engine.pruneMeetingAudio() }
             unloadTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
                 DispatchQueue.global(qos: .utility).async { _ = engine.unloadIdleModels() }
             }

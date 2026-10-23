@@ -2,7 +2,7 @@ import MusliKit
 import SwiftUI
 
 enum SettingsTab: Hashable {
-    case providers, models, dictation, dictionary, styles
+    case providers, models, dictation, meetings, dictionary, styles
 }
 
 struct SettingsView: View {
@@ -12,7 +12,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             SegmentTabs(
-                tabs: [(.providers, "Providers"), (.models, "Modellen"), (.dictation, "Dicteren"), (.dictionary, "Woordenlijst"), (.styles, "Stijlen")],
+                tabs: [(.providers, "Providers"), (.models, "Modellen"), (.dictation, "Dicteren"), (.meetings, "Meetings"), (.dictionary, "Woordenlijst"), (.styles, "Stijlen")],
                 selection: $tab
             )
                 .padding(.top, 14)
@@ -23,6 +23,7 @@ struct SettingsView: View {
                     case .providers: ProvidersPane(state: state)
                     case .models: ModelsPane(state: state)
                     case .dictation: DictationPane(state: state)
+                    case .meetings: MeetingsPane(state: state)
                     case .dictionary: DictionaryPane(state: state)
                     case .styles: StylesPane(state: state)
                     }
@@ -34,7 +35,7 @@ struct SettingsView: View {
                 Text(error).font(.figtree(12)).foregroundStyle(Theme.accent).padding(8)
             }
         }
-        .frame(minWidth: 640, minHeight: 480)
+        .frame(minWidth: 700, minHeight: 480)
         .onChange(of: state.settings) { state.save() }
         .background(Theme.paper)
     }
