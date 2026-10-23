@@ -23,6 +23,7 @@ final class MusliApp: NSObject, NSApplicationDelegate {
             self.state = state
             let dictation = DictationController(state: state)
             self.dictation = dictation
+            state.onHotkeyChange = { [weak dictation] trigger in dictation?.setTrigger(trigger) }
             menuBar = MenuBarController(state: state, windows: windows, dictation: dictation)
             startDictation(dictation)
             if state.needsOnboarding {

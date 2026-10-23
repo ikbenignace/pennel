@@ -28,22 +28,19 @@ struct ProvidersPane: View {
                 title: "Dicteren",
                 subtitle: "Spraak naar tekst wanneer je de sneltoets gebruikt.",
                 task: .dictationStt,
-                config: $state.settings.dictationStt,
-                onChange: state.save
+                config: $state.settings.dictationStt
             )
             ProviderEditor(
                 title: "Opkuisen en samenvatten",
                 subtitle: "Taalmodel dat je dictaten opkuist en later meetings samenvat.",
                 task: .llm,
-                config: $state.settings.llm,
-                onChange: state.save
+                config: $state.settings.llm
             )
             ProviderEditor(
                 title: "Meetings",
                 subtitle: "Spraak naar tekst voor opgenomen meetings (komt in een volgende versie).",
                 task: .meetingStt,
-                config: $state.settings.meetingStt,
-                onChange: state.save
+                config: $state.settings.meetingStt
             )
         }
     }
@@ -54,7 +51,6 @@ private struct ProviderEditor: View {
     let subtitle: String
     let task: ProviderTask
     @Binding var config: ProviderConfig
-    let onChange: () -> Void
 
     @State private var apiKey = ""
     @State private var testResult: String?
@@ -92,7 +88,6 @@ private struct ProviderEditor: View {
             }
         }
         .onAppear { apiKey = Keychain.get(config.keychainAccount) ?? "" }
-        .onChange(of: config) { onChange() }
         .onChange(of: config.keychainAccount) { apiKey = Keychain.get(config.keychainAccount) ?? "" }
     }
 

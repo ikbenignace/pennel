@@ -25,6 +25,7 @@ final class MenuBarController: NSObject {
         hintItem.isEnabled = false
         menu.addItem(hintItem)
         menu.addItem(.separator())
+        menu.addItem(item("Geschiedenis…", #selector(openHistory), key: ""))
         menu.addItem(item("Instellingen…", #selector(openSettings), key: ","))
         menu.addItem(.separator())
         menu.addItem(item("Stop Musli", #selector(quit), key: "q"))
@@ -40,6 +41,12 @@ final class MenuBarController: NSObject {
     @objc func openSettings() {
         windows.show(id: "settings", title: "Instellingen", size: NSSize(width: 640, height: 520)) {
             SettingsView(state: state)
+        }
+    }
+
+    @objc func openHistory() {
+        windows.show(id: "history", title: "Geschiedenis", size: NSSize(width: 560, height: 520)) {
+            HistoryView(state: state)
         }
     }
 

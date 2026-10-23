@@ -8,6 +8,7 @@ final class AppState {
     let engine: MusliEngine
     var settings: Settings
     var lastError: String?
+    var onHotkeyChange: ((HotkeyTrigger) -> Void)?
 
     init() throws {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]

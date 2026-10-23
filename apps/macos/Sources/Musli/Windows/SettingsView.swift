@@ -2,7 +2,7 @@ import MusliKit
 import SwiftUI
 
 enum SettingsTab: Hashable {
-    case providers
+    case providers, dictation, dictionary, styles
 }
 
 struct SettingsView: View {
@@ -11,13 +11,19 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SegmentTabs(tabs: [(.providers, "Providers")], selection: $tab)
+            SegmentTabs(
+                tabs: [(.providers, "Providers"), (.dictation, "Dicteren"), (.dictionary, "Woordenlijst"), (.styles, "Stijlen")],
+                selection: $tab
+            )
                 .padding(.top, 14)
                 .padding(.bottom, 10)
             ScrollView {
                 Group {
                     switch tab {
                     case .providers: ProvidersPane(state: state)
+                    case .dictation: DictationPane(state: state)
+                    case .dictionary: DictionaryPane(state: state)
+                    case .styles: StylesPane(state: state)
                     }
                 }
                 .padding(.horizontal, 24)
@@ -28,6 +34,7 @@ struct SettingsView: View {
             }
         }
         .frame(minWidth: 560, minHeight: 440)
+        .onChange(of: state.settings) { state.save() }
         .background(Theme.paper)
     }
 }
