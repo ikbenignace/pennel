@@ -232,6 +232,42 @@ impl MusliEngine {
         Ok(recovered)
     }
 
+    /// Writes `meeting.md`: enhanced notes when the user typed any, otherwise a summary.
+    pub fn summarize_meeting(&self, id: String, template_id: String, keys: ApiKeys) -> Result<String, MusliError> {
+        use crate::summary::{blocks, chunk_messages, summary_messages, transcript_text, BLOCK_CHARS, MAP_REDUCE_ABOVE};
+        const SUMMARY_TIMEOUT_SECS: u64 = 180;
+
+        let store = self.meeting_store();
+        let info = store.info(&id).ok_or(MusliError::NotFound)?;
+        let notes = store.read_notes(&id);
+        let transcript = transcript_text(&store.read_transcript(&id));
+        if transcript.trim().is_empty() && notes.trim().is_empty() {
+            return Err(MusliError::NoSpeech);
+        }
+        let settings = self.settings();
+        let (account, model) = settings.resolve(&settings.llm).ok_or(MusliError::NotFound)?;
+        let key = keys.get(&account);
+        if requires_key(account.kind) && key.is_none() {
+            return Err(MusliError::MissingApiKey { task: "llm".into() });
+        }
+        let provider = endpoint(&account, model);
+        let ask = |messages: Vec<crate::llm::ChatMessage>| {
+            crate::llm::chat_complete_within(&provider, key, &messages, SUMMARY_TIMEOUT_SECS)
+        };
+        let source = if transcript.chars().count() > MAP_REDUCE_ABOVE {
+            blocks(&transcript, BLOCK_CHARS)
+                .iter()
+                .map(|part| ask(chunk_messages(part)))
+                .collect::<Result<Vec<_>, _>>()?
+                .join("\n\n")
+        } else {
+            transcript
+        };
+        let body = ask(summary_messages(&template_id, &notes, &source))?;
+        store.write_meeting(&id, info.duration_min, &template_id, &body)?;
+        Ok(body.trim().to_owned())
+    }
+
     pub fn model_state(&self, id: String) -> ModelState {
         self.models.state(&id)
     }

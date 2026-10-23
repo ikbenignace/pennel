@@ -15,12 +15,14 @@ mod session;
 mod settings;
 mod speech;
 mod stt;
+mod summary;
 mod wav;
 
 pub use engine::{ApiKeys, CleanupStatus, DictationRequest, DictationResult, MusliEngine};
 pub use error::MusliError;
 pub use history::{HistoryEntry, HistoryStatus};
 pub use session::MeetingSession;
+pub use summary::{meeting_templates, MeetingTemplate};
 pub use meetings::{mark_lines, MeetingInfo, NoteLine, Segment, Speaker};
 pub use models::{local_models, DownloadListener, LocalModel, ModelState};
 pub use provider::{default_base_url, default_model, new_account, requires_key, supports, ProviderAccount, ProviderKind, ProviderTask};

@@ -17,9 +17,18 @@ pub fn chat_complete(
     api_key: Option<&str>,
     messages: &[ChatMessage],
 ) -> Result<String, MusliError> {
+    chat_complete_within(provider, api_key, messages, TIMEOUT_SECS)
+}
+
+pub fn chat_complete_within(
+    provider: &ProviderConfig,
+    api_key: Option<&str>,
+    messages: &[ChatMessage],
+    timeout_secs: u64,
+) -> Result<String, MusliError> {
     let body = serde_json::json!({ "model": provider.model, "messages": messages, "temperature": 0 });
     let url = format!("{}/chat/completions", provider.base_url.trim_end_matches('/'));
-    let request = http::agent(TIMEOUT_SECS).post(&url).header("Content-Type", "application/json");
+    let request = http::agent(timeout_secs).post(&url).header("Content-Type", "application/json");
     let response = http::send(http::with_auth(request, api_key), body.to_string().as_bytes())?;
 
     let parsed: serde_json::Value =
