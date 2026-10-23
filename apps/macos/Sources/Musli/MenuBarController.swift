@@ -6,11 +6,13 @@ final class MenuBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let state: AppState
     private let windows: WindowPresenter
+    private let dictation: DictationController
     private let hintItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
-    init(state: AppState, windows: WindowPresenter) {
+    init(state: AppState, windows: WindowPresenter, dictation: DictationController) {
         self.state = state
         self.windows = windows
+        self.dictation = dictation
         super.init()
         statusItem.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Musli")
         statusItem.button?.image?.isTemplate = true
@@ -48,7 +50,9 @@ final class MenuBarController: NSObject {
 
 extension MenuBarController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
-        hintItem.title = "Dicteren — houd \(state.settings.hotkey.label) ingedrukt"
+        hintItem.title = dictation.isListening
+            ? "Dicteren — houd \(state.settings.hotkey.label) ingedrukt"
+            : "Dicteren wacht op toegang tot Toegankelijkheid"
     }
 }
 
