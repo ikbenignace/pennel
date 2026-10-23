@@ -3,3 +3,4 @@ core/target/
 build/
 apps/macos/.build/
 apps/macos/Sources/MusliCore/
+apps/macos/Frameworks/
