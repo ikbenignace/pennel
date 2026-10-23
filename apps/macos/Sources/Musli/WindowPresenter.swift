@@ -21,6 +21,8 @@ final class WindowPresenter {
         window.title = title
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
+        // The paper palette is light-only for now; without this, dark-mode controls draw light text on paper.
+        window.appearance = NSAppearance(named: .aqua)
         window.backgroundColor = NSColor(Theme.paper)
         window.contentView = NSHostingView(rootView: content().font(.figtree(13)).foregroundStyle(Theme.ink))
         window.center()
