@@ -3,7 +3,9 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::MusliError;
-use crate::provider::{preset, ProviderConfig, ProviderKind, ProviderTask};
+use crate::provider::{
+    default_base_url, default_model, new_account, supports, ProviderAccount, ProviderKind, ProviderTask,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
@@ -36,16 +38,24 @@ pub enum HotkeyTrigger {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
+pub struct ModelChoice {
+    pub provider_id: String,
+    pub model: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
 pub struct Settings {
-    pub dictation_stt: ProviderConfig,
-    pub meeting_stt: ProviderConfig,
-    pub llm: ProviderConfig,
+    pub providers: Vec<ProviderAccount>,
+    pub dictation_stt: ModelChoice,
+    pub meeting_stt: ModelChoice,
+    pub llm: ModelChoice,
     pub mode: DictationMode,
     pub language: Option<String>,
     pub dictionary: Vec<String>,
     pub style_rules: Vec<StyleRule>,
     pub history_retention_days: u32,
     pub hotkey: HotkeyTrigger,
+    pub local_unload_minutes: u32,
 }
 
 const DEFAULT_STYLES: &[(&str, Style)] = &[
@@ -66,12 +76,19 @@ const DEFAULT_STYLES: &[(&str, Style)] = &[
     ("com.todesktop.230313mzl4w4u92", Style::Literal),
 ];
 
+fn choice(account: &ProviderAccount, task: ProviderTask) -> ModelChoice {
+    ModelChoice { provider_id: account.id.clone(), model: default_model(account.kind, task) }
+}
+
 #[uniffi::export]
 pub fn default_settings() -> Settings {
+    let groq = new_account(ProviderKind::Groq, vec![]);
+    let local = new_account(ProviderKind::Local, vec![groq.clone()]);
     Settings {
-        dictation_stt: preset(ProviderKind::Groq, ProviderTask::DictationStt),
-        meeting_stt: preset(ProviderKind::Groq, ProviderTask::MeetingStt),
-        llm: preset(ProviderKind::Groq, ProviderTask::Llm),
+        dictation_stt: choice(&groq, ProviderTask::DictationStt),
+        meeting_stt: choice(&groq, ProviderTask::MeetingStt),
+        llm: choice(&groq, ProviderTask::Llm),
+        providers: vec![groq, local],
         mode: DictationMode::Clean,
         language: None,
         dictionary: Vec::new(),
@@ -81,6 +98,7 @@ pub fn default_settings() -> Settings {
             .collect(),
         history_retention_days: 30,
         hotkey: HotkeyTrigger::Fn,
+        local_unload_minutes: 5,
     }
 }
 
@@ -91,9 +109,16 @@ impl Settings {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(default_settings()),
             Err(e) => return Err(MusliError::storage(e)),
         };
-        match serde_json::from_str(&json) {
-            Ok(settings) => Ok(settings),
-            Err(_) => {
+        let parsed = serde_json::from_str::<serde_json::Value>(&json).ok().and_then(|value| {
+            if value.get("providers").is_some() {
+                serde_json::from_value::<Settings>(value).ok()
+            } else {
+                serde_json::from_value::<LegacySettings>(value).ok().map(LegacySettings::migrate)
+            }
+        });
+        match parsed {
+            Some(settings) => Ok(settings.normalized()),
+            None => {
                 std::fs::rename(path, path.with_file_name("settings.corrupt.json")).map_err(MusliError::storage)?;
                 Ok(default_settings())
             }
@@ -106,29 +131,170 @@ impl Settings {
         std::fs::write(&tmp, json).map_err(MusliError::storage)?;
         std::fs::rename(&tmp, path).map_err(MusliError::storage)
     }
+
+    pub fn resolve(&self, choice: &ModelChoice) -> Option<(ProviderAccount, String)> {
+        self.providers
+            .iter()
+            .find(|p| p.id == choice.provider_id)
+            .map(|p| (p.clone(), choice.model.clone()))
+    }
+
+    /// Points every task whose provider no longer exists at the first provider that can do it.
+    pub fn normalized(mut self) -> Settings {
+        for (task, slot) in [
+            (ProviderTask::DictationStt, &mut self.dictation_stt),
+            (ProviderTask::MeetingStt, &mut self.meeting_stt),
+            (ProviderTask::Llm, &mut self.llm),
+        ] {
+            if self.providers.iter().any(|p| p.id == slot.provider_id) {
+                continue;
+            }
+            if let Some(fallback) = self.providers.iter().find(|p| supports(p.kind, task)) {
+                *slot = choice(fallback, task);
+            }
+        }
+        self
+    }
+}
+
+#[derive(Deserialize)]
+struct LegacyProvider {
+    kind: ProviderKind,
+    base_url: String,
+    model: String,
+    keychain_account: String,
+}
+
+#[derive(Deserialize)]
+struct LegacySettings {
+    dictation_stt: LegacyProvider,
+    meeting_stt: LegacyProvider,
+    llm: LegacyProvider,
+    mode: DictationMode,
+    language: Option<String>,
+    dictionary: Vec<String>,
+    style_rules: Vec<StyleRule>,
+    history_retention_days: u32,
+    hotkey: HotkeyTrigger,
+}
+
+impl LegacySettings {
+    fn migrate(self) -> Settings {
+        let mut providers: Vec<ProviderAccount> = Vec::new();
+        let mut adopt = |legacy: &LegacyProvider| -> ModelChoice {
+            let id = if legacy.keychain_account.is_empty() {
+                legacy.kind.slug().to_owned()
+            } else {
+                legacy.keychain_account.clone()
+            };
+            if !providers.iter().any(|p| p.id == id) {
+                let base_url = if legacy.base_url.is_empty() { default_base_url(legacy.kind) } else { legacy.base_url.clone() };
+                providers.push(ProviderAccount { id: id.clone(), kind: legacy.kind, name: legacy.kind.label().into(), base_url });
+            }
+            ModelChoice { provider_id: id, model: legacy.model.clone() }
+        };
+        let dictation_stt = adopt(&self.dictation_stt);
+        let meeting_stt = adopt(&self.meeting_stt);
+        let llm = adopt(&self.llm);
+        if !providers.iter().any(|p| p.kind == ProviderKind::Local) {
+            providers.push(new_account(ProviderKind::Local, providers.clone()));
+        }
+        Settings {
+            providers,
+            dictation_stt,
+            meeting_stt,
+            llm,
+            mode: self.mode,
+            language: self.language,
+            dictionary: self.dictionary,
+            style_rules: self.style_rules,
+            history_retention_days: self.history_retention_days,
+            hotkey: self.hotkey,
+            local_unload_minutes: 5,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    const V1_GROQ: &str = r#"{
+      "dictation_stt": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"whisper-large-v3-turbo","keychain_account":"groq"},
+      "meeting_stt": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"whisper-large-v3-turbo","keychain_account":"groq"},
+      "llm": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"llama-3.3-70b-versatile","keychain_account":"groq"},
+      "mode":"clean","language":null,"dictionary":["Musli"],
+      "style_rules":[{"bundle_id":"com.tinyspeck.slackmacgap","style":"casual"}],
+      "history_retention_days":30,"hotkey":"fn"
+    }"#;
+
+    fn ids(s: &Settings) -> Vec<&str> {
+        s.providers.iter().map(|p| p.id.as_str()).collect()
+    }
+
     #[test]
-    fn defaults_are_clean_mode_groq_fn() {
+    fn defaults_have_groq_and_local() {
         let s = default_settings();
+        assert_eq!(ids(&s), ["groq", "local"]);
+        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "groq".into(), model: "whisper-large-v3-turbo".into() });
+        assert_eq!(s.llm.provider_id, "groq");
         assert_eq!(s.mode, DictationMode::Clean);
         assert_eq!(s.hotkey, HotkeyTrigger::Fn);
-        assert_eq!(s.history_retention_days, 30);
-        assert_eq!(s.language, None);
-        assert_eq!(s.dictation_stt.kind, ProviderKind::Groq);
+        assert_eq!(s.local_unload_minutes, 5);
         let slack = s.style_rules.iter().find(|r| r.bundle_id == "com.tinyspeck.slackmacgap").unwrap();
         assert_eq!(slack.style, Style::Casual);
     }
 
     #[test]
+    fn migrates_v1_groq_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, V1_GROQ).unwrap();
+        let s = Settings::load(&path).unwrap();
+        assert_eq!(ids(&s), ["groq", "local"]);
+        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "groq".into(), model: "whisper-large-v3-turbo".into() });
+        assert_eq!(s.llm, ModelChoice { provider_id: "groq".into(), model: "llama-3.3-70b-versatile".into() });
+        assert_eq!(s.dictionary, ["Musli"]);
+        assert_eq!(s.style_rules.len(), 1);
+        assert!(!dir.path().join("settings.corrupt.json").exists());
+    }
+
+    #[test]
+    fn migrates_v1_mixed_providers() {
+        let v1 = V1_GROQ.replacen(
+            r#""llm": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"llama-3.3-70b-versatile","keychain_account":"groq"}"#,
+            r#""llm": {"kind":"open_router","base_url":"https://openrouter.ai/api/v1","model":"m","keychain_account":"openrouter"}"#,
+            1,
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, v1).unwrap();
+        let s = Settings::load(&path).unwrap();
+        assert_eq!(ids(&s), ["groq", "openrouter", "local"]);
+        assert_eq!(s.llm, ModelChoice { provider_id: "openrouter".into(), model: "m".into() });
+    }
+
+    #[test]
+    fn removed_provider_falls_back() {
+        let mut s = default_settings();
+        s.providers.retain(|p| p.id != "groq");
+        let s = s.normalized();
+        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "local".into(), model: "whisper-large-v3-turbo-q5_0".into() });
+        assert_eq!(s.llm.provider_id, "groq");
+    }
+
+    #[test]
+    fn resolve_finds_account() {
+        let s = default_settings();
+        let (account, model) = s.resolve(&s.llm).unwrap();
+        assert_eq!(account.kind, ProviderKind::Groq);
+        assert_eq!(model, "llama-3.3-70b-versatile");
+    }
+
+    #[test]
     fn load_missing_file_returns_defaults() {
         let dir = tempfile::tempdir().unwrap();
-        let s = Settings::load(&dir.path().join("settings.json")).unwrap();
-        assert_eq!(s, default_settings());
+        assert_eq!(Settings::load(&dir.path().join("settings.json")).unwrap(), default_settings());
     }
 
     #[test]

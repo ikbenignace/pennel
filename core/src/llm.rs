@@ -37,7 +37,7 @@ mod tests {
     use mockito::Matcher;
 
     fn provider(base_url: String) -> ProviderConfig {
-        ProviderConfig { kind: ProviderKind::Groq, base_url, model: "m1".into(), keychain_account: "groq".into() }
+        ProviderConfig { kind: ProviderKind::Groq, base_url, model: "m1".into() }
     }
 
     fn messages() -> Vec<ChatMessage> {

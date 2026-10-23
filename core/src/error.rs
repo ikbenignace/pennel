@@ -14,6 +14,10 @@ pub enum MusliError {
     Storage { message: String },
     #[error("not found")]
     NotFound,
+    #[error("cancelled")]
+    Cancelled,
+    #[error("model not downloaded")]
+    ModelNotDownloaded,
 }
 
 impl MusliError {

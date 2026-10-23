@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -6,6 +7,7 @@ use crate::cleanup::{accept_cleanup, cleanup_messages, resolve_style, strip_wrap
 use crate::error::MusliError;
 use crate::history::{HistoryEntry, HistoryStore};
 use crate::llm::chat_complete;
+use crate::provider::{requires_key, ProviderAccount, ProviderConfig, ProviderKind};
 use crate::settings::{DictationMode, Settings};
 use crate::speech::{has_speech, is_hallucination};
 use crate::stt::transcribe;
@@ -15,8 +17,13 @@ const MAX_PROMPT_CHARS: usize = 800;
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct ApiKeys {
-    pub stt: Option<String>,
-    pub llm: Option<String>,
+    pub by_provider: HashMap<String, String>,
+}
+
+impl ApiKeys {
+    fn get(&self, account: &ProviderAccount) -> Option<&str> {
+        self.by_provider.get(&account.id).map(String::as_str).filter(|k| !k.is_empty())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
@@ -60,8 +67,8 @@ fn now_ms() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
 }
 
-fn needs_key(account: &str) -> bool {
-    !account.is_empty()
+fn endpoint(account: &ProviderAccount, model: String) -> ProviderConfig {
+    ProviderConfig { kind: account.kind, base_url: account.base_url.clone(), model }
 }
 
 #[uniffi::export]
@@ -82,6 +89,7 @@ impl MusliEngine {
     }
 
     pub fn update_settings(&self, settings: Settings) -> Result<(), MusliError> {
+        let settings = settings.normalized();
         settings.save(&self.settings_path)?;
         *self.settings.write().unwrap() = settings;
         Ok(())
@@ -92,13 +100,19 @@ impl MusliEngine {
             return Err(MusliError::NoSpeech);
         }
         let settings = self.settings();
-        if needs_key(&settings.dictation_stt.keychain_account) && request.keys.stt.is_none() {
+        let (account, _) = settings.resolve(&settings.dictation_stt).ok_or(MusliError::NotFound)?;
+        if requires_key(account.kind) && request.keys.get(&account).is_none() {
             return Err(MusliError::MissingApiKey { task: "stt".into() });
         }
         let wav = encode_wav(&request.samples, request.sample_rate);
         let app = request.app_bundle_id.as_deref();
         let transcript = match self.process(&settings, &wav, app, &request.keys) {
-            Err(e @ (MusliError::Http { .. } | MusliError::Network { .. } | MusliError::InvalidResponse { .. })) => {
+            Err(
+                e @ (MusliError::Http { .. }
+                | MusliError::Network { .. }
+                | MusliError::InvalidResponse { .. }
+                | MusliError::ModelNotDownloaded),
+            ) => {
                 self.history.lock().unwrap().insert_failed(app, &wav, &e.to_string(), now_ms())?;
                 return Err(e);
             }
@@ -133,9 +147,13 @@ impl MusliEngine {
     fn process(&self, settings: &Settings, wav: &[u8], app: Option<&str>, keys: &ApiKeys) -> Result<Transcript, MusliError> {
         let prompt: Option<String> = (!settings.dictionary.is_empty())
             .then(|| settings.dictionary.join(", ").chars().take(MAX_PROMPT_CHARS).collect());
+        let (account, model) = settings.resolve(&settings.dictation_stt).ok_or(MusliError::NotFound)?;
+        if account.kind == ProviderKind::Local {
+            return Err(MusliError::ModelNotDownloaded);
+        }
         let raw = transcribe(
-            &settings.dictation_stt,
-            keys.stt.as_deref(),
+            &endpoint(&account, model),
+            keys.get(&account),
             wav,
             prompt.as_deref(),
             settings.language.as_deref(),
@@ -145,18 +163,22 @@ impl MusliEngine {
         }
         let (text, cleanup) = match settings.mode {
             DictationMode::Fast => (raw.clone(), CleanupStatus::Skipped),
-            DictationMode::Clean => clean(settings, &raw, app, keys.llm.as_deref()),
+            DictationMode::Clean => clean(settings, &raw, app, keys),
         };
         Ok(Transcript { raw, text, cleanup })
     }
 }
 
-fn clean(settings: &Settings, raw: &str, app: Option<&str>, llm_key: Option<&str>) -> (String, CleanupStatus) {
-    if needs_key(&settings.llm.keychain_account) && llm_key.is_none() {
+fn clean(settings: &Settings, raw: &str, app: Option<&str>, keys: &ApiKeys) -> (String, CleanupStatus) {
+    let Some((account, model)) = settings.resolve(&settings.llm) else {
+        return (raw.to_owned(), CleanupStatus::Failed { message: "no llm provider".into() });
+    };
+    let key = keys.get(&account);
+    if requires_key(account.kind) && key.is_none() {
         return (raw.to_owned(), CleanupStatus::Failed { message: "missing llm key".into() });
     }
     let style = resolve_style(app, &settings.style_rules);
-    match chat_complete(&settings.llm, llm_key, &cleanup_messages(raw, style, &settings.dictionary)) {
+    match chat_complete(&endpoint(&account, model), key, &cleanup_messages(raw, style, &settings.dictionary)) {
         Ok(output) => {
             let cleaned = strip_wrapping(&output);
             if accept_cleanup(raw, &cleaned) {
@@ -180,7 +202,7 @@ mod tests {
     }
 
     fn keys() -> ApiKeys {
-        ApiKeys { stt: Some("k".into()), llm: Some("k".into()) }
+        ApiKeys { by_provider: HashMap::from([("groq".to_owned(), "k".to_owned())]) }
     }
 
     fn request(samples: Vec<f32>, app: Option<&str>) -> DictationRequest {
@@ -190,8 +212,7 @@ mod tests {
     fn engine(dir: &tempfile::TempDir, server: &mockito::Server, mode: DictationMode) -> Arc<MusliEngine> {
         let engine = MusliEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
         let mut settings = engine.settings();
-        settings.dictation_stt.base_url = server.url();
-        settings.llm.base_url = server.url();
+        settings.providers[0].base_url = server.url();
         settings.mode = mode;
         engine.update_settings(settings).unwrap();
         engine
@@ -305,9 +326,44 @@ mod tests {
         let engine = engine(&dir, &server, DictationMode::Fast);
         let stt_mock = stt(&mut server, "x").expect(0);
         let mut req = request(speech(), None);
-        req.keys.stt = None;
+        req.keys.by_provider.clear();
         assert_eq!(engine.dictate(req).unwrap_err(), MusliError::MissingApiKey { task: "stt".into() });
         stt_mock.assert();
+    }
+
+    #[test]
+    fn custom_provider_without_key_sends_no_auth() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let mut settings = engine.settings();
+        let mut custom = crate::provider::new_account(ProviderKind::Custom, settings.providers.clone());
+        custom.base_url = server.url();
+        settings.dictation_stt = crate::settings::ModelChoice { provider_id: custom.id.clone(), model: "w".into() };
+        settings.providers.push(custom);
+        engine.update_settings(settings).unwrap();
+        let mock = server
+            .mock("POST", "/audio/transcriptions")
+            .match_header("authorization", Matcher::Missing)
+            .with_body(r#"{"text":"lokaal"}"#)
+            .create();
+        let mut req = request(speech(), None);
+        req.keys.by_provider.clear();
+        assert_eq!(engine.dictate(req).unwrap().text, "lokaal");
+        mock.assert();
+    }
+
+    #[test]
+    fn local_without_model_is_model_not_downloaded() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let mut settings = engine.settings();
+        settings.dictation_stt =
+            crate::settings::ModelChoice { provider_id: "local".into(), model: "whisper-small-q5_1".into() };
+        engine.update_settings(settings).unwrap();
+        assert_eq!(engine.dictate(request(speech(), None)).unwrap_err(), MusliError::ModelNotDownloaded);
+        let entry = engine.history(1).unwrap().remove(0);
+        assert_eq!(entry.status, HistoryStatus::Failed);
+        assert!(entry.has_audio);
     }
 
     #[test]

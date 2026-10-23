@@ -66,7 +66,6 @@ mod tests {
             kind: ProviderKind::Groq,
             base_url,
             model: "whisper-large-v3-turbo".into(),
-            keychain_account: "groq".into(),
         }
     }
 

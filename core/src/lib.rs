@@ -15,5 +15,5 @@ mod wav;
 pub use engine::{ApiKeys, CleanupStatus, DictationRequest, DictationResult, MusliEngine};
 pub use error::MusliError;
 pub use history::{HistoryEntry, HistoryStatus};
-pub use provider::{preset, ProviderConfig, ProviderKind, ProviderTask};
-pub use settings::{default_settings, DictationMode, HotkeyTrigger, Settings, Style, StyleRule};
+pub use provider::{default_base_url, default_model, new_account, requires_key, supports, ProviderAccount, ProviderKind, ProviderTask};
+pub use settings::{default_settings, DictationMode, HotkeyTrigger, ModelChoice, Settings, Style, StyleRule};
