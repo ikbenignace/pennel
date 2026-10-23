@@ -2,6 +2,7 @@ uniffi::setup_scaffolding!();
 
 mod cleanup;
 mod error;
+mod history;
 mod http;
 mod llm;
 mod provider;
