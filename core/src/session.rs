@@ -8,6 +8,7 @@ use crate::engine::{ApiKeys, MusliEngine};
 use crate::error::MusliError;
 use crate::meetings::{MeetingStore, Segment, Speaker};
 use crate::speech::is_hallucination;
+use crate::transcript_filter::filter_segments;
 use crate::wav::encode_wav;
 
 const SAMPLE_RATE: u32 = 16_000;
@@ -21,7 +22,14 @@ struct Job {
 #[derive(Default)]
 struct Progress {
     segments: Vec<Segment>,
+    dictations: Vec<(u64, u64)>,
     pending: u32,
+}
+
+impl Progress {
+    fn visible(&self) -> Vec<Segment> {
+        filter_segments(&self.segments, &self.dictations)
+    }
 }
 
 /// Keyed by whole seconds because transcript.md only keeps `[mm:ss]`, so a reread start must find the file.
@@ -67,7 +75,7 @@ impl MeetingSession {
                 if let Some(segment) = segment {
                     progress.segments.push(segment);
                     progress.segments.sort_by_key(|s| s.start_ms);
-                    let _ = worker_store.write_transcript(&worker_id, &progress.segments);
+                    let _ = worker_store.write_transcript(&worker_id, &progress.visible());
                 }
                 progress.pending -= 1;
             }
@@ -141,7 +149,12 @@ impl MeetingSession {
     }
 
     pub fn transcript(&self) -> Vec<Segment> {
-        self.progress.lock().unwrap().segments.clone()
+        self.progress.lock().unwrap().visible()
+    }
+
+    /// Marks a period (meeting timeline, ms) in which the user dictated into another app.
+    pub fn mark_dictation(&self, start_ms: u64, end_ms: u64) {
+        self.progress.lock().unwrap().dictations.push((start_ms, end_ms));
     }
 
     pub fn pending(&self) -> u32 {
@@ -158,6 +171,7 @@ impl MeetingSession {
         if let Some(worker) = self.worker.lock().unwrap().take() {
             let _ = worker.join();
         }
+        self.store.write_transcript(&self.id, &self.transcript())?;
         let longest = *self.pushed_samples.lock().unwrap().iter().max().unwrap_or(&0);
         let minutes = longest.div_ceil(u64::from(SAMPLE_RATE) * 60) as u32;
         self.store.set_duration(&self.id, minutes)
@@ -280,6 +294,20 @@ mod tests {
         stt_ok(&mut server, "tweede");
         assert_eq!(engine.retranscribe_failed(session.id(), keys()).unwrap(), 1);
         assert!(engine.meeting_transcript(session.id()).iter().all(|s| !s.failed));
+    }
+
+    #[test]
+    fn session_applies_filters_to_transcript_md() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        stt_ok(&mut server, "stuur de planning naar Sarah vandaag");
+        let session = engine.clone().start_meeting("Dictaat".into(), keys()).unwrap();
+        session.push_audio(Speaker::Me, tone(10.0));
+        session.mark_dictation(0, 10_000);
+        session.stop().unwrap();
+        assert!(session.transcript().is_empty());
+        let md = std::fs::read_to_string(PathBuf::from(session.dir()).join("transcript.md")).unwrap();
+        assert!(!md.contains("Sarah"), "{md}");
     }
 
     #[test]

@@ -17,6 +17,7 @@ mod settings;
 mod speech;
 mod stt;
 mod summary;
+mod transcript_filter;
 mod wav;
 
 pub use engine::{ApiKeys, CleanupStatus, DictationRequest, DictationResult, MusliEngine};
