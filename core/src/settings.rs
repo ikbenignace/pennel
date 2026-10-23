@@ -56,6 +56,17 @@ pub struct Settings {
     pub history_retention_days: u32,
     pub hotkey: HotkeyTrigger,
     pub local_unload_minutes: u32,
+    /// Empty means `~/Musli`.
+    #[serde(default)]
+    pub meetings_dir: String,
+    #[serde(default)]
+    pub meeting_audio_retention_days: u32,
+    #[serde(default = "default_template_id")]
+    pub default_template: String,
+}
+
+fn default_template_id() -> String {
+    "algemeen".into()
 }
 
 const DEFAULT_STYLES: &[(&str, Style)] = &[
@@ -99,6 +110,9 @@ pub fn default_settings() -> Settings {
         history_retention_days: 30,
         hotkey: HotkeyTrigger::Fn,
         local_unload_minutes: 5,
+        meetings_dir: String::new(),
+        meeting_audio_retention_days: 0,
+        default_template: default_template_id(),
     }
 }
 
@@ -227,6 +241,9 @@ impl LegacySettings {
             history_retention_days: self.history_retention_days,
             hotkey: self.hotkey,
             local_unload_minutes: 5,
+            meetings_dir: String::new(),
+            meeting_audio_retention_days: 0,
+            default_template: default_template_id(),
         }
     }
 }
@@ -336,6 +353,23 @@ mod tests {
         s.dictation_stt = ModelChoice { provider_id: "local".into(), model: "whisper-large-v3-turbo-q5_0".into() };
         let s = s.normalized_with(&["whisper-small-q5_1".to_owned()]);
         assert_eq!(s.dictation_stt.model, "whisper-small-q5_1");
+    }
+
+    #[test]
+    fn v2_settings_without_meeting_fields_load_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let mut value = serde_json::to_value(default_settings()).unwrap();
+        let map = value.as_object_mut().unwrap();
+        map.remove("meetings_dir");
+        map.remove("meeting_audio_retention_days");
+        map.remove("default_template");
+        std::fs::write(&path, value.to_string()).unwrap();
+        let s = Settings::load(&path).unwrap();
+        assert_eq!(s.meetings_dir, "");
+        assert_eq!(s.meeting_audio_retention_days, 0);
+        assert_eq!(s.default_template, "algemeen");
+        assert!(!dir.path().join("settings.corrupt.json").exists());
     }
 
     #[test]
