@@ -7,6 +7,7 @@ use crate::cleanup::{accept_cleanup, cleanup_messages, resolve_style, strip_wrap
 use crate::error::MusliError;
 use crate::history::{HistoryEntry, HistoryStore};
 use crate::llm::chat_complete;
+use crate::models::{CancelFlag, DownloadListener, ModelState, ModelStore};
 use crate::provider::{requires_key, ProviderAccount, ProviderConfig, ProviderKind};
 use crate::settings::{DictationMode, Settings};
 use crate::speech::{has_speech, is_hallucination};
@@ -55,6 +56,8 @@ pub struct MusliEngine {
     settings_path: PathBuf,
     settings: RwLock<Settings>,
     history: Mutex<HistoryStore>,
+    models: ModelStore,
+    downloads: Mutex<HashMap<String, CancelFlag>>,
 }
 
 struct Transcript {
@@ -81,7 +84,13 @@ impl MusliEngine {
         let settings = Settings::load(&settings_path)?;
         let history = HistoryStore::open(&dir)?;
         history.prune(settings.history_retention_days, now_ms())?;
-        Ok(Arc::new(Self { settings_path, settings: RwLock::new(settings), history: Mutex::new(history) }))
+        Ok(Arc::new(Self {
+            settings_path,
+            settings: RwLock::new(settings),
+            history: Mutex::new(history),
+            models: ModelStore::new(&dir),
+            downloads: Mutex::new(HashMap::new()),
+        }))
     }
 
     pub fn settings(&self) -> Settings {
@@ -140,6 +149,29 @@ impl MusliEngine {
 
     pub fn delete_history(&self, id: String) -> Result<(), MusliError> {
         self.history.lock().unwrap().delete(&id)
+    }
+
+    pub fn model_state(&self, id: String) -> ModelState {
+        self.models.state(&id)
+    }
+
+    /// Blocks until the download finishes, fails or is cancelled via `cancel_download`.
+    pub fn download_model(&self, id: String, listener: Arc<dyn DownloadListener>) -> Result<(), MusliError> {
+        let cancel = CancelFlag::default();
+        self.downloads.lock().unwrap().insert(id.clone(), cancel.clone());
+        let result = self.models.download(&id, listener.as_ref(), &cancel);
+        self.downloads.lock().unwrap().remove(&id);
+        result
+    }
+
+    pub fn cancel_download(&self, id: String) {
+        if let Some(flag) = self.downloads.lock().unwrap().get(&id) {
+            flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    pub fn delete_model(&self, id: String) -> Result<(), MusliError> {
+        self.models.delete(&id)
     }
 }
 
@@ -364,6 +396,21 @@ mod tests {
         let entry = engine.history(1).unwrap().remove(0);
         assert_eq!(entry.status, HistoryStatus::Failed);
         assert!(entry.has_audio);
+    }
+
+    struct Silent;
+    impl crate::models::DownloadListener for Silent {
+        fn on_progress(&self, _: u64, _: u64) {}
+    }
+
+    #[test]
+    fn engine_model_api_reports_state_and_unknown_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = MusliEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        assert_eq!(engine.model_state("whisper-small-q5_1".into()), crate::models::ModelState::NotDownloaded);
+        assert_eq!(engine.download_model("nope".into(), Arc::new(Silent)).unwrap_err(), MusliError::NotFound);
+        engine.cancel_download("whisper-small-q5_1".into());
+        engine.delete_model("whisper-small-q5_1".into()).unwrap();
     }
 
     #[test]

@@ -16,6 +16,7 @@ path = "uniffi-bindgen.rs"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+sha2 = "0.11.1"
 thiserror = "2.0.21"
 uniffi = { version = "0.32.2", features = ["cli"] }
 ureq = "3.5.0"
