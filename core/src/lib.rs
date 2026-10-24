@@ -2,6 +2,7 @@ uniffi::setup_scaffolding!();
 
 mod catalog;
 mod chunker;
+mod command;
 mod cleanup;
 mod engine;
 mod error;

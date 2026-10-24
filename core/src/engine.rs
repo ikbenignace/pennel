@@ -157,6 +157,36 @@ impl MusliEngine {
         Ok(DictationResult { history_id, text: transcript.text, raw: transcript.raw, cleanup: transcript.cleanup })
     }
 
+    /// Speaks an instruction that rewrites `selection`, or writes new text when nothing is selected.
+    pub fn command(&self, request: DictationRequest, selection: Option<String>) -> Result<DictationResult, MusliError> {
+        use crate::command::{command_messages, COMMAND_TIMEOUT_SECS, MAX_SELECTION_CHARS};
+
+        if !has_speech(&request.samples, request.sample_rate) {
+            return Err(MusliError::NoSpeech);
+        }
+        if selection.as_ref().is_some_and(|s| s.chars().count() > MAX_SELECTION_CHARS) {
+            return Err(MusliError::InvalidResponse { message: "selection too long".into() });
+        }
+        let settings = self.settings();
+        let (llm_account, llm_model) = settings.resolve(&settings.llm).ok_or(MusliError::NotFound)?;
+        let llm_key = request.keys.get(&llm_account);
+        if requires_key(llm_account.kind) && llm_key.is_none() {
+            return Err(MusliError::MissingApiKey { task: "llm".into() });
+        }
+        let wav = encode_wav(&request.samples, request.sample_rate);
+        let instruction = self.stt(&settings, &settings.dictation_stt, &wav, &request.keys)?;
+        if is_hallucination(&instruction) {
+            return Err(MusliError::NoSpeech);
+        }
+        let selection = selection.filter(|s| !s.trim().is_empty());
+        let messages = command_messages(&instruction, selection.as_deref(), &settings.dictionary);
+        let output = crate::llm::chat_complete_within(&endpoint(&llm_account, llm_model), llm_key, &messages, COMMAND_TIMEOUT_SECS)?;
+        let text = strip_wrapping(&output);
+        let app = request.app_bundle_id.as_deref();
+        let history_id = self.history.lock().unwrap().insert_done(app, &instruction, &text, now_ms())?;
+        Ok(DictationResult { history_id, text, raw: instruction, cleanup: CleanupStatus::Applied })
+    }
+
     pub fn retry(&self, history_id: String, keys: ApiKeys) -> Result<DictationResult, MusliError> {
         let settings = self.settings();
         let (wav, app) = {
@@ -839,5 +869,41 @@ mod tests {
         mock.assert();
         other.assert();
         assert!(answer.citations.is_empty());
+    }
+
+    #[test]
+    fn command_output_is_unwrapped_and_recorded() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        stt(&mut server, "maak hier een mail van");
+        let mock = server
+            .mock("POST", "/chat/completions")
+            .match_body(mockito::Matcher::Regex("selection>.{2}ik ben later".into()))
+            .with_body(r#"{"choices":[{"message":{"content":"\"Beste Jan, ik ben later.\""}}]}"#)
+            .create();
+        let result = engine.command(request(speech(), Some("com.apple.mail")), Some("ik ben later".into())).unwrap();
+        mock.assert();
+        assert_eq!(result.text, "Beste Jan, ik ben later.");
+        assert_eq!(result.raw, "maak hier een mail van");
+        let entry = &engine.history(1).unwrap()[0];
+        assert_eq!((entry.raw.as_str(), entry.text.as_str()), ("maak hier een mail van", "Beste Jan, ik ben later."));
+    }
+
+    #[test]
+    fn command_without_speech_is_no_speech() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        let calls = server.mock("POST", mockito::Matcher::Any).expect(0).create();
+        let err = engine.command(request(vec![0.0; 16000], None), Some("tekst".into())).unwrap_err();
+        assert_eq!(err, MusliError::NoSpeech);
+        calls.assert();
+    }
+
+    #[test]
+    fn command_rejects_huge_selection() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        let huge = "x".repeat(crate::command::MAX_SELECTION_CHARS + 1);
+        assert!(matches!(engine.command(request(speech(), None), Some(huge)), Err(MusliError::InvalidResponse { .. })));
     }
 }
