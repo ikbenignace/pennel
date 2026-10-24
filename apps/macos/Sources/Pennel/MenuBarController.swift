@@ -73,10 +73,10 @@ final class MenuBarController: NSObject {
 
     func updateIcon() {
         let recording = meeting.isRecording
-        let image = NSImage(
-            systemSymbolName: recording ? "record.circle.fill" : "waveform",
-            accessibilityDescription: recording ? "Pennel neemt op" : "Pennel"
-        )
+        let image = recording
+            ? NSImage(systemSymbolName: "record.circle.fill", accessibilityDescription: "Pennel neemt op")
+            : Bundle.main.image(forResource: "MenubarTemplate")
+        image?.accessibilityDescription = recording ? "Pennel neemt op" : "Pennel"
         image?.isTemplate = !recording
         statusItem.button?.image = image
         statusItem.button?.contentTintColor = recording ? NSColor(Theme.accent) : nil

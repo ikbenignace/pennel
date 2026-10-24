@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Pennel">
+  <!-- The signature "p": one stroke down, back up, round, out; then the full stop -->
+  <g transform="translate(12 -44) scale(1) skewX(-8)">
+  <path fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="#2A2723" stroke-width="7" d="M16 76C21 68 26 62 30 56C29 82 27 112 25 134C28 112 31 86 35 70C40 56 66 52 66 72C66 92 44 98 36 88C42 92 50 92 56 90"/>
+  <circle cx="74" cy="90" r="7.5" fill="#C2410C"/>
+  </g>
+</svg>

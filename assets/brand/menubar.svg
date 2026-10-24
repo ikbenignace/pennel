@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" role="img" aria-label="Pennel">
+  <!-- Template image: pure black on transparent, 18x18 pt; macOS tints it for light and dark menubars -->
+  <rect x="0" y="1" width="2" height="5.5" rx="1" fill="#000"/>
+  <rect x="4" y="1" width="2" height="9.5" rx="1" fill="#000"/>
+  <rect x="8" y="1" width="2" height="11.4" rx="1" fill="#000"/>
+  <circle cx="9" cy="15.2" r="1.6" fill="#000"/>
+  <rect x="12" y="1" width="2" height="9.5" rx="1" fill="#000"/>
+  <rect x="16" y="1" width="2" height="5.5" rx="1" fill="#000"/>
+</svg>

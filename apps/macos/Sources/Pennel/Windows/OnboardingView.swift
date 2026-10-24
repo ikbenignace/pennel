@@ -14,6 +14,13 @@ struct OnboardingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
+                if let wordmark = Bundle.main.image(forResource: "Wordmark") {
+                    Image(nsImage: wordmark)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 40)
+                        .accessibilityLabel("Pennel")
+                }
                 Text("Welkom bij Pennel")
                     .font(.custom("Instrument Serif", size: 30))
                 Text("Drie dingen en je kan dicteren in elke app.")
