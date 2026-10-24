@@ -126,6 +126,20 @@ fn sanitize(title: &str) -> String {
     clean.chars().take(TITLE_MAX).collect()
 }
 
+/// Folder names avoid characters Windows forbids, so a meetings folder also works when synced there.
+fn folder_name(title: &str) -> String {
+    let clean: String = sanitize(title)
+        .chars()
+        .filter(|c| !matches!(c, '<' | '>' | '"' | '|' | '?' | '*') && !c.is_control())
+        .collect();
+    let clean = clean.trim_end_matches(['.', ' ']).trim();
+    if clean.is_empty() {
+        "Meeting".into()
+    } else {
+        clean.into()
+    }
+}
+
 fn normalize_note(line: &str) -> String {
     let mut text = line.trim();
     for prefix in ["- [ ] ", "- [x] ", "- ", "* ", "[ ] "] {
@@ -172,7 +186,7 @@ impl MeetingStore {
     }
 
     pub fn create(&self, title: &str, start: DateTime<Local>) -> Result<String, PennelError> {
-        let base = format!("{} {}", start.format("%Y-%m-%d %H%M"), sanitize(title));
+        let base = format!("{} {}", start.format("%Y-%m-%d %H%M"), folder_name(title));
         let id = std::iter::once(base.clone())
             .chain((2..).map(|n| format!("{base} ({n})")))
             .find(|candidate| !self.dir.join(candidate).exists())
@@ -416,7 +430,7 @@ impl MeetingStore {
     pub fn rename(&self, id: &str, title: &str) -> Result<String, PennelError> {
         let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         let prefix: String = id.chars().take("YYYY-MM-DD HHmm ".len()).collect();
-        let base = format!("{prefix}{}", sanitize(title));
+        let base = format!("{prefix}{}", folder_name(title));
         let new_id = std::iter::once(base.clone())
             .chain((2..).map(|n| format!("{base} ({n})")))
             .find(|candidate| candidate == id || !self.dir.join(candidate).exists())
@@ -660,6 +674,10 @@ mod tests {
         assert_eq!(
             store.create("a/b:c", start()).unwrap(),
             "2026-10-23 1400 abc (2)"
+        );
+        assert_eq!(
+            store.create("Wat nu? <plan> \"A|B\"*.", start()).unwrap(),
+            "2026-10-23 1400 Wat nu plan AB"
         );
         let long = "x".repeat(100);
         assert_eq!(
