@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Saywell">
+  <!-- macOS icon grid: 824px body on a 1024 canvas, 100px margin, flat (no shadow) -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(6.4) translate(-48 -47.5)">
+    <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#FCFBF8" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="34" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+    <rect x="45" y="33" width="6" height="26" rx="3" fill="#F2B48E"/>
+    <rect x="56" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+  </g>
+</svg>

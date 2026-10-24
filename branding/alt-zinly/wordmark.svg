@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 304 120" width="304" height="120" role="img" aria-label="Zinly">
+  <g transform="translate(0 12)">
+    <!-- a "z" drawn as two lines of text joined by one stroke; the dot is the cursor -->
+    <path d="M22 30H66L30 66H70" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="82" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+  <!-- "zinly" set in Figtree-SemiBold 90px, outlined so the file renders without the font installed -->
+  <path fill="#2A2723" d="M117.3 82V74.5L141.3 45.5H117.3V37H154V44.4L130 73.6H154.1V82Z M162.8 82V37H172.8V82ZM167.8 28.5Q165.4 28.5 163.6 26.7Q161.9 24.9 161.9 22.5Q161.9 20.2 163.6 18.4Q165.4 16.7 167.8 16.7Q170.2 16.7 172 18.4Q173.8 20.2 173.8 22.5Q173.8 24.9 172 26.7Q170.2 28.5 167.8 28.5Z M183.8 82V37H193.2L193.6 43.4Q198.1 35.9 207.2 35.9Q215.2 35.9 219.8 40.8Q224.3 45.7 224.3 56.6V82H214.3V59Q214.3 53.6 213 50.6Q211.7 47.7 209.5 46.5Q207.3 45.4 204.4 45.4Q199.3 45.3 196.6 48.7Q193.8 52.1 193.8 58.5V82Z M233.6 82V19H243.7V82Z M261.1 101.1Q258.9 101.1 256.2 100.3Q253.6 99.5 251.2 98.2L254.9 90Q256.6 90.8 258 91.3Q259.4 91.8 260.4 91.8Q264.7 91.8 266.5 87.4L268.9 81.6L248.9 37H259.9L273.6 70.1L287 37H298L277.1 86.8Q275.2 91.2 273.3 94.4Q271.3 97.6 268.4 99.3Q265.6 101.1 261.1 101.1Z"/>
+</svg>

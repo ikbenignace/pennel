@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Musli · brand directions</title><style>
+@font-face{font-family:Figtree;src:url(../apps/macos/Resources/Fonts/Figtree-Regular.ttf);font-weight:400}
+@font-face{font-family:Figtree;src:url(../apps/macos/Resources/Fonts/Figtree-Medium.ttf);font-weight:500}
+@font-face{font-family:Figtree;src:url(../apps/macos/Resources/Fonts/Figtree-SemiBold.ttf);font-weight:600}
+@font-face{font-family:"Instrument Serif";src:url(../apps/macos/Resources/Fonts/InstrumentSerif-Regular.ttf)}
+:root{--paper:#FCFBF8;--bg:#F7F4EE;--ink:#2A2723;--muted:#9B948A;--line:#ECE7DE;--accent:#C2410C;--wave:#F2B48E}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Figtree,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1760px;margin:0 auto;padding:56px 40px 80px}
+h1{font:400 64px/1 "Instrument Serif",serif;margin:0 0 12px;letter-spacing:-.01em}
+h1 em{color:var(--accent)}
+.lede{max-width:760px;color:#5c564e;margin:0 0 28px;font-size:17px}
+.swatches{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px}
+.sw{display:flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 5px;font-size:12px;color:#5c564e}
+.sw i{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.06)}
+.reco{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:14px;padding:16px 20px;max-width:980px;margin-bottom:40px}
+.reco b{font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+@media (max-width:1400px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:26px}
+.card header{display:flex;gap:16px;align-items:flex-start;margin-bottom:18px}
+.num{font:400 52px/0.9 "Instrument Serif",serif;color:var(--accent);min-width:56px}
+.card h2{font:400 32px/1 "Instrument Serif",serif;margin:2px 0 6px}
+.card header p{margin:0;color:#6b645a;font-size:14px}
+.stage{display:flex;align-items:center;gap:28px;background:var(--bg);border-radius:14px;padding:22px 24px;min-height:140px}
+.stage .mark svg{width:84px;height:84px;display:block}
+.stage .word svg{height:60px;width:auto;max-width:100%;display:block}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;font-weight:600}
+.icons{display:flex;align-items:flex-end;gap:18px;background:linear-gradient(90deg,var(--bg) 0 50%,#d9d3c8 50% 100%);border-radius:14px;padding:12px 16px}
+.icons svg{display:block;width:100%;height:100%}
+.i192{width:192px;height:192px;display:block}.i128{width:128px;height:128px}.i32{width:32px;height:32px}
+.menubar{display:flex;align-items:center;gap:14px;height:26px;padding:0 12px;font-size:13px;border-radius:8px;margin-bottom:6px}
+.menubar.light{background:rgba(246,244,240,.95);color:#1d1d1f;border:1px solid var(--line)}
+.menubar.dark{background:#2b2a29;color:#f2f2f2}
+.menubar b{font-weight:600}.spacer{flex:1}
+.apple{width:11px;height:13px;border-radius:50% 50% 45% 45%;background:currentColor;opacity:.85}
+.mb-icon{width:18px;height:18px;display:inline-flex}.mb-icon svg{width:18px;height:18px}
+.batt{width:22px;height:11px;border:1.5px solid currentColor;border-radius:3px;position:relative;opacity:.8}
+.batt:after{content:"";position:absolute;inset:1.5px 6px 1.5px 1.5px;background:currentColor;border-radius:1px}
+.wallpaper{height:116px;border-radius:14px;background:#B9AE9C;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;overflow:hidden;position:relative}
+.wallpaper:before{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 20% 0%,#D8CDB8 0,transparent 60%),radial-gradient(90% 80% at 90% 10%,#8F8577 0,transparent 70%)}
+.dock{position:relative;display:flex;gap:4px;padding:5px 8px;background:rgba(255,255,255,.38);border:1px solid rgba(255,255,255,.5);border-radius:20px;backdrop-filter:blur(18px)}
+.tile{width:60px;height:60px;display:block;position:relative}.tile svg{width:100%;height:100%;display:block}
+.tile.me:after{content:"";position:absolute;left:50%;bottom:-3px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:rgba(0,0,0,.55)}
+.pill-row{display:flex;align-items:center;gap:16px}
+.pill{display:inline-flex;align-items:center;gap:10px;background:var(--ink);border-radius:999px;padding:8px 16px;height:38px;box-shadow:0 6px 18px rgba(42,39,35,.18)}
+.pill-mark svg{width:18px;height:18px;display:block}
+.wave{display:flex;align-items:center;gap:3px;height:18px}
+.wave i{display:block;width:3px;border-radius:2px;background:var(--paper);height:calc(var(--h)*18px);animation:w 1.2s ease-in-out var(--d) infinite}
+.wave i:nth-child(3){background:var(--wave)}
+@keyframes w{50%{transform:scaleY(.45)}}
+.hint{font-size:13px;color:var(--muted)}
+kbd{font:600 11px Figtree;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink);background:var(--paper)}
+.hero{background:var(--bg);border-radius:14px;padding:16px 22px 24px;border:1px solid var(--line)}
+.hero nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:26px}
+.nav-word svg{height:24px;width:auto;display:block}
+.links{font-size:12px;color:var(--muted)}
+.hero h3{font:400 40px/1.02 "Instrument Serif",serif;margin:0 0 6px;letter-spacing:-.01em}
+.hero .nl{font:400 20px/1.2 "Instrument Serif",serif;font-style:italic;color:var(--accent);margin:0 0 12px}
+.hero .sub{color:#5c564e;margin:0 0 16px;font-size:14px;max-width:420px}
+.ctas{display:flex;gap:10px}
+.btn{background:var(--ink);color:var(--paper);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid #d8d1c5}
+.alts{margin-top:72px;padding-top:40px;border-top:1px solid var(--line)}
+.alts h2.sec{font:400 44px/1 "Instrument Serif",serif;margin:0 0 10px}
+.alts .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:900px){.alts .grid{grid-template-columns:1fr}}
+footer{margin-top:56px;color:var(--muted);font-size:13px}
+a{color:inherit}
+</style></head>
+<body><div class="wrap">
+<h1>Musli <em>·</em> six directions</h1>
+<p class="lede">Dictation anywhere you type and meeting notes that stay yours. Six logo directions in the existing warm-paper language: Figtree for the interface, Instrument Serif for headings, one burnt-orange accent. Each card shows the mark, the lockup, the app icon from the 1024 master down to 32 px, the 18 pt menubar template on light and dark bars, the Dock, the listening pill and a landing hero.</p>
+<div class="swatches"><span class="sw"><i style="background:#FCFBF8"></i>Paper #FCFBF8</span><span class="sw"><i style="background:#F7F4EE"></i>Background #F7F4EE</span><span class="sw"><i style="background:#2A2723"></i>Ink #2A2723</span><span class="sw"><i style="background:#9B948A"></i>Muted #9B948A</span><span class="sw"><i style="background:#ECE7DE"></i>Line #ECE7DE</span><span class="sw"><i style="background:#C2410C"></i>Accent · burnt orange #C2410C</span><span class="sw"><i style="background:#F2B48E"></i>Soft wave #F2B48E</span></div>
+<div class="reco"><b>Recommendation: 06 Full Stop</b> as the identity (wordmark, app icon, site), with <b>01 Pulse</b> as the menubar icon and listening state. “Zeg het. Punt uit.” works the same way in Dutch and English, the serif matches the headings already in the app, and the full stop says “finished, polished text”. The serif “m” is the weakest shape at 18 pt, and the bars are the strongest, so the menubar uses the bars. See <a href="palette.md">palette.md</a> and each folder’s notes.md.</div>
+<div class="grid">
+<section class="card" id="d01">
+  <header><span class="num">01</span><div><h2>Pulse</h2><p>The listening pill becomes the logo: five bars whose peaks also trace an “M”.</p></div></header>
+  <div class="stage">
+    <div class="mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <rect x="7" y="24" width="10" height="48" rx="5" fill="#2A2723"/>
+  <rect x="25" y="10" width="10" height="76" rx="5" fill="#2A2723"/>
+  <rect x="43" y="32" width="10" height="32" rx="5" fill="#C2410C"/>
+  <rect x="61" y="10" width="10" height="76" rx="5" fill="#2A2723"/>
+  <rect x="79" y="24" width="10" height="48" rx="5" fill="#2A2723"/>
+</svg>
+</div>
+    <div class="word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 322 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <rect x="7" y="24" width="10" height="48" rx="5" fill="#2A2723"/>
+    <rect x="25" y="10" width="10" height="76" rx="5" fill="#2A2723"/>
+    <rect x="43" y="32" width="10" height="32" rx="5" fill="#C2410C"/>
+    <rect x="61" y="10" width="10" height="76" rx="5" fill="#2A2723"/>
+    <rect x="79" y="24" width="10" height="48" rx="5" fill="#2A2723"/>
+  </g>
+  <path fill="#2A2723" d="M127 89.4V30.6H137.4L155.9 57.8L174.2 30.6H184.7V89.4H174.9V46L155.8 74.3L136.7 46.1V89.4Z M211.1 90.4Q203.7 90.4 199.4 85.8Q195.1 81.3 195.1 71.1V47.4H204.5V68.9Q204.5 73.9 205.7 76.7Q206.9 79.4 208.9 80.5Q211 81.6 213.7 81.6Q218.4 81.7 221.1 78.5Q223.7 75.3 223.7 69.3V47.4H233V89.4H224.2L223.7 83.4Q219.5 90.4 211.1 90.4Z M257.8 90.4Q251.5 90.4 246.8 87.6Q242.2 84.8 240.2 80.2L248.4 76.5Q249.6 78.9 252 80.5Q254.5 82.1 257.6 82.1Q260.9 82.1 262.8 81Q264.8 79.9 264.8 77.8Q264.8 75.9 263.3 74.8Q261.7 73.8 259 73.1L255.1 72Q249.1 70.5 245.7 67.2Q242.4 63.9 242.4 59.6Q242.4 53.3 246.5 49.8Q250.5 46.4 258.2 46.4Q263.9 46.4 268.3 48.9Q272.7 51.4 274.1 55.5L266.3 59.1Q265.5 57 263.1 55.8Q260.8 54.7 257.9 54.7Q255.1 54.7 253.5 55.9Q251.9 57.1 251.9 59.3Q251.9 62 257.4 63.4L262.4 64.5Q268.5 66.1 271.4 70Q274.2 73.8 274.2 77.8Q274.2 81.7 272.1 84.5Q269.9 87.3 266.2 88.9Q262.5 90.4 257.8 90.4Z M280.9 89.4V30.6H290.3V89.4Z M300.4 89.4V47.4H309.8V89.4ZM305.1 39.4Q302.9 39.4 301.2 37.8Q299.6 36.1 299.6 33.9Q299.6 31.7 301.2 30.1Q302.9 28.4 305.1 28.4Q307.4 28.4 309 30.1Q310.7 31.7 310.7 33.9Q310.7 36.1 309 37.8Q307.4 39.4 305.1 39.4Z"/>
+</svg>
+</div>
+  </div>
+  <div class="label">App icon · 1024 master (shown 192) · 128 · 32 px</div>
+  <div class="icons">
+    <a class="i192" href="01-pulse/app-icon.svg" title="Open the 1024 px master"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(5.6) translate(-48 -48)">
+    <rect x="7" y="24" width="10" height="48" rx="5" fill="#FCFBF8"/>
+    <rect x="25" y="10" width="10" height="76" rx="5" fill="#FCFBF8"/>
+    <rect x="43" y="32" width="10" height="32" rx="5" fill="#F2B48E"/>
+    <rect x="61" y="10" width="10" height="76" rx="5" fill="#FCFBF8"/>
+    <rect x="79" y="24" width="10" height="48" rx="5" fill="#FCFBF8"/>
+  </g>
+</svg>
+</a>
+    <span class="i128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(5.6) translate(-48 -48)">
+    <rect x="7" y="24" width="10" height="48" rx="5" fill="#FCFBF8"/>
+    <rect x="25" y="10" width="10" height="76" rx="5" fill="#FCFBF8"/>
+    <rect x="43" y="32" width="10" height="32" rx="5" fill="#F2B48E"/>
+    <rect x="61" y="10" width="10" height="76" rx="5" fill="#FCFBF8"/>
+    <rect x="79" y="24" width="10" height="48" rx="5" fill="#FCFBF8"/>
+  </g>
+</svg>
+</span><span class="i32"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(5.6) translate(-48 -48)">
+    <rect x="7" y="24" width="10" height="48" rx="5" fill="#FCFBF8"/>
+    <rect x="25" y="10" width="10" height="76" rx="5" fill="#FCFBF8"/>
+    <rect x="43" y="32" width="10" height="32" rx="5" fill="#F2B48E"/>
+    <rect x="61" y="10" width="10" height="76" rx="5" fill="#FCFBF8"/>
+    <rect x="79" y="24" width="10" height="48" rx="5" fill="#FCFBF8"/>
+  </g>
+</svg>
+</span>
+  </div>
+  <div class="label">Menubar template icon · real 18 pt</div>
+  <div class="menubar light"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <rect x="0" y="5" width="2" height="8" rx="1" fill="currentColor"/>
+  <rect x="4" y="2" width="2" height="14" rx="1" fill="currentColor"/>
+  <rect x="8" y="6" width="2" height="6" rx="1" fill="currentColor"/>
+  <rect x="12" y="2" width="2" height="14" rx="1" fill="currentColor"/>
+  <rect x="16" y="5" width="2" height="8" rx="1" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="menubar dark"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <rect x="0" y="5" width="2" height="8" rx="1" fill="currentColor"/>
+  <rect x="4" y="2" width="2" height="14" rx="1" fill="currentColor"/>
+  <rect x="8" y="6" width="2" height="6" rx="1" fill="currentColor"/>
+  <rect x="12" y="2" width="2" height="14" rx="1" fill="currentColor"/>
+  <rect x="16" y="5" width="2" height="8" rx="1" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="label">Dock</div>
+  <div class="wallpaper"><div class="dock"><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#4F7DF3"/><circle cx="512" cy="512" r="190" fill="none" stroke="#fff" stroke-width="56"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#3FAE6A"/><rect x="330" y="360" width="364" height="304" rx="40" fill="#fff"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#ECE7DE"/><path d="M340 680 512 330 684 680Z" fill="#9B948A"/></svg></span><span class="tile me"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(5.6) translate(-48 -48)">
+    <rect x="7" y="24" width="10" height="48" rx="5" fill="#FCFBF8"/>
+    <rect x="25" y="10" width="10" height="76" rx="5" fill="#FCFBF8"/>
+    <rect x="43" y="32" width="10" height="32" rx="5" fill="#F2B48E"/>
+    <rect x="61" y="10" width="10" height="76" rx="5" fill="#FCFBF8"/>
+    <rect x="79" y="24" width="10" height="48" rx="5" fill="#FCFBF8"/>
+  </g>
+</svg>
+</span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#F4C542"/><rect x="330" y="330" width="364" height="364" rx="60" fill="#fff"/><path d="M380 430H644M380 512H644M380 594H560" stroke="#E0B12E" stroke-width="36" stroke-linecap="round"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#6B5BD6"/><circle cx="430" cy="512" r="90" fill="#fff"/><circle cx="600" cy="512" r="90" fill="#fff" opacity=".6"/></svg></span></div></div>
+  <div class="label">Dictation pill</div>
+  <div class="pill-row"><div class="pill"><span class="wave"><i style="--h:0.45;--d:0s"></i><i style="--h:0.8;--d:0.15s"></i><i style="--h:1;--d:0.3s"></i><i style="--h:0.7;--d:0.45s"></i><i style="--h:0.4;--d:0.6s"></i></span></div><span class="hint">Hold <kbd>fn</kbd> to dictate</span></div>
+  <div class="label">Landing hero</div>
+  <div class="hero">
+    <nav><span class="nav-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 322 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <rect x="7" y="24" width="10" height="48" rx="5" fill="#2A2723"/>
+    <rect x="25" y="10" width="10" height="76" rx="5" fill="#2A2723"/>
+    <rect x="43" y="32" width="10" height="32" rx="5" fill="#C2410C"/>
+    <rect x="61" y="10" width="10" height="76" rx="5" fill="#2A2723"/>
+    <rect x="79" y="24" width="10" height="48" rx="5" fill="#2A2723"/>
+  </g>
+  <path fill="#2A2723" d="M127 89.4V30.6H137.4L155.9 57.8L174.2 30.6H184.7V89.4H174.9V46L155.8 74.3L136.7 46.1V89.4Z M211.1 90.4Q203.7 90.4 199.4 85.8Q195.1 81.3 195.1 71.1V47.4H204.5V68.9Q204.5 73.9 205.7 76.7Q206.9 79.4 208.9 80.5Q211 81.6 213.7 81.6Q218.4 81.7 221.1 78.5Q223.7 75.3 223.7 69.3V47.4H233V89.4H224.2L223.7 83.4Q219.5 90.4 211.1 90.4Z M257.8 90.4Q251.5 90.4 246.8 87.6Q242.2 84.8 240.2 80.2L248.4 76.5Q249.6 78.9 252 80.5Q254.5 82.1 257.6 82.1Q260.9 82.1 262.8 81Q264.8 79.9 264.8 77.8Q264.8 75.9 263.3 74.8Q261.7 73.8 259 73.1L255.1 72Q249.1 70.5 245.7 67.2Q242.4 63.9 242.4 59.6Q242.4 53.3 246.5 49.8Q250.5 46.4 258.2 46.4Q263.9 46.4 268.3 48.9Q272.7 51.4 274.1 55.5L266.3 59.1Q265.5 57 263.1 55.8Q260.8 54.7 257.9 54.7Q255.1 54.7 253.5 55.9Q251.9 57.1 251.9 59.3Q251.9 62 257.4 63.4L262.4 64.5Q268.5 66.1 271.4 70Q274.2 73.8 274.2 77.8Q274.2 81.7 272.1 84.5Q269.9 87.3 266.2 88.9Q262.5 90.4 257.8 90.4Z M280.9 89.4V30.6H290.3V89.4Z M300.4 89.4V47.4H309.8V89.4ZM305.1 39.4Q302.9 39.4 301.2 37.8Q299.6 36.1 299.6 33.9Q299.6 31.7 301.2 30.1Q302.9 28.4 305.1 28.4Q307.4 28.4 309 30.1Q310.7 31.7 310.7 33.9Q310.7 36.1 309 37.8Q307.4 39.4 305.1 39.4Z"/>
+</svg>
+</span><span class="links">Features · Pricing · GitHub</span></nav>
+    <h3>Speak. It’s written.</h3>
+    <p class="nl">Spreek. Het staat er.</p>
+    <p class="sub">Dictation anywhere you type, and meeting notes that stay on your Mac. 13 MB. No account.</p>
+    <div class="ctas"><span class="btn">Download for Mac</span><span class="btn ghost">Try Musli Cloud</span></div>
+  </div>
+</section>
+<section class="card" id="d02">
+  <header><span class="num">02</span><div><h2>Bowl</h2><p>A bowl of three grains, read as an ellipsis: everything you said, mixed and served.</p></div></header>
+  <div class="stage">
+    <div class="mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <path d="M14 42H82A34 34 0 0 1 14 42Z" fill="#2A2723"/>
+  <circle cx="33" cy="32" r="6.5" fill="#C2410C"/>
+  <circle cx="48" cy="26" r="6.5" fill="#C2410C"/>
+  <circle cx="63" cy="32" r="6.5" fill="#C2410C"/>
+</svg>
+</div>
+    <div class="word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 313 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <path d="M14 42H82A34 34 0 0 1 14 42Z" fill="#2A2723"/>
+    <circle cx="33" cy="32" r="6.5" fill="#C2410C"/>
+    <circle cx="48" cy="26" r="6.5" fill="#C2410C"/>
+    <circle cx="63" cy="32" r="6.5" fill="#C2410C"/>
+  </g>
+  <path fill="#2A2723" d="M151.5 91Q151.1 91 150.6 90.7Q150.1 90.4 149.9 89.4L134.8 28.1Q134.7 27.4 134.2 27.4Q133.7 27.5 133.7 28.2L131.7 83.4Q131.6 86.2 132.6 87.7Q133.6 89.1 136.1 89.5L137.4 89.7Q138.7 89.8 138.7 90.9Q138.7 92 137.2 92H122.9Q121.4 92 121.4 90.9Q121.4 89.8 122.7 89.7L124 89.5Q126.6 89.1 127.5 87.7Q128.5 86.2 128.6 83.4L130.6 26.6Q130.7 24.5 130 23.8Q129.3 23.1 127 22.7L124.7 22.3Q123.4 22 123.4 21.1Q123.4 20 124.9 20H136.9Q140 20 140.7 23L152.8 72.9Q153 73.6 153.4 73.6Q153.9 73.6 154 72.9L166.6 22.5Q167.2 20 169.8 20H181.6Q183.1 20 183.1 21.1Q183.1 22 181.8 22.3L179.5 22.7Q177.4 23.1 176.7 23.8Q176 24.5 176.1 26.6L178.1 85.4Q178.2 87.5 178.8 88.2Q179.4 88.9 181.5 89.3L183.8 89.7Q185.1 90 185.1 90.9Q185.1 92 183.6 92H165.5Q164 92 164 90.9Q164 90 165.3 89.7L167.6 89.3Q169.7 88.9 170.4 88.2Q171.1 87.5 171 85.4L169.3 28.2Q169.3 27.5 168.9 27.4Q168.4 27.4 168.2 28L153 89.4Q152.8 90.4 152.4 90.7Q151.9 91 151.5 91Z M203.6 92.9Q201.1 92.9 198.8 91.8Q196.5 90.7 195 88.3Q193.5 85.9 193.5 81.9V47.1Q193.5 45.3 192.9 44.6Q192.4 43.9 191 43.8L189.3 43.6Q187.6 43.4 187.6 42.3Q187.6 41 189.5 41H198.8Q200.3 41 200.3 42.5V79.8Q200.3 84.4 202.1 86.3Q203.8 88.3 206.9 88.3Q210 88.3 212.4 86.5Q214.8 84.8 216.2 81.8Q217.7 78.9 217.7 75.4V47.1Q217.7 45.3 217.1 44.6Q216.6 43.9 215.2 43.8L213.5 43.6Q211.8 43.4 211.8 42.3Q211.8 41 213.7 41H223Q224.5 41 224.5 42.5V81.3Q224.5 83.1 225.1 83.8Q225.6 84.4 227 84.6L229.1 84.9Q230.4 85 230.4 85.9Q230.4 86.8 228.8 87.1Q225.7 87.5 223.8 88.7Q222 89.9 220.6 91.6Q219.7 92.5 219.1 92.5Q218.2 92.5 218.2 91.3V86.7Q218.2 85.9 217.6 85.8Q217.1 85.6 216.5 86.2Q212.8 89.9 209.9 91.4Q207.1 92.9 203.6 92.9Z M245 92.9Q242.7 92.9 240.1 92.3Q237.5 91.8 235.9 91Q235 90.5 235 89.3L234.7 78.1Q234.7 76.4 236 76.4Q237.1 76.4 237.5 78Q239.2 85.1 241.7 87.7Q244.1 90.3 247.6 90.3Q250.5 90.3 252.4 88Q254.3 85.8 254.3 81.8Q254.3 77.8 252.1 74.7Q249.9 71.6 244.7 67.9Q239.5 64.4 237.1 60.9Q234.7 57.3 234.7 53.1Q234.7 47.4 238.7 43.9Q242.7 40.4 249.3 40.4Q251.3 40.4 253.2 40.8Q255.1 41.3 256.6 42.3Q257.5 42.9 257.5 43.9L257.7 54.9Q257.7 56.4 256.5 56.4Q255.8 56.4 255.5 56Q255.2 55.5 255 54.8Q253 48.3 251 45.8Q249 43.2 246.1 43.2Q243.5 43.2 241.8 45Q240.1 46.8 240.1 49.5Q240.1 53 242.2 55.6Q244.3 58.2 249.8 62Q254.8 65.6 257.4 69.8Q259.9 73.9 259.9 78.8Q259.9 85.2 255.8 89.1Q251.7 92.9 245 92.9Z M264.7 92Q263.5 92 263.5 90.9Q263.5 89.9 264.6 89.7L266 89.5Q268.1 89.2 269.1 88.3Q270.1 87.4 270.1 85.3V28Q270.1 26.2 269.5 25.5Q269 24.8 267.6 24.7L265.3 24.4Q264.2 24.2 264.2 23.2Q264.2 22.2 265.3 22Q268.1 21.4 270.1 20.6Q272.1 19.8 273.4 19Q275 18 275.8 18Q276.9 18 276.9 19.6V85.3Q276.9 87.4 277.5 88.2Q278.2 89.1 280.3 89.4L282.6 89.7Q283.7 89.9 283.7 90.9Q283.7 92 282.5 92Z M296.1 31.5Q294 31.5 292.5 30Q291.1 28.5 291.1 26.2Q291.1 23.9 292.5 22.4Q294 21 296.1 21Q298.2 21 299.6 22.4Q301 23.9 301 26.2Q301 28.5 299.6 30Q298.2 31.5 296.1 31.5ZM287.7 92Q286.2 92 286.2 90.9Q286.2 90 287.5 89.7L288.7 89.5Q291.2 89.1 291.9 88.2Q292.6 87.4 292.6 85.3V51.7Q292.6 49.9 292 49.2Q291.5 48.6 290.1 48.4L288 48.1Q286.7 48 286.7 47Q286.7 46.2 288.3 45.9Q291.4 45.4 293.3 44.3Q295.2 43.2 297 41.6Q297.9 40.7 298.5 40.7Q299.4 40.7 299.4 41.9V85.3Q299.4 87.4 300 88.3Q300.6 89.2 302.3 89.4L304.8 89.7Q305.9 89.9 305.9 90.8Q305.9 92 304.4 92Z"/>
+</svg>
+</div>
+  </div>
+  <div class="label">App icon · 1024 master (shown 192) · 128 · 32 px</div>
+  <div class="icons">
+    <a class="i192" href="02-bowl/app-icon.svg" title="Open the 1024 px master"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#FCFBF8"/>
+  <g transform="translate(512 512) scale(6.2) translate(-48 -47.75)">
+    <path d="M14 42H82A34 34 0 0 1 14 42Z" fill="#2A2723"/>
+    <circle cx="33" cy="32" r="6.5" fill="#C2410C"/>
+    <circle cx="48" cy="26" r="6.5" fill="#C2410C"/>
+    <circle cx="63" cy="32" r="6.5" fill="#C2410C"/>
+  </g>
+</svg>
+</a>
+    <span class="i128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#FCFBF8"/>
+  <g transform="translate(512 512) scale(6.2) translate(-48 -47.75)">
+    <path d="M14 42H82A34 34 0 0 1 14 42Z" fill="#2A2723"/>
+    <circle cx="33" cy="32" r="6.5" fill="#C2410C"/>
+    <circle cx="48" cy="26" r="6.5" fill="#C2410C"/>
+    <circle cx="63" cy="32" r="6.5" fill="#C2410C"/>
+  </g>
+</svg>
+</span><span class="i32"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#FCFBF8"/>
+  <g transform="translate(512 512) scale(6.2) translate(-48 -47.75)">
+    <path d="M14 42H82A34 34 0 0 1 14 42Z" fill="#2A2723"/>
+    <circle cx="33" cy="32" r="6.5" fill="#C2410C"/>
+    <circle cx="48" cy="26" r="6.5" fill="#C2410C"/>
+    <circle cx="63" cy="32" r="6.5" fill="#C2410C"/>
+  </g>
+</svg>
+</span>
+  </div>
+  <div class="label">Menubar template icon · real 18 pt</div>
+  <div class="menubar light"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <path d="M2 9.5H16A7 7 0 0 1 2 9.5Z" fill="currentColor"/>
+  <circle cx="5.5" cy="6" r="1.5" fill="currentColor"/>
+  <circle cx="9" cy="3.8" r="1.5" fill="currentColor"/>
+  <circle cx="12.5" cy="6" r="1.5" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="menubar dark"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <path d="M2 9.5H16A7 7 0 0 1 2 9.5Z" fill="currentColor"/>
+  <circle cx="5.5" cy="6" r="1.5" fill="currentColor"/>
+  <circle cx="9" cy="3.8" r="1.5" fill="currentColor"/>
+  <circle cx="12.5" cy="6" r="1.5" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="label">Dock</div>
+  <div class="wallpaper"><div class="dock"><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#4F7DF3"/><circle cx="512" cy="512" r="190" fill="none" stroke="#fff" stroke-width="56"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#3FAE6A"/><rect x="330" y="360" width="364" height="304" rx="40" fill="#fff"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#ECE7DE"/><path d="M340 680 512 330 684 680Z" fill="#9B948A"/></svg></span><span class="tile me"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#FCFBF8"/>
+  <g transform="translate(512 512) scale(6.2) translate(-48 -47.75)">
+    <path d="M14 42H82A34 34 0 0 1 14 42Z" fill="#2A2723"/>
+    <circle cx="33" cy="32" r="6.5" fill="#C2410C"/>
+    <circle cx="48" cy="26" r="6.5" fill="#C2410C"/>
+    <circle cx="63" cy="32" r="6.5" fill="#C2410C"/>
+  </g>
+</svg>
+</span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#F4C542"/><rect x="330" y="330" width="364" height="364" rx="60" fill="#fff"/><path d="M380 430H644M380 512H644M380 594H560" stroke="#E0B12E" stroke-width="36" stroke-linecap="round"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#6B5BD6"/><circle cx="430" cy="512" r="90" fill="#fff"/><circle cx="600" cy="512" r="90" fill="#fff" opacity=".6"/></svg></span></div></div>
+  <div class="label">Dictation pill</div>
+  <div class="pill-row"><div class="pill"><span class="pill-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <path d="M14 42H82A34 34 0 0 1 14 42Z" fill="#FCFBF8"/>
+  <circle cx="33" cy="32" r="6.5" fill="#F2B48E"/>
+  <circle cx="48" cy="26" r="6.5" fill="#F2B48E"/>
+  <circle cx="63" cy="32" r="6.5" fill="#F2B48E"/>
+</svg>
+</span><span class="wave"><i style="--h:0.45;--d:0s"></i><i style="--h:0.8;--d:0.15s"></i><i style="--h:1;--d:0.3s"></i><i style="--h:0.7;--d:0.45s"></i><i style="--h:0.4;--d:0.6s"></i></span></div><span class="hint">Hold <kbd>fn</kbd> to dictate</span></div>
+  <div class="label">Landing hero</div>
+  <div class="hero">
+    <nav><span class="nav-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 313 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <path d="M14 42H82A34 34 0 0 1 14 42Z" fill="#2A2723"/>
+    <circle cx="33" cy="32" r="6.5" fill="#C2410C"/>
+    <circle cx="48" cy="26" r="6.5" fill="#C2410C"/>
+    <circle cx="63" cy="32" r="6.5" fill="#C2410C"/>
+  </g>
+  <path fill="#2A2723" d="M151.5 91Q151.1 91 150.6 90.7Q150.1 90.4 149.9 89.4L134.8 28.1Q134.7 27.4 134.2 27.4Q133.7 27.5 133.7 28.2L131.7 83.4Q131.6 86.2 132.6 87.7Q133.6 89.1 136.1 89.5L137.4 89.7Q138.7 89.8 138.7 90.9Q138.7 92 137.2 92H122.9Q121.4 92 121.4 90.9Q121.4 89.8 122.7 89.7L124 89.5Q126.6 89.1 127.5 87.7Q128.5 86.2 128.6 83.4L130.6 26.6Q130.7 24.5 130 23.8Q129.3 23.1 127 22.7L124.7 22.3Q123.4 22 123.4 21.1Q123.4 20 124.9 20H136.9Q140 20 140.7 23L152.8 72.9Q153 73.6 153.4 73.6Q153.9 73.6 154 72.9L166.6 22.5Q167.2 20 169.8 20H181.6Q183.1 20 183.1 21.1Q183.1 22 181.8 22.3L179.5 22.7Q177.4 23.1 176.7 23.8Q176 24.5 176.1 26.6L178.1 85.4Q178.2 87.5 178.8 88.2Q179.4 88.9 181.5 89.3L183.8 89.7Q185.1 90 185.1 90.9Q185.1 92 183.6 92H165.5Q164 92 164 90.9Q164 90 165.3 89.7L167.6 89.3Q169.7 88.9 170.4 88.2Q171.1 87.5 171 85.4L169.3 28.2Q169.3 27.5 168.9 27.4Q168.4 27.4 168.2 28L153 89.4Q152.8 90.4 152.4 90.7Q151.9 91 151.5 91Z M203.6 92.9Q201.1 92.9 198.8 91.8Q196.5 90.7 195 88.3Q193.5 85.9 193.5 81.9V47.1Q193.5 45.3 192.9 44.6Q192.4 43.9 191 43.8L189.3 43.6Q187.6 43.4 187.6 42.3Q187.6 41 189.5 41H198.8Q200.3 41 200.3 42.5V79.8Q200.3 84.4 202.1 86.3Q203.8 88.3 206.9 88.3Q210 88.3 212.4 86.5Q214.8 84.8 216.2 81.8Q217.7 78.9 217.7 75.4V47.1Q217.7 45.3 217.1 44.6Q216.6 43.9 215.2 43.8L213.5 43.6Q211.8 43.4 211.8 42.3Q211.8 41 213.7 41H223Q224.5 41 224.5 42.5V81.3Q224.5 83.1 225.1 83.8Q225.6 84.4 227 84.6L229.1 84.9Q230.4 85 230.4 85.9Q230.4 86.8 228.8 87.1Q225.7 87.5 223.8 88.7Q222 89.9 220.6 91.6Q219.7 92.5 219.1 92.5Q218.2 92.5 218.2 91.3V86.7Q218.2 85.9 217.6 85.8Q217.1 85.6 216.5 86.2Q212.8 89.9 209.9 91.4Q207.1 92.9 203.6 92.9Z M245 92.9Q242.7 92.9 240.1 92.3Q237.5 91.8 235.9 91Q235 90.5 235 89.3L234.7 78.1Q234.7 76.4 236 76.4Q237.1 76.4 237.5 78Q239.2 85.1 241.7 87.7Q244.1 90.3 247.6 90.3Q250.5 90.3 252.4 88Q254.3 85.8 254.3 81.8Q254.3 77.8 252.1 74.7Q249.9 71.6 244.7 67.9Q239.5 64.4 237.1 60.9Q234.7 57.3 234.7 53.1Q234.7 47.4 238.7 43.9Q242.7 40.4 249.3 40.4Q251.3 40.4 253.2 40.8Q255.1 41.3 256.6 42.3Q257.5 42.9 257.5 43.9L257.7 54.9Q257.7 56.4 256.5 56.4Q255.8 56.4 255.5 56Q255.2 55.5 255 54.8Q253 48.3 251 45.8Q249 43.2 246.1 43.2Q243.5 43.2 241.8 45Q240.1 46.8 240.1 49.5Q240.1 53 242.2 55.6Q244.3 58.2 249.8 62Q254.8 65.6 257.4 69.8Q259.9 73.9 259.9 78.8Q259.9 85.2 255.8 89.1Q251.7 92.9 245 92.9Z M264.7 92Q263.5 92 263.5 90.9Q263.5 89.9 264.6 89.7L266 89.5Q268.1 89.2 269.1 88.3Q270.1 87.4 270.1 85.3V28Q270.1 26.2 269.5 25.5Q269 24.8 267.6 24.7L265.3 24.4Q264.2 24.2 264.2 23.2Q264.2 22.2 265.3 22Q268.1 21.4 270.1 20.6Q272.1 19.8 273.4 19Q275 18 275.8 18Q276.9 18 276.9 19.6V85.3Q276.9 87.4 277.5 88.2Q278.2 89.1 280.3 89.4L282.6 89.7Q283.7 89.9 283.7 90.9Q283.7 92 282.5 92Z M296.1 31.5Q294 31.5 292.5 30Q291.1 28.5 291.1 26.2Q291.1 23.9 292.5 22.4Q294 21 296.1 21Q298.2 21 299.6 22.4Q301 23.9 301 26.2Q301 28.5 299.6 30Q298.2 31.5 296.1 31.5ZM287.7 92Q286.2 92 286.2 90.9Q286.2 90 287.5 89.7L288.7 89.5Q291.2 89.1 291.9 88.2Q292.6 87.4 292.6 85.3V51.7Q292.6 49.9 292 49.2Q291.5 48.6 290.1 48.4L288 48.1Q286.7 48 286.7 47Q286.7 46.2 288.3 45.9Q291.4 45.4 293.3 44.3Q295.2 43.2 297 41.6Q297.9 40.7 298.5 40.7Q299.4 40.7 299.4 41.9V85.3Q299.4 87.4 300 88.3Q300.6 89.2 302.3 89.4L304.8 89.7Q305.9 89.9 305.9 90.8Q305.9 92 304.4 92Z"/>
+</svg>
+</span><span class="links">Features · Pricing · GitHub</span></nav>
+    <h3>Everything you said, nicely served.</h3>
+    <p class="nl">Alles wat je zei, netjes opgediend.</p>
+    <p class="sub">Dictation anywhere you type, and meeting notes that stay on your Mac. 13 MB. No account.</p>
+    <div class="ctas"><span class="btn">Download for Mac</span><span class="btn ghost">Try Musli Cloud</span></div>
+  </div>
+</section>
+<section class="card" id="d03">
+  <header><span class="num">03</span><div><h2>Folio</h2><p>A sheet of paper that is also a speech bubble: voice in, page out.</p></div></header>
+  <div class="stage">
+    <div class="mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <g fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#2A2723"/>
+    <path d="M58 9L76 27H58Z" stroke="#C2410C" fill="#C2410C"/>
+    <path d="M32 43H62M32 57H52" stroke="#2A2723"/>
+  </g>
+</svg>
+</div>
+    <div class="word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 315 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <g fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#2A2723"/>
+      <path d="M58 9L76 27H58Z" stroke="#C2410C" fill="#C2410C"/>
+      <path d="M32 43H62M32 57H52" stroke="#2A2723"/>
+    </g>
+  </g>
+  <path fill="#2A2723" d="M123.5 89.4V30.6H132.2L151.7 59.4L171.1 30.6H179.8V89.4H171.6V43.9L151.6 73.4L131.7 44V89.4Z M207.1 90.4Q199.8 90.4 195.4 85.8Q191 81.3 191 71V47.4H199V68.9Q199 74.5 200.3 77.6Q201.6 80.7 203.9 81.8Q206.3 82.9 209.2 83Q214.4 83 217.2 79.4Q220.1 75.8 220.1 69.2V47.4H228V89.4H220.6L220.2 83.3Q216 90.4 207.1 90.4Z M253.3 90.4Q246.6 90.4 242.2 87.5Q237.7 84.6 236 80.3L242.8 77.3Q244.2 79.9 246.9 81.6Q249.6 83.3 252.8 83.3Q256.4 83.3 258.8 82Q261.2 80.7 261.2 78.1Q261.2 75.8 259.4 74.4Q257.6 73.1 254.3 72.3L250.3 71.3Q244.5 69.7 241.2 66.5Q238 63.4 238 59.2Q238 53.2 241.9 49.8Q245.9 46.4 253.6 46.4Q259.2 46.4 263.4 48.8Q267.6 51.3 269 55.4L262.3 58.4Q261.4 55.9 258.9 54.7Q256.4 53.4 253.2 53.4Q249.8 53.4 247.9 54.9Q245.9 56.4 245.9 59Q245.9 62.2 252.4 63.9L257 65Q263.1 66.5 266.1 70.2Q269.1 73.9 269.1 78Q269.1 81.8 267.1 84.6Q265 87.4 261.4 88.9Q257.9 90.4 253.3 90.4Z M276.6 89.4V30.6H284.6V89.4Z M295.3 89.4V47.4H303.3V89.4ZM299.4 38.5Q297.4 38.5 296 37.1Q294.6 35.6 294.6 33.6Q294.6 31.7 296 30.3Q297.4 28.8 299.4 28.8Q301.4 28.8 302.8 30.3Q304.2 31.7 304.2 33.6Q304.2 35.6 302.8 37.1Q301.4 38.5 299.4 38.5Z"/>
+</svg>
+</div>
+  </div>
+  <div class="label">App icon · 1024 master (shown 192) · 128 · 32 px</div>
+  <div class="icons">
+    <a class="i192" href="03-folio/app-icon.svg" title="Open the 1024 px master"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(5.6) translate(-48 -48)">
+    <g stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#FCFBF8" fill="#FCFBF8"/>
+      <path d="M58 9L76 27H58Z" stroke="#F2B48E" fill="#F2B48E"/>
+      <path d="M32 43H62M32 57H52" stroke="#2A2723" fill="none"/>
+    </g>
+  </g>
+</svg>
+</a>
+    <span class="i128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(5.6) translate(-48 -48)">
+    <g stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#FCFBF8" fill="#FCFBF8"/>
+      <path d="M58 9L76 27H58Z" stroke="#F2B48E" fill="#F2B48E"/>
+      <path d="M32 43H62M32 57H52" stroke="#2A2723" fill="none"/>
+    </g>
+  </g>
+</svg>
+</span><span class="i32"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(5.6) translate(-48 -48)">
+    <g stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#FCFBF8" fill="#FCFBF8"/>
+      <path d="M58 9L76 27H58Z" stroke="#F2B48E" fill="#F2B48E"/>
+      <path d="M32 43H62M32 57H52" stroke="#2A2723" fill="none"/>
+    </g>
+  </g>
+</svg>
+</span>
+  </div>
+  <div class="label">Menubar template icon · real 18 pt</div>
+  <div class="menubar light"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5.5 1.75H11L14.5 5.25V12A2 2 0 0 1 12.5 14H7L3.5 16.5V3.75A2 2 0 0 1 5.5 1.75Z"/>
+    <path d="M11 1.75V5.25H14.5" fill="currentColor"/>
+    <path d="M6.5 8H11.5M6.5 11H9.5"/>
+  </g>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="menubar dark"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5.5 1.75H11L14.5 5.25V12A2 2 0 0 1 12.5 14H7L3.5 16.5V3.75A2 2 0 0 1 5.5 1.75Z"/>
+    <path d="M11 1.75V5.25H14.5" fill="currentColor"/>
+    <path d="M6.5 8H11.5M6.5 11H9.5"/>
+  </g>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="label">Dock</div>
+  <div class="wallpaper"><div class="dock"><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#4F7DF3"/><circle cx="512" cy="512" r="190" fill="none" stroke="#fff" stroke-width="56"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#3FAE6A"/><rect x="330" y="360" width="364" height="304" rx="40" fill="#fff"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#ECE7DE"/><path d="M340 680 512 330 684 680Z" fill="#9B948A"/></svg></span><span class="tile me"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(5.6) translate(-48 -48)">
+    <g stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#FCFBF8" fill="#FCFBF8"/>
+      <path d="M58 9L76 27H58Z" stroke="#F2B48E" fill="#F2B48E"/>
+      <path d="M32 43H62M32 57H52" stroke="#2A2723" fill="none"/>
+    </g>
+  </g>
+</svg>
+</span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#F4C542"/><rect x="330" y="330" width="364" height="364" rx="60" fill="#fff"/><path d="M380 430H644M380 512H644M380 594H560" stroke="#E0B12E" stroke-width="36" stroke-linecap="round"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#6B5BD6"/><circle cx="430" cy="512" r="90" fill="#fff"/><circle cx="600" cy="512" r="90" fill="#fff" opacity=".6"/></svg></span></div></div>
+  <div class="label">Dictation pill</div>
+  <div class="pill-row"><div class="pill"><span class="pill-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <g fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#FCFBF8"/>
+    <path d="M58 9L76 27H58Z" stroke="#F2B48E" fill="#F2B48E"/>
+    <path d="M32 43H62M32 57H52" stroke="#FCFBF8"/>
+  </g>
+</svg>
+</span><span class="wave"><i style="--h:0.45;--d:0s"></i><i style="--h:0.8;--d:0.15s"></i><i style="--h:1;--d:0.3s"></i><i style="--h:0.7;--d:0.45s"></i><i style="--h:0.4;--d:0.6s"></i></span></div><span class="hint">Hold <kbd>fn</kbd> to dictate</span></div>
+  <div class="label">Landing hero</div>
+  <div class="hero">
+    <nav><span class="nav-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 315 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <g fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#2A2723"/>
+      <path d="M58 9L76 27H58Z" stroke="#C2410C" fill="#C2410C"/>
+      <path d="M32 43H62M32 57H52" stroke="#2A2723"/>
+    </g>
+  </g>
+  <path fill="#2A2723" d="M123.5 89.4V30.6H132.2L151.7 59.4L171.1 30.6H179.8V89.4H171.6V43.9L151.6 73.4L131.7 44V89.4Z M207.1 90.4Q199.8 90.4 195.4 85.8Q191 81.3 191 71V47.4H199V68.9Q199 74.5 200.3 77.6Q201.6 80.7 203.9 81.8Q206.3 82.9 209.2 83Q214.4 83 217.2 79.4Q220.1 75.8 220.1 69.2V47.4H228V89.4H220.6L220.2 83.3Q216 90.4 207.1 90.4Z M253.3 90.4Q246.6 90.4 242.2 87.5Q237.7 84.6 236 80.3L242.8 77.3Q244.2 79.9 246.9 81.6Q249.6 83.3 252.8 83.3Q256.4 83.3 258.8 82Q261.2 80.7 261.2 78.1Q261.2 75.8 259.4 74.4Q257.6 73.1 254.3 72.3L250.3 71.3Q244.5 69.7 241.2 66.5Q238 63.4 238 59.2Q238 53.2 241.9 49.8Q245.9 46.4 253.6 46.4Q259.2 46.4 263.4 48.8Q267.6 51.3 269 55.4L262.3 58.4Q261.4 55.9 258.9 54.7Q256.4 53.4 253.2 53.4Q249.8 53.4 247.9 54.9Q245.9 56.4 245.9 59Q245.9 62.2 252.4 63.9L257 65Q263.1 66.5 266.1 70.2Q269.1 73.9 269.1 78Q269.1 81.8 267.1 84.6Q265 87.4 261.4 88.9Q257.9 90.4 253.3 90.4Z M276.6 89.4V30.6H284.6V89.4Z M295.3 89.4V47.4H303.3V89.4ZM299.4 38.5Q297.4 38.5 296 37.1Q294.6 35.6 294.6 33.6Q294.6 31.7 296 30.3Q297.4 28.8 299.4 28.8Q301.4 28.8 302.8 30.3Q304.2 31.7 304.2 33.6Q304.2 35.6 302.8 37.1Q301.4 38.5 299.4 38.5Z"/>
+</svg>
+</span><span class="links">Features · Pricing · GitHub</span></nav>
+    <h3>From voice to page.</h3>
+    <p class="nl">Van stem naar pagina.</p>
+    <p class="sub">Dictation anywhere you type, and meeting notes that stay on your Mac. 13 MB. No account.</p>
+    <div class="ctas"><span class="btn">Download for Mac</span><span class="btn ghost">Try Musli Cloud</span></div>
+  </div>
+</section>
+<section class="card" id="d04">
+  <header><span class="num">04</span><div><h2>Line</h2><p>A single-stroke “m” whose last leg runs out into a line of text, ending at the cursor.</p></div></header>
+  <div class="stage">
+    <div class="mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="86" cy="66" r="4.5" fill="#C2410C"/>
+</svg>
+</div>
+    <div class="word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 323 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="86" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+  <path fill="#2A2723" d="M123.7 80V37H131.3L131.7 42.9Q135.8 36 144 36Q149 36 152.7 38.3Q156.3 40.7 158 45.5Q159.9 41 163.3 38.5Q166.8 36 171.5 36Q178.8 36 182.9 40.8Q187.1 45.6 187 55.4V80H178.9V58Q178.9 52.2 177.7 49.1Q176.5 45.9 174.4 44.8Q172.3 43.6 169.5 43.5Q164.7 43.5 162.1 47.2Q159.5 50.9 159.5 57.6V80H151.3V58Q151.3 52.2 150.1 49.1Q148.9 45.9 146.8 44.8Q144.7 43.6 141.9 43.5Q137.1 43.5 134.5 47.2Q131.8 50.9 131.8 57.6V80Z M212 81Q204.5 81 200 76.3Q195.5 71.7 195.5 61.2V37H203.7V59Q203.7 64.8 205 67.9Q206.3 71.1 208.7 72.2Q211.1 73.4 214.1 73.5Q219.4 73.5 222.3 69.8Q225.2 66.1 225.2 59.4V37H233.3V80H225.8L225.4 73.7Q221 81 212 81Z M259.3 81Q252.4 81 247.9 78.1Q243.3 75.1 241.5 70.7L248.5 67.6Q249.9 70.3 252.7 72Q255.4 73.7 258.8 73.7Q262.5 73.7 264.9 72.4Q267.3 71.1 267.3 68.5Q267.3 66.1 265.5 64.7Q263.7 63.3 260.2 62.5L256.2 61.4Q250.3 59.8 246.9 56.6Q243.6 53.3 243.6 49.1Q243.6 42.9 247.6 39.5Q251.6 36 259.6 36Q265.3 36 269.6 38.5Q273.9 41 275.4 45.2L268.5 48.3Q267.6 45.7 265 44.4Q262.5 43.2 259.1 43.2Q255.7 43.2 253.7 44.7Q251.7 46.2 251.7 48.9Q251.7 52.1 258.4 53.9L263 55Q269.3 56.5 272.4 60.3Q275.5 64.1 275.5 68.3Q275.5 72.3 273.4 75.1Q271.3 77.9 267.6 79.5Q263.9 81 259.3 81Z M283.1 80V19.8H291.3V80Z M302.3 80V37H310.5V80ZM306.4 27.9Q304.4 27.9 303 26.4Q301.5 25 301.5 22.9Q301.5 20.9 303 19.5Q304.4 18 306.4 18Q308.5 18 309.9 19.5Q311.3 20.9 311.3 22.9Q311.3 25 309.9 26.4Q308.5 27.9 306.4 27.9Z"/>
+</svg>
+</div>
+  </div>
+  <div class="label">App icon · 1024 master (shown 192) · 128 · 32 px</div>
+  <div class="icons">
+    <a class="i192" href="04-line/app-icon.svg" title="Open the 1024 px master"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F7F4EE"/>
+  <g transform="translate(512 512) scale(5.4) translate(-48.25 -48.5)">
+    <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="86" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+</svg>
+</a>
+    <span class="i128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F7F4EE"/>
+  <g transform="translate(512 512) scale(5.4) translate(-48.25 -48.5)">
+    <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="86" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+</svg>
+</span><span class="i32"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F7F4EE"/>
+  <g transform="translate(512 512) scale(5.4) translate(-48.25 -48.5)">
+    <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="86" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+</svg>
+</span>
+  </div>
+  <div class="label">Menubar template icon · real 18 pt</div>
+  <div class="menubar light"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <path d="M2 13V7.5A2.25 2.25 0 0 1 6.5 7.5V13M6.5 7.5A2.25 2.25 0 0 1 11 7.5V11A2 2 0 0 0 13 13H16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="menubar dark"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <path d="M2 13V7.5A2.25 2.25 0 0 1 6.5 7.5V13M6.5 7.5A2.25 2.25 0 0 1 11 7.5V11A2 2 0 0 0 13 13H16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="label">Dock</div>
+  <div class="wallpaper"><div class="dock"><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#4F7DF3"/><circle cx="512" cy="512" r="190" fill="none" stroke="#fff" stroke-width="56"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#3FAE6A"/><rect x="330" y="360" width="364" height="304" rx="40" fill="#fff"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#ECE7DE"/><path d="M340 680 512 330 684 680Z" fill="#9B948A"/></svg></span><span class="tile me"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F7F4EE"/>
+  <g transform="translate(512 512) scale(5.4) translate(-48.25 -48.5)">
+    <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="86" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+</svg>
+</span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#F4C542"/><rect x="330" y="330" width="364" height="364" rx="60" fill="#fff"/><path d="M380 430H644M380 512H644M380 594H560" stroke="#E0B12E" stroke-width="36" stroke-linecap="round"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#6B5BD6"/><circle cx="430" cy="512" r="90" fill="#fff"/><circle cx="600" cy="512" r="90" fill="#fff" opacity=".6"/></svg></span></div></div>
+  <div class="label">Dictation pill</div>
+  <div class="pill-row"><div class="pill"><span class="pill-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#FCFBF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="86" cy="66" r="4.5" fill="#F2B48E"/>
+</svg>
+</span><span class="wave"><i style="--h:0.45;--d:0s"></i><i style="--h:0.8;--d:0.15s"></i><i style="--h:1;--d:0.3s"></i><i style="--h:0.7;--d:0.45s"></i><i style="--h:0.4;--d:0.6s"></i></span></div><span class="hint">Hold <kbd>fn</kbd> to dictate</span></div>
+  <div class="label">Landing hero</div>
+  <div class="hero">
+    <nav><span class="nav-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 323 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="86" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+  <path fill="#2A2723" d="M123.7 80V37H131.3L131.7 42.9Q135.8 36 144 36Q149 36 152.7 38.3Q156.3 40.7 158 45.5Q159.9 41 163.3 38.5Q166.8 36 171.5 36Q178.8 36 182.9 40.8Q187.1 45.6 187 55.4V80H178.9V58Q178.9 52.2 177.7 49.1Q176.5 45.9 174.4 44.8Q172.3 43.6 169.5 43.5Q164.7 43.5 162.1 47.2Q159.5 50.9 159.5 57.6V80H151.3V58Q151.3 52.2 150.1 49.1Q148.9 45.9 146.8 44.8Q144.7 43.6 141.9 43.5Q137.1 43.5 134.5 47.2Q131.8 50.9 131.8 57.6V80Z M212 81Q204.5 81 200 76.3Q195.5 71.7 195.5 61.2V37H203.7V59Q203.7 64.8 205 67.9Q206.3 71.1 208.7 72.2Q211.1 73.4 214.1 73.5Q219.4 73.5 222.3 69.8Q225.2 66.1 225.2 59.4V37H233.3V80H225.8L225.4 73.7Q221 81 212 81Z M259.3 81Q252.4 81 247.9 78.1Q243.3 75.1 241.5 70.7L248.5 67.6Q249.9 70.3 252.7 72Q255.4 73.7 258.8 73.7Q262.5 73.7 264.9 72.4Q267.3 71.1 267.3 68.5Q267.3 66.1 265.5 64.7Q263.7 63.3 260.2 62.5L256.2 61.4Q250.3 59.8 246.9 56.6Q243.6 53.3 243.6 49.1Q243.6 42.9 247.6 39.5Q251.6 36 259.6 36Q265.3 36 269.6 38.5Q273.9 41 275.4 45.2L268.5 48.3Q267.6 45.7 265 44.4Q262.5 43.2 259.1 43.2Q255.7 43.2 253.7 44.7Q251.7 46.2 251.7 48.9Q251.7 52.1 258.4 53.9L263 55Q269.3 56.5 272.4 60.3Q275.5 64.1 275.5 68.3Q275.5 72.3 273.4 75.1Q271.3 77.9 267.6 79.5Q263.9 81 259.3 81Z M283.1 80V19.8H291.3V80Z M302.3 80V37H310.5V80ZM306.4 27.9Q304.4 27.9 303 26.4Q301.5 25 301.5 22.9Q301.5 20.9 303 19.5Q304.4 18 306.4 18Q308.5 18 309.9 19.5Q311.3 20.9 311.3 22.9Q311.3 25 309.9 26.4Q308.5 27.9 306.4 27.9Z"/>
+</svg>
+</span><span class="links">Features · Pricing · GitHub</span></nav>
+    <h3>Talk in. Text out.</h3>
+    <p class="nl">Praat erin. Tekst eruit.</p>
+    <p class="sub">Dictation anywhere you type, and meeting notes that stay on your Mac. 13 MB. No account.</p>
+    <div class="ctas"><span class="btn">Download for Mac</span><span class="btn ghost">Try Musli Cloud</span></div>
+  </div>
+</section>
+<section class="card" id="d05">
+  <header><span class="num">05</span><div><h2>Quote</h2><p>Two grains shaped as a closing quotation mark: your words and theirs, quoted faithfully.</p></div></header>
+  <div class="stage">
+    <div class="mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <path transform="translate(30 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#2A2723"/>
+  <path transform="translate(66 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#C2410C"/>
+</svg>
+</div>
+    <div class="word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 313 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <path transform="translate(30 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#2A2723"/>
+    <path transform="translate(66 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#C2410C"/>
+  </g>
+  <path fill="#2A2723" d="M151.5 91Q151.1 91 150.6 90.7Q150.1 90.4 149.9 89.4L134.8 28.1Q134.7 27.4 134.2 27.4Q133.7 27.5 133.7 28.2L131.7 83.4Q131.6 86.2 132.6 87.7Q133.6 89.1 136.1 89.5L137.4 89.7Q138.7 89.8 138.7 90.9Q138.7 92 137.2 92H122.9Q121.4 92 121.4 90.9Q121.4 89.8 122.7 89.7L124 89.5Q126.6 89.1 127.5 87.7Q128.5 86.2 128.6 83.4L130.6 26.6Q130.7 24.5 130 23.8Q129.3 23.1 127 22.7L124.7 22.3Q123.4 22 123.4 21.1Q123.4 20 124.9 20H136.9Q140 20 140.7 23L152.8 72.9Q153 73.6 153.4 73.6Q153.9 73.6 154 72.9L166.6 22.5Q167.2 20 169.8 20H181.6Q183.1 20 183.1 21.1Q183.1 22 181.8 22.3L179.5 22.7Q177.4 23.1 176.7 23.8Q176 24.5 176.1 26.6L178.1 85.4Q178.2 87.5 178.8 88.2Q179.4 88.9 181.5 89.3L183.8 89.7Q185.1 90 185.1 90.9Q185.1 92 183.6 92H165.5Q164 92 164 90.9Q164 90 165.3 89.7L167.6 89.3Q169.7 88.9 170.4 88.2Q171.1 87.5 171 85.4L169.3 28.2Q169.3 27.5 168.9 27.4Q168.4 27.4 168.2 28L153 89.4Q152.8 90.4 152.4 90.7Q151.9 91 151.5 91Z M203.6 92.9Q201.1 92.9 198.8 91.8Q196.5 90.7 195 88.3Q193.5 85.9 193.5 81.9V47.1Q193.5 45.3 192.9 44.6Q192.4 43.9 191 43.8L189.3 43.6Q187.6 43.4 187.6 42.3Q187.6 41 189.5 41H198.8Q200.3 41 200.3 42.5V79.8Q200.3 84.4 202.1 86.3Q203.8 88.3 206.9 88.3Q210 88.3 212.4 86.5Q214.8 84.8 216.2 81.8Q217.7 78.9 217.7 75.4V47.1Q217.7 45.3 217.1 44.6Q216.6 43.9 215.2 43.8L213.5 43.6Q211.8 43.4 211.8 42.3Q211.8 41 213.7 41H223Q224.5 41 224.5 42.5V81.3Q224.5 83.1 225.1 83.8Q225.6 84.4 227 84.6L229.1 84.9Q230.4 85 230.4 85.9Q230.4 86.8 228.8 87.1Q225.7 87.5 223.8 88.7Q222 89.9 220.6 91.6Q219.7 92.5 219.1 92.5Q218.2 92.5 218.2 91.3V86.7Q218.2 85.9 217.6 85.8Q217.1 85.6 216.5 86.2Q212.8 89.9 209.9 91.4Q207.1 92.9 203.6 92.9Z M245 92.9Q242.7 92.9 240.1 92.3Q237.5 91.8 235.9 91Q235 90.5 235 89.3L234.7 78.1Q234.7 76.4 236 76.4Q237.1 76.4 237.5 78Q239.2 85.1 241.7 87.7Q244.1 90.3 247.6 90.3Q250.5 90.3 252.4 88Q254.3 85.8 254.3 81.8Q254.3 77.8 252.1 74.7Q249.9 71.6 244.7 67.9Q239.5 64.4 237.1 60.9Q234.7 57.3 234.7 53.1Q234.7 47.4 238.7 43.9Q242.7 40.4 249.3 40.4Q251.3 40.4 253.2 40.8Q255.1 41.3 256.6 42.3Q257.5 42.9 257.5 43.9L257.7 54.9Q257.7 56.4 256.5 56.4Q255.8 56.4 255.5 56Q255.2 55.5 255 54.8Q253 48.3 251 45.8Q249 43.2 246.1 43.2Q243.5 43.2 241.8 45Q240.1 46.8 240.1 49.5Q240.1 53 242.2 55.6Q244.3 58.2 249.8 62Q254.8 65.6 257.4 69.8Q259.9 73.9 259.9 78.8Q259.9 85.2 255.8 89.1Q251.7 92.9 245 92.9Z M264.7 92Q263.5 92 263.5 90.9Q263.5 89.9 264.6 89.7L266 89.5Q268.1 89.2 269.1 88.3Q270.1 87.4 270.1 85.3V28Q270.1 26.2 269.5 25.5Q269 24.8 267.6 24.7L265.3 24.4Q264.2 24.2 264.2 23.2Q264.2 22.2 265.3 22Q268.1 21.4 270.1 20.6Q272.1 19.8 273.4 19Q275 18 275.8 18Q276.9 18 276.9 19.6V85.3Q276.9 87.4 277.5 88.2Q278.2 89.1 280.3 89.4L282.6 89.7Q283.7 89.9 283.7 90.9Q283.7 92 282.5 92Z M296.1 31.5Q294 31.5 292.5 30Q291.1 28.5 291.1 26.2Q291.1 23.9 292.5 22.4Q294 21 296.1 21Q298.2 21 299.6 22.4Q301 23.9 301 26.2Q301 28.5 299.6 30Q298.2 31.5 296.1 31.5ZM287.7 92Q286.2 92 286.2 90.9Q286.2 90 287.5 89.7L288.7 89.5Q291.2 89.1 291.9 88.2Q292.6 87.4 292.6 85.3V51.7Q292.6 49.9 292 49.2Q291.5 48.6 290.1 48.4L288 48.1Q286.7 48 286.7 47Q286.7 46.2 288.3 45.9Q291.4 45.4 293.3 44.3Q295.2 43.2 297 41.6Q297.9 40.7 298.5 40.7Q299.4 40.7 299.4 41.9V85.3Q299.4 87.4 300 88.3Q300.6 89.2 302.3 89.4L304.8 89.7Q305.9 89.9 305.9 90.8Q305.9 92 304.4 92Z"/>
+</svg>
+</div>
+  </div>
+  <div class="label">App icon · 1024 master (shown 192) · 128 · 32 px</div>
+  <div class="icons">
+    <a class="i192" href="05-quote/app-icon.svg" title="Open the 1024 px master"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F2B48E"/>
+  <g transform="translate(512 512) scale(7) translate(-48 -48)">
+    <path transform="translate(30 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#2A2723"/>
+    <path transform="translate(66 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#C2410C"/>
+  </g>
+</svg>
+</a>
+    <span class="i128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F2B48E"/>
+  <g transform="translate(512 512) scale(7) translate(-48 -48)">
+    <path transform="translate(30 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#2A2723"/>
+    <path transform="translate(66 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#C2410C"/>
+  </g>
+</svg>
+</span><span class="i32"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F2B48E"/>
+  <g transform="translate(512 512) scale(7) translate(-48 -48)">
+    <path transform="translate(30 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#2A2723"/>
+    <path transform="translate(66 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#C2410C"/>
+  </g>
+</svg>
+</span>
+  </div>
+  <div class="label">Menubar template icon · real 18 pt</div>
+  <div class="menubar light"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <path transform="translate(5.5 6.75) scale(.25)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="currentColor"/>
+  <path transform="translate(12.5 6.75) scale(.25)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="menubar dark"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <path transform="translate(5.5 6.75) scale(.25)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="currentColor"/>
+  <path transform="translate(12.5 6.75) scale(.25)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="label">Dock</div>
+  <div class="wallpaper"><div class="dock"><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#4F7DF3"/><circle cx="512" cy="512" r="190" fill="none" stroke="#fff" stroke-width="56"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#3FAE6A"/><rect x="330" y="360" width="364" height="304" rx="40" fill="#fff"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#ECE7DE"/><path d="M340 680 512 330 684 680Z" fill="#9B948A"/></svg></span><span class="tile me"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F2B48E"/>
+  <g transform="translate(512 512) scale(7) translate(-48 -48)">
+    <path transform="translate(30 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#2A2723"/>
+    <path transform="translate(66 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#C2410C"/>
+  </g>
+</svg>
+</span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#F4C542"/><rect x="330" y="330" width="364" height="364" rx="60" fill="#fff"/><path d="M380 430H644M380 512H644M380 594H560" stroke="#E0B12E" stroke-width="36" stroke-linecap="round"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#6B5BD6"/><circle cx="430" cy="512" r="90" fill="#fff"/><circle cx="600" cy="512" r="90" fill="#fff" opacity=".6"/></svg></span></div></div>
+  <div class="label">Dictation pill</div>
+  <div class="pill-row"><div class="pill"><span class="pill-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <path transform="translate(30 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#FCFBF8"/>
+  <path transform="translate(66 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#F2B48E"/>
+</svg>
+</span><span class="wave"><i style="--h:0.45;--d:0s"></i><i style="--h:0.8;--d:0.15s"></i><i style="--h:1;--d:0.3s"></i><i style="--h:0.7;--d:0.45s"></i><i style="--h:0.4;--d:0.6s"></i></span></div><span class="hint">Hold <kbd>fn</kbd> to dictate</span></div>
+  <div class="label">Landing hero</div>
+  <div class="hero">
+    <nav><span class="nav-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 313 120" role="img" aria-label="Musli">
+  <g transform="translate(0 12)">
+    <path transform="translate(30 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#2A2723"/>
+    <path transform="translate(66 39)" d="M-10 32L10.4 9.37A14 14 0 1 0 -13.89 1.79Z" fill="#C2410C"/>
+  </g>
+  <path fill="#2A2723" d="M151.5 91Q151.1 91 150.6 90.7Q150.1 90.4 149.9 89.4L134.8 28.1Q134.7 27.4 134.2 27.4Q133.7 27.5 133.7 28.2L131.7 83.4Q131.6 86.2 132.6 87.7Q133.6 89.1 136.1 89.5L137.4 89.7Q138.7 89.8 138.7 90.9Q138.7 92 137.2 92H122.9Q121.4 92 121.4 90.9Q121.4 89.8 122.7 89.7L124 89.5Q126.6 89.1 127.5 87.7Q128.5 86.2 128.6 83.4L130.6 26.6Q130.7 24.5 130 23.8Q129.3 23.1 127 22.7L124.7 22.3Q123.4 22 123.4 21.1Q123.4 20 124.9 20H136.9Q140 20 140.7 23L152.8 72.9Q153 73.6 153.4 73.6Q153.9 73.6 154 72.9L166.6 22.5Q167.2 20 169.8 20H181.6Q183.1 20 183.1 21.1Q183.1 22 181.8 22.3L179.5 22.7Q177.4 23.1 176.7 23.8Q176 24.5 176.1 26.6L178.1 85.4Q178.2 87.5 178.8 88.2Q179.4 88.9 181.5 89.3L183.8 89.7Q185.1 90 185.1 90.9Q185.1 92 183.6 92H165.5Q164 92 164 90.9Q164 90 165.3 89.7L167.6 89.3Q169.7 88.9 170.4 88.2Q171.1 87.5 171 85.4L169.3 28.2Q169.3 27.5 168.9 27.4Q168.4 27.4 168.2 28L153 89.4Q152.8 90.4 152.4 90.7Q151.9 91 151.5 91Z M203.6 92.9Q201.1 92.9 198.8 91.8Q196.5 90.7 195 88.3Q193.5 85.9 193.5 81.9V47.1Q193.5 45.3 192.9 44.6Q192.4 43.9 191 43.8L189.3 43.6Q187.6 43.4 187.6 42.3Q187.6 41 189.5 41H198.8Q200.3 41 200.3 42.5V79.8Q200.3 84.4 202.1 86.3Q203.8 88.3 206.9 88.3Q210 88.3 212.4 86.5Q214.8 84.8 216.2 81.8Q217.7 78.9 217.7 75.4V47.1Q217.7 45.3 217.1 44.6Q216.6 43.9 215.2 43.8L213.5 43.6Q211.8 43.4 211.8 42.3Q211.8 41 213.7 41H223Q224.5 41 224.5 42.5V81.3Q224.5 83.1 225.1 83.8Q225.6 84.4 227 84.6L229.1 84.9Q230.4 85 230.4 85.9Q230.4 86.8 228.8 87.1Q225.7 87.5 223.8 88.7Q222 89.9 220.6 91.6Q219.7 92.5 219.1 92.5Q218.2 92.5 218.2 91.3V86.7Q218.2 85.9 217.6 85.8Q217.1 85.6 216.5 86.2Q212.8 89.9 209.9 91.4Q207.1 92.9 203.6 92.9Z M245 92.9Q242.7 92.9 240.1 92.3Q237.5 91.8 235.9 91Q235 90.5 235 89.3L234.7 78.1Q234.7 76.4 236 76.4Q237.1 76.4 237.5 78Q239.2 85.1 241.7 87.7Q244.1 90.3 247.6 90.3Q250.5 90.3 252.4 88Q254.3 85.8 254.3 81.8Q254.3 77.8 252.1 74.7Q249.9 71.6 244.7 67.9Q239.5 64.4 237.1 60.9Q234.7 57.3 234.7 53.1Q234.7 47.4 238.7 43.9Q242.7 40.4 249.3 40.4Q251.3 40.4 253.2 40.8Q255.1 41.3 256.6 42.3Q257.5 42.9 257.5 43.9L257.7 54.9Q257.7 56.4 256.5 56.4Q255.8 56.4 255.5 56Q255.2 55.5 255 54.8Q253 48.3 251 45.8Q249 43.2 246.1 43.2Q243.5 43.2 241.8 45Q240.1 46.8 240.1 49.5Q240.1 53 242.2 55.6Q244.3 58.2 249.8 62Q254.8 65.6 257.4 69.8Q259.9 73.9 259.9 78.8Q259.9 85.2 255.8 89.1Q251.7 92.9 245 92.9Z M264.7 92Q263.5 92 263.5 90.9Q263.5 89.9 264.6 89.7L266 89.5Q268.1 89.2 269.1 88.3Q270.1 87.4 270.1 85.3V28Q270.1 26.2 269.5 25.5Q269 24.8 267.6 24.7L265.3 24.4Q264.2 24.2 264.2 23.2Q264.2 22.2 265.3 22Q268.1 21.4 270.1 20.6Q272.1 19.8 273.4 19Q275 18 275.8 18Q276.9 18 276.9 19.6V85.3Q276.9 87.4 277.5 88.2Q278.2 89.1 280.3 89.4L282.6 89.7Q283.7 89.9 283.7 90.9Q283.7 92 282.5 92Z M296.1 31.5Q294 31.5 292.5 30Q291.1 28.5 291.1 26.2Q291.1 23.9 292.5 22.4Q294 21 296.1 21Q298.2 21 299.6 22.4Q301 23.9 301 26.2Q301 28.5 299.6 30Q298.2 31.5 296.1 31.5ZM287.7 92Q286.2 92 286.2 90.9Q286.2 90 287.5 89.7L288.7 89.5Q291.2 89.1 291.9 88.2Q292.6 87.4 292.6 85.3V51.7Q292.6 49.9 292 49.2Q291.5 48.6 290.1 48.4L288 48.1Q286.7 48 286.7 47Q286.7 46.2 288.3 45.9Q291.4 45.4 293.3 44.3Q295.2 43.2 297 41.6Q297.9 40.7 298.5 40.7Q299.4 40.7 299.4 41.9V85.3Q299.4 87.4 300 88.3Q300.6 89.2 302.3 89.4L304.8 89.7Q305.9 89.9 305.9 90.8Q305.9 92 304.4 92Z"/>
+</svg>
+</span><span class="links">Features · Pricing · GitHub</span></nav>
+    <h3>Quote yourself. And the whole room.</h3>
+    <p class="nl">Citeer jezelf. En de hele tafel.</p>
+    <p class="sub">Dictation anywhere you type, and meeting notes that stay on your Mac. 13 MB. No account.</p>
+    <div class="ctas"><span class="btn">Download for Mac</span><span class="btn ghost">Try Musli Cloud</span></div>
+  </div>
+</section>
+<section class="card" id="d06">
+  <header><span class="num">06</span><div><h2>Full Stop</h2><p>Wordmark-led: an editorial serif “musli” closed by an orange full stop. Spoken, then finished.</p></div></header>
+  <div class="stage">
+    <div class="mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <path fill="#2A2723" d="M5.4 74.8Q3.9 74.8 3.9 73.7Q3.9 72.7 5.2 72.4L6.5 72.2Q8.6 71.8 9.3 70.9Q10 70 10 67.8V32.9Q10 31 9.4 30.3Q8.9 29.7 7.4 29.5L5.2 29.1Q3.9 29 3.9 28Q3.9 27.2 5.5 26.9Q8.7 26.3 10.5 25.2Q12.2 24 14.1 22.4Q15 21.4 15.6 21.4Q16.5 21.4 16.5 22.7V27.4Q16.5 28.1 17.2 28.5Q17.8 28.8 18.5 28.1Q22.8 24 26 22.6Q29.1 21.1 32.4 21.1Q35.4 21.1 37.7 22.7Q40.1 24.4 41.2 27.6Q41.5 28.4 42.3 28.6Q43.1 28.7 43.8 28Q48.1 24 51.2 22.6Q54.3 21.1 57.5 21.1Q61.9 21.1 64.6 24.4Q67.4 27.7 67.4 34V67.8Q67.4 70 68.1 70.9Q68.8 71.8 70.9 72.1L73.2 72.4Q74.4 72.6 74.4 73.7Q74.4 74.8 73.1 74.8H55.3Q53.9 74.8 53.9 73.7Q53.9 72.6 55 72.4L56.5 72.2Q58.9 71.9 59.6 71Q60.3 70 60.3 67.8V35.2Q60.3 30.1 58.5 28Q56.7 25.9 53.6 25.9Q50.5 25.9 47.9 27.8Q45.4 29.8 43.8 32.9Q42.2 36.1 42.2 40V67.8Q42.2 70 43 70.9Q43.7 71.8 46 72.1L48.3 72.4Q49.4 72.6 49.4 73.7Q49.4 74.8 48.2 74.8H30.5Q29 74.8 29 73.7Q29 72.6 30.2 72.4L31.6 72.2Q33.8 71.9 34.5 71Q35.2 70 35.2 67.8V35.2Q35.2 30.1 33.3 28Q31.5 25.9 28.4 25.9Q25.3 25.9 22.7 27.8Q20.2 29.8 18.6 32.9Q17.1 36.1 17.1 40V67.8Q17.1 70 17.7 71Q18.4 71.9 20.6 72.1L23.4 72.4Q24.6 72.6 24.6 73.6Q24.6 74.8 23 74.8Z"/>
+  <circle cx="86.6" cy="70.3" r="6" fill="#C2410C"/>
+</svg>
+</div>
+    <div class="word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 285 120" role="img" aria-label="Musli">
+  <path fill="#2A2723" d="M8 100Q6 100 6 98.5Q6 97.4 7.7 97L9.3 96.7Q12.1 96.2 12.9 95Q13.8 93.9 13.8 91.2V46.8Q13.8 44.4 13 43.6Q12.3 42.7 10.5 42.4L7.7 42.1Q6 41.9 6 40.6Q6 39.5 8.1 39.1Q12.2 38.5 14.4 37Q16.5 35.6 18.9 33.5Q20.1 32.3 20.9 32.3Q22.1 32.3 22.1 33.9V39.8Q22.1 40.7 22.9 41.2Q23.7 41.7 24.6 40.7Q30 35.6 34 33.7Q38.1 31.9 42.1 31.9Q46 31.9 48.9 33.9Q51.9 36 53.4 40.1Q53.8 41.1 54.8 41.3Q55.7 41.5 56.7 40.6Q62.1 35.6 66 33.7Q70 31.9 74.1 31.9Q79.6 31.9 83.1 36Q86.6 40.2 86.6 48.3V91.2Q86.6 93.9 87.5 95Q88.3 96.2 91.1 96.6L94 97Q95.5 97.2 95.5 98.5Q95.5 100 93.9 100H71.3Q69.5 100 69.5 98.5Q69.5 97.2 70.9 97L72.8 96.7Q75.8 96.3 76.7 95.1Q77.7 93.9 77.7 91.2V49.7Q77.7 43.2 75.3 40.6Q73 38 69.1 38Q65.1 38 61.9 40.4Q58.6 42.8 56.7 46.9Q54.7 50.9 54.7 55.8V91.2Q54.7 93.9 55.6 95Q56.5 96.2 59.4 96.6L62.3 97Q63.8 97.2 63.8 98.5Q63.8 100 62.2 100H39.8Q37.9 100 37.9 98.5Q37.9 97.2 39.4 97L41.2 96.7Q44 96.3 44.9 95.1Q45.7 93.9 45.7 91.2V49.7Q45.7 43.2 43.4 40.6Q41.1 38 37.1 38Q33.2 38 29.9 40.4Q26.7 42.8 24.7 46.9Q22.7 50.9 22.7 55.8V91.2Q22.7 93.9 23.6 95.1Q24.5 96.3 27.2 96.6L30.8 97Q32.2 97.2 32.2 98.4Q32.2 100 30.3 100Z M119.5 101.2Q116.2 101.2 113.2 99.7Q110.1 98.3 108.1 95.1Q106.2 91.9 106.2 86.7V40.7Q106.2 38.4 105.4 37.4Q104.7 36.5 102.9 36.4L100.6 36.1Q98.4 35.8 98.4 34.4Q98.4 32.7 100.9 32.7H113.2Q115.1 32.7 115.1 34.7V83.9Q115.1 90 117.5 92.5Q119.8 95.1 123.9 95.1Q127.9 95.1 131.1 92.8Q134.3 90.5 136.2 86.6Q138.1 82.7 138.1 78.1V40.7Q138.1 38.4 137.4 37.4Q136.7 36.5 134.8 36.4L132.6 36.1Q130.3 35.8 130.3 34.4Q130.3 32.7 132.8 32.7H145.1Q147.1 32.7 147.1 34.7V85.9Q147.1 88.3 147.8 89.1Q148.5 90 150.4 90.2L153.2 90.6Q154.9 90.8 154.9 91.9Q154.9 93.1 152.8 93.5Q148.7 94.1 146.2 95.6Q143.8 97.2 141.9 99.5Q140.8 100.7 140 100.7Q138.8 100.7 138.8 99.1V93Q138.8 91.9 138 91.8Q137.3 91.6 136.5 92.3Q131.6 97.2 127.9 99.2Q124.1 101.2 119.5 101.2Z M174.1 101.2Q171.1 101.2 167.7 100.5Q164.2 99.7 162.1 98.7Q160.9 98 160.9 96.4L160.6 81.7Q160.6 79.4 162.3 79.4Q163.7 79.4 164.2 81.5Q166.5 90.9 169.7 94.3Q173 97.8 177.6 97.8Q181.4 97.8 183.9 94.8Q186.4 91.8 186.4 86.5Q186.4 81.3 183.5 77.2Q180.6 73.1 173.8 68.2Q166.9 63.6 163.7 58.9Q160.6 54.2 160.6 48.7Q160.6 41.1 165.8 36.5Q171.1 31.9 179.8 31.9Q182.5 31.9 185 32.5Q187.5 33.1 189.5 34.4Q190.6 35.2 190.6 36.5L190.9 51Q190.9 53 189.3 53Q188.4 53 188 52.4Q187.6 51.8 187.3 50.9Q184.7 42.3 182.1 39Q179.4 35.6 175.6 35.6Q172.2 35.6 169.9 38Q167.7 40.3 167.7 43.9Q167.7 48.5 170.5 52Q173.2 55.4 180.5 60.4Q187.1 65.2 190.4 70.6Q193.8 76.1 193.8 82.6Q193.8 91 188.4 96.1Q183 101.2 174.1 101.2Z M200.2 100Q198.6 100 198.6 98.5Q198.6 97.2 200 97L201.9 96.7Q204.6 96.3 206 95.1Q207.3 93.9 207.3 91.2V15.5Q207.3 13.1 206.6 12.2Q205.8 11.3 204 11.2L200.9 10.8Q199.5 10.5 199.5 9.2Q199.5 7.9 200.9 7.6Q204.6 6.8 207.3 5.8Q209.9 4.7 211.6 3.6Q213.7 2.3 214.8 2.3Q216.3 2.3 216.3 4.4V91.2Q216.3 93.9 217.1 95Q218 96.2 220.7 96.6L223.8 97Q225.2 97.2 225.2 98.5Q225.2 100 223.6 100Z M241.6 20.1Q238.8 20.1 236.9 18.2Q235 16.2 235 13.1Q235 10.1 236.9 8.2Q238.8 6.3 241.6 6.3Q244.4 6.3 246.2 8.2Q248.1 10.1 248.1 13.1Q248.1 16.2 246.2 18.2Q244.4 20.1 241.6 20.1ZM230.5 100Q228.5 100 228.5 98.5Q228.5 97.4 230.2 97L231.8 96.7Q235.1 96.2 236.1 95Q237 93.9 237 91.2V46.8Q237 44.4 236.3 43.6Q235.5 42.7 233.7 42.4L230.9 42.1Q229.2 41.9 229.2 40.6Q229.2 39.5 231.3 39.1Q235.4 38.5 237.9 37Q240.4 35.6 242.8 33.5Q244 32.3 244.8 32.3Q246 32.3 246 33.9V91.2Q246 93.9 246.7 95.1Q247.5 96.3 249.8 96.6L253.1 97Q254.5 97.2 254.5 98.4Q254.5 100 252.6 100Z"/>
+  <circle cx="273.0" cy="94" r="7.4" fill="#C2410C"/>
+</svg>
+</div>
+  </div>
+  <div class="label">App icon · 1024 master (shown 192) · 128 · 32 px</div>
+  <div class="icons">
+    <a class="i192" href="06-full-stop/app-icon.svg" title="Open the 1024 px master"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(5.6) translate(-46 -48)">
+    <path fill="#FCFBF8" d="M5.4 74.8Q3.9 74.8 3.9 73.7Q3.9 72.7 5.2 72.4L6.5 72.2Q8.6 71.8 9.3 70.9Q10 70 10 67.8V32.9Q10 31 9.4 30.3Q8.9 29.7 7.4 29.5L5.2 29.1Q3.9 29 3.9 28Q3.9 27.2 5.5 26.9Q8.7 26.3 10.5 25.2Q12.2 24 14.1 22.4Q15 21.4 15.6 21.4Q16.5 21.4 16.5 22.7V27.4Q16.5 28.1 17.2 28.5Q17.8 28.8 18.5 28.1Q22.8 24 26 22.6Q29.1 21.1 32.4 21.1Q35.4 21.1 37.7 22.7Q40.1 24.4 41.2 27.6Q41.5 28.4 42.3 28.6Q43.1 28.7 43.8 28Q48.1 24 51.2 22.6Q54.3 21.1 57.5 21.1Q61.9 21.1 64.6 24.4Q67.4 27.7 67.4 34V67.8Q67.4 70 68.1 70.9Q68.8 71.8 70.9 72.1L73.2 72.4Q74.4 72.6 74.4 73.7Q74.4 74.8 73.1 74.8H55.3Q53.9 74.8 53.9 73.7Q53.9 72.6 55 72.4L56.5 72.2Q58.9 71.9 59.6 71Q60.3 70 60.3 67.8V35.2Q60.3 30.1 58.5 28Q56.7 25.9 53.6 25.9Q50.5 25.9 47.9 27.8Q45.4 29.8 43.8 32.9Q42.2 36.1 42.2 40V67.8Q42.2 70 43 70.9Q43.7 71.8 46 72.1L48.3 72.4Q49.4 72.6 49.4 73.7Q49.4 74.8 48.2 74.8H30.5Q29 74.8 29 73.7Q29 72.6 30.2 72.4L31.6 72.2Q33.8 71.9 34.5 71Q35.2 70 35.2 67.8V35.2Q35.2 30.1 33.3 28Q31.5 25.9 28.4 25.9Q25.3 25.9 22.7 27.8Q20.2 29.8 18.6 32.9Q17.1 36.1 17.1 40V67.8Q17.1 70 17.7 71Q18.4 71.9 20.6 72.1L23.4 72.4Q24.6 72.6 24.6 73.6Q24.6 74.8 23 74.8Z"/>
+    <circle cx="86.6" cy="70.3" r="6" fill="#F2B48E"/>
+  </g>
+</svg>
+</a>
+    <span class="i128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(5.6) translate(-46 -48)">
+    <path fill="#FCFBF8" d="M5.4 74.8Q3.9 74.8 3.9 73.7Q3.9 72.7 5.2 72.4L6.5 72.2Q8.6 71.8 9.3 70.9Q10 70 10 67.8V32.9Q10 31 9.4 30.3Q8.9 29.7 7.4 29.5L5.2 29.1Q3.9 29 3.9 28Q3.9 27.2 5.5 26.9Q8.7 26.3 10.5 25.2Q12.2 24 14.1 22.4Q15 21.4 15.6 21.4Q16.5 21.4 16.5 22.7V27.4Q16.5 28.1 17.2 28.5Q17.8 28.8 18.5 28.1Q22.8 24 26 22.6Q29.1 21.1 32.4 21.1Q35.4 21.1 37.7 22.7Q40.1 24.4 41.2 27.6Q41.5 28.4 42.3 28.6Q43.1 28.7 43.8 28Q48.1 24 51.2 22.6Q54.3 21.1 57.5 21.1Q61.9 21.1 64.6 24.4Q67.4 27.7 67.4 34V67.8Q67.4 70 68.1 70.9Q68.8 71.8 70.9 72.1L73.2 72.4Q74.4 72.6 74.4 73.7Q74.4 74.8 73.1 74.8H55.3Q53.9 74.8 53.9 73.7Q53.9 72.6 55 72.4L56.5 72.2Q58.9 71.9 59.6 71Q60.3 70 60.3 67.8V35.2Q60.3 30.1 58.5 28Q56.7 25.9 53.6 25.9Q50.5 25.9 47.9 27.8Q45.4 29.8 43.8 32.9Q42.2 36.1 42.2 40V67.8Q42.2 70 43 70.9Q43.7 71.8 46 72.1L48.3 72.4Q49.4 72.6 49.4 73.7Q49.4 74.8 48.2 74.8H30.5Q29 74.8 29 73.7Q29 72.6 30.2 72.4L31.6 72.2Q33.8 71.9 34.5 71Q35.2 70 35.2 67.8V35.2Q35.2 30.1 33.3 28Q31.5 25.9 28.4 25.9Q25.3 25.9 22.7 27.8Q20.2 29.8 18.6 32.9Q17.1 36.1 17.1 40V67.8Q17.1 70 17.7 71Q18.4 71.9 20.6 72.1L23.4 72.4Q24.6 72.6 24.6 73.6Q24.6 74.8 23 74.8Z"/>
+    <circle cx="86.6" cy="70.3" r="6" fill="#F2B48E"/>
+  </g>
+</svg>
+</span><span class="i32"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(5.6) translate(-46 -48)">
+    <path fill="#FCFBF8" d="M5.4 74.8Q3.9 74.8 3.9 73.7Q3.9 72.7 5.2 72.4L6.5 72.2Q8.6 71.8 9.3 70.9Q10 70 10 67.8V32.9Q10 31 9.4 30.3Q8.9 29.7 7.4 29.5L5.2 29.1Q3.9 29 3.9 28Q3.9 27.2 5.5 26.9Q8.7 26.3 10.5 25.2Q12.2 24 14.1 22.4Q15 21.4 15.6 21.4Q16.5 21.4 16.5 22.7V27.4Q16.5 28.1 17.2 28.5Q17.8 28.8 18.5 28.1Q22.8 24 26 22.6Q29.1 21.1 32.4 21.1Q35.4 21.1 37.7 22.7Q40.1 24.4 41.2 27.6Q41.5 28.4 42.3 28.6Q43.1 28.7 43.8 28Q48.1 24 51.2 22.6Q54.3 21.1 57.5 21.1Q61.9 21.1 64.6 24.4Q67.4 27.7 67.4 34V67.8Q67.4 70 68.1 70.9Q68.8 71.8 70.9 72.1L73.2 72.4Q74.4 72.6 74.4 73.7Q74.4 74.8 73.1 74.8H55.3Q53.9 74.8 53.9 73.7Q53.9 72.6 55 72.4L56.5 72.2Q58.9 71.9 59.6 71Q60.3 70 60.3 67.8V35.2Q60.3 30.1 58.5 28Q56.7 25.9 53.6 25.9Q50.5 25.9 47.9 27.8Q45.4 29.8 43.8 32.9Q42.2 36.1 42.2 40V67.8Q42.2 70 43 70.9Q43.7 71.8 46 72.1L48.3 72.4Q49.4 72.6 49.4 73.7Q49.4 74.8 48.2 74.8H30.5Q29 74.8 29 73.7Q29 72.6 30.2 72.4L31.6 72.2Q33.8 71.9 34.5 71Q35.2 70 35.2 67.8V35.2Q35.2 30.1 33.3 28Q31.5 25.9 28.4 25.9Q25.3 25.9 22.7 27.8Q20.2 29.8 18.6 32.9Q17.1 36.1 17.1 40V67.8Q17.1 70 17.7 71Q18.4 71.9 20.6 72.1L23.4 72.4Q24.6 72.6 24.6 73.6Q24.6 74.8 23 74.8Z"/>
+    <circle cx="86.6" cy="70.3" r="6" fill="#F2B48E"/>
+  </g>
+</svg>
+</span>
+  </div>
+  <div class="label">Menubar template icon · real 18 pt</div>
+  <div class="menubar light"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <path fill="currentColor" d="M0.8 14.2Q0.5 14.2 0.5 14Q0.5 13.8 0.8 13.7L1 13.7Q1.5 13.6 1.6 13.4Q1.8 13.2 1.8 12.8V5.7Q1.8 5.4 1.6 5.2Q1.5 5.1 1.2 5L0.8 5Q0.5 5 0.5 4.7Q0.5 4.6 0.9 4.5Q1.5 4.4 1.8 4.2Q2.2 4 2.6 3.6Q2.8 3.4 2.9 3.4Q3.1 3.4 3.1 3.7V4.6Q3.1 4.8 3.2 4.8Q3.3 4.9 3.5 4.8Q4.3 4 5 3.7Q5.6 3.4 6.3 3.4Q6.9 3.4 7.4 3.7Q7.8 4 8.1 4.7Q8.1 4.8 8.3 4.9Q8.4 4.9 8.6 4.7Q9.4 4 10.1 3.7Q10.7 3.4 11.4 3.4Q12.2 3.4 12.8 4Q13.3 4.7 13.3 6V12.8Q13.3 13.2 13.5 13.4Q13.6 13.6 14.1 13.7L14.5 13.7Q14.8 13.8 14.8 14Q14.8 14.2 14.5 14.2H10.9Q10.6 14.2 10.6 14Q10.6 13.8 10.8 13.7L11.1 13.7Q11.6 13.6 11.8 13.4Q11.9 13.2 11.9 12.8V6.2Q11.9 5.2 11.6 4.7Q11.2 4.3 10.6 4.3Q9.9 4.3 9.4 4.7Q8.9 5.1 8.6 5.7Q8.3 6.4 8.3 7.2V12.8Q8.3 13.2 8.4 13.4Q8.6 13.6 9 13.7L9.5 13.7Q9.7 13.8 9.7 14Q9.7 14.2 9.5 14.2H5.9Q5.6 14.2 5.6 14Q5.6 13.8 5.8 13.7L6.1 13.7Q6.6 13.6 6.7 13.4Q6.8 13.2 6.8 12.8V6.2Q6.8 5.2 6.5 4.7Q6.1 4.3 5.5 4.3Q4.8 4.3 4.3 4.7Q3.8 5.1 3.5 5.7Q3.2 6.4 3.2 7.2V12.8Q3.2 13.2 3.3 13.4Q3.5 13.6 3.9 13.7L4.5 13.7Q4.7 13.8 4.7 13.9Q4.7 14.2 4.4 14.2Z"/>
+  <circle cx="16.4" cy="13.2" r="1.4" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="menubar dark"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Musli">
+  <path fill="currentColor" d="M0.8 14.2Q0.5 14.2 0.5 14Q0.5 13.8 0.8 13.7L1 13.7Q1.5 13.6 1.6 13.4Q1.8 13.2 1.8 12.8V5.7Q1.8 5.4 1.6 5.2Q1.5 5.1 1.2 5L0.8 5Q0.5 5 0.5 4.7Q0.5 4.6 0.9 4.5Q1.5 4.4 1.8 4.2Q2.2 4 2.6 3.6Q2.8 3.4 2.9 3.4Q3.1 3.4 3.1 3.7V4.6Q3.1 4.8 3.2 4.8Q3.3 4.9 3.5 4.8Q4.3 4 5 3.7Q5.6 3.4 6.3 3.4Q6.9 3.4 7.4 3.7Q7.8 4 8.1 4.7Q8.1 4.8 8.3 4.9Q8.4 4.9 8.6 4.7Q9.4 4 10.1 3.7Q10.7 3.4 11.4 3.4Q12.2 3.4 12.8 4Q13.3 4.7 13.3 6V12.8Q13.3 13.2 13.5 13.4Q13.6 13.6 14.1 13.7L14.5 13.7Q14.8 13.8 14.8 14Q14.8 14.2 14.5 14.2H10.9Q10.6 14.2 10.6 14Q10.6 13.8 10.8 13.7L11.1 13.7Q11.6 13.6 11.8 13.4Q11.9 13.2 11.9 12.8V6.2Q11.9 5.2 11.6 4.7Q11.2 4.3 10.6 4.3Q9.9 4.3 9.4 4.7Q8.9 5.1 8.6 5.7Q8.3 6.4 8.3 7.2V12.8Q8.3 13.2 8.4 13.4Q8.6 13.6 9 13.7L9.5 13.7Q9.7 13.8 9.7 14Q9.7 14.2 9.5 14.2H5.9Q5.6 14.2 5.6 14Q5.6 13.8 5.8 13.7L6.1 13.7Q6.6 13.6 6.7 13.4Q6.8 13.2 6.8 12.8V6.2Q6.8 5.2 6.5 4.7Q6.1 4.3 5.5 4.3Q4.8 4.3 4.3 4.7Q3.8 5.1 3.5 5.7Q3.2 6.4 3.2 7.2V12.8Q3.2 13.2 3.3 13.4Q3.5 13.6 3.9 13.7L4.5 13.7Q4.7 13.8 4.7 13.9Q4.7 14.2 4.4 14.2Z"/>
+  <circle cx="16.4" cy="13.2" r="1.4" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="label">Dock</div>
+  <div class="wallpaper"><div class="dock"><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#4F7DF3"/><circle cx="512" cy="512" r="190" fill="none" stroke="#fff" stroke-width="56"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#3FAE6A"/><rect x="330" y="360" width="364" height="304" rx="40" fill="#fff"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#ECE7DE"/><path d="M340 680 512 330 684 680Z" fill="#9B948A"/></svg></span><span class="tile me"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Musli">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(5.6) translate(-46 -48)">
+    <path fill="#FCFBF8" d="M5.4 74.8Q3.9 74.8 3.9 73.7Q3.9 72.7 5.2 72.4L6.5 72.2Q8.6 71.8 9.3 70.9Q10 70 10 67.8V32.9Q10 31 9.4 30.3Q8.9 29.7 7.4 29.5L5.2 29.1Q3.9 29 3.9 28Q3.9 27.2 5.5 26.9Q8.7 26.3 10.5 25.2Q12.2 24 14.1 22.4Q15 21.4 15.6 21.4Q16.5 21.4 16.5 22.7V27.4Q16.5 28.1 17.2 28.5Q17.8 28.8 18.5 28.1Q22.8 24 26 22.6Q29.1 21.1 32.4 21.1Q35.4 21.1 37.7 22.7Q40.1 24.4 41.2 27.6Q41.5 28.4 42.3 28.6Q43.1 28.7 43.8 28Q48.1 24 51.2 22.6Q54.3 21.1 57.5 21.1Q61.9 21.1 64.6 24.4Q67.4 27.7 67.4 34V67.8Q67.4 70 68.1 70.9Q68.8 71.8 70.9 72.1L73.2 72.4Q74.4 72.6 74.4 73.7Q74.4 74.8 73.1 74.8H55.3Q53.9 74.8 53.9 73.7Q53.9 72.6 55 72.4L56.5 72.2Q58.9 71.9 59.6 71Q60.3 70 60.3 67.8V35.2Q60.3 30.1 58.5 28Q56.7 25.9 53.6 25.9Q50.5 25.9 47.9 27.8Q45.4 29.8 43.8 32.9Q42.2 36.1 42.2 40V67.8Q42.2 70 43 70.9Q43.7 71.8 46 72.1L48.3 72.4Q49.4 72.6 49.4 73.7Q49.4 74.8 48.2 74.8H30.5Q29 74.8 29 73.7Q29 72.6 30.2 72.4L31.6 72.2Q33.8 71.9 34.5 71Q35.2 70 35.2 67.8V35.2Q35.2 30.1 33.3 28Q31.5 25.9 28.4 25.9Q25.3 25.9 22.7 27.8Q20.2 29.8 18.6 32.9Q17.1 36.1 17.1 40V67.8Q17.1 70 17.7 71Q18.4 71.9 20.6 72.1L23.4 72.4Q24.6 72.6 24.6 73.6Q24.6 74.8 23 74.8Z"/>
+    <circle cx="86.6" cy="70.3" r="6" fill="#F2B48E"/>
+  </g>
+</svg>
+</span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#F4C542"/><rect x="330" y="330" width="364" height="364" rx="60" fill="#fff"/><path d="M380 430H644M380 512H644M380 594H560" stroke="#E0B12E" stroke-width="36" stroke-linecap="round"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#6B5BD6"/><circle cx="430" cy="512" r="90" fill="#fff"/><circle cx="600" cy="512" r="90" fill="#fff" opacity=".6"/></svg></span></div></div>
+  <div class="label">Dictation pill</div>
+  <div class="pill-row"><div class="pill"><span class="pill-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Musli">
+  <path fill="#FCFBF8" d="M5.4 74.8Q3.9 74.8 3.9 73.7Q3.9 72.7 5.2 72.4L6.5 72.2Q8.6 71.8 9.3 70.9Q10 70 10 67.8V32.9Q10 31 9.4 30.3Q8.9 29.7 7.4 29.5L5.2 29.1Q3.9 29 3.9 28Q3.9 27.2 5.5 26.9Q8.7 26.3 10.5 25.2Q12.2 24 14.1 22.4Q15 21.4 15.6 21.4Q16.5 21.4 16.5 22.7V27.4Q16.5 28.1 17.2 28.5Q17.8 28.8 18.5 28.1Q22.8 24 26 22.6Q29.1 21.1 32.4 21.1Q35.4 21.1 37.7 22.7Q40.1 24.4 41.2 27.6Q41.5 28.4 42.3 28.6Q43.1 28.7 43.8 28Q48.1 24 51.2 22.6Q54.3 21.1 57.5 21.1Q61.9 21.1 64.6 24.4Q67.4 27.7 67.4 34V67.8Q67.4 70 68.1 70.9Q68.8 71.8 70.9 72.1L73.2 72.4Q74.4 72.6 74.4 73.7Q74.4 74.8 73.1 74.8H55.3Q53.9 74.8 53.9 73.7Q53.9 72.6 55 72.4L56.5 72.2Q58.9 71.9 59.6 71Q60.3 70 60.3 67.8V35.2Q60.3 30.1 58.5 28Q56.7 25.9 53.6 25.9Q50.5 25.9 47.9 27.8Q45.4 29.8 43.8 32.9Q42.2 36.1 42.2 40V67.8Q42.2 70 43 70.9Q43.7 71.8 46 72.1L48.3 72.4Q49.4 72.6 49.4 73.7Q49.4 74.8 48.2 74.8H30.5Q29 74.8 29 73.7Q29 72.6 30.2 72.4L31.6 72.2Q33.8 71.9 34.5 71Q35.2 70 35.2 67.8V35.2Q35.2 30.1 33.3 28Q31.5 25.9 28.4 25.9Q25.3 25.9 22.7 27.8Q20.2 29.8 18.6 32.9Q17.1 36.1 17.1 40V67.8Q17.1 70 17.7 71Q18.4 71.9 20.6 72.1L23.4 72.4Q24.6 72.6 24.6 73.6Q24.6 74.8 23 74.8Z"/>
+  <circle cx="86.6" cy="70.3" r="6" fill="#F2B48E"/>
+</svg>
+</span><span class="wave"><i style="--h:0.45;--d:0s"></i><i style="--h:0.8;--d:0.15s"></i><i style="--h:1;--d:0.3s"></i><i style="--h:0.7;--d:0.45s"></i><i style="--h:0.4;--d:0.6s"></i></span></div><span class="hint">Hold <kbd>fn</kbd> to dictate</span></div>
+  <div class="label">Landing hero</div>
+  <div class="hero">
+    <nav><span class="nav-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 285 120" role="img" aria-label="Musli">
+  <path fill="#2A2723" d="M8 100Q6 100 6 98.5Q6 97.4 7.7 97L9.3 96.7Q12.1 96.2 12.9 95Q13.8 93.9 13.8 91.2V46.8Q13.8 44.4 13 43.6Q12.3 42.7 10.5 42.4L7.7 42.1Q6 41.9 6 40.6Q6 39.5 8.1 39.1Q12.2 38.5 14.4 37Q16.5 35.6 18.9 33.5Q20.1 32.3 20.9 32.3Q22.1 32.3 22.1 33.9V39.8Q22.1 40.7 22.9 41.2Q23.7 41.7 24.6 40.7Q30 35.6 34 33.7Q38.1 31.9 42.1 31.9Q46 31.9 48.9 33.9Q51.9 36 53.4 40.1Q53.8 41.1 54.8 41.3Q55.7 41.5 56.7 40.6Q62.1 35.6 66 33.7Q70 31.9 74.1 31.9Q79.6 31.9 83.1 36Q86.6 40.2 86.6 48.3V91.2Q86.6 93.9 87.5 95Q88.3 96.2 91.1 96.6L94 97Q95.5 97.2 95.5 98.5Q95.5 100 93.9 100H71.3Q69.5 100 69.5 98.5Q69.5 97.2 70.9 97L72.8 96.7Q75.8 96.3 76.7 95.1Q77.7 93.9 77.7 91.2V49.7Q77.7 43.2 75.3 40.6Q73 38 69.1 38Q65.1 38 61.9 40.4Q58.6 42.8 56.7 46.9Q54.7 50.9 54.7 55.8V91.2Q54.7 93.9 55.6 95Q56.5 96.2 59.4 96.6L62.3 97Q63.8 97.2 63.8 98.5Q63.8 100 62.2 100H39.8Q37.9 100 37.9 98.5Q37.9 97.2 39.4 97L41.2 96.7Q44 96.3 44.9 95.1Q45.7 93.9 45.7 91.2V49.7Q45.7 43.2 43.4 40.6Q41.1 38 37.1 38Q33.2 38 29.9 40.4Q26.7 42.8 24.7 46.9Q22.7 50.9 22.7 55.8V91.2Q22.7 93.9 23.6 95.1Q24.5 96.3 27.2 96.6L30.8 97Q32.2 97.2 32.2 98.4Q32.2 100 30.3 100Z M119.5 101.2Q116.2 101.2 113.2 99.7Q110.1 98.3 108.1 95.1Q106.2 91.9 106.2 86.7V40.7Q106.2 38.4 105.4 37.4Q104.7 36.5 102.9 36.4L100.6 36.1Q98.4 35.8 98.4 34.4Q98.4 32.7 100.9 32.7H113.2Q115.1 32.7 115.1 34.7V83.9Q115.1 90 117.5 92.5Q119.8 95.1 123.9 95.1Q127.9 95.1 131.1 92.8Q134.3 90.5 136.2 86.6Q138.1 82.7 138.1 78.1V40.7Q138.1 38.4 137.4 37.4Q136.7 36.5 134.8 36.4L132.6 36.1Q130.3 35.8 130.3 34.4Q130.3 32.7 132.8 32.7H145.1Q147.1 32.7 147.1 34.7V85.9Q147.1 88.3 147.8 89.1Q148.5 90 150.4 90.2L153.2 90.6Q154.9 90.8 154.9 91.9Q154.9 93.1 152.8 93.5Q148.7 94.1 146.2 95.6Q143.8 97.2 141.9 99.5Q140.8 100.7 140 100.7Q138.8 100.7 138.8 99.1V93Q138.8 91.9 138 91.8Q137.3 91.6 136.5 92.3Q131.6 97.2 127.9 99.2Q124.1 101.2 119.5 101.2Z M174.1 101.2Q171.1 101.2 167.7 100.5Q164.2 99.7 162.1 98.7Q160.9 98 160.9 96.4L160.6 81.7Q160.6 79.4 162.3 79.4Q163.7 79.4 164.2 81.5Q166.5 90.9 169.7 94.3Q173 97.8 177.6 97.8Q181.4 97.8 183.9 94.8Q186.4 91.8 186.4 86.5Q186.4 81.3 183.5 77.2Q180.6 73.1 173.8 68.2Q166.9 63.6 163.7 58.9Q160.6 54.2 160.6 48.7Q160.6 41.1 165.8 36.5Q171.1 31.9 179.8 31.9Q182.5 31.9 185 32.5Q187.5 33.1 189.5 34.4Q190.6 35.2 190.6 36.5L190.9 51Q190.9 53 189.3 53Q188.4 53 188 52.4Q187.6 51.8 187.3 50.9Q184.7 42.3 182.1 39Q179.4 35.6 175.6 35.6Q172.2 35.6 169.9 38Q167.7 40.3 167.7 43.9Q167.7 48.5 170.5 52Q173.2 55.4 180.5 60.4Q187.1 65.2 190.4 70.6Q193.8 76.1 193.8 82.6Q193.8 91 188.4 96.1Q183 101.2 174.1 101.2Z M200.2 100Q198.6 100 198.6 98.5Q198.6 97.2 200 97L201.9 96.7Q204.6 96.3 206 95.1Q207.3 93.9 207.3 91.2V15.5Q207.3 13.1 206.6 12.2Q205.8 11.3 204 11.2L200.9 10.8Q199.5 10.5 199.5 9.2Q199.5 7.9 200.9 7.6Q204.6 6.8 207.3 5.8Q209.9 4.7 211.6 3.6Q213.7 2.3 214.8 2.3Q216.3 2.3 216.3 4.4V91.2Q216.3 93.9 217.1 95Q218 96.2 220.7 96.6L223.8 97Q225.2 97.2 225.2 98.5Q225.2 100 223.6 100Z M241.6 20.1Q238.8 20.1 236.9 18.2Q235 16.2 235 13.1Q235 10.1 236.9 8.2Q238.8 6.3 241.6 6.3Q244.4 6.3 246.2 8.2Q248.1 10.1 248.1 13.1Q248.1 16.2 246.2 18.2Q244.4 20.1 241.6 20.1ZM230.5 100Q228.5 100 228.5 98.5Q228.5 97.4 230.2 97L231.8 96.7Q235.1 96.2 236.1 95Q237 93.9 237 91.2V46.8Q237 44.4 236.3 43.6Q235.5 42.7 233.7 42.4L230.9 42.1Q229.2 41.9 229.2 40.6Q229.2 39.5 231.3 39.1Q235.4 38.5 237.9 37Q240.4 35.6 242.8 33.5Q244 32.3 244.8 32.3Q246 32.3 246 33.9V91.2Q246 93.9 246.7 95.1Q247.5 96.3 249.8 96.6L253.1 97Q254.5 97.2 254.5 98.4Q254.5 100 252.6 100Z"/>
+  <circle cx="273.0" cy="94" r="7.4" fill="#C2410C"/>
+</svg>
+</span><span class="links">Features · Pricing · GitHub</span></nav>
+    <h3>Say it. Full stop.</h3>
+    <p class="nl">Zeg het. Punt uit.</p>
+    <p class="sub">Dictation anywhere you type, and meeting notes that stay on your Mac. 13 MB. No account.</p>
+    <div class="ctas"><span class="btn">Download for Mac</span><span class="btn ghost">Try Musli Cloud</span></div>
+  </div>
+</section></div>
+<div class="alts">
+  <h2 class="sec">If the name changes</h2>
+  <p class="lede">“Musli” collides with Muesli (Muesli-HQ/muesli), an MIT-licensed Mac app for dictation and meeting notes, and the obvious domains are taken. These are the two strongest alternatives from <a href="names.md">names.md</a>, each as a quick mark and wordmark in the same visual system.</p>
+  <div class="grid">
+<section class="card" id="dA">
+  <header><span class="num">A</span><div><h2>Zinly</h2><p>“zin” is Dutch for sentence: a “z” drawn as two lines of text joined by one stroke.</p></div></header>
+  <div class="stage">
+    <div class="mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Zinly">
+  <path d="M22 30H66L30 66H70" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="82" cy="66" r="4.5" fill="#C2410C"/>
+</svg>
+</div>
+    <div class="word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 304 120" role="img" aria-label="Zinly">
+  <g transform="translate(0 12)">
+    <path d="M22 30H66L30 66H70" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="82" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+  <path fill="#2A2723" d="M117.3 82V74.5L141.3 45.5H117.3V37H154V44.4L130 73.6H154.1V82Z M162.8 82V37H172.8V82ZM167.8 28.5Q165.4 28.5 163.6 26.7Q161.9 24.9 161.9 22.5Q161.9 20.2 163.6 18.4Q165.4 16.7 167.8 16.7Q170.2 16.7 172 18.4Q173.8 20.2 173.8 22.5Q173.8 24.9 172 26.7Q170.2 28.5 167.8 28.5Z M183.8 82V37H193.2L193.6 43.4Q198.1 35.9 207.2 35.9Q215.2 35.9 219.8 40.8Q224.3 45.7 224.3 56.6V82H214.3V59Q214.3 53.6 213 50.6Q211.7 47.7 209.5 46.5Q207.3 45.4 204.4 45.4Q199.3 45.3 196.6 48.7Q193.8 52.1 193.8 58.5V82Z M233.6 82V19H243.7V82Z M261.1 101.1Q258.9 101.1 256.2 100.3Q253.6 99.5 251.2 98.2L254.9 90Q256.6 90.8 258 91.3Q259.4 91.8 260.4 91.8Q264.7 91.8 266.5 87.4L268.9 81.6L248.9 37H259.9L273.6 70.1L287 37H298L277.1 86.8Q275.2 91.2 273.3 94.4Q271.3 97.6 268.4 99.3Q265.6 101.1 261.1 101.1Z"/>
+</svg>
+</div>
+  </div>
+  <div class="label">App icon · 1024 master (shown 192) · 128 · 32 px</div>
+  <div class="icons">
+    <a class="i192" href="alt-zinly/app-icon.svg" title="Open the 1024 px master"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Zinly">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(6.2) translate(-50 -48)">
+    <path d="M22 30H66L30 66H70" fill="none" stroke="#FCFBF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="82" cy="66" r="4.5" fill="#2A2723"/>
+  </g>
+</svg>
+</a>
+    <span class="i128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Zinly">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(6.2) translate(-50 -48)">
+    <path d="M22 30H66L30 66H70" fill="none" stroke="#FCFBF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="82" cy="66" r="4.5" fill="#2A2723"/>
+  </g>
+</svg>
+</span><span class="i32"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Zinly">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(6.2) translate(-50 -48)">
+    <path d="M22 30H66L30 66H70" fill="none" stroke="#FCFBF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="82" cy="66" r="4.5" fill="#2A2723"/>
+  </g>
+</svg>
+</span>
+  </div>
+  <div class="label">Menubar template icon · real 18 pt</div>
+  <div class="menubar light"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Zinly">
+  <path d="M2.5 4.5H11.5L4 13.5H12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="15.5" cy="13.5" r="1.3" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="menubar dark"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Zinly">
+  <path d="M2.5 4.5H11.5L4 13.5H12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="15.5" cy="13.5" r="1.3" fill="currentColor"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="label">Dock</div>
+  <div class="wallpaper"><div class="dock"><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#4F7DF3"/><circle cx="512" cy="512" r="190" fill="none" stroke="#fff" stroke-width="56"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#3FAE6A"/><rect x="330" y="360" width="364" height="304" rx="40" fill="#fff"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#ECE7DE"/><path d="M340 680 512 330 684 680Z" fill="#9B948A"/></svg></span><span class="tile me"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Zinly">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(6.2) translate(-50 -48)">
+    <path d="M22 30H66L30 66H70" fill="none" stroke="#FCFBF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="82" cy="66" r="4.5" fill="#2A2723"/>
+  </g>
+</svg>
+</span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#F4C542"/><rect x="330" y="330" width="364" height="364" rx="60" fill="#fff"/><path d="M380 430H644M380 512H644M380 594H560" stroke="#E0B12E" stroke-width="36" stroke-linecap="round"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#6B5BD6"/><circle cx="430" cy="512" r="90" fill="#fff"/><circle cx="600" cy="512" r="90" fill="#fff" opacity=".6"/></svg></span></div></div>
+  <div class="label">Dictation pill</div>
+  <div class="pill-row"><div class="pill"><span class="pill-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Zinly">
+  <path d="M22 30H66L30 66H70" fill="none" stroke="#FCFBF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="82" cy="66" r="4.5" fill="#F2B48E"/>
+</svg>
+</span><span class="wave"><i style="--h:0.45;--d:0s"></i><i style="--h:0.8;--d:0.15s"></i><i style="--h:1;--d:0.3s"></i><i style="--h:0.7;--d:0.45s"></i><i style="--h:0.4;--d:0.6s"></i></span></div><span class="hint">Hold <kbd>fn</kbd> to dictate</span></div>
+  <div class="label">Landing hero</div>
+  <div class="hero">
+    <nav><span class="nav-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 304 120" role="img" aria-label="Zinly">
+  <g transform="translate(0 12)">
+    <path d="M22 30H66L30 66H70" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="82" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+  <path fill="#2A2723" d="M117.3 82V74.5L141.3 45.5H117.3V37H154V44.4L130 73.6H154.1V82Z M162.8 82V37H172.8V82ZM167.8 28.5Q165.4 28.5 163.6 26.7Q161.9 24.9 161.9 22.5Q161.9 20.2 163.6 18.4Q165.4 16.7 167.8 16.7Q170.2 16.7 172 18.4Q173.8 20.2 173.8 22.5Q173.8 24.9 172 26.7Q170.2 28.5 167.8 28.5Z M183.8 82V37H193.2L193.6 43.4Q198.1 35.9 207.2 35.9Q215.2 35.9 219.8 40.8Q224.3 45.7 224.3 56.6V82H214.3V59Q214.3 53.6 213 50.6Q211.7 47.7 209.5 46.5Q207.3 45.4 204.4 45.4Q199.3 45.3 196.6 48.7Q193.8 52.1 193.8 58.5V82Z M233.6 82V19H243.7V82Z M261.1 101.1Q258.9 101.1 256.2 100.3Q253.6 99.5 251.2 98.2L254.9 90Q256.6 90.8 258 91.3Q259.4 91.8 260.4 91.8Q264.7 91.8 266.5 87.4L268.9 81.6L248.9 37H259.9L273.6 70.1L287 37H298L277.1 86.8Q275.2 91.2 273.3 94.4Q271.3 97.6 268.4 99.3Q265.6 101.1 261.1 101.1Z"/>
+</svg>
+</span><span class="links">Features · Pricing · GitHub</span></nav>
+    <h3>Every sentence, sorted.</h3>
+    <p class="nl">Elke zin, op z’n plek.</p>
+    <p class="sub">Dictation anywhere you type, and meeting notes that stay on your Mac. 13 MB. No account.</p>
+    <div class="ctas"><span class="btn">Download for Mac</span><span class="btn ghost">Try Zinly Cloud</span></div>
+  </div>
+</section>
+<section class="card" id="dB">
+  <header><span class="num">B</span><div><h2>Saywell</h2><p>“Say it well”: a round speech bubble holding the three-bar listening wave.</p></div></header>
+  <div class="stage">
+    <div class="mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Saywell">
+  <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#2A2723" stroke-width="6" stroke-linejoin="round"/>
+  <rect x="34" y="39" width="6" height="14" rx="3" fill="#2A2723"/>
+  <rect x="45" y="33" width="6" height="26" rx="3" fill="#C2410C"/>
+  <rect x="56" y="39" width="6" height="14" rx="3" fill="#2A2723"/>
+</svg>
+</div>
+    <div class="word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 382 120" role="img" aria-label="Saywell">
+  <g transform="translate(0 12)">
+    <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#2A2723" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="34" y="39" width="6" height="14" rx="3" fill="#2A2723"/>
+    <rect x="45" y="33" width="6" height="26" rx="3" fill="#C2410C"/>
+    <rect x="56" y="39" width="6" height="14" rx="3" fill="#2A2723"/>
+  </g>
+  <path fill="#2A2723" d="M134.4 92.9Q132.4 92.9 129.9 92.5Q127.5 92.1 125.3 91.5Q123.2 90.9 122 90.2Q121.3 89.8 120.9 89.3Q120.6 88.9 120.6 87.8L120.1 72.1Q120.1 70.1 121.4 70.1Q122.5 70.1 122.9 71.9L123.8 75.7Q127.2 90 136.5 90Q141.5 90 144.4 86.7Q147.4 83.3 147.4 77.2Q147.4 71.3 144.4 66.2Q141.3 61.1 134.6 56.1Q127.2 50.8 123.8 45.8Q120.4 40.9 120.4 35.3Q120.4 27.9 125.5 23.4Q130.7 19 138.7 19Q141.7 19 144.5 19.7Q147.3 20.4 149.1 21.7Q149.7 22.1 150.1 22.6Q150.4 23.1 150.4 23.9L150.7 39Q150.7 40.7 149.4 40.7Q148.5 40.7 148.1 39.3L147.4 36.8Q145.2 29.1 142.8 25.5Q140.5 22 136.1 22Q131.8 22 129.2 24.8Q126.7 27.6 126.7 32.7Q126.7 37 129.5 40.9Q132.3 44.8 139.3 50.4Q146.8 56.5 150.2 62.1Q153.7 67.8 153.7 74.2Q153.7 79.8 151.2 84Q148.7 88.2 144.3 90.6Q140 92.9 134.4 92.9Z M168.7 92.9Q164.5 92.9 161.8 90.2Q159.1 87.6 159.1 83.2Q159.1 78.9 161.8 75.1Q164.5 71.2 169.2 68.1Q173.9 65 179.9 63.1Q181.2 62.7 181.2 61.4V52.3Q181.2 47.5 179.7 45.5Q178.2 43.4 175.6 43.4Q173.1 43.4 171.1 45.6Q169 47.9 168.1 53.2Q167.6 56.4 165.9 57.8Q164.3 59.3 162.6 59.3Q159.8 59.3 159.8 56.5Q159.8 53.6 161.4 50.8Q163.1 47.9 165.8 45.5Q168.5 43.2 171.7 41.8Q174.9 40.4 178.1 40.4Q188 40.4 188 51.9V82.5Q188 86.7 190.1 86.7Q191.4 86.7 192.5 85Q193.6 83.2 193.6 79Q193.6 77.4 194.9 77.4Q196.1 77.4 196.1 79.1Q196.1 86.4 193.6 89.7Q191 92.9 187.8 92.9Q185.4 92.9 184 91Q182.6 89 182.1 86.3Q182 85.3 181.2 85.2Q180.5 85.2 179.8 86.2Q177.4 89.5 174.9 91.2Q172.4 92.9 168.7 92.9ZM171.4 88.3Q174 88.3 176.2 86.4Q178.4 84.6 179.8 81.5Q181.2 78.4 181.2 74.5V67.2Q181.2 65.3 179.1 66.1Q173 68.3 169.6 72.2Q166.3 76 166.3 81.4Q166.3 88.3 171.4 88.3Z M204.9 112.5Q202.2 112.5 200.6 110.7Q199 108.8 199 106.4Q199 104.5 200.1 103.2Q201.2 101.9 203.1 101.9Q204.7 101.9 205.4 102.6Q206.1 103.3 206.4 104.2Q206.7 105.1 207 105.8Q207.3 106.5 208.2 106.5Q209.3 106.5 210.2 105Q211.1 103.4 212.7 98.4Q213.7 95.4 213.9 93.2Q214.2 91 213.8 88.5Q213.5 86 212.3 82.4L201.4 47.7Q200.7 45.3 200.1 44.6Q199.4 43.9 198 43.6L196.5 43.3Q195.2 43 195.2 42Q195.2 41 196.6 41H213.1Q214.5 41 214.5 42Q214.5 43.1 213.2 43.3L211.6 43.5Q209.2 43.8 208.6 44.6Q207.9 45.5 208.6 47.7L217.4 77Q217.7 78 218.3 78Q219 78 219.3 77L227.8 49.5Q228.6 46.8 228.2 45.4Q227.9 44.1 225.4 43.7L223.3 43.3Q222 43 222 42Q222 41 223.4 41H236.1Q237.5 41 237.5 42.1Q237.5 43.1 236.3 43.5L235.4 43.8Q233.9 44.3 232.9 45.6Q231.9 46.9 230.8 50.1L215.9 96.6Q213.7 103.6 211.9 107Q210.2 110.4 208.6 111.5Q207 112.5 204.9 112.5Z M255.4 92.9Q254.1 92.9 253.6 90.9L241.5 47.7Q240.8 45.3 240.1 44.6Q239.5 43.9 238.1 43.6L236.6 43.3Q235.3 43 235.3 42Q235.3 41 236.7 41H252.9Q254.3 41 254.3 42Q254.3 43.1 253 43.3L251.4 43.5Q249 43.8 248.4 44.6Q247.8 45.5 248.4 47.7L256.3 76.8Q256.6 77.8 257.2 77.8Q257.9 77.8 258.2 76.8L265 50.9Q265.2 50.1 265.2 49.3Q265.3 48.5 265 47.6Q264.3 45.2 263.6 44.5Q263 43.9 261.6 43.6L260.1 43.3Q258.8 43 258.8 42Q258.8 41 260.2 41H276.4Q277.8 41 277.8 42Q277.8 43.1 276.5 43.3L274.9 43.5Q272.5 43.8 272 44.6Q271.5 45.5 271.9 47.7L278.3 76.6Q278.5 77.6 279.1 77.6Q279.8 77.6 280.1 76.6L287.7 49.5Q288.5 46.8 288.1 45.4Q287.8 44.1 285.3 43.7L283.2 43.3Q281.9 43 281.9 42Q281.9 41 283.3 41H295.8Q297.2 41 297.2 42.1Q297.2 43.1 296 43.5L295.1 43.8Q293.6 44.3 292.5 45.6Q291.4 46.9 290.5 50.1L279.1 90.9Q278.6 92.9 277.2 92.9Q276 92.9 275.5 90.9L267.7 58.9Q267.4 57.8 266.8 57.8Q266.1 57.7 265.8 58.9L257.2 90.9Q256.7 92.9 255.4 92.9Z M315.6 92.9Q310.8 92.9 307 89.7Q303.2 86.5 300.9 80.7Q298.7 74.8 298.7 67.1Q298.7 59.2 301 53.2Q303.3 47.2 307.3 43.8Q311.3 40.4 316.2 40.4Q322.1 40.4 325.8 45.2Q329.4 50.1 329.4 61Q329.4 64.3 326.9 64.3H307.9Q305.9 64.3 305.9 66.6Q305.9 77.2 309 82.5Q312.1 87.8 316.9 87.8Q320.7 87.8 323.1 85.1Q325.5 82.4 327 76Q327.3 74.9 328.3 74.9Q329.5 74.9 329.2 76.9Q327.6 85.8 324.1 89.3Q320.6 92.9 315.6 92.9ZM307.6 61.8H317.7Q322.5 61.8 322.5 56.8Q322.5 50.3 320.9 46.6Q319.3 42.9 316.1 42.9Q312.2 42.9 309.5 47.4Q306.9 51.9 306.1 60.2Q305.9 61.8 307.6 61.8Z M333.9 92Q332.7 92 332.7 90.9Q332.7 89.9 333.8 89.7L335.2 89.5Q337.3 89.2 338.3 88.3Q339.3 87.4 339.3 85.3V28Q339.3 26.2 338.8 25.5Q338.2 24.8 336.8 24.7L334.5 24.4Q333.4 24.2 333.4 23.2Q333.4 22.2 334.5 22Q337.3 21.4 339.3 20.6Q341.3 19.8 342.6 19Q344.2 18 345 18Q346.1 18 346.1 19.6V85.3Q346.1 87.4 346.8 88.2Q347.4 89.1 349.5 89.4L351.8 89.7Q352.9 89.9 352.9 90.9Q352.9 92 351.7 92Z M355.9 92Q354.7 92 354.7 90.9Q354.7 89.9 355.8 89.7L357.2 89.5Q359.3 89.2 360.3 88.3Q361.3 87.4 361.3 85.3V28Q361.3 26.2 360.8 25.5Q360.2 24.8 358.8 24.7L356.5 24.4Q355.4 24.2 355.4 23.2Q355.4 22.2 356.5 22Q359.3 21.4 361.3 20.6Q363.3 19.8 364.6 19Q366.2 18 367 18Q368.1 18 368.1 19.6V85.3Q368.1 87.4 368.8 88.2Q369.4 89.1 371.5 89.4L373.8 89.7Q374.9 89.9 374.9 90.9Q374.9 92 373.7 92Z"/>
+</svg>
+</div>
+  </div>
+  <div class="label">App icon · 1024 master (shown 192) · 128 · 32 px</div>
+  <div class="icons">
+    <a class="i192" href="alt-saywell/app-icon.svg" title="Open the 1024 px master"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Saywell">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(6.4) translate(-48 -47.5)">
+    <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#FCFBF8" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="34" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+    <rect x="45" y="33" width="6" height="26" rx="3" fill="#F2B48E"/>
+    <rect x="56" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+  </g>
+</svg>
+</a>
+    <span class="i128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Saywell">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(6.4) translate(-48 -47.5)">
+    <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#FCFBF8" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="34" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+    <rect x="45" y="33" width="6" height="26" rx="3" fill="#F2B48E"/>
+    <rect x="56" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+  </g>
+</svg>
+</span><span class="i32"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Saywell">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(6.4) translate(-48 -47.5)">
+    <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#FCFBF8" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="34" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+    <rect x="45" y="33" width="6" height="26" rx="3" fill="#F2B48E"/>
+    <rect x="56" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+  </g>
+</svg>
+</span>
+  </div>
+  <div class="label">Menubar template icon · real 18 pt</div>
+  <div class="menubar light"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Saywell">
+  <path d="M4.4 13.1A6.5 6.5 0 1 1 7.32 14.78L3 16.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M6.5 7V10M9 5.5V11.5M11.5 7V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="menubar dark"><span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+        <span class="spacer"></span><span class="mb-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" role="img" aria-label="Saywell">
+  <path d="M4.4 13.1A6.5 6.5 0 1 1 7.32 14.78L3 16.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M6.5 7V10M9 5.5V11.5M11.5 7V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+</span><span class="batt"></span><span>Fri 24 Oct&nbsp; 09:41</span></div>
+  <div class="label">Dock</div>
+  <div class="wallpaper"><div class="dock"><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#4F7DF3"/><circle cx="512" cy="512" r="190" fill="none" stroke="#fff" stroke-width="56"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#3FAE6A"/><rect x="330" y="360" width="364" height="304" rx="40" fill="#fff"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#ECE7DE"/><path d="M340 680 512 330 684 680Z" fill="#9B948A"/></svg></span><span class="tile me"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Saywell">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A2723"/>
+  <g transform="translate(512 512) scale(6.4) translate(-48 -47.5)">
+    <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#FCFBF8" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="34" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+    <rect x="45" y="33" width="6" height="26" rx="3" fill="#F2B48E"/>
+    <rect x="56" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+  </g>
+</svg>
+</span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#F4C542"/><rect x="330" y="330" width="364" height="364" rx="60" fill="#fff"/><path d="M380 430H644M380 512H644M380 594H560" stroke="#E0B12E" stroke-width="36" stroke-linecap="round"/></svg></span><span class="tile"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#6B5BD6"/><circle cx="430" cy="512" r="90" fill="#fff"/><circle cx="600" cy="512" r="90" fill="#fff" opacity=".6"/></svg></span></div></div>
+  <div class="label">Dictation pill</div>
+  <div class="pill-row"><div class="pill"><span class="pill-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Saywell">
+  <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#FCFBF8" stroke-width="6" stroke-linejoin="round"/>
+  <rect x="34" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+  <rect x="45" y="33" width="6" height="26" rx="3" fill="#F2B48E"/>
+  <rect x="56" y="39" width="6" height="14" rx="3" fill="#FCFBF8"/>
+</svg>
+</span><span class="wave"><i style="--h:0.45;--d:0s"></i><i style="--h:0.8;--d:0.15s"></i><i style="--h:1;--d:0.3s"></i><i style="--h:0.7;--d:0.45s"></i><i style="--h:0.4;--d:0.6s"></i></span></div><span class="hint">Hold <kbd>fn</kbd> to dictate</span></div>
+  <div class="label">Landing hero</div>
+  <div class="hero">
+    <nav><span class="nav-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 382 120" role="img" aria-label="Saywell">
+  <g transform="translate(0 12)">
+    <path d="M25.37 68.63A32 32 0 1 1 39.72 76.91L20 84Z" fill="none" stroke="#2A2723" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="34" y="39" width="6" height="14" rx="3" fill="#2A2723"/>
+    <rect x="45" y="33" width="6" height="26" rx="3" fill="#C2410C"/>
+    <rect x="56" y="39" width="6" height="14" rx="3" fill="#2A2723"/>
+  </g>
+  <path fill="#2A2723" d="M134.4 92.9Q132.4 92.9 129.9 92.5Q127.5 92.1 125.3 91.5Q123.2 90.9 122 90.2Q121.3 89.8 120.9 89.3Q120.6 88.9 120.6 87.8L120.1 72.1Q120.1 70.1 121.4 70.1Q122.5 70.1 122.9 71.9L123.8 75.7Q127.2 90 136.5 90Q141.5 90 144.4 86.7Q147.4 83.3 147.4 77.2Q147.4 71.3 144.4 66.2Q141.3 61.1 134.6 56.1Q127.2 50.8 123.8 45.8Q120.4 40.9 120.4 35.3Q120.4 27.9 125.5 23.4Q130.7 19 138.7 19Q141.7 19 144.5 19.7Q147.3 20.4 149.1 21.7Q149.7 22.1 150.1 22.6Q150.4 23.1 150.4 23.9L150.7 39Q150.7 40.7 149.4 40.7Q148.5 40.7 148.1 39.3L147.4 36.8Q145.2 29.1 142.8 25.5Q140.5 22 136.1 22Q131.8 22 129.2 24.8Q126.7 27.6 126.7 32.7Q126.7 37 129.5 40.9Q132.3 44.8 139.3 50.4Q146.8 56.5 150.2 62.1Q153.7 67.8 153.7 74.2Q153.7 79.8 151.2 84Q148.7 88.2 144.3 90.6Q140 92.9 134.4 92.9Z M168.7 92.9Q164.5 92.9 161.8 90.2Q159.1 87.6 159.1 83.2Q159.1 78.9 161.8 75.1Q164.5 71.2 169.2 68.1Q173.9 65 179.9 63.1Q181.2 62.7 181.2 61.4V52.3Q181.2 47.5 179.7 45.5Q178.2 43.4 175.6 43.4Q173.1 43.4 171.1 45.6Q169 47.9 168.1 53.2Q167.6 56.4 165.9 57.8Q164.3 59.3 162.6 59.3Q159.8 59.3 159.8 56.5Q159.8 53.6 161.4 50.8Q163.1 47.9 165.8 45.5Q168.5 43.2 171.7 41.8Q174.9 40.4 178.1 40.4Q188 40.4 188 51.9V82.5Q188 86.7 190.1 86.7Q191.4 86.7 192.5 85Q193.6 83.2 193.6 79Q193.6 77.4 194.9 77.4Q196.1 77.4 196.1 79.1Q196.1 86.4 193.6 89.7Q191 92.9 187.8 92.9Q185.4 92.9 184 91Q182.6 89 182.1 86.3Q182 85.3 181.2 85.2Q180.5 85.2 179.8 86.2Q177.4 89.5 174.9 91.2Q172.4 92.9 168.7 92.9ZM171.4 88.3Q174 88.3 176.2 86.4Q178.4 84.6 179.8 81.5Q181.2 78.4 181.2 74.5V67.2Q181.2 65.3 179.1 66.1Q173 68.3 169.6 72.2Q166.3 76 166.3 81.4Q166.3 88.3 171.4 88.3Z M204.9 112.5Q202.2 112.5 200.6 110.7Q199 108.8 199 106.4Q199 104.5 200.1 103.2Q201.2 101.9 203.1 101.9Q204.7 101.9 205.4 102.6Q206.1 103.3 206.4 104.2Q206.7 105.1 207 105.8Q207.3 106.5 208.2 106.5Q209.3 106.5 210.2 105Q211.1 103.4 212.7 98.4Q213.7 95.4 213.9 93.2Q214.2 91 213.8 88.5Q213.5 86 212.3 82.4L201.4 47.7Q200.7 45.3 200.1 44.6Q199.4 43.9 198 43.6L196.5 43.3Q195.2 43 195.2 42Q195.2 41 196.6 41H213.1Q214.5 41 214.5 42Q214.5 43.1 213.2 43.3L211.6 43.5Q209.2 43.8 208.6 44.6Q207.9 45.5 208.6 47.7L217.4 77Q217.7 78 218.3 78Q219 78 219.3 77L227.8 49.5Q228.6 46.8 228.2 45.4Q227.9 44.1 225.4 43.7L223.3 43.3Q222 43 222 42Q222 41 223.4 41H236.1Q237.5 41 237.5 42.1Q237.5 43.1 236.3 43.5L235.4 43.8Q233.9 44.3 232.9 45.6Q231.9 46.9 230.8 50.1L215.9 96.6Q213.7 103.6 211.9 107Q210.2 110.4 208.6 111.5Q207 112.5 204.9 112.5Z M255.4 92.9Q254.1 92.9 253.6 90.9L241.5 47.7Q240.8 45.3 240.1 44.6Q239.5 43.9 238.1 43.6L236.6 43.3Q235.3 43 235.3 42Q235.3 41 236.7 41H252.9Q254.3 41 254.3 42Q254.3 43.1 253 43.3L251.4 43.5Q249 43.8 248.4 44.6Q247.8 45.5 248.4 47.7L256.3 76.8Q256.6 77.8 257.2 77.8Q257.9 77.8 258.2 76.8L265 50.9Q265.2 50.1 265.2 49.3Q265.3 48.5 265 47.6Q264.3 45.2 263.6 44.5Q263 43.9 261.6 43.6L260.1 43.3Q258.8 43 258.8 42Q258.8 41 260.2 41H276.4Q277.8 41 277.8 42Q277.8 43.1 276.5 43.3L274.9 43.5Q272.5 43.8 272 44.6Q271.5 45.5 271.9 47.7L278.3 76.6Q278.5 77.6 279.1 77.6Q279.8 77.6 280.1 76.6L287.7 49.5Q288.5 46.8 288.1 45.4Q287.8 44.1 285.3 43.7L283.2 43.3Q281.9 43 281.9 42Q281.9 41 283.3 41H295.8Q297.2 41 297.2 42.1Q297.2 43.1 296 43.5L295.1 43.8Q293.6 44.3 292.5 45.6Q291.4 46.9 290.5 50.1L279.1 90.9Q278.6 92.9 277.2 92.9Q276 92.9 275.5 90.9L267.7 58.9Q267.4 57.8 266.8 57.8Q266.1 57.7 265.8 58.9L257.2 90.9Q256.7 92.9 255.4 92.9Z M315.6 92.9Q310.8 92.9 307 89.7Q303.2 86.5 300.9 80.7Q298.7 74.8 298.7 67.1Q298.7 59.2 301 53.2Q303.3 47.2 307.3 43.8Q311.3 40.4 316.2 40.4Q322.1 40.4 325.8 45.2Q329.4 50.1 329.4 61Q329.4 64.3 326.9 64.3H307.9Q305.9 64.3 305.9 66.6Q305.9 77.2 309 82.5Q312.1 87.8 316.9 87.8Q320.7 87.8 323.1 85.1Q325.5 82.4 327 76Q327.3 74.9 328.3 74.9Q329.5 74.9 329.2 76.9Q327.6 85.8 324.1 89.3Q320.6 92.9 315.6 92.9ZM307.6 61.8H317.7Q322.5 61.8 322.5 56.8Q322.5 50.3 320.9 46.6Q319.3 42.9 316.1 42.9Q312.2 42.9 309.5 47.4Q306.9 51.9 306.1 60.2Q305.9 61.8 307.6 61.8Z M333.9 92Q332.7 92 332.7 90.9Q332.7 89.9 333.8 89.7L335.2 89.5Q337.3 89.2 338.3 88.3Q339.3 87.4 339.3 85.3V28Q339.3 26.2 338.8 25.5Q338.2 24.8 336.8 24.7L334.5 24.4Q333.4 24.2 333.4 23.2Q333.4 22.2 334.5 22Q337.3 21.4 339.3 20.6Q341.3 19.8 342.6 19Q344.2 18 345 18Q346.1 18 346.1 19.6V85.3Q346.1 87.4 346.8 88.2Q347.4 89.1 349.5 89.4L351.8 89.7Q352.9 89.9 352.9 90.9Q352.9 92 351.7 92Z M355.9 92Q354.7 92 354.7 90.9Q354.7 89.9 355.8 89.7L357.2 89.5Q359.3 89.2 360.3 88.3Q361.3 87.4 361.3 85.3V28Q361.3 26.2 360.8 25.5Q360.2 24.8 358.8 24.7L356.5 24.4Q355.4 24.2 355.4 23.2Q355.4 22.2 356.5 22Q359.3 21.4 361.3 20.6Q363.3 19.8 364.6 19Q366.2 18 367 18Q368.1 18 368.1 19.6V85.3Q368.1 87.4 368.8 88.2Q369.4 89.1 371.5 89.4L373.8 89.7Q374.9 89.9 374.9 90.9Q374.9 92 373.7 92Z"/>
+</svg>
+</span><span class="links">Features · Pricing · GitHub</span></nav>
+    <h3>Say it once. Say it well.</h3>
+    <p class="nl">Zeg het één keer. Goed.</p>
+    <p class="sub">Dictation anywhere you type, and meeting notes that stay on your Mac. 13 MB. No account.</p>
+    <div class="ctas"><span class="btn">Download for Mac</span><span class="btn ghost">Try Saywell Cloud</span></div>
+  </div>
+</section></div>
+</div>
+<footer>Generated from the SVG files by tools/build_board.py. Every SVG is hand-editable; wordmark text is outlined from the bundled fonts.</footer>
+</div></body></html>

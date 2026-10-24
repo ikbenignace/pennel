@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Musli">
+  <!-- macOS icon grid: 824px body on a 1024 canvas, 100px margin, flat (no shadow) -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F7F4EE"/>
+  <g transform="translate(512 512) scale(5.4) translate(-48.25 -48.5)">
+    <path d="M10 66V44A13 13 0 0 1 36 44V66M36 44A13 13 0 0 1 62 44V58A8 8 0 0 0 70 66H76" fill="none" stroke="#2A2723" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="86" cy="66" r="4.5" fill="#C2410C"/>
+  </g>
+</svg>

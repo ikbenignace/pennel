@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use crate::error::MusliError;
 use crate::http;
-use crate::provider::ProviderConfig;
+use crate::provider::{ProviderConfig, ProviderKind};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChatMessage {
@@ -10,13 +10,36 @@ pub struct ChatMessage {
     pub content: String,
 }
 
+/// How much a reasoning model may think before answering. Only OpenRouter normalizes this across models;
+/// other providers reject unknown fields on non-reasoning models, so they get none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reasoning {
+    /// Rewriting text needs no thinking; one model spent 14k thinking tokens on a 400-character cleanup.
+    Off,
+    Low,
+    ModelDefault,
+}
+
+pub(crate) fn request_body(provider: &ProviderConfig, messages: &[ChatMessage], reasoning: Reasoning) -> serde_json::Value {
+    let mut body = serde_json::json!({ "model": provider.model, "messages": messages, "temperature": 0 });
+    if provider.kind == ProviderKind::OpenRouter {
+        match reasoning {
+            Reasoning::Off => body["reasoning"] = serde_json::json!({ "enabled": false }),
+            Reasoning::Low => body["reasoning"] = serde_json::json!({ "effort": "low" }),
+            Reasoning::ModelDefault => {}
+        }
+    }
+    body
+}
+
 pub fn chat_complete_within(
     provider: &ProviderConfig,
     api_key: Option<&str>,
     messages: &[ChatMessage],
     timeout_secs: u64,
+    reasoning: Reasoning,
 ) -> Result<String, MusliError> {
-    let body = serde_json::json!({ "model": provider.model, "messages": messages, "temperature": 0 });
+    let body = request_body(provider, messages, reasoning);
     let url = format!("{}/chat/completions", provider.base_url.trim_end_matches('/'));
     let request = http::agent(timeout_secs).post(&url).header("Content-Type", "application/json");
     let response = http::send(http::with_auth(request, api_key), body.to_string().as_bytes())?;
@@ -27,6 +50,39 @@ pub fn chat_complete_within(
         .as_str()
         .map(|t| t.trim().to_owned())
         .ok_or_else(|| MusliError::InvalidResponse { message: "missing choices[0].message.content".into() })
+}
+
+#[cfg(test)]
+mod reasoning_tests {
+    use super::*;
+    use crate::provider::ProviderKind;
+    use mockito::Matcher;
+
+    fn ask(kind: ProviderKind, reasoning: Reasoning, body: Matcher) {
+        let mut server = mockito::Server::new();
+        let mock = server
+            .mock("POST", "/chat/completions")
+            .match_body(body)
+            .with_body(r#"{"choices":[{"message":{"content":"ok"}}]}"#)
+            .create();
+        let provider = ProviderConfig { kind, base_url: server.url(), model: "m".into() };
+        let messages = [ChatMessage { role: "user", content: "x".into() }];
+        assert_eq!(chat_complete_within(&provider, None, &messages, 5, reasoning).unwrap(), "ok");
+        mock.assert();
+    }
+
+    #[test]
+    fn openrouter_turns_reasoning_off() {
+        ask(ProviderKind::OpenRouter, Reasoning::Off, Matcher::PartialJsonString(r#"{"reasoning":{"enabled":false}}"#.into()));
+        ask(ProviderKind::OpenRouter, Reasoning::Low, Matcher::PartialJsonString(r#"{"reasoning":{"effort":"low"}}"#.into()));
+    }
+
+    #[test]
+    fn other_providers_get_no_reasoning_field() {
+        let provider = |kind| ProviderConfig { kind, base_url: String::new(), model: "m".into() };
+        assert!(request_body(&provider(ProviderKind::Groq), &[], Reasoning::Off).get("reasoning").is_none());
+        assert!(request_body(&provider(ProviderKind::OpenRouter), &[], Reasoning::ModelDefault).get("reasoning").is_none());
+    }
 }
 
 #[cfg(test)]
@@ -55,7 +111,7 @@ mod tests {
             ]))
             .with_body(r#"{"choices":[{"message":{"role":"assistant","content":"  Hoi. "}}]}"#)
             .create();
-        assert_eq!(chat_complete_within(&provider(server.url()), Some("k"), &messages(), 5).unwrap(), "Hoi.");
+        assert_eq!(chat_complete_within(&provider(server.url()), Some("k"), &messages(), 5, Reasoning::ModelDefault).unwrap(), "Hoi.");
         mock.assert();
     }
 
@@ -63,7 +119,7 @@ mod tests {
     fn chat_complete_maps_500() {
         let mut server = mockito::Server::new();
         server.mock("POST", "/chat/completions").with_status(500).with_body("boom").create();
-        let err = chat_complete_within(&provider(server.url()), None, &messages(), 5).unwrap_err();
+        let err = chat_complete_within(&provider(server.url()), None, &messages(), 5, Reasoning::ModelDefault).unwrap_err();
         assert_eq!(err, MusliError::Http { status: 500, message: "boom".into() });
     }
 }

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Zinly">
+  <!-- macOS icon grid: 824px body on a 1024 canvas, 100px margin, flat (no shadow) -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#C2410C"/>
+  <g transform="translate(512 512) scale(6.2) translate(-50 -48)">
+    <!-- a "z" drawn as two lines of text joined by one stroke; the dot is the cursor -->
+    <path d="M22 30H66L30 66H70" fill="none" stroke="#FCFBF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="82" cy="66" r="4.5" fill="#2A2723"/>
+  </g>
+</svg>

@@ -10,6 +10,7 @@ use crate::local_engine::LocalEngine;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::session::MeetingSession;
 use crate::settings::ModelChoice;
+use crate::llm::Reasoning;
 use crate::meeting_chat::{ChatTurn, MeetingAnswer};
 use crate::export::MeetingExport;
 use crate::meetings::SpeakerName;
@@ -181,7 +182,7 @@ impl MusliEngine {
         }
         let selection = selection.filter(|s| !s.trim().is_empty());
         let messages = command_messages(&instruction, selection.as_deref(), &settings.dictionary);
-        let output = crate::llm::chat_complete_within(&endpoint(&llm_account, llm_model), llm_key, &messages, COMMAND_TIMEOUT_SECS)?;
+        let output = crate::llm::chat_complete_within(&endpoint(&llm_account, llm_model), llm_key, &messages, COMMAND_TIMEOUT_SECS, Reasoning::Off)?;
         let text = strip_wrapping(&output);
         if text.is_empty() {
             return Err(MusliError::InvalidResponse { message: "empty command result".into() });
@@ -341,7 +342,7 @@ impl MusliEngine {
         }
         let provider = endpoint(&account, model);
         let ask = |messages: Vec<crate::llm::ChatMessage>| {
-            crate::llm::chat_complete_within(&provider, key, &messages, SUMMARY_TIMEOUT_SECS)
+            crate::llm::chat_complete_within(&provider, key, &messages, SUMMARY_TIMEOUT_SECS, Reasoning::Low)
         };
         let source = if transcript.chars().count() > MAP_REDUCE_ABOVE {
             blocks(&transcript, BLOCK_CHARS)
@@ -399,6 +400,7 @@ impl MusliEngine {
             key,
             &chat_messages(&question, &history, &sources),
             ASK_TIMEOUT_SECS,
+            Reasoning::Low,
         )?;
         Ok(MeetingAnswer { citations: cited(&answer, &sources), text: answer })
     }
@@ -577,7 +579,7 @@ fn clean(settings: &Settings, raw: &str, app: Option<&str>, keys: &ApiKeys) -> (
     }
     let style = resolve_style(app, &settings.style_rules);
     let messages = cleanup_messages(raw, style, &settings.dictionary);
-    match crate::llm::chat_complete_within(&endpoint(&account, model), key, &messages, cleanup_timeout_secs(raw)) {
+    match crate::llm::chat_complete_within(&endpoint(&account, model), key, &messages, cleanup_timeout_secs(raw), Reasoning::Off) {
         Ok(output) => {
             let cleaned = strip_wrapping(&output);
             if accept_cleanup(raw, &cleaned) {
