@@ -11,6 +11,11 @@ public struct SilenceWatch: Sendable {
         self.threshold = threshold
     }
 
+    /// Exact zeros only: a quiet room always carries some noise, so this means a broken capture path.
+    public static func isDigitalSilence(_ samples: [Float]) -> Bool {
+        !samples.isEmpty && !samples.contains(where: { $0 != 0 })
+    }
+
     public mutating func feed(_ samples: [Float], at elapsed: TimeInterval) -> Bool {
         if !heardSound, samples.contains(where: { $0 != 0 }) { heardSound = true }
         guard !heardSound, !reported, elapsed >= threshold else { return false }

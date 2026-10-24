@@ -59,6 +59,7 @@ final class MeetingRecorder {
     private var configObserver: NSObjectProtocol?
     private var outputListener: AudioObjectPropertyListenerBlock?
     private let silence = SilenceProbe()
+    private let micSilence = SilenceProbe(threshold: 5)
     private(set) var systemAudioAvailable = true
     private var tapProcesses: (() -> [AudioObjectID])?
     var onSystemAudioSilent: (() -> Void)?
@@ -98,6 +99,7 @@ final class MeetingRecorder {
         outputListener = nil
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        disableVoiceProcessing()
         tap.stop()
         me?.finish()
         others?.finish()
@@ -116,21 +118,58 @@ final class MeetingRecorder {
                 try input.setVoiceProcessingEnabled(true)
                 input.voiceProcessingOtherAudioDuckingConfiguration =
                     AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
+                // Voice processing is a duplex unit: without a running output side the mic delivers only zeros.
+                engine.mainMixerNode.outputVolume = 0
             } catch {
                 log.error("voice processing unavailable: \(error.localizedDescription, privacy: .public)")
             }
+        } else {
+            disableVoiceProcessing()
         }
         let format = input.outputFormat(forBus: 0)
         guard AudioInput.isUsable(sampleRate: format.sampleRate, channels: format.channelCount) else {
             throw NoInputDevice()
         }
         let resampler = MonoResampler(from: format)
+        let micSilence = micSilence
+        micSilence.reset()
         input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
-            if let converted = resampler.convert(buffer) { me.append(converted) }
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+            guard let converted = resampler.convert(buffer) else { return }
+            me.append(converted)
+            if micSilence.feed(converted.monoSamples) {
+                Task { @MainActor in self?.microphoneSilent() }
+            }
         }
         engine.prepare()
         try engine.start()
+    }
+
+    private func disableVoiceProcessing() {
+        guard engine.inputNode.isVoiceProcessingEnabled else { return }
+        do {
+            try engine.inputNode.setVoiceProcessingEnabled(false)
+        } catch {
+            log.error("could not disable voice processing: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Exact zeros from the mic mean the capture path is broken (seen with voice processing);
+    /// recording without echo cancellation beats losing the user's side of the meeting.
+    private func microphoneSilent() {
+        guard echoCancellation, startedAt != nil else {
+            log.error("microphone delivers only silence")
+            return
+        }
+        log.error("microphone silent with voice processing; restarting without echo cancellation")
+        echoCancellation = false
+        engine.stop()
+        disableVoiceProcessing()
+        do {
+            try startMicrophone()
+        } catch {
+            log.error("microphone restart failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     private func restartMicrophone() {
@@ -187,12 +226,18 @@ final class MeetingRecorder {
 /// Thread-safe wrapper so the IOProc can feed the silence watch.
 private final class SilenceProbe: @unchecked Sendable {
     private let lock = NSLock()
-    private var watch = SilenceWatch()
+    private let threshold: TimeInterval
+    private var watch: SilenceWatch
     private var samples = 0
+
+    init(threshold: TimeInterval = 20) {
+        self.threshold = threshold
+        watch = SilenceWatch(threshold: threshold)
+    }
 
     func reset() {
         lock.withLock {
-            watch = SilenceWatch()
+            watch = SilenceWatch(threshold: threshold)
             samples = 0
         }
     }

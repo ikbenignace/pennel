@@ -141,6 +141,13 @@ final class DictationController {
             render()
             return
         }
+        if SilenceWatch.isDigitalSilence(samples) {
+            log.error("microphone delivered only zeros")
+            command.reset()
+            status.recordingCancelled()
+            notify("Microfoon geeft geen geluid — kies een ander invoerapparaat of herstart Musli")
+            return
+        }
         let seq = queue.reserve()
         let request = DictationRequest(
             samples: samples,

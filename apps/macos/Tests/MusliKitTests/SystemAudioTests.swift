@@ -2,6 +2,12 @@ import MusliKit
 import XCTest
 
 final class SilenceWatchTests: XCTestCase {
+    func testDigitalSilenceIsExactZerosOnly() {
+        XCTAssertTrue(SilenceWatch.isDigitalSilence([0, 0, 0]))
+        XCTAssertFalse(SilenceWatch.isDigitalSilence([0, 0.00001, 0]))
+        XCTAssertFalse(SilenceWatch.isDigitalSilence([]))
+    }
+
     func testFlagsSustainedDigitalSilence() {
         var watch = SilenceWatch(threshold: 20)
         XCTAssertFalse(watch.feed([0, 0, 0], at: 10))
