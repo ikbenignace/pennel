@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Musli">
-  <g fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M28 9H58L76 27V69A8 8 0 0 1 68 77H36L20 87V17A8 8 0 0 1 28 9Z" stroke="#2A2723"/>
-    <path d="M58 9L76 27H58Z" stroke="#C2410C" fill="#C2410C"/>
-    <path d="M32 43H62M32 57H52" stroke="#2A2723"/>
-  </g>
-</svg>

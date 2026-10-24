@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" role="img" aria-label="Musli">
-  <!-- Template image: pure black on transparent, 18x18pt; macOS tints it for light/dark menubars -->
-  <path d="M2 9.5H16A7 7 0 0 1 2 9.5Z" fill="#000"/>
-  <circle cx="5.5" cy="6" r="1.5" fill="#000"/>
-  <circle cx="9" cy="3.8" r="1.5" fill="#000"/>
-  <circle cx="12.5" cy="6" r="1.5" fill="#000"/>
-</svg>
