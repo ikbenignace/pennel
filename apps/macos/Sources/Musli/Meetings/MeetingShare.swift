@@ -6,8 +6,7 @@ enum MeetingShare {
     static func copyFormatted(_ export: MeetingExport) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        let html = "<meta charset=\"utf-8\">" + export.html
-        pasteboard.setString(html, forType: .html)
+        pasteboard.setData(Data(("<meta charset=\"utf-8\">" + export.html).utf8), forType: .html)
         pasteboard.setString(export.markdown, forType: .string)
     }
 
@@ -17,15 +16,24 @@ enum MeetingShare {
         pasteboard.setString(export.markdown, forType: .string)
     }
 
+    /// Falls back to a `mailto:` link when no mail app offers the compose service.
     static func mail(_ export: MeetingExport) {
-        guard let service = NSSharingService(named: .composeEmail) else { return }
-        service.subject = export.title
-        service.perform(withItems: [export.markdown])
+        if let service = NSSharingService(named: .composeEmail), service.canPerform(withItems: [export.markdown]) {
+            service.subject = export.title
+            service.perform(withItems: [export.markdown])
+            return
+        }
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.queryItems = [URLQueryItem(name: "subject", value: export.title), URLQueryItem(name: "body", value: export.markdown)]
+        if let url = components.url { NSWorkspace.shared.open(url) }
     }
 
-    static func share(_ export: MeetingExport, from view: NSView?) {
+    /// Anchored at the pointer, which is where the "Delen" menu was just clicked.
+    static func share(_ export: MeetingExport) {
+        guard let window = NSApp.keyWindow, let view = window.contentView else { return }
+        let point = view.convert(window.mouseLocationOutsideOfEventStream, from: nil)
         let picker = NSSharingServicePicker(items: [export.markdown])
-        guard let view = view ?? NSApp.keyWindow?.contentView else { return }
-        picker.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+        picker.show(relativeTo: NSRect(origin: point, size: .zero), of: view, preferredEdge: .minY)
     }
 }

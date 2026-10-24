@@ -188,6 +188,7 @@ impl MeetingIndex {
     }
 
     /// Passages containing every word of `query` (prefix match), best first.
+    #[cfg(test)]
     pub fn search(
         &self,
         store: &MeetingStore,

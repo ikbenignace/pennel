@@ -27,7 +27,7 @@ pub fn export_markdown(store: &MeetingStore, id: &str, include_transcript: bool)
     let mut out = format!("# {}\n", info.title);
     let meta = meta_line(store, id, &info.start_iso, info.duration_min);
     if !meta.is_empty() {
-        out.push_str(&format!("\n*{meta}*\n"));
+        out.push_str(&format!("\n{meta}\n"));
     }
     let body = store.read_meeting(id).unwrap_or_else(|| store.read_notes(id));
     if !body.trim().is_empty() {
@@ -54,28 +54,54 @@ fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// Wraps text between paired `marker`s in `tag`; an unpaired marker stays literal.
-fn pair(text: &str, marker: &str, tag: &str) -> String {
-    let parts: Vec<&str> = text.split(marker).collect();
-    if parts.len() < 3 {
-        return text.to_owned();
+fn emphasis_tags(run: usize) -> (&'static str, &'static str) {
+    match run {
+        1 => ("<em>", "</em>"),
+        2 => ("<strong>", "</strong>"),
+        _ => ("<strong><em>", "</em></strong>"),
     }
-    let mut out = String::new();
-    let pairs = (parts.len() - 1) / 2 * 2;
-    for (i, part) in parts.iter().enumerate() {
-        if i > 0 {
-            if i <= pairs {
-                out.push_str(&if i % 2 == 1 { format!("<{tag}>") } else { format!("</{tag}>") });
-            } else {
-                out.push_str(marker);
-            }
-        }
-        out.push_str(part);
-    }
-    out
 }
 
-fn links(text: &str) -> String {
+/// `*`, `**` and `***` runs pair only when they hug text (`5 * 3` stays literal); unpaired runs stay literal.
+fn emphasis(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut tokens: Vec<String> = Vec::new();
+    let mut open: Vec<(usize, usize)> = Vec::new();
+    let mut plain = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] != '*' {
+            plain.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        let run = chars[i..].iter().take_while(|c| **c == '*').count();
+        let before = i.checked_sub(1).map(|p| chars[p]);
+        let after = chars.get(i + run).copied();
+        let can_close = before.is_some_and(|c| !c.is_whitespace());
+        let can_open = after.is_some_and(|c| !c.is_whitespace());
+        tokens.push(std::mem::take(&mut plain));
+        let matching = open.iter().rposition(|(_, len)| *len == run);
+        if let (true, Some(position)) = (can_close, matching) {
+            let (index, _) = open[position];
+            open.truncate(position);
+            let (start, end) = emphasis_tags(run);
+            tokens[index] = start.to_owned();
+            tokens.push(end.to_owned());
+        } else {
+            if can_open && run <= 3 {
+                open.push((tokens.len(), run));
+            }
+            tokens.push("*".repeat(run));
+        }
+        i += run;
+    }
+    tokens.push(plain);
+    tokens.concat()
+}
+
+/// Links first, so emphasis never rewrites a URL; only http(s) and mailto become anchors.
+fn rich(text: &str) -> String {
     let mut out = String::new();
     let mut rest = text;
     while let Some(open) = rest.find('[') {
@@ -84,30 +110,57 @@ fn links(text: &str) -> String {
         let Some(end) = after[close + 2..].find(')') else { break };
         let label = &after[..close];
         let url = &after[close + 2..close + 2 + end];
-        out.push_str(&rest[..open]);
+        out.push_str(&emphasis(&escape(&rest[..open])));
         if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("mailto:") {
-            out.push_str(&format!("<a href=\"{url}\">{label}</a>"));
+            out.push_str(&format!("<a href=\"{}\">{}</a>", escape(url), emphasis(&escape(label))));
         } else {
-            out.push_str(&format!("[{label}]({url})"));
+            out.push_str(&emphasis(&escape(&format!("[{label}]({url})"))));
         }
         rest = &after[close + 2 + end + 1..];
     }
-    out.push_str(rest);
+    out.push_str(&emphasis(&escape(rest)));
     out
 }
 
+/// Code spans are cut out first and rendered verbatim; an unmatched backtick stays literal.
 fn inline(text: &str) -> String {
-    let escaped = escape(text);
-    let code = pair(&escaped, "`", "code");
-    let bold = pair(&code, "**", "strong");
-    // An unpaired `**` must not be read as two italic markers.
-    let italic = pair(&bold.replace("**", "\u{1}"), "*", "em").replace('\u{1}', "**");
-    links(&italic)
+    let parts: Vec<&str> = text.split('`').collect();
+    let balanced = if parts.len() % 2 == 1 { parts.len() } else { parts.len() - 1 };
+    let mut out = String::new();
+    for (i, part) in parts.iter().enumerate() {
+        if i >= balanced {
+            out.push('`');
+            out.push_str(&rich(part));
+        } else if i % 2 == 1 {
+            out.push_str(&format!("<code>{}</code>", escape(part)));
+        } else {
+            out.push_str(&rich(part));
+        }
+    }
+    out
+}
+
+fn list_item(line: &str) -> Option<(&'static str, &str)> {
+    if let Some(item) = ["- ", "* "].iter().find_map(|m| line.strip_prefix(m)) {
+        return Some(("ul", item));
+    }
+    let digits = line.chars().take_while(char::is_ascii_digit).count();
+    (digits > 0).then(|| line[digits..].strip_prefix(". ")).flatten().map(|item| ("ol", item))
+}
+
+fn item_html(item: &str) -> String {
+    if let Some(rest) = item.strip_prefix("[ ] ") {
+        format!("☐ {}", inline(rest))
+    } else if let Some(rest) = item.strip_prefix("[x] ").or_else(|| item.strip_prefix("[X] ")) {
+        format!("☑ {}", inline(rest))
+    } else {
+        inline(item)
+    }
 }
 
 pub fn markdown_to_html(markdown: &str) -> String {
     let mut html = String::new();
-    let mut in_list = false;
+    let mut list: Option<&'static str> = None;
     let mut paragraph: Vec<String> = Vec::new();
     let flush = |html: &mut String, paragraph: &mut Vec<String>| {
         if !paragraph.is_empty() {
@@ -117,27 +170,22 @@ pub fn markdown_to_html(markdown: &str) -> String {
     };
     for line in markdown.lines() {
         let trimmed = line.trim();
-        let item = ["- ", "* "].iter().find_map(|m| trimmed.strip_prefix(m));
-        if item.is_none() && in_list {
-            html.push_str("</ul>\n");
-            in_list = false;
+        let item = list_item(trimmed);
+        if let Some(kind) = list
+            && item.is_none_or(|(next, _)| next != kind)
+        {
+            html.push_str(&format!("</{kind}>\n"));
+            list = None;
         }
         if trimmed.is_empty() {
             flush(&mut html, &mut paragraph);
-        } else if let Some(item) = item {
+        } else if let Some((kind, item)) = item {
             flush(&mut html, &mut paragraph);
-            if !in_list {
-                html.push_str("<ul>\n");
-                in_list = true;
+            if list.is_none() {
+                html.push_str(&format!("<{kind}>\n"));
+                list = Some(kind);
             }
-            let item = if let Some(rest) = item.strip_prefix("[ ] ") {
-                format!("☐ {}", inline(rest))
-            } else if let Some(rest) = item.strip_prefix("[x] ").or_else(|| item.strip_prefix("[X] ")) {
-                format!("☑ {}", inline(rest))
-            } else {
-                inline(item)
-            };
-            html.push_str(&format!("<li>{item}</li>\n"));
+            html.push_str(&format!("<li>{}</li>\n", item_html(item)));
         } else if let Some(level) = (1..=3).rev().find(|n| trimmed.starts_with(&format!("{} ", "#".repeat(*n)))) {
             flush(&mut html, &mut paragraph);
             html.push_str(&format!("<h{level}>{}</h{level}>\n", inline(trimmed[level + 1..].trim())));
@@ -145,8 +193,8 @@ pub fn markdown_to_html(markdown: &str) -> String {
             paragraph.push(inline(trimmed));
         }
     }
-    if in_list {
-        html.push_str("</ul>\n");
+    if let Some(kind) = list {
+        html.push_str(&format!("</{kind}>\n"));
     }
     flush(&mut html, &mut paragraph);
     html
@@ -176,14 +224,14 @@ mod tests {
         store.set_attendees(&id, &["Jan".into(), "Els".into()]).unwrap();
         let (title, md) = export_markdown(&store, &id, false).unwrap();
         assert_eq!(title, "Weekly <sync> & co");
-        assert_eq!(md, "# Weekly <sync> & co\n\n*20-10-2026 09:30 · 25 min · Jan, Els*\n\n## Samenvatting\n- Budget rond\n");
+        assert_eq!(md, "# Weekly <sync> & co\n\n20-10-2026 09:30 · 25 min · Jan, Els\n\n## Samenvatting\n- Budget rond\n");
     }
 
     #[test]
     fn export_without_summary_uses_notes_or_nothing() {
         let (_dir, store, id) = store();
         let (_, bare) = export_markdown(&store, &id, true).unwrap();
-        assert_eq!(bare, "# Weekly <sync> & co\n\n*20-10-2026 09:30*\n");
+        assert_eq!(bare, "# Weekly <sync> & co\n\n20-10-2026 09:30\n");
         store.write_notes(&id, "- mijn notitie").unwrap();
         assert!(export_markdown(&store, &id, false).unwrap().1.ends_with("\n- mijn notitie\n"));
     }
@@ -210,6 +258,15 @@ mod tests {
     }
 
     #[test]
+    fn numbered_lists() {
+        assert_eq!(
+            markdown_to_html("1. een\n2. twee\n- los"),
+            "<ol>\n<li>een</li>\n<li>twee</li>\n</ol>\n<ul>\n<li>los</li>\n</ul>\n"
+        );
+        assert_eq!(markdown_to_html("2026. Een jaar"), "<ol>\n<li>Een jaar</li>\n</ol>\n");
+    }
+
+    #[test]
     fn html_escapes() {
         assert_eq!(markdown_to_html("<script>a & b</script>"), "<p>&lt;script&gt;a &amp; b&lt;/script&gt;</p>\n");
         assert_eq!(markdown_to_html("[x](javascript:alert(1))"), "<p>[x](javascript:alert(1))</p>\n");
@@ -221,5 +278,9 @@ mod tests {
         assert_eq!(markdown_to_html("**open en `half"), "<p>**open en `half</p>\n");
         assert_eq!(markdown_to_html("**a** en **b"), "<p><strong>a</strong> en **b</p>\n");
         assert_eq!(markdown_to_html("snake_case_naam"), "<p>snake_case_naam</p>\n");
+        assert_eq!(markdown_to_html("5 * 3 en *dit*"), "<p>5 * 3 en <em>dit</em></p>\n");
+        assert_eq!(markdown_to_html("`a*b` en *dit*"), "<p><code>a*b</code> en <em>dit</em></p>\n");
+        assert_eq!(markdown_to_html("***heel*** belangrijk"), "<p><strong><em>heel</em></strong> belangrijk</p>\n");
+        assert_eq!(markdown_to_html("[a*b](https://x.be/a*b)"), "<p><a href=\"https://x.be/a*b\">a*b</a></p>\n");
     }
 }

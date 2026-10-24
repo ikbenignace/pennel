@@ -185,7 +185,7 @@ struct MeetingDetailView: View {
                     }
                     Divider()
                     Button("Mail…") { share { MeetingShare.mail($0) } }
-                    Button("Deel…") { share { MeetingShare.share($0, from: nil) } }
+                    Button("Deel…") { share { MeetingShare.share($0) } }
                 }
                 .fixedSize()
                 Button("Toon in Finder") {
@@ -220,11 +220,14 @@ struct MeetingDetailView: View {
         return info.durationMin > 0 ? "\(when) · \(info.durationMin) min" : when
     }
 
-    private func share(transcript: Bool = false, _ action: (MeetingExport) -> Void) {
-        do {
-            action(try state.engine.exportMeeting(id: meetingId, includeTranscript: transcript))
-        } catch {
-            message = "Exporteren mislukt: \(error)"
+    private func share(transcript: Bool = false, _ action: @escaping (MeetingExport) -> Void) {
+        let (engine, id) = (state.engine, meetingId)
+        Task {
+            let result = await Task.detached { Result { try engine.exportMeeting(id: id, includeTranscript: transcript) } }.value
+            switch result {
+            case .success(let export): action(export)
+            case .failure(let error): message = "Exporteren mislukt: \(error)"
+            }
         }
     }
 
