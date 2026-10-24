@@ -42,6 +42,15 @@ pub fn chat_complete_within(
     timeout_secs: u64,
     reasoning: Reasoning,
 ) -> Result<String, PennelError> {
+    if provider.kind.is_cli_agent() {
+        return crate::cli_agent::complete(
+            provider.kind,
+            &provider.base_url,
+            &provider.model,
+            messages,
+            timeout_secs,
+        );
+    }
     let body = request_body(provider, messages, reasoning);
     let url = format!(
         "{}/chat/completions",

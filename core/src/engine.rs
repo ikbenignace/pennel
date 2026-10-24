@@ -22,6 +22,7 @@ use crate::settings::ModelChoice;
 use crate::settings::{DictationMode, Settings};
 use crate::speech::{has_speech, is_hallucination};
 use crate::stt::transcribe;
+use crate::system_stt::SystemTranscriber;
 use crate::templates::{MeetingTemplate, TemplateStore};
 use crate::wav::{decode_wav, encode_wav};
 
@@ -74,6 +75,7 @@ pub struct PennelEngine {
     downloads: Mutex<HashMap<String, CancelFlag>>,
     local: LocalEngine,
     index: Mutex<Option<MeetingIndex>>,
+    system_stt: RwLock<Option<Arc<dyn SystemTranscriber>>>,
 }
 
 struct Transcript {
@@ -128,7 +130,13 @@ impl PennelEngine {
             downloads: Mutex::new(HashMap::new()),
             local: LocalEngine::default(),
             index: Mutex::new(open_index(&dir.join("index.sqlite"))),
+            system_stt: RwLock::new(None),
         }))
+    }
+
+    /// Lets the app plug in the OS's on-device recognizer (Apple's dictation model) as a provider.
+    pub fn set_system_transcriber(&self, transcriber: Arc<dyn SystemTranscriber>) {
+        *self.system_stt.write().unwrap() = Some(transcriber);
     }
 
     pub fn settings(&self) -> Settings {
@@ -718,6 +726,20 @@ impl PennelEngine {
                 .collect()
         });
         let (account, model) = settings.resolve(choice).ok_or(PennelError::NotFound)?;
+        if account.kind == ProviderKind::AppleSpeech {
+            let transcriber = self
+                .system_stt
+                .read()
+                .unwrap()
+                .clone()
+                .ok_or(PennelError::NotFound)?;
+            let (samples, rate) = decode_wav(wav).ok_or(PennelError::InvalidResponse {
+                message: "bad audio".into(),
+            })?;
+            return transcriber
+                .transcribe(samples, rate, settings.language.clone())
+                .map(|text| text.trim().to_owned());
+        }
         if account.kind == ProviderKind::Local {
             let path = self
                 .models
@@ -1310,5 +1332,45 @@ mod tests {
             engine.diarize_meeting(id, vec![0.0; 16000]),
             Err(PennelError::ModelNotDownloaded)
         );
+    }
+
+    struct EchoLength;
+    impl SystemTranscriber for EchoLength {
+        fn transcribe(
+            &self,
+            samples: Vec<f32>,
+            sample_rate: u32,
+            language: Option<String>,
+        ) -> Result<String, PennelError> {
+            Ok(format!(
+                " {} samples at {sample_rate} Hz in {} ",
+                samples.len(),
+                language.unwrap_or_default()
+            ))
+        }
+    }
+
+    #[test]
+    fn apple_speech_goes_through_the_system_transcriber() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let mut settings = engine.settings();
+        let apple =
+            crate::provider::new_account(ProviderKind::AppleSpeech, settings.providers.clone());
+        settings.dictation_stt = crate::settings::ModelChoice {
+            provider_id: apple.id.clone(),
+            model: "dictation".into(),
+        };
+        settings.providers.push(apple);
+        settings.language = Some("nl".into());
+        engine.update_settings(settings).unwrap();
+
+        assert_eq!(
+            engine.dictate(request(speech(), None)).unwrap_err(),
+            PennelError::NotFound
+        );
+        engine.set_system_transcriber(Arc::new(EchoLength));
+        let result = engine.dictate(request(speech(), None)).unwrap();
+        assert_eq!(result.text, "16000 samples at 16000 Hz in nl");
     }
 }

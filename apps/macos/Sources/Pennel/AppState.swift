@@ -29,6 +29,11 @@ final class AppState {
             self.settings = self.engine.settings()
         }
         LegacyMigration.finish(state: self, dataDir: dataDir)
+        CliAgents.sync(into: self)
+        if #available(macOS 26, *) {
+            engine.setSystemTranscriber(transcriber: AppleSpeechTranscriber())
+            addAppleSpeechOnce()
+        }
     }
 
     private(set) var templates: [MeetingTemplate] = []
@@ -41,6 +46,16 @@ final class AppState {
     func templateId(_ id: String) -> String {
         if templates.isEmpty { reloadTemplates() }
         return templates.contains { $0.id == id } ? id : "algemeen"
+    }
+
+    /// Offers Apple's dictation model as a provider once; if the user removes it, it stays removed.
+    private func addAppleSpeechOnce() {
+        let key = "appleSpeechOffered"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        guard !settings.providers.contains(where: { $0.kind == .appleSpeech }) else { return }
+        settings.providers.append(newAccount(kind: .appleSpeech, existing: settings.providers))
+        save()
     }
 
     func chat(for meetingId: String?) -> MeetingChat {
