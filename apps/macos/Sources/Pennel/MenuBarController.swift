@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 @preconcurrency import PennelCore
 import PennelKit
 import SwiftUI
@@ -12,6 +13,7 @@ final class MenuBarController: NSObject {
     private let meeting: MeetingController
     private let calendar: CalendarProvider
     private let hintItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     init(
         state: AppState,
@@ -67,6 +69,13 @@ final class MenuBarController: NSObject {
         menu.addItem(item("Geschiedenis…", #selector(openHistory), key: ""))
         menu.addItem(item("Instellingen…", #selector(openSettings), key: ","))
         menu.addItem(item("Logboek openen", #selector(openLog), key: ""))
+        let updates = NSMenuItem(
+            title: "Zoek naar updates…",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        updates.target = updater
+        menu.addItem(updates)
         menu.addItem(.separator())
         menu.addItem(item("Stop Pennel", #selector(quit), key: "q"))
     }
