@@ -11,6 +11,12 @@ pub enum ProviderKind {
     LmStudio,
     Custom,
     Local,
+    ClaudeCode,
+    Codex,
+    OpenCode,
+    Copilot,
+    CursorAgent,
+    GeminiCli,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -48,6 +54,12 @@ impl ProviderKind {
             ProviderKind::LmStudio => "lmstudio",
             ProviderKind::Custom => "custom",
             ProviderKind::Local => "local",
+            ProviderKind::ClaudeCode => "claude-code",
+            ProviderKind::Codex => "codex",
+            ProviderKind::OpenCode => "opencode",
+            ProviderKind::Copilot => "copilot",
+            ProviderKind::CursorAgent => "cursor",
+            ProviderKind::GeminiCli => "gemini-cli",
         }
     }
 
@@ -61,7 +73,26 @@ impl ProviderKind {
             ProviderKind::LmStudio => "LM Studio",
             ProviderKind::Custom => "Eigen server",
             ProviderKind::Local => "Lokaal",
+            ProviderKind::ClaudeCode => "Claude Code",
+            ProviderKind::Codex => "Codex",
+            ProviderKind::OpenCode => "OpenCode",
+            ProviderKind::Copilot => "GitHub Copilot",
+            ProviderKind::CursorAgent => "Cursor",
+            ProviderKind::GeminiCli => "Gemini CLI",
         }
+    }
+
+    /// Runs through a coding-agent CLI on this computer, using the user's own subscription.
+    pub fn is_cli_agent(self) -> bool {
+        matches!(
+            self,
+            ProviderKind::ClaudeCode
+                | ProviderKind::Codex
+                | ProviderKind::OpenCode
+                | ProviderKind::Copilot
+                | ProviderKind::CursorAgent
+                | ProviderKind::GeminiCli
+        )
     }
 }
 
@@ -78,7 +109,15 @@ pub fn requires_key(kind: ProviderKind) -> bool {
 
 #[uniffi::export]
 pub fn supports(kind: ProviderKind, task: ProviderTask) -> bool {
+    if kind.is_cli_agent() {
+        return task == ProviderTask::Llm;
+    }
     !(kind == ProviderKind::Local && task == ProviderTask::Llm)
+}
+
+#[uniffi::export]
+pub fn is_cli_agent(kind: ProviderKind) -> bool {
+    kind.is_cli_agent()
 }
 
 #[uniffi::export]
@@ -91,6 +130,13 @@ pub fn default_base_url(kind: ProviderKind) -> String {
         ProviderKind::Ollama => "http://localhost:11434/v1",
         ProviderKind::LmStudio => "http://localhost:1234/v1",
         ProviderKind::Custom | ProviderKind::Local => "",
+        // The executable path, filled in by detection.
+        ProviderKind::ClaudeCode
+        | ProviderKind::Codex
+        | ProviderKind::OpenCode
+        | ProviderKind::Copilot
+        | ProviderKind::CursorAgent
+        | ProviderKind::GeminiCli => "",
     }
     .into()
 }
@@ -109,6 +155,13 @@ pub fn default_model(kind: ProviderKind, task: ProviderTask) -> String {
         ProviderKind::Ollama => ("", "gemma3:4b"),
         ProviderKind::LmStudio | ProviderKind::Custom => ("", ""),
         ProviderKind::Local => ("whisper-large-v3-turbo", ""),
+        // Haiku answers a cleanup in ~3 s; the other CLIs use the model configured in the CLI itself.
+        ProviderKind::ClaudeCode => ("", "haiku"),
+        ProviderKind::Codex
+        | ProviderKind::OpenCode
+        | ProviderKind::Copilot
+        | ProviderKind::CursorAgent
+        | ProviderKind::GeminiCli => ("", ""),
     };
     if is_stt { stt } else { llm }.into()
 }

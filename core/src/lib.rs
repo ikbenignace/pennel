@@ -3,6 +3,7 @@ uniffi::setup_scaffolding!();
 mod catalog;
 mod chunker;
 mod cleanup;
+mod cli_agent;
 mod command;
 mod diarize;
 mod engine;
