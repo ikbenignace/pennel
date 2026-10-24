@@ -73,14 +73,15 @@ struct TemplatePicker: View {
     @Binding var selection: String
 
     var body: some View {
-        let templates = state.engine.meetingTemplates()
-        Picker("", selection: Binding(
-            get: { templates.contains { $0.id == selection } ? selection : "algemeen" },
-            set: { selection = $0 }
-        )) {
-            ForEach(templates, id: \.id) { Text($0.name).tag($0.id) }
+        Picker("", selection: $selection) {
+            ForEach(state.templates, id: \.id) { Text($0.name).tag($0.id) }
         }
         .labelsHidden()
         .frame(maxWidth: 220)
+        .onAppear {
+            if state.templates.isEmpty { state.reloadTemplates() }
+            selection = state.templateId(selection)
+        }
+        .onChange(of: state.templates.map(\.id)) { selection = state.templateId(selection) }
     }
 }

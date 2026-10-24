@@ -86,7 +86,7 @@ final class MeetingController {
         phase = .summarizing
         let engine = state.engine
         let keys = state.keys()
-        let template = state.settings.defaultTemplate
+        let template = state.templateId(state.settings.defaultTemplate)
         let wantedTitle = title.trimmingCharacters(in: .whitespaces)
         let renameTo = wantedTitle.isEmpty || wantedTitle == defaultTitle ? nil : wantedTitle
         Task.detached(priority: .userInitiated) {

@@ -4,9 +4,11 @@ import SwiftUI
 
 struct TemplatesSection: View {
     let state: AppState
-    @State private var templates: [MeetingTemplate] = []
     @State private var editing: EditorTarget?
     @State private var deleting: MeetingTemplate?
+    @State private var error: String?
+
+    private var templates: [MeetingTemplate] { state.templates }
 
     struct EditorTarget {
         let id: String?
@@ -29,6 +31,9 @@ struct TemplatesSection: View {
                 }
                 if template.id != templates.last?.id { Divider().overlay(Theme.line) }
             }
+            if let error {
+                Text(error).font(.figtree(11)).foregroundStyle(Theme.accent)
+            }
             Button("Nieuw sjabloon") {
                 editing = EditorTarget(id: nil, name: "", body: "Beschrijf waar de samenvatting op moet letten.\n\n## Samenvatting\n## Actiepunten\n")
             }
@@ -36,9 +41,14 @@ struct TemplatesSection: View {
         .onAppear(perform: reload)
         .sheet(item: Binding(get: { editing.map(Wrapped.init) }, set: { editing = $0?.target })) { wrapped in
             TemplateEditor(target: wrapped.target) { name, body in
-                _ = try? state.engine.saveTemplate(id: wrapped.target.id, name: name, body: body)
-                editing = nil
-                reload()
+                do {
+                    _ = try state.engine.saveTemplate(id: wrapped.target.id, name: name, body: body)
+                    editing = nil
+                    reload()
+                    return nil
+                } catch {
+                    return "Bewaren mislukt: \(error)"
+                }
             } onCancel: {
                 editing = nil
             }
@@ -49,11 +59,14 @@ struct TemplatesSection: View {
             presenting: deleting
         ) { template in
             Button(template.builtin ? "Herstel" : "Verwijder", role: .destructive) {
-                try? state.engine.deleteTemplate(id: template.id)
-                if state.settings.defaultTemplate == template.id && !template.builtin {
-                    state.settings.defaultTemplate = "algemeen"
+                do {
+                    try state.engine.deleteTemplate(id: template.id)
+                    error = nil
+                    reload()
+                    state.settings.defaultTemplate = state.templateId(state.settings.defaultTemplate)
+                } catch {
+                    self.error = "Verwijderen mislukt: \(error)"
                 }
-                reload()
             }
         }
     }
@@ -73,16 +86,18 @@ struct TemplatesSection: View {
     }
 
     private func reload() {
-        templates = state.engine.meetingTemplates()
+        state.reloadTemplates()
     }
 }
 
 struct TemplateEditor: View {
     let target: TemplatesSection.EditorTarget
-    let onSave: (String, String) -> Void
+    /// Returns an error message to show, or nil when saved.
+    let onSave: (String, String) -> String?
     let onCancel: () -> Void
     @State private var name = ""
     @State private var text = ""
+    @State private var error: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -97,10 +112,13 @@ struct TemplateEditor: View {
                 .foregroundStyle(Theme.muted)
             Text("Secties: " + sections.joined(separator: " · "))
                 .font(.figtree(11))
+            if let error {
+                Text(error).font(.figtree(11)).foregroundStyle(Theme.accent)
+            }
             HStack {
                 Spacer()
                 Button("Annuleren", action: onCancel).keyboardShortcut(.cancelAction)
-                Button("Bewaar") { onSave(name.trimmingCharacters(in: .whitespaces), text) }
+                Button("Bewaar") { error = onSave(name.trimmingCharacters(in: .whitespaces), text) }
                     .keyboardShortcut(.defaultAction)
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             }

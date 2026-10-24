@@ -28,6 +28,18 @@ final class AppState {
         }
     }
 
+    private(set) var templates: [MeetingTemplate] = []
+
+    func reloadTemplates() {
+        templates = engine.meetingTemplates()
+    }
+
+    /// The template to use for `id`, falling back to "algemeen" when it was deleted.
+    func templateId(_ id: String) -> String {
+        if templates.isEmpty { reloadTemplates() }
+        return templates.contains { $0.id == id } ? id : "algemeen"
+    }
+
     func chat(for meetingId: String?) -> MeetingChat {
         let key = meetingId ?? ""
         if let chat = chats[key] { return chat }

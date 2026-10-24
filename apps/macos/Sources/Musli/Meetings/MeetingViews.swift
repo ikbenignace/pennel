@@ -220,7 +220,7 @@ struct MeetingDetailView: View {
         markdown = engine.meetingMarkdown(id: meetingId)
         notes = engine.meetingNotes(id: meetingId)
         segments = engine.meetingTranscript(id: meetingId)
-        template = state.settings.defaultTemplate
+        template = state.templateId(state.settings.defaultTemplate)
     }
 
     private func regenerate() {

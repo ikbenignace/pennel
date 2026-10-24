@@ -59,20 +59,26 @@ fn render(name: &str, body: &str) -> String {
     format!("---\nname: {}\n---\n{}\n", name.replace('\n', " ").trim(), body.trim())
 }
 
-/// Returns `(name, body)`; files without frontmatter use the file stem as name.
+/// Returns `(name, body)`. Only a leading block of `key: value` lines with a `name:` counts as frontmatter,
+/// so a template that opens with a `---` rule keeps its text; without a usable name the file stem is used.
 fn split_frontmatter(text: &str, stem: &str) -> (String, String) {
     let text = text.replace("\r\n", "\n");
     if let Some(rest) = text.strip_prefix("---\n")
         && let Some(end) = rest.find("\n---")
     {
-        let name = rest[..end]
-            .lines()
-            .find_map(|l| l.strip_prefix("name:"))
-            .map(|n| n.trim().trim_matches('"').to_owned())
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| stem.to_owned());
-        let body = rest[end + 4..].trim_start_matches('\n').to_owned();
-        return (name, body);
+        let block = &rest[..end];
+        let is_frontmatter = block.lines().all(|l| l.trim().is_empty() || l.contains(':'))
+            && block.lines().any(|l| l.starts_with("name:"));
+        if is_frontmatter {
+            let name = block
+                .lines()
+                .find_map(|l| l.strip_prefix("name:"))
+                .map(|n| n.trim().to_owned())
+                .filter(|n| !n.is_empty())
+                .unwrap_or_else(|| stem.to_owned());
+            let body = rest[end + 4..].trim_start_matches('\n').to_owned();
+            return (name, body);
+        }
     }
     (stem.to_owned(), text)
 }
@@ -105,6 +111,9 @@ impl TemplateStore {
     }
 
     fn read(&self, id: &str) -> Option<(String, String)> {
+        if !self.custom_ids().iter().any(|c| c == id) {
+            return None;
+        }
         let text = std::fs::read_to_string(self.path(id)).ok()?;
         Some(split_frontmatter(&text, id))
     }
@@ -117,6 +126,12 @@ impl TemplateStore {
             .filter(|p| p.extension().is_some_and(|x| x == "md"))
             .filter_map(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned()))
             .collect()
+    }
+
+    /// Only built-in ids and the stems of files already in the folder are valid, so an id from the UI can
+    /// never point outside `.templates`.
+    fn is_known(&self, id: &str) -> bool {
+        Self::builtin(id).is_some() || self.custom_ids().iter().any(|c| c == id)
     }
 
     fn builtin(id: &str) -> Option<&'static (&'static str, &'static str, &'static str)> {
@@ -168,7 +183,8 @@ impl TemplateStore {
     pub fn save(&self, id: Option<&str>, name: &str, body: &str) -> Result<String, MusliError> {
         std::fs::create_dir_all(&self.dir).map_err(MusliError::storage)?;
         let id = match id {
-            Some(id) => slug(id),
+            Some(id) if self.is_known(id) => id.to_owned(),
+            Some(_) => return Err(MusliError::NotFound),
             None => {
                 let base = slug(name);
                 std::iter::once(base.clone())
@@ -185,6 +201,9 @@ impl TemplateStore {
 
     /// Removes a custom template, or the override of a built-in (restoring the original).
     pub fn delete(&self, id: &str) -> Result<(), MusliError> {
+        if !self.custom_ids().iter().any(|c| c == id) {
+            return Err(MusliError::NotFound);
+        }
         match std::fs::remove_file(self.path(id)) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(MusliError::NotFound),
@@ -272,6 +291,37 @@ mod tests {
         assert_eq!(store.save(None, "Retro / Q4: 🚀", "x").unwrap(), "retro-q4-2");
         assert_eq!(store.save(None, "🚀", "x").unwrap(), "sjabloon");
         assert_eq!(store.save(None, "Algemeen", "x").unwrap(), "algemeen-2");
+    }
+
+    #[test]
+    fn ids_outside_the_folder_are_rejected() {
+        let (dir, store) = store();
+        std::fs::write(dir.path().join("geheim.md"), "x").unwrap();
+        assert_eq!(store.delete("../geheim"), Err(MusliError::NotFound));
+        assert!(dir.path().join("geheim.md").exists());
+        assert_eq!(store.source("../geheim"), None);
+        assert_eq!(store.save(Some("../geheim"), "x", "y"), Err(MusliError::NotFound));
+    }
+
+    #[test]
+    fn hand_made_file_is_saved_in_place() {
+        let (dir, store) = store();
+        std::fs::create_dir_all(dir.path().join(".templates")).unwrap();
+        std::fs::write(dir.path().join(".templates/Retro_v2.md"), "oud").unwrap();
+        assert_eq!(store.save(Some("Retro_v2"), "Retro v2", "nieuw").unwrap(), "Retro_v2");
+        assert_eq!(store.list().iter().filter(|t| !t.builtin).count(), 1);
+        assert_eq!(store.source("Retro_v2").unwrap(), "nieuw\n");
+    }
+
+    #[test]
+    fn names_round_trip_and_rules_stay_body() {
+        let (dir, store) = store();
+        let id = store.save(None, "\"Goed\": wat werkt", "Tekst").unwrap();
+        assert_eq!(store.list().iter().find(|t| t.id == id).unwrap().name, "\"Goed\": wat werkt");
+        std::fs::write(dir.path().join(".templates/regel.md"), "---\nGeen frontmatter\n---\n## A").unwrap();
+        let (name, body) = store.read("regel").unwrap();
+        assert_eq!(name, "regel");
+        assert!(body.starts_with("---\nGeen frontmatter"));
     }
 
     #[test]
