@@ -653,6 +653,13 @@ pub struct LibrarySearch {
     pub passages: Vec<Passage>,
 }
 
+fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_default()
+}
+
 fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
     MeetingIndex::open(path).ok().or_else(|| {
         let _ = std::fs::remove_file(path);
@@ -747,7 +754,7 @@ impl PennelEngine {
     pub(crate) fn meeting_store(&self) -> MeetingStore {
         let configured = self.settings.read().unwrap().meetings_dir.clone();
         let dir = if configured.is_empty() {
-            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("Pennel")
+            home_dir().join("Pennel")
         } else {
             PathBuf::from(configured)
         };
