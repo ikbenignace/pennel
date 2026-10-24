@@ -11,7 +11,7 @@ use crate::local_engine::LocalEngine;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::session::MeetingSession;
 use crate::settings::ModelChoice;
-use crate::models::{CancelFlag, DownloadListener, ModelState, ModelStore};
+use crate::models::{CancelFlag, DownloadListener, LocalModel, ModelState, ModelStore};
 use crate::provider::{requires_key, ProviderAccount, ProviderConfig, ProviderKind};
 use crate::settings::{DictationMode, Settings};
 use crate::speech::{has_speech, is_hallucination};
@@ -276,6 +276,10 @@ impl MusliEngine {
         let body = ask(summary_messages(&template_id, &notes, &source))?;
         store.write_meeting(&id, info.duration_min, &template_id, &body)?;
         Ok(body.trim().to_owned())
+    }
+
+    pub fn local_models(&self, language: Option<String>, supported_only: bool) -> Vec<LocalModel> {
+        self.models.local_models(language.as_deref(), supported_only)
     }
 
     pub fn model_state(&self, id: String) -> ModelState {

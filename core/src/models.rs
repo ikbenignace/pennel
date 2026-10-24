@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use sha2::{Digest, Sha256};
 
+use crate::catalog::{self, CatalogModel};
 use crate::error::MusliError;
 use crate::http;
 
@@ -21,6 +22,12 @@ pub struct LocalModel {
     pub name: String,
     pub description: String,
     pub size_bytes: u64,
+    pub parameters: Option<String>,
+    pub speed: u8,
+    pub accuracy: Option<u8>,
+    pub languages: Vec<String>,
+    pub recommended: bool,
+    pub legacy: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -43,36 +50,64 @@ pub struct ModelEntry {
     pub size_bytes: u64,
     pub sha256: String,
     pub url: String,
+    /// Benchmarks and languages; for legacy entries those of the catalog model they were quantized from.
+    pub scores: Option<&'static CatalogModel>,
+    pub legacy: bool,
 }
 
-fn catalog() -> Vec<ModelEntry> {
+impl ModelEntry {
+    fn extension(&self) -> &str {
+        if self.url.ends_with(".gguf") { "gguf" } else { "bin" }
+    }
+}
+
+/// whisper.cpp files Musli offered before the catalog; still loadable, only listed once downloaded.
+fn legacy_entries() -> Vec<ModelEntry> {
     let hf = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
     vec![
         ModelEntry {
             id: "whisper-large-v3-turbo-q5_0".into(),
-            name: "Whisper large-v3 turbo".into(),
-            description: "Beste kwaliteit, ook in het Nederlands".into(),
+            name: "Whisper large-v3 turbo (q5)".into(),
+            description: "Eerder gedownloade versie".into(),
             size_bytes: 574_041_195,
             sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2".into(),
             url: format!("{hf}/ggml-large-v3-turbo-q5_0.bin"),
+            scores: catalog::find("whisper-large-v3-turbo"),
+            legacy: true,
         },
         ModelEntry {
             id: "whisper-small-q5_1".into(),
-            name: "Whisper small".into(),
-            description: "Sneller en lichter, iets minder nauwkeurig".into(),
+            name: "Whisper small (q5)".into(),
+            description: "Eerder gedownloade versie".into(),
             size_bytes: 190_085_487,
             sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb".into(),
             url: format!("{hf}/ggml-small-q5_1.bin"),
+            scores: catalog::find("whisper-small"),
+            legacy: true,
         },
     ]
 }
 
-#[uniffi::export]
-pub fn local_models() -> Vec<LocalModel> {
-    catalog()
-        .into_iter()
-        .map(|e| LocalModel { id: e.id, name: e.name, description: e.description, size_bytes: e.size_bytes })
-        .collect()
+fn entries() -> Vec<ModelEntry> {
+    let mut entries: Vec<ModelEntry> = catalog::catalog()
+        .iter()
+        .map(|m| ModelEntry {
+            id: m.id.clone(),
+            name: m.name.clone(),
+            description: m.description.clone(),
+            size_bytes: m.file.size,
+            sha256: m.file.sha256.clone(),
+            url: m.url.clone(),
+            scores: Some(m),
+            legacy: false,
+        })
+        .collect();
+    entries.extend(legacy_entries());
+    entries
+}
+
+fn recommended_rank(id: &str) -> Option<usize> {
+    catalog::RECOMMENDED.iter().position(|r| *r == id)
 }
 
 pub(crate) fn hex(bytes: &[u8]) -> String {
@@ -87,7 +122,7 @@ pub struct ModelStore {
 
 impl ModelStore {
     pub fn new(data_dir: &Path) -> Self {
-        Self::with_catalog(data_dir, catalog())
+        Self::with_catalog(data_dir, entries())
     }
 
     pub fn with_catalog(data_dir: &Path, catalog: Vec<ModelEntry>) -> Self {
@@ -99,7 +134,8 @@ impl ModelStore {
     }
 
     fn final_path(&self, id: &str) -> PathBuf {
-        self.dir.join(format!("{id}.bin"))
+        let extension = self.entry(id).map_or("bin", ModelEntry::extension);
+        self.dir.join(format!("{id}.{extension}"))
     }
 
     fn part_path(&self, id: &str) -> PathBuf {
@@ -119,6 +155,39 @@ impl ModelStore {
     pub fn path(&self, id: &str) -> Option<PathBuf> {
         let path = self.final_path(id);
         path.exists().then_some(path)
+    }
+
+    /// Recommended models first in their pinned order, then by accuracy in `language` (unmeasured last)
+    /// and speed. Legacy files only appear once downloaded.
+    pub fn local_models(&self, language: Option<&str>, supported_only: bool) -> Vec<LocalModel> {
+        let language = language.unwrap_or(catalog::DEFAULT_SCORE_LANGUAGE);
+        let mut models: Vec<LocalModel> = self
+            .catalog
+            .iter()
+            .filter(|e| !e.legacy || self.final_path(&e.id).exists())
+            .filter(|e| !supported_only || e.scores.is_none_or(|s| s.supports(language)))
+            .map(|e| LocalModel {
+                id: e.id.clone(),
+                name: e.name.clone(),
+                description: e.description.clone(),
+                size_bytes: e.size_bytes,
+                parameters: e.scores.and_then(|s| s.parameters.clone()),
+                speed: e.scores.map_or(0, |s| s.speed),
+                accuracy: e.scores.and_then(|s| s.accuracy(language)),
+                languages: e.scores.map(|s| s.languages.clone()).unwrap_or_default(),
+                recommended: recommended_rank(&e.id).is_some(),
+                legacy: e.legacy,
+            })
+            .collect();
+        models.sort_by(|a, b| {
+            let rank = |m: &LocalModel| recommended_rank(&m.id).unwrap_or(usize::MAX);
+            rank(a)
+                .cmp(&rank(b))
+                .then(b.accuracy.is_some().cmp(&a.accuracy.is_some()))
+                .then(b.accuracy.cmp(&a.accuracy))
+                .then(b.speed.cmp(&a.speed))
+        });
+        models
     }
 
     pub fn downloaded(&self) -> Vec<String> {
@@ -272,6 +341,8 @@ mod tests {
                 size_bytes: bytes.len() as u64,
                 sha256: hex(&Sha256::digest(bytes)),
                 url,
+                scores: None,
+                legacy: false,
             }],
         )
     }
@@ -291,13 +362,71 @@ mod tests {
         }
     }
 
+    fn ids(models: &[LocalModel]) -> Vec<&str> {
+        models.iter().map(|m| m.id.as_str()).collect()
+    }
+
     #[test]
-    fn catalog_has_turbo_and_small() {
-        let models = local_models();
-        let turbo = models.iter().find(|m| m.id == "whisper-large-v3-turbo-q5_0").unwrap();
-        assert_eq!(turbo.size_bytes, 574_041_195);
-        let small = models.iter().find(|m| m.id == "whisper-small-q5_1").unwrap();
-        assert_eq!(small.size_bytes, 190_085_487);
+    fn recommended_first_in_pinned_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let models = ModelStore::new(dir.path()).local_models(Some("nl"), true);
+        assert_eq!(ids(&models)[..5], catalog::RECOMMENDED);
+        assert!(models[..5].iter().all(|m| m.recommended));
+        assert!(!models[5].recommended);
+    }
+
+    #[test]
+    fn auto_language_scores_dutch() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        assert_eq!(store.local_models(None, true), store.local_models(Some("nl"), true));
+        let parakeet = store.local_models(None, true).into_iter().find(|m| m.id == "parakeet-tdt-0.6b-v3").unwrap();
+        assert_eq!((parakeet.speed, parakeet.accuracy), (96, Some(60)));
+        assert_eq!(parakeet.parameters.as_deref(), Some("627M"));
+        assert!(parakeet.languages.contains(&"nl".to_string()));
+    }
+
+    #[test]
+    fn supported_only_filters_language() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        assert!(!ids(&store.local_models(Some("nl"), true)).contains(&"parakeet-tdt-0.6b-v2"));
+        assert!(ids(&store.local_models(Some("nl"), false)).contains(&"parakeet-tdt-0.6b-v2"));
+    }
+
+    #[test]
+    fn unsupported_language_sorts_last() {
+        let dir = tempfile::tempdir().unwrap();
+        let models = ModelStore::new(dir.path()).local_models(Some("nl"), false);
+        let rest = &models[catalog::RECOMMENDED.len()..];
+        let first_unmeasured = rest.iter().position(|m| m.accuracy.is_none()).unwrap();
+        assert!(rest[first_unmeasured..].iter().all(|m| m.accuracy.is_none()));
+        assert!(rest[..first_unmeasured].windows(2).all(|w| w[0].accuracy >= w[1].accuracy));
+    }
+
+    #[test]
+    fn legacy_ids_stay_downloaded() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        assert!(!ids(&store.local_models(None, true)).contains(&"whisper-small-q5_1"));
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(dir.path().join("models/whisper-small-q5_1.bin"), b"x").unwrap();
+        assert_eq!(store.downloaded(), vec!["whisper-small-q5_1".to_string()]);
+        assert_eq!(store.state("whisper-small-q5_1"), ModelState::Downloaded);
+        let models = store.local_models(None, true);
+        let legacy = models.iter().find(|m| m.id == "whisper-small-q5_1").unwrap();
+        let small = models.iter().find(|m| m.id == "whisper-small").unwrap();
+        assert!(legacy.legacy);
+        assert_eq!(legacy.accuracy, small.accuracy);
+    }
+
+    #[test]
+    fn gguf_final_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(dir.path().join("models/parakeet-tdt-0.6b-v3.gguf"), b"x").unwrap();
+        assert_eq!(store.path("parakeet-tdt-0.6b-v3"), Some(dir.path().join("models/parakeet-tdt-0.6b-v3.gguf")));
     }
 
     #[test]
@@ -415,9 +544,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = ModelStore::new(dir.path());
         let started = std::time::Instant::now();
-        store.download("whisper-small-q5_1", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        store.download("whisper-small", &Recorder::default(), &AtomicBool::new(false)).unwrap();
         eprintln!("downloaded in {:?}", started.elapsed());
-        assert_eq!(store.state("whisper-small-q5_1"), ModelState::Downloaded);
+        assert_eq!(store.state("whisper-small"), ModelState::Downloaded);
     }
 
     #[test]

@@ -99,7 +99,7 @@ pub fn default_model(kind: ProviderKind, task: ProviderTask) -> String {
         ProviderKind::Mistral => ("voxtral-mini-latest", "mistral-small-latest"),
         ProviderKind::Ollama => ("", "gemma3:4b"),
         ProviderKind::LmStudio | ProviderKind::Custom => ("", ""),
-        ProviderKind::Local => ("whisper-large-v3-turbo-q5_0", ""),
+        ProviderKind::Local => ("whisper-large-v3-turbo", ""),
     };
     if is_stt { stt } else { llm }.into()
 }
@@ -122,7 +122,7 @@ mod tests {
     fn groq_defaults() {
         assert_eq!(default_base_url(ProviderKind::Groq), "https://api.groq.com/openai/v1");
         assert_eq!(default_model(ProviderKind::Groq, ProviderTask::DictationStt), "whisper-large-v3-turbo");
-        assert_eq!(default_model(ProviderKind::Local, ProviderTask::DictationStt), "whisper-large-v3-turbo-q5_0");
+        assert_eq!(default_model(ProviderKind::Local, ProviderTask::DictationStt), "whisper-large-v3-turbo");
     }
 
     #[test]

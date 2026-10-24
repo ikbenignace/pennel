@@ -365,7 +365,7 @@ mod tests {
         let mut s = default_settings();
         s.providers.retain(|p| p.id != "groq");
         let s = s.normalized();
-        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "local".into(), model: "whisper-large-v3-turbo-q5_0".into() });
+        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "local".into(), model: "whisper-large-v3-turbo".into() });
         assert_eq!(s.llm.provider_id, "groq");
     }
 
