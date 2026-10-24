@@ -114,6 +114,11 @@ struct MeetingDetailView: View {
     @State private var highlightMs: UInt64?
     @State private var scrollToken = UUID()
     @State private var copied: String?
+    @State private var speakers: [SpeakerName] = []
+    @State private var attendees: [String] = []
+    @State private var renamingVoice: UInt32?
+    @State private var speakerName = ""
+    @State private var diarizing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -144,7 +149,10 @@ struct MeetingDetailView: View {
                                     segments: segments,
                                     audioDir: audioDir,
                                     onRetry: retryFailed,
-                                    highlightMs: highlightMs
+                                    highlightMs: highlightMs,
+                                    names: speakers,
+                                    suggestions: attendees,
+                                    onRename: rename
                                 )
                             }
                         }
@@ -165,6 +173,15 @@ struct MeetingDetailView: View {
         .onChange(of: meetingId) { reload() }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in reload() }
         .onChange(of: state.transcriptJump, initial: true) { consumeJump() }
+        .alert("Naam voor deze stem", isPresented: Binding(get: { renamingVoice != nil }, set: { if !$0 { renamingVoice = nil } })) {
+            TextField("Naam", text: $speakerName)
+            Button("Bewaar") {
+                if let voice = renamingVoice { rename(voice, speakerName) }
+            }
+            Button("Annuleren", role: .cancel) {}
+        } message: {
+            Text("Laat leeg om terug \"Anderen\" te tonen.")
+        }
     }
 
     private var footer: some View {
@@ -176,6 +193,9 @@ struct MeetingDetailView: View {
                 Spacer()
                 if let copied {
                     Text(copied).font(.figtree(11)).foregroundStyle(Theme.muted)
+                }
+                if tab == .transcript && canDiarize {
+                    Button(diarizing ? "Bezig…" : "Sprekers herkennen", action: diarize).disabled(diarizing)
                 }
                 Menu("Delen") {
                     Button("Kopieer opgemaakt") { share { MeetingShare.copyFormatted($0); confirm("Gekopieerd") } }
@@ -220,6 +240,42 @@ struct MeetingDetailView: View {
         return info.durationMin > 0 ? "\(when) · \(info.durationMin) min" : when
     }
 
+    private func rename(_ voice: UInt32, _ name: String?) {
+        guard let name else {
+            speakerName = speakers.first { $0.voice == voice }?.name ?? ""
+            renamingVoice = voice
+            return
+        }
+        do {
+            try state.engine.renameSpeaker(id: meetingId, voice: voice, name: name)
+        } catch {
+            message = "Hernoemen mislukt: \(error)"
+        }
+        reload()
+    }
+
+    private var canDiarize: Bool {
+        segments.contains { $0.speaker == .others && !$0.failed }
+            && state.engine.modelState(id: state.engine.diarizerModelId()) == .downloaded
+            && FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("anderen.m4a").path)
+    }
+
+    private func diarize() {
+        diarizing = true
+        message = nil
+        let (engine, id) = (state.engine, meetingId)
+        Task {
+            let result = await Task.detached { Result { try MeetingController.diarize(engine: engine, meetingId: id) } }.value
+            diarizing = false
+            switch result {
+            case .success(0): message = "Geen afzonderlijke stemmen gevonden."
+            case .success: break
+            case .failure(let error): message = "Sprekers herkennen mislukt: \(error)"
+            }
+            reload()
+        }
+    }
+
     private func share(transcript: Bool = false, _ action: @escaping (MeetingExport) -> Void) {
         let (engine, id) = (state.engine, meetingId)
         Task {
@@ -254,6 +310,8 @@ struct MeetingDetailView: View {
         markdown = engine.meetingMarkdown(id: meetingId)
         notes = engine.meetingNotes(id: meetingId)
         segments = engine.meetingTranscript(id: meetingId)
+        speakers = engine.meetingSpeakers(id: meetingId)
+        attendees = engine.meetingAttendees(id: meetingId)
         template = state.templateId(state.settings.defaultTemplate)
     }
 
@@ -325,6 +383,9 @@ struct TranscriptList: View {
     let audioDir: URL?
     let onRetry: (() -> Void)?
     var highlightMs: UInt64?
+    var names: [SpeakerName] = []
+    var suggestions: [String] = []
+    var onRename: ((UInt32, String?) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -334,10 +395,8 @@ struct TranscriptList: View {
             ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(Self.stamp(segment.startMs)).font(.figtree(11)).foregroundStyle(Theme.muted).frame(width: 52, alignment: .leading)
-                    Text(segment.speaker == .me ? "Ik" : "Anderen")
-                        .font(.figtree(12, weight: .medium))
-                        .foregroundStyle(segment.speaker == .me ? Theme.accent : Theme.ink)
-                        .frame(width: 60, alignment: .leading)
+                    speakerLabel(segment)
+                        .frame(width: 84, alignment: .leading)
                     if segment.failed {
                         Text("Transcriptie mislukt").foregroundStyle(Theme.muted)
                         if let onRetry { Button("Opnieuw proberen", action: onRetry) }
@@ -358,6 +417,37 @@ struct TranscriptList: View {
                 .id(segment.startMs)
             }
         }
+    }
+
+    @ViewBuilder
+    private func speakerLabel(_ segment: Segment) -> some View {
+        let text = Text(Self.label(segment, names))
+            .font(.figtree(12, weight: .medium))
+            .lineLimit(1)
+        if segment.speaker == .me {
+            text.foregroundStyle(Theme.accent)
+        } else if let voice = segment.voice, let onRename {
+            Menu {
+                ForEach(suggestions, id: \.self) { name in
+                    Button(name) { onRename(voice, name) }
+                }
+                if !suggestions.isEmpty { Divider() }
+                Button("Andere naam…") { onRename(voice, nil) }
+            } label: {
+                text.foregroundStyle(Theme.voice(voice))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+        } else {
+            text.foregroundStyle(segment.voice.map(Theme.voice) ?? Theme.ink)
+        }
+    }
+
+    static func label(_ segment: Segment, _ names: [SpeakerName]) -> String {
+        guard segment.speaker == .others else { return "Ik" }
+        guard let voice = segment.voice else { return "Anderen" }
+        return names.first { $0.voice == voice }?.name ?? "Anderen \(voice)"
     }
 
     private func play(_ segment: Segment) {

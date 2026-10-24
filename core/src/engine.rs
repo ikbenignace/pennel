@@ -429,6 +429,10 @@ impl MusliEngine {
         Ok(voices.len() as u32)
     }
 
+    pub fn meeting_attendees(&self, id: String) -> Vec<String> {
+        self.meeting_store().attendees(&id)
+    }
+
     pub fn meeting_speakers(&self, id: String) -> Vec<SpeakerName> {
         self.meeting_store().speaker_names(&id)
     }

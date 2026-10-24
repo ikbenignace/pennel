@@ -89,13 +89,22 @@ final class MeetingController {
         let template = state.templateId(state.settings.defaultTemplate)
         let wantedTitle = title.trimmingCharacters(in: .whitespaces)
         let renameTo = wantedTitle.isEmpty || wantedTitle == defaultTitle ? nil : wantedTitle
+        let diarize = state.settings.diarization
         Task.detached(priority: .userInitiated) {
             try? session.stop()
             var id = session.id()
             if let renameTo, let renamed = try? engine.renameMeeting(id: id, title: renameTo) { id = renamed }
+            if diarize { _ = try? Self.diarize(engine: engine, meetingId: id) }
             let summary = Result { try engine.summarizeMeeting(id: id, templateId: template, keys: keys) }
             await MainActor.run { self.finish(id: id, summary: summary) }
         }
+    }
+
+    /// Splits "Anderen" into voices from the saved others-track; failures leave the transcript as it was.
+    nonisolated static func diarize(engine: MusliEngine, meetingId: String) throws -> UInt32 {
+        let track = URL(fileURLWithPath: engine.meetingDir(id: meetingId)).appendingPathComponent("anderen.m4a")
+        let samples = try AudioDecoder.monoSamples(of: track)
+        return try engine.diarizeMeeting(id: meetingId, samples: samples)
     }
 
     private func finish(id: String, summary: Result<String, Error>) {

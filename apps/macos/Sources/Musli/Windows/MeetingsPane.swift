@@ -27,6 +27,7 @@ struct MeetingsPane: View {
                 TemplatePicker(state: state, selection: $state.settings.defaultTemplate)
             }
             TemplatesSection(state: state)
+            SpeakersSection(state: state)
             PaneSection(title: "Audio bewaren", subtitle: "Notities en transcript blijven altijd staan.") {
                 Picker("", selection: $state.settings.meetingAudioRetentionDays) {
                     Text("30 dagen").tag(UInt32(30))
@@ -83,5 +84,51 @@ struct TemplatePicker: View {
             selection = state.templateId(selection)
         }
         .onChange(of: state.templates.map(\.id)) { selection = state.templateId(selection) }
+    }
+}
+
+private struct SpeakersSection: View {
+    @Bindable var state: AppState
+    @State private var modelState: ModelState = .notDownloaded
+
+    private var modelId: String { state.engine.diarizerModelId() }
+
+    var body: some View {
+        PaneSection(
+            title: "Sprekers herkennen",
+            subtitle: "Splitst \"Anderen\" na de meeting op in afzonderlijke stemmen die je een naam kunt geven. Draait lokaal."
+        ) {
+            Toggle("Sprekers herkennen na elke meeting", isOn: $state.settings.diarization)
+                .font(.figtree(12))
+            HStack {
+                Text(status).font(.figtree(11)).foregroundStyle(Theme.muted)
+                Spacer()
+                if state.downloads.isDownloading(modelId) {
+                    Button("Annuleren") { state.downloads.cancel(modelId) }
+                } else if modelState != .downloaded {
+                    Button("Download model (139 MB)") { state.downloads.start(modelId) }
+                }
+            }
+            if let progress = state.downloads.progress[modelId] {
+                ProgressView(value: progress).tint(Theme.accent)
+            }
+            if let error = state.downloads.errors[modelId] {
+                Text(error).font(.figtree(11)).foregroundStyle(Theme.accent)
+            }
+        }
+        .onAppear(perform: refresh)
+        .onChange(of: state.downloads.progress[modelId] == nil) { refresh() }
+    }
+
+    private var status: String {
+        switch modelState {
+        case .downloaded: "Model klaar · Sortformer, tot 4 sprekers"
+        case .partial: "Download onderbroken"
+        case .notDownloaded: "Model nog niet gedownload"
+        }
+    }
+
+    private func refresh() {
+        modelState = state.engine.modelState(id: modelId)
     }
 }

@@ -9,6 +9,11 @@ public enum Theme {
     public static let line = Color(hex: 0xECE7DE)
     public static let accent = Color(hex: 0xC2410C)
     public static let wave = Color(hex: 0xF2B48E)
+    private static let voices = [Color(hex: 0x2F6F62), Color(hex: 0x6D4C8F), Color(hex: 0x2F5D8A), Color(hex: 0x8A6A2F)]
+
+    public static func voice(_ number: UInt32) -> Color {
+        voices[Int(number - 1) % voices.count]
+    }
 }
 
 public extension Color {
