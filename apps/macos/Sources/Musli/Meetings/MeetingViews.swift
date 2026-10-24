@@ -102,7 +102,7 @@ struct MeetingDetailView: View {
     let meetingId: String
     var notice: String?
 
-    private enum Tab: Hashable { case notes, transcript }
+    private enum Tab: Hashable { case notes, transcript, ask }
     @State private var tab: Tab = .notes
     @State private var info: MeetingInfo?
     @State private var markdown: String?
@@ -111,6 +111,7 @@ struct MeetingDetailView: View {
     @State private var template = "algemeen"
     @State private var working = false
     @State private var message: String?
+    @State private var highlightMs: UInt64?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -120,7 +121,7 @@ struct MeetingDetailView: View {
                     Text(meta).font(.figtree(12)).foregroundStyle(Theme.muted)
                 }
                 Spacer()
-                SegmentTabs(tabs: [(.notes, "Notities"), (.transcript, "Transcript")], selection: $tab)
+                SegmentTabs(tabs: [(.notes, "Notities"), (.transcript, "Transcript"), (.ask, "Vragen")], selection: $tab)
             }
             .padding(.horizontal, 32)
             .padding(.top, 28)
@@ -128,18 +129,46 @@ struct MeetingDetailView: View {
             if let text = message ?? notice {
                 Text(text).font(.figtree(12)).foregroundStyle(Theme.accent).padding(.horizontal, 32)
             }
-            ScrollView {
-                Group {
-                    switch tab {
-                    case .notes: notesView
-                    case .transcript:
-                        TranscriptList(segments: segments, audioDir: audioDir, onRetry: retryFailed)
+            if tab == .ask {
+                MeetingChatView(state: state, meetingId: meetingId)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Group {
+                            switch tab {
+                            case .notes, .ask: notesView
+                            case .transcript:
+                                TranscriptList(
+                                    segments: segments,
+                                    audioDir: audioDir,
+                                    onRetry: retryFailed,
+                                    highlightMs: highlightMs
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .onChange(of: highlightMs) {
+                        if let ms = highlightMs { withAnimation { proxy.scrollTo(ms, anchor: .center) } }
                     }
                 }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                footer
             }
+        }
+        .background(Theme.paper)
+        .onAppear(perform: reload)
+        .onChange(of: meetingId) { reload() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in reload() }
+        .onReceive(NotificationCenter.default.publisher(for: .musliShowTranscriptAt)) { note in
+            guard let ms = note.object as? UInt64 else { return }
+            tab = .transcript
+            highlightMs = segments.last(where: { $0.startMs <= ms })?.startMs ?? ms
+        }
+    }
+
+    private var footer: some View {
             HStack(spacing: 10) {
                 Picker("", selection: $template) {
                     ForEach(meetingTemplates(), id: \.id) { Text($0.name).tag($0.id) }
@@ -155,11 +184,6 @@ struct MeetingDetailView: View {
             }
             .padding(.horizontal, 32)
             .padding(.vertical, 14)
-        }
-        .background(Theme.paper)
-        .onAppear(perform: reload)
-        .onChange(of: meetingId) { reload() }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in reload() }
     }
 
     @ViewBuilder
@@ -262,6 +286,7 @@ struct TranscriptList: View {
     let segments: [Segment]
     let audioDir: URL?
     let onRetry: (() -> Void)?
+    var highlightMs: UInt64?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -284,8 +309,15 @@ struct TranscriptList: View {
                     Spacer()
                 }
                 .font(.figtree(13))
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(segment.startMs == highlightMs ? Theme.wave.opacity(0.35) : .clear)
+                        .padding(.horizontal, -6)
+                )
                 .contentShape(Rectangle())
                 .onTapGesture { play(segment) }
+                .id(segment.startMs)
             }
         }
     }

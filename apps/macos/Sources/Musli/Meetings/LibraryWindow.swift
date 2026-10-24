@@ -19,6 +19,9 @@ struct LibraryView: View {
     @State private var renaming: MeetingInfo?
     @State private var newTitle = ""
     @State private var deleting: MeetingInfo?
+    @State private var asking = false
+    @State private var snippets: [String: [String]] = [:]
+    @State private var search: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -26,7 +29,9 @@ struct LibraryView: View {
                 .frame(width: 230)
                 .background(Theme.background)
             Group {
-                if let selection, meetings.contains(where: { $0.id == selection }) {
+                if asking {
+                    MeetingChatView(state: state, meetingId: nil)
+                } else if let selection, meetings.contains(where: { $0.id == selection }) {
                     MeetingDetailView(state: state, meetingId: selection).id(selection)
                 } else {
                     Text("Kies een meeting of start een opname.")
@@ -43,6 +48,7 @@ struct LibraryView: View {
         .onReceive(NotificationCenter.default.publisher(for: .musliMeetingsChanged)) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .musliSelectMeeting)) { note in
             selection = note.object as? String
+            asking = false
             reload()
         }
         .alert("Meeting hernoemen", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
@@ -66,7 +72,21 @@ struct LibraryView: View {
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal, 12)
                 .padding(.top, 36)
-                .padding(.bottom, 8)
+                .padding(.bottom, 6)
+            Button {
+                asking = true
+            } label: {
+                Label("Vraag het je meetings", systemImage: "text.bubble")
+                    .font(.figtree(12))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 7).fill(asking ? Theme.line : .clear))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
             if meeting.isRecording {
                 Button(action: openRecording) {
                     HStack(spacing: 8) {
@@ -97,13 +117,22 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 1) {
             Text(info.title).font(.figtree(13)).lineLimit(1)
             Text(Self.subtitle(info)).font(.figtree(11)).foregroundStyle(Theme.muted)
+            ForEach(Array((snippets[info.id] ?? []).enumerated()), id: \.offset) { _, snippet in
+                Text(Self.highlighted(snippet))
+                    .font(.figtree(11))
+                    .foregroundStyle(Theme.ink.opacity(0.75))
+                    .lineLimit(2)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 7).fill(selection == info.id ? Theme.line : .clear))
+        .background(RoundedRectangle(cornerRadius: 7).fill(selection == info.id && !asking ? Theme.line : .clear))
         .contentShape(Rectangle())
-        .onTapGesture { selection = info.id }
+        .onTapGesture {
+            selection = info.id
+            asking = false
+        }
         .contextMenu {
             if info.id == meeting.meetingId && meeting.isRecording {
                 Text("Opname loopt")
@@ -152,9 +181,31 @@ struct LibraryView: View {
         return info.durationMin > 0 ? "\(time) · \(info.durationMin) min" : time
     }
 
+    static func highlighted(_ snippet: String) -> AttributedString {
+        var result = AttributedString()
+        for (index, part) in snippet.components(separatedBy: CharacterSet(charactersIn: "«»")).enumerated() {
+            var piece = AttributedString(part)
+            if index % 2 == 1 { piece.font = .figtree(11, weight: .semibold) }
+            result.append(piece)
+        }
+        return result
+    }
+
+    /// Searches off the main thread; typing quickly only runs the last query.
     private func reload() {
-        meetings = state.engine.searchMeetings(query: query)
-        if selection == nil { selection = meetings.first?.id }
+        search?.cancel()
+        let (engine, query) = (state.engine, query)
+        search = Task {
+            if !query.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
+            guard !Task.isCancelled else { return }
+            let (found, passages) = await Task.detached {
+                (engine.searchMeetings(query: query), query.isEmpty ? [] : engine.searchPassages(query: query))
+            }.value
+            guard !Task.isCancelled else { return }
+            meetings = found
+            snippets = Dictionary(grouping: passages, by: \.meetingId).mapValues { Array($0.prefix(2).map(\.snippet)) }
+            if selection == nil { selection = meetings.first?.id }
+        }
     }
 
     private func rename() {
