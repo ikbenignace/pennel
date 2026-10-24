@@ -4,6 +4,7 @@ public enum PillState: Equatable, Sendable {
     case hidden
     case listening
     case handsFree
+    case command
     case working
     case error(String)
 }
@@ -25,6 +26,10 @@ public struct DictationStatus: Sendable {
 
     public mutating func recordingStarted(handsFree: Bool) {
         recording = handsFree ? .handsFree : .listening
+    }
+
+    public mutating func markCommand() {
+        if recording != nil { recording = .command }
     }
 
     public mutating func recordingCancelled() {

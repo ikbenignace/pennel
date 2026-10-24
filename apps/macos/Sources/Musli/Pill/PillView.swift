@@ -15,7 +15,7 @@ struct PillView: View {
     var body: some View {
         HStack(spacing: 10) {
             switch model.state {
-            case .listening, .handsFree:
+            case .listening, .handsFree, .command:
                 Wave(level: model.level)
             case .working:
                 ProgressView().controlSize(.small).tint(Theme.wave)
@@ -42,6 +42,7 @@ struct PillView: View {
         case .hidden: ""
         case .listening: "Luistert…"
         case .handsFree: "Handenvrij — tik om te stoppen"
+        case .command: "Opdracht…"
         case .working: "Bezig…"
         case .error(let message): message
         }
