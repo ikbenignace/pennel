@@ -24,12 +24,9 @@ struct MeetingsPane: View {
                 }
             }
             PaneSection(title: "Standaardsjabloon") {
-                Picker("", selection: $state.settings.defaultTemplate) {
-                    ForEach(meetingTemplates(), id: \.id) { Text($0.name).tag($0.id) }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 220)
+                TemplatePicker(state: state, selection: $state.settings.defaultTemplate)
             }
+            TemplatesSection(state: state)
             PaneSection(title: "Audio bewaren", subtitle: "Notities en transcript blijven altijd staan.") {
                 Picker("", selection: $state.settings.meetingAudioRetentionDays) {
                     Text("30 dagen").tag(UInt32(30))
@@ -68,5 +65,22 @@ struct MeetingsPane: View {
         if panel.runModal() == .OK, let url = panel.url {
             state.settings.meetingsDir = url.path
         }
+    }
+}
+
+struct TemplatePicker: View {
+    let state: AppState
+    @Binding var selection: String
+
+    var body: some View {
+        let templates = state.engine.meetingTemplates()
+        Picker("", selection: Binding(
+            get: { templates.contains { $0.id == selection } ? selection : "algemeen" },
+            set: { selection = $0 }
+        )) {
+            ForEach(templates, id: \.id) { Text($0.name).tag($0.id) }
+        }
+        .labelsHidden()
+        .frame(maxWidth: 220)
     }
 }

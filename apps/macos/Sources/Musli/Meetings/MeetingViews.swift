@@ -168,11 +168,8 @@ struct MeetingDetailView: View {
 
     private var footer: some View {
             HStack(spacing: 10) {
-                Picker("", selection: $template) {
-                    ForEach(meetingTemplates(), id: \.id) { Text($0.name).tag($0.id) }
-                }
-                .labelsHidden()
-                .frame(width: 150)
+                TemplatePicker(state: state, selection: $template)
+                    .frame(width: 150)
                 Button(working ? "Bezig…" : (markdown == nil ? "Samenvatten" : "Opnieuw genereren"), action: regenerate)
                     .disabled(working)
                 Spacer()
