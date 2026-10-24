@@ -128,6 +128,20 @@ pub fn detect_cli_agents() -> Vec<DetectedAgent> {
     detect_in(login_shell_path())
 }
 
+/// A one-line round trip, so the settings screen can show whether the CLI is logged in and answering.
+#[uniffi::export]
+pub fn check_cli_agent(
+    kind: ProviderKind,
+    path: String,
+    model: String,
+) -> Result<String, PennelError> {
+    let messages = [ChatMessage {
+        role: "user",
+        content: "Reply with exactly: ok".into(),
+    }];
+    complete(kind, &path, &model, &messages, 90)
+}
+
 fn system_text(messages: &[ChatMessage]) -> String {
     messages
         .iter()
@@ -609,14 +623,24 @@ mod real {
     #[test]
     #[ignore]
     fn real_claude_cleans_up_dictation() {
-        let claude = detect_cli_agents().into_iter().find(|a| a.kind == ProviderKind::ClaudeCode).expect("claude installed");
+        let claude = detect_cli_agents()
+            .into_iter()
+            .find(|a| a.kind == ProviderKind::ClaudeCode)
+            .expect("claude installed");
         let messages = crate::cleanup::cleanup_messages(
             "euh dus ik wou eigenlijk zeggen dat de meeting naar dinsdag nee wacht donderdag verschuift",
             crate::settings::Style::Neutral,
             &[],
         );
         let started = Instant::now();
-        let answer = complete(ProviderKind::ClaudeCode, &claude.path, "haiku", &messages, 60).unwrap();
+        let answer = complete(
+            ProviderKind::ClaudeCode,
+            &claude.path,
+            "haiku",
+            &messages,
+            60,
+        )
+        .unwrap();
         eprintln!("{:?}: {answer}", started.elapsed());
         assert!(answer.to_lowercase().contains("donderdag"), "{answer}");
         assert!(!answer.to_lowercase().contains("euh"), "{answer}");

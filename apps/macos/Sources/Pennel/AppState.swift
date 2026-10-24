@@ -29,6 +29,7 @@ final class AppState {
             self.settings = self.engine.settings()
         }
         LegacyMigration.finish(state: self, dataDir: dataDir)
+        CliAgents.sync(into: self)
     }
 
     private(set) var templates: [MeetingTemplate] = []

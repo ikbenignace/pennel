@@ -16,6 +16,21 @@ extension ProviderKind {
         case .lmStudio: "LM Studio (lokaal)"
         case .custom: "Eigen server"
         case .local: "Lokaal op deze Mac"
+        case .claudeCode: "Claude Code"
+        case .codex: "Codex (ChatGPT)"
+        case .openCode: "OpenCode"
+        case .copilot: "GitHub Copilot"
+        case .cursorAgent: "Cursor"
+        case .geminiCli: "Gemini CLI"
+        }
+    }
+
+    /// Hint shown under the model field; empty means the CLI's own default.
+    var modelHint: String {
+        switch self {
+        case .claudeCode: "haiku is snel genoeg om op te kuisen; sonnet of opus voor samenvattingen"
+        case .codex, .openCode, .copilot, .cursorAgent, .geminiCli: "Leeg = het model dat in de CLI zelf ingesteld is"
+        default: ""
         }
     }
 }
@@ -76,6 +91,7 @@ struct ProvidersPane: View {
 
     private func ready(_ account: ProviderAccount) -> Bool {
         if account.kind == .local { return !state.downloads.downloaded.isEmpty }
+        if isCliAgent(kind: account.kind) { return FileManager.default.isExecutableFile(atPath: account.baseUrl) }
         return !requiresKey(kind: account.kind) || state.hasKey(account)
     }
 
@@ -86,6 +102,7 @@ struct ProvidersPane: View {
     }
 
     private func delete(_ account: ProviderAccount) {
+        if isCliAgent(kind: account.kind) { CliAgents.dismiss(account.kind) }
         Keychain.set(nil, for: account.id)
         state.settings.providers.removeAll { $0.id == account.id }
         state.save()
@@ -130,7 +147,9 @@ private struct ProviderDetail: View {
                 FieldRow(label: "Naam") {
                     TextField("Naam", text: $account.name).textFieldStyle(.roundedBorder)
                 }
-                if account.kind != .local {
+                if isCliAgent(kind: account.kind) {
+                    CliAgentDetail(account: account)
+                } else if account.kind != .local {
                     FieldRow(label: "Base URL") {
                         TextField("https://…", text: $account.baseUrl).textFieldStyle(.roundedBorder)
                     }
@@ -192,5 +211,51 @@ enum ConnectionTest {
         var request = URLRequest(url: url, timeoutInterval: 10)
         if !apiKey.isEmpty { request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
         return request
+    }
+}
+
+private struct CliAgentDetail: View {
+    let account: ProviderAccount
+    @State private var result: String?
+    @State private var checking = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Gebruikt je eigen abonnement via de CLI op deze Mac, voor opkuisen, samenvatten en vragen. Pennel draait hem in een lege map, zonder tools. Trager dan een API (enkele seconden per opdracht).")
+                .font(.figtree(12))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            FieldRow(label: "Programma") {
+                Text(account.baseUrl.isEmpty ? "Niet gevonden" : account.baseUrl)
+                    .font(.figtree(12))
+                    .textSelection(.enabled)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            HStack {
+                if let result {
+                    Text(result).font(.figtree(12)).foregroundStyle(Theme.muted).lineLimit(3)
+                }
+                Spacer()
+                Button(checking ? "Testen…" : "Test", action: check).disabled(checking || account.baseUrl.isEmpty)
+            }
+        }
+    }
+
+    private func check() {
+        checking = true
+        result = nil
+        let (kind, path) = (account.kind, account.baseUrl)
+        let model = defaultModel(kind: kind, task: .llm)
+        Task {
+            let outcome = await Task.detached { Result { try checkCliAgent(kind: kind, path: path, model: model) } }.value
+            checking = false
+            switch outcome {
+            case .success: result = "✓ Werkt"
+            case .failure(let error):
+                result = "Mislukt: \(error)"
+                Diagnostics("providers").error("\(kind.label) test mislukt: \(error)")
+            }
+        }
     }
 }

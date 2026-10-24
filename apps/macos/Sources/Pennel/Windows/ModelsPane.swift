@@ -56,6 +56,7 @@ private struct TaskModelEditor: View {
                 } else {
                     TextField(account.map { defaultModel(kind: $0.kind, task: task) } ?? "model", text: $choice.model)
                         .textFieldStyle(.roundedBorder)
+                        .help(account?.kind.modelHint ?? "")
                     if !available.isEmpty {
                         RemoteModelPicker(models: available, task: task, selection: $choice.model)
                     }
@@ -107,7 +108,7 @@ private struct TaskModelEditor: View {
 
     private func loadModels() async {
         available = []
-        guard let account, account.kind != .local, !account.baseUrl.isEmpty else { return }
+        guard let account, account.kind != .local, !isCliAgent(kind: account.kind), !account.baseUrl.isEmpty else { return }
         let (baseUrl, key) = (account.baseUrl, Keychain.get(account.id))
         let models = await Task.detached { (try? providerModels(baseUrl: baseUrl, apiKey: key)) ?? [] }.value
         guard !Task.isCancelled else { return }
