@@ -201,6 +201,24 @@ impl MeetingStore {
         self.write_file(id, "meeting.md", &render_meeting(&front, &body))
     }
 
+    pub fn attendees(&self, id: &str) -> Vec<String> {
+        let Some((front, _)) = self.frontmatter(id) else { return Vec::new() };
+        front
+            .extra
+            .iter()
+            .find_map(|line| line.strip_prefix("attendees:"))
+            .map(|list| {
+                list.trim()
+                    .trim_start_matches('[')
+                    .trim_end_matches(']')
+                    .split(',')
+                    .map(|name| name.trim().to_owned())
+                    .filter(|name| !name.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub fn set_duration(&self, id: &str, duration_min: u32) -> Result<(), MusliError> {
         let (mut front, body) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
         front.duration_min = duration_min;

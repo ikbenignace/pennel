@@ -6,6 +6,7 @@ mod command;
 mod cleanup;
 mod engine;
 mod error;
+mod export;
 mod history;
 mod http;
 mod llm;

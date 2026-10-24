@@ -1,0 +1,225 @@
+use crate::meetings::{timestamp, MeetingStore, Speaker};
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct MeetingExport {
+    pub title: String,
+    pub markdown: String,
+    pub html: String,
+}
+
+fn meta_line(store: &MeetingStore, id: &str, start_iso: &str, duration_min: u32) -> String {
+    let mut parts = Vec::new();
+    if let Ok(start) = chrono::DateTime::parse_from_rfc3339(start_iso) {
+        parts.push(start.format("%d-%m-%Y %H:%M").to_string());
+    }
+    if duration_min > 0 {
+        parts.push(format!("{duration_min} min"));
+    }
+    let attendees = store.attendees(id);
+    if !attendees.is_empty() {
+        parts.push(attendees.join(", "));
+    }
+    parts.join(" · ")
+}
+
+pub fn export_markdown(store: &MeetingStore, id: &str, include_transcript: bool) -> Option<(String, String)> {
+    let info = store.info(id)?;
+    let mut out = format!("# {}\n", info.title);
+    let meta = meta_line(store, id, &info.start_iso, info.duration_min);
+    if !meta.is_empty() {
+        out.push_str(&format!("\n*{meta}*\n"));
+    }
+    let body = store.read_meeting(id).unwrap_or_else(|| store.read_notes(id));
+    if !body.trim().is_empty() {
+        out.push_str(&format!("\n{}\n", body.trim()));
+    }
+    if include_transcript {
+        let lines: Vec<String> = store
+            .read_transcript(id)
+            .into_iter()
+            .filter(|s| !s.failed && !s.text.trim().is_empty())
+            .map(|s| {
+                let who = if s.speaker == Speaker::Me { "Ik" } else { "Anderen" };
+                format!("**[{}] {who}:** {}", timestamp(s.start_ms), s.text.trim())
+            })
+            .collect();
+        if !lines.is_empty() {
+            out.push_str(&format!("\n## Transcript\n\n{}\n", lines.join("\n\n")));
+        }
+    }
+    Some((info.title, out))
+}
+
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+/// Wraps text between paired `marker`s in `tag`; an unpaired marker stays literal.
+fn pair(text: &str, marker: &str, tag: &str) -> String {
+    let parts: Vec<&str> = text.split(marker).collect();
+    if parts.len() < 3 {
+        return text.to_owned();
+    }
+    let mut out = String::new();
+    let pairs = (parts.len() - 1) / 2 * 2;
+    for (i, part) in parts.iter().enumerate() {
+        if i > 0 {
+            if i <= pairs {
+                out.push_str(&if i % 2 == 1 { format!("<{tag}>") } else { format!("</{tag}>") });
+            } else {
+                out.push_str(marker);
+            }
+        }
+        out.push_str(part);
+    }
+    out
+}
+
+fn links(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('[') {
+        let after = &rest[open + 1..];
+        let Some(close) = after.find("](") else { break };
+        let Some(end) = after[close + 2..].find(')') else { break };
+        let label = &after[..close];
+        let url = &after[close + 2..close + 2 + end];
+        out.push_str(&rest[..open]);
+        if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("mailto:") {
+            out.push_str(&format!("<a href=\"{url}\">{label}</a>"));
+        } else {
+            out.push_str(&format!("[{label}]({url})"));
+        }
+        rest = &after[close + 2 + end + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn inline(text: &str) -> String {
+    let escaped = escape(text);
+    let code = pair(&escaped, "`", "code");
+    let bold = pair(&code, "**", "strong");
+    // An unpaired `**` must not be read as two italic markers.
+    let italic = pair(&bold.replace("**", "\u{1}"), "*", "em").replace('\u{1}', "**");
+    links(&italic)
+}
+
+pub fn markdown_to_html(markdown: &str) -> String {
+    let mut html = String::new();
+    let mut in_list = false;
+    let mut paragraph: Vec<String> = Vec::new();
+    let flush = |html: &mut String, paragraph: &mut Vec<String>| {
+        if !paragraph.is_empty() {
+            html.push_str(&format!("<p>{}</p>\n", paragraph.join("<br>")));
+            paragraph.clear();
+        }
+    };
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        let item = ["- ", "* "].iter().find_map(|m| trimmed.strip_prefix(m));
+        if item.is_none() && in_list {
+            html.push_str("</ul>\n");
+            in_list = false;
+        }
+        if trimmed.is_empty() {
+            flush(&mut html, &mut paragraph);
+        } else if let Some(item) = item {
+            flush(&mut html, &mut paragraph);
+            if !in_list {
+                html.push_str("<ul>\n");
+                in_list = true;
+            }
+            let item = if let Some(rest) = item.strip_prefix("[ ] ") {
+                format!("☐ {}", inline(rest))
+            } else if let Some(rest) = item.strip_prefix("[x] ").or_else(|| item.strip_prefix("[X] ")) {
+                format!("☑ {}", inline(rest))
+            } else {
+                inline(item)
+            };
+            html.push_str(&format!("<li>{item}</li>\n"));
+        } else if let Some(level) = (1..=3).rev().find(|n| trimmed.starts_with(&format!("{} ", "#".repeat(*n)))) {
+            flush(&mut html, &mut paragraph);
+            html.push_str(&format!("<h{level}>{}</h{level}>\n", inline(trimmed[level + 1..].trim())));
+        } else {
+            paragraph.push(inline(trimmed));
+        }
+    }
+    if in_list {
+        html.push_str("</ul>\n");
+    }
+    flush(&mut html, &mut paragraph);
+    html
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::meetings::Segment;
+    use chrono::TimeZone;
+
+    fn store() -> (tempfile::TempDir, MeetingStore, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Weekly <sync> & co", chrono::Local.with_ymd_and_hms(2026, 10, 20, 9, 30, 0).unwrap()).unwrap();
+        (dir, store, id)
+    }
+
+    fn segment(ms: u64, speaker: Speaker, text: &str, failed: bool) -> Segment {
+        Segment { start_ms: ms, end_ms: ms + 1000, speaker, text: text.into(), failed }
+    }
+
+    #[test]
+    fn export_has_title_meta_and_summary() {
+        let (_dir, store, id) = store();
+        store.write_meeting(&id, 25, "algemeen", "## Samenvatting\n- Budget rond").unwrap();
+        store.set_attendees(&id, &["Jan".into(), "Els".into()]).unwrap();
+        let (title, md) = export_markdown(&store, &id, false).unwrap();
+        assert_eq!(title, "Weekly <sync> & co");
+        assert_eq!(md, "# Weekly <sync> & co\n\n*20-10-2026 09:30 · 25 min · Jan, Els*\n\n## Samenvatting\n- Budget rond\n");
+    }
+
+    #[test]
+    fn export_without_summary_uses_notes_or_nothing() {
+        let (_dir, store, id) = store();
+        let (_, bare) = export_markdown(&store, &id, true).unwrap();
+        assert_eq!(bare, "# Weekly <sync> & co\n\n*20-10-2026 09:30*\n");
+        store.write_notes(&id, "- mijn notitie").unwrap();
+        assert!(export_markdown(&store, &id, false).unwrap().1.ends_with("\n- mijn notitie\n"));
+    }
+
+    #[test]
+    fn frontmatter_not_exported_and_failed_segments_skipped() {
+        let (_dir, store, id) = store();
+        store.write_meeting(&id, 5, "algemeen", "Kort.").unwrap();
+        store
+            .write_transcript(&id, &[segment(0, Speaker::Me, "Hallo", false), segment(65_000, Speaker::Others, "", true)])
+            .unwrap();
+        let (_, md) = export_markdown(&store, &id, true).unwrap();
+        assert!(!md.contains("---") && !md.contains("template:"));
+        assert!(md.ends_with("## Transcript\n\n**[00:00] Ik:** Hallo\n"));
+    }
+
+    #[test]
+    fn markdown_to_html_lists_and_headings() {
+        let html = markdown_to_html("# Titel\n\n## Actiepunten\n- [ ] Jan — **offerte**\n- [x] klaar\n\nTekst *schuin* en `code`\nregel twee");
+        assert_eq!(
+            html,
+            "<h1>Titel</h1>\n<h2>Actiepunten</h2>\n<ul>\n<li>☐ Jan — <strong>offerte</strong></li>\n<li>☑ klaar</li>\n</ul>\n<p>Tekst <em>schuin</em> en <code>code</code><br>regel twee</p>\n"
+        );
+    }
+
+    #[test]
+    fn html_escapes() {
+        assert_eq!(markdown_to_html("<script>a & b</script>"), "<p>&lt;script&gt;a &amp; b&lt;/script&gt;</p>\n");
+        assert_eq!(markdown_to_html("[x](javascript:alert(1))"), "<p>[x](javascript:alert(1))</p>\n");
+        assert_eq!(markdown_to_html("[site](https://a.be)"), "<p><a href=\"https://a.be\">site</a></p>\n");
+    }
+
+    #[test]
+    fn unbalanced_inline_marks_are_literal() {
+        assert_eq!(markdown_to_html("**open en `half"), "<p>**open en `half</p>\n");
+        assert_eq!(markdown_to_html("**a** en **b"), "<p><strong>a</strong> en **b</p>\n");
+        assert_eq!(markdown_to_html("snake_case_naam"), "<p>snake_case_naam</p>\n");
+    }
+}

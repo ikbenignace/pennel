@@ -12,6 +12,7 @@ use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::session::MeetingSession;
 use crate::settings::ModelChoice;
 use crate::meeting_chat::{ChatTurn, MeetingAnswer};
+use crate::export::MeetingExport;
 use crate::templates::{MeetingTemplate, TemplateStore};
 use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
 use crate::models::{CancelFlag, DownloadListener, LocalModel, ModelState, ModelStore};
@@ -400,6 +401,12 @@ impl MusliEngine {
             ASK_TIMEOUT_SECS,
         )?;
         Ok(MeetingAnswer { citations: cited(&answer, &sources), text: answer })
+    }
+
+    pub fn export_meeting(&self, id: String, include_transcript: bool) -> Result<MeetingExport, MusliError> {
+        let (title, markdown) =
+            crate::export::export_markdown(&self.meeting_store(), &id, include_transcript).ok_or(MusliError::NotFound)?;
+        Ok(MeetingExport { html: crate::export::markdown_to_html(&markdown), title, markdown })
     }
 
     pub fn meeting_templates(&self) -> Vec<MeetingTemplate> {
