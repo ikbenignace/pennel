@@ -16,7 +16,7 @@ const CHUNK_BYTES: u64 = 16 * 1024 * 1024;
 /// Per-chunk budget; 16 MB in 120 s still allows ~140 KB/s connections.
 const CHUNK_TIMEOUT_SECS: u64 = 120;
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct LocalModel {
     pub id: String,
     pub name: String,
@@ -30,7 +30,8 @@ pub struct LocalModel {
     pub legacy: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ModelState {
     NotDownloaded,
     Partial { bytes: u64 },

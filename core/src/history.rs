@@ -6,13 +6,14 @@ use crate::error::PennelError;
 
 const DAY_MS: i64 = 86_400_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum HistoryStatus {
     Done,
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct HistoryEntry {
     pub id: String,
     pub created_at_ms: i64,

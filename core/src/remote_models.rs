@@ -8,7 +8,7 @@ const SPEECH_HINTS: [&str; 4] = ["whisper", "transcribe", "voxtral", "speech"];
 /// OpenRouter ids that pick a different model per request.
 const ROUTERS: [&str; 2] = ["openrouter/auto", "openrouter/free"];
 
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, uniffi::Record, serde::Serialize)]
 pub struct RemoteModel {
     pub id: String,
     pub name: Option<String>,

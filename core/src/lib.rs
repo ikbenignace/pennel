@@ -31,12 +31,13 @@ mod wav;
 pub use engine::{ApiKeys, CleanupStatus, DictationRequest, DictationResult, PennelEngine};
 pub use error::PennelError;
 pub use history::{HistoryEntry, HistoryStatus};
-pub use meetings::{MeetingInfo, NoteLine, Segment, Speaker, mark_lines};
+pub use meetings::{MeetingInfo, NoteLine, Segment, Speaker, SpeakerName, mark_lines};
 pub use models::{DownloadListener, LocalModel, ModelState};
 pub use provider::{
     ProviderAccount, ProviderKind, ProviderTask, default_base_url, default_model, new_account,
     requires_key, supports,
 };
+pub use remote_models::{RemoteModel, provider_models};
 pub use rules::{
     AppRule, CalendarRule, EventRule, RecordAction, browser_apps, decide_recording, known_call_apps,
 };

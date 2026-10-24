@@ -29,7 +29,7 @@ const BUILTINS: &[(&str, &str, &str)] = &[
     ),
 ];
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct MeetingTemplate {
     pub id: String,
     pub name: String,

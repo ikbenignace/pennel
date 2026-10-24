@@ -8,7 +8,8 @@ use crate::error::PennelError;
 const TITLE_MAX: usize = 60;
 const FAILED_MARK: &str = "_(transcriptie mislukt)_";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Speaker {
     Me,
     Others,
@@ -23,7 +24,7 @@ impl Speaker {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct Segment {
     pub start_ms: u64,
     pub end_ms: u64,
@@ -34,7 +35,7 @@ pub struct Segment {
     pub voice: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct SpeakerName {
     pub voice: u32,
     pub name: String,
@@ -64,7 +65,7 @@ fn sanitize_speaker(name: &str) -> String {
     clean.trim().chars().take(SPEAKER_NAME_MAX).collect()
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct MeetingInfo {
     pub id: String,
     pub title: String,
