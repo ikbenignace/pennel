@@ -9,7 +9,10 @@ fn link_clang_runtime_on_macos() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("macos") {
         return;
     }
-    let Ok(output) = std::process::Command::new("clang").arg("--print-runtime-dir").output() else {
+    let Ok(output) = std::process::Command::new("clang")
+        .arg("--print-runtime-dir")
+        .output()
+    else {
         return;
     };
     let dir = String::from_utf8_lossy(&output.stdout).trim().to_owned();

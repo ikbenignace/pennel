@@ -93,6 +93,12 @@ final class PennelApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Pennel has no Dock icon, so opening the app again (Finder, Spotlight, `open`) shows the library.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        menuBar?.openLibrary()
+        return false
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let meeting, meeting.isRecording else { return .terminateNow }
         Task {

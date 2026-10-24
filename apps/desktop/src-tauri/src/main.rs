@@ -246,12 +246,13 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("Pennel kon niet starten")
-        .run(|_, event| {
-            if let tauri::RunEvent::ExitRequested {
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested {
                 code: None, api, ..
-            } = event
-            {
-                api.prevent_exit();
-            }
+            } => api.prevent_exit(),
+            // Same as the Mac app: opening Pennel again from Finder or Spotlight shows the main window.
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => show_main(app, None),
+            _ => {}
         });
 }
