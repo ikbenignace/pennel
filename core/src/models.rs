@@ -1,5 +1,5 @@
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -257,12 +257,14 @@ impl ModelStore {
         }
         std::fs::create_dir_all(&self.dir).map_err(PennelError::storage)?;
         let part = self.part_path(id);
+        // Not append mode: Windows refuses set_len on a handle opened for appending only.
         let mut file = OpenOptions::new()
             .create(true)
-            .append(true)
+            .write(true)
+            .truncate(false)
             .open(&part)
             .map_err(PennelError::storage)?;
-        let mut have = file.metadata().map_err(PennelError::storage)?.len();
+        let mut have = file.seek(SeekFrom::End(0)).map_err(PennelError::storage)?;
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_connect(Some(Duration::from_secs(15)))
             .timeout_recv_response(Some(Duration::from_secs(30)))
@@ -292,13 +294,11 @@ impl ModelStore {
             match response.status().as_u16() {
                 206 => {}
                 200 => {
-                    file.set_len(0).map_err(PennelError::storage)?;
-                    have = 0;
+                    have = truncate(&mut file)?;
                 }
                 416 if !restarted => {
                     restarted = true;
-                    file.set_len(0).map_err(PennelError::storage)?;
-                    have = 0;
+                    have = truncate(&mut file)?;
                     continue;
                 }
                 status => {
@@ -338,6 +338,11 @@ impl ModelStore {
         }
         Ok(())
     }
+}
+
+fn truncate(file: &mut File) -> Result<u64, PennelError> {
+    file.set_len(0).map_err(PennelError::storage)?;
+    file.seek(SeekFrom::Start(0)).map_err(PennelError::storage)
 }
 
 pub(crate) fn range_header(have: u64, size: u64, chunk: u64) -> String {
