@@ -7,14 +7,26 @@ pub const DEFAULT_SECTIONS: [&str; 3] = ["Samenvatting", "Beslissingen", "Actiep
 const ID_MAX: usize = 40;
 
 const BUILTINS: &[(&str, &str, &str)] = &[
-    ("algemeen", "Algemeen", "Focus on what was discussed and agreed."),
-    ("een-op-een", "1-op-1", "This is a 1-on-1. Include feedback, wellbeing and personal follow-ups."),
+    (
+        "algemeen",
+        "Algemeen",
+        "Focus on what was discussed and agreed.",
+    ),
+    (
+        "een-op-een",
+        "1-op-1",
+        "This is a 1-on-1. Include feedback, wellbeing and personal follow-ups.",
+    ),
     (
         "klantgesprek",
         "Klantgesprek",
         "This is a client meeting. Capture the client's needs, questions, commitments made to them and next steps.",
     ),
-    ("standup", "Standup", "This is a standup. Per person: done, next, blockers."),
+    (
+        "standup",
+        "Standup",
+        "This is a standup. Per person: done, next, blockers.",
+    ),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -39,24 +51,37 @@ impl TemplateSpec {
         let mut instruction = Vec::new();
         for line in body.lines() {
             match line.trim().strip_prefix("## ") {
-                Some(section) if !section.trim().is_empty() => sections.push(section.trim().to_owned()),
+                Some(section) if !section.trim().is_empty() => {
+                    sections.push(section.trim().to_owned())
+                }
                 _ => instruction.push(line),
             }
         }
         if sections.is_empty() {
             sections = DEFAULT_SECTIONS.iter().map(|s| s.to_string()).collect();
         }
-        Self { name: name.to_owned(), instruction: instruction.join("\n").trim().to_owned(), sections }
+        Self {
+            name: name.to_owned(),
+            instruction: instruction.join("\n").trim().to_owned(),
+            sections,
+        }
     }
 }
 
 fn builtin_body(instruction: &str) -> String {
-    let sections: String = DEFAULT_SECTIONS.iter().map(|s| format!("## {s}\n")).collect();
+    let sections: String = DEFAULT_SECTIONS
+        .iter()
+        .map(|s| format!("## {s}\n"))
+        .collect();
     format!("{instruction}\n\n{sections}")
 }
 
 fn render(name: &str, body: &str) -> String {
-    format!("---\nname: {}\n---\n{}\n", name.replace('\n', " ").trim(), body.trim())
+    format!(
+        "---\nname: {}\n---\n{}\n",
+        name.replace('\n', " ").trim(),
+        body.trim()
+    )
 }
 
 /// Returns `(name, body)`. Only a leading block of `key: value` lines with a `name:` counts as frontmatter,
@@ -67,7 +92,9 @@ fn split_frontmatter(text: &str, stem: &str) -> (String, String) {
         && let Some(end) = rest.find("\n---")
     {
         let block = &rest[..end];
-        let is_frontmatter = block.lines().all(|l| l.trim().is_empty() || l.contains(':'))
+        let is_frontmatter = block
+            .lines()
+            .all(|l| l.trim().is_empty() || l.contains(':'))
             && block.lines().any(|l| l.starts_with("name:"));
         if is_frontmatter {
             let name = block
@@ -94,7 +121,11 @@ pub fn slug(name: &str) -> String {
     }
     let slug: String = slug.trim_end_matches('-').chars().take(ID_MAX).collect();
     let slug = slug.trim_end_matches('-').to_owned();
-    if slug.is_empty() { "sjabloon".to_owned() } else { slug }
+    if slug.is_empty() {
+        "sjabloon".to_owned()
+    } else {
+        slug
+    }
 }
 
 pub struct TemplateStore {
@@ -103,7 +134,9 @@ pub struct TemplateStore {
 
 impl TemplateStore {
     pub fn new(meetings_dir: &Path) -> Self {
-        Self { dir: meetings_dir.join(".templates") }
+        Self {
+            dir: meetings_dir.join(".templates"),
+        }
     }
 
     fn path(&self, id: &str) -> PathBuf {
@@ -119,7 +152,9 @@ impl TemplateStore {
     }
 
     fn custom_ids(&self) -> Vec<String> {
-        let Ok(entries) = std::fs::read_dir(&self.dir) else { return Vec::new() };
+        let Ok(entries) = std::fs::read_dir(&self.dir) else {
+            return Vec::new();
+        };
         entries
             .filter_map(|e| e.ok())
             .map(|e| e.path())
@@ -157,7 +192,12 @@ impl TemplateStore {
             .filter(|id| Self::builtin(id).is_none())
             .filter_map(|id| {
                 let (name, _) = self.read(id)?;
-                Some(MeetingTemplate { id: id.clone(), name, builtin: false, customized: false })
+                Some(MeetingTemplate {
+                    id: id.clone(),
+                    name,
+                    builtin: false,
+                    customized: false,
+                })
             })
             .collect();
         own.sort_by_key(|t| t.name.to_lowercase());
@@ -169,7 +209,9 @@ impl TemplateStore {
         if let Some((name, body)) = self.read(id) {
             return TemplateSpec::parse(&name, &body);
         }
-        let (_, name, instruction) = Self::builtin(id).or_else(|| Self::builtin(FALLBACK_ID)).expect("fallback exists");
+        let (_, name, instruction) = Self::builtin(id)
+            .or_else(|| Self::builtin(FALLBACK_ID))
+            .expect("fallback exists");
         TemplateSpec::parse(name, &builtin_body(instruction))
     }
 
@@ -189,7 +231,9 @@ impl TemplateStore {
                 let base = slug(name);
                 std::iter::once(base.clone())
                     .chain((2..).map(|n| format!("{base}-{n}")))
-                    .find(|candidate| Self::builtin(candidate).is_none() && !self.path(candidate).exists())
+                    .find(|candidate| {
+                        Self::builtin(candidate).is_none() && !self.path(candidate).exists()
+                    })
                     .expect("unbounded iterator")
             }
         };
@@ -231,7 +275,17 @@ mod tests {
         let (_dir, store) = store();
         store.save(None, "Retro", "x").unwrap();
         store.save(None, "Andere", "y").unwrap();
-        assert_eq!(ids(&store), ["algemeen", "een-op-een", "klantgesprek", "standup", "andere", "retro"]);
+        assert_eq!(
+            ids(&store),
+            [
+                "algemeen",
+                "een-op-een",
+                "klantgesprek",
+                "standup",
+                "andere",
+                "retro"
+            ]
+        );
         assert!(store.list()[0].builtin);
         assert!(!store.list()[4].builtin);
     }
@@ -239,24 +293,49 @@ mod tests {
     #[test]
     fn custom_sections_drive_spec() {
         let (_dir, store) = store();
-        let id = store.save(None, "Retro", "Wat ging goed en wat beter kan.\n\n## Goed\n## Beter\n## Actiepunten").unwrap();
+        let id = store
+            .save(
+                None,
+                "Retro",
+                "Wat ging goed en wat beter kan.\n\n## Goed\n## Beter\n## Actiepunten",
+            )
+            .unwrap();
         let spec = store.spec(&id);
         assert_eq!(spec.name, "Retro");
         assert_eq!(spec.instruction, "Wat ging goed en wat beter kan.");
         assert_eq!(spec.sections, ["Goed", "Beter", "Actiepunten"]);
-        assert_eq!(store.source(&id).unwrap(), "Wat ging goed en wat beter kan.\n\n## Goed\n## Beter\n## Actiepunten\n");
+        assert_eq!(
+            store.source(&id).unwrap(),
+            "Wat ging goed en wat beter kan.\n\n## Goed\n## Beter\n## Actiepunten\n"
+        );
     }
 
     #[test]
     fn default_sections_without_headings() {
-        assert_eq!(TemplateSpec::parse("x", "Kort en krachtig.").sections, DEFAULT_SECTIONS);
+        assert_eq!(
+            TemplateSpec::parse("x", "Kort en krachtig.").sections,
+            DEFAULT_SECTIONS
+        );
     }
 
     #[test]
     fn override_builtin() {
         let (_dir, store) = store();
-        assert_eq!(store.save(Some("standup"), "Daily", "Per persoon.\n## Gisteren\n## Vandaag").unwrap(), "standup");
-        let standup = store.list().into_iter().find(|t| t.id == "standup").unwrap();
+        assert_eq!(
+            store
+                .save(
+                    Some("standup"),
+                    "Daily",
+                    "Per persoon.\n## Gisteren\n## Vandaag"
+                )
+                .unwrap(),
+            "standup"
+        );
+        let standup = store
+            .list()
+            .into_iter()
+            .find(|t| t.id == "standup")
+            .unwrap();
         assert!(standup.builtin && standup.customized);
         assert_eq!(standup.name, "Daily");
         assert_eq!(store.spec("standup").sections, ["Gisteren", "Vandaag"]);
@@ -268,8 +347,16 @@ mod tests {
     fn file_without_frontmatter_uses_stem() {
         let (dir, store) = store();
         std::fs::create_dir_all(dir.path().join(".templates")).unwrap();
-        std::fs::write(dir.path().join(".templates/sales.md"), "Focus op deals.\r\n## Deals\r\n").unwrap();
-        std::fs::write(dir.path().join(".templates/leeg.md"), "---\nname:\n---\nIets").unwrap();
+        std::fs::write(
+            dir.path().join(".templates/sales.md"),
+            "Focus op deals.\r\n## Deals\r\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join(".templates/leeg.md"),
+            "---\nname:\n---\nIets",
+        )
+        .unwrap();
         let list = store.list();
         assert!(list.iter().any(|t| t.id == "sales" && t.name == "sales"));
         assert!(list.iter().any(|t| t.id == "leeg" && t.name == "leeg"));
@@ -288,7 +375,10 @@ mod tests {
     fn slug_is_safe_and_unique() {
         let (_dir, store) = store();
         assert_eq!(store.save(None, "Retro / Q4: 🚀", "x").unwrap(), "retro-q4");
-        assert_eq!(store.save(None, "Retro / Q4: 🚀", "x").unwrap(), "retro-q4-2");
+        assert_eq!(
+            store.save(None, "Retro / Q4: 🚀", "x").unwrap(),
+            "retro-q4-2"
+        );
         assert_eq!(store.save(None, "🚀", "x").unwrap(), "sjabloon");
         assert_eq!(store.save(None, "Algemeen", "x").unwrap(), "algemeen-2");
     }
@@ -300,7 +390,10 @@ mod tests {
         assert_eq!(store.delete("../geheim"), Err(PennelError::NotFound));
         assert!(dir.path().join("geheim.md").exists());
         assert_eq!(store.source("../geheim"), None);
-        assert_eq!(store.save(Some("../geheim"), "x", "y"), Err(PennelError::NotFound));
+        assert_eq!(
+            store.save(Some("../geheim"), "x", "y"),
+            Err(PennelError::NotFound)
+        );
     }
 
     #[test]
@@ -308,7 +401,10 @@ mod tests {
         let (dir, store) = store();
         std::fs::create_dir_all(dir.path().join(".templates")).unwrap();
         std::fs::write(dir.path().join(".templates/Retro_v2.md"), "oud").unwrap();
-        assert_eq!(store.save(Some("Retro_v2"), "Retro v2", "nieuw").unwrap(), "Retro_v2");
+        assert_eq!(
+            store.save(Some("Retro_v2"), "Retro v2", "nieuw").unwrap(),
+            "Retro_v2"
+        );
         assert_eq!(store.list().iter().filter(|t| !t.builtin).count(), 1);
         assert_eq!(store.source("Retro_v2").unwrap(), "nieuw\n");
     }
@@ -317,8 +413,15 @@ mod tests {
     fn names_round_trip_and_rules_stay_body() {
         let (dir, store) = store();
         let id = store.save(None, "\"Goed\": wat werkt", "Tekst").unwrap();
-        assert_eq!(store.list().iter().find(|t| t.id == id).unwrap().name, "\"Goed\": wat werkt");
-        std::fs::write(dir.path().join(".templates/regel.md"), "---\nGeen frontmatter\n---\n## A").unwrap();
+        assert_eq!(
+            store.list().iter().find(|t| t.id == id).unwrap().name,
+            "\"Goed\": wat werkt"
+        );
+        std::fs::write(
+            dir.path().join(".templates/regel.md"),
+            "---\nGeen frontmatter\n---\n## A",
+        )
+        .unwrap();
         let (name, body) = store.read("regel").unwrap();
         assert_eq!(name, "regel");
         assert!(body.starts_with("---\nGeen frontmatter"));

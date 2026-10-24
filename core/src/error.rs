@@ -22,6 +22,8 @@ pub enum PennelError {
 
 impl PennelError {
     pub(crate) fn storage(err: impl std::fmt::Display) -> Self {
-        PennelError::Storage { message: err.to_string() }
+        PennelError::Storage {
+            message: err.to_string(),
+        }
     }
 }

@@ -52,7 +52,7 @@ Tip: menu → **Logboek openen** toont wat er misloopt (`~/Library/Logs/Pennel/p
 - **3g Microsoft 365-agenda** (Graph, device-code login) — vereist Azure app-registratie, mogelijk AE-admin-goedkeuring.
 - **Fase 4 – iPhone:** dicteertoetsenbord, Action Button/Shortcut, fysieke meetings opnemen, sync.
 - **Fase 5 – Windows en Linux** (Rust-kern is herbruikbaar; nieuwe shells).
-- **Commercialisatie** (zie `docs/business/plan.md`): licentie, Pennel Cloud-backend, accounts/licenties, betalingen, website, onboarding zonder eigen API-sleutels.
+- **Commercialisatie** (zie het businessplan in de private repo pennel-cloud): licentie, Pennel Cloud-backend, accounts/licenties, betalingen, website, onboarding zonder eigen API-sleutels.
 
 ## 4. Distributie
 

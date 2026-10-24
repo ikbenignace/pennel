@@ -3,10 +3,11 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::PennelError;
-use crate::rules::{AppRule, CalendarRule, EventRule};
 use crate::provider::{
-    default_base_url, default_model, new_account, supports, ProviderAccount, ProviderKind, ProviderTask,
+    ProviderAccount, ProviderKind, ProviderTask, default_base_url, default_model, new_account,
+    supports,
 };
+use crate::rules::{AppRule, CalendarRule, EventRule};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
@@ -111,7 +112,10 @@ const DEFAULT_STYLES: &[(&str, Style)] = &[
 ];
 
 fn choice(account: &ProviderAccount, task: ProviderTask) -> ModelChoice {
-    ModelChoice { provider_id: account.id.clone(), model: default_model(account.kind, task) }
+    ModelChoice {
+        provider_id: account.id.clone(),
+        model: default_model(account.kind, task),
+    }
 }
 
 #[uniffi::export]
@@ -128,7 +132,10 @@ pub fn default_settings() -> Settings {
         dictionary: Vec::new(),
         style_rules: DEFAULT_STYLES
             .iter()
-            .map(|(bundle_id, style)| StyleRule { bundle_id: (*bundle_id).into(), style: *style })
+            .map(|(bundle_id, style)| StyleRule {
+                bundle_id: (*bundle_id).into(),
+                style: *style,
+            })
             .collect(),
         history_retention_days: 30,
         hotkey: HotkeyTrigger::Fn,
@@ -155,17 +162,22 @@ impl Settings {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(default_settings()),
             Err(e) => return Err(PennelError::storage(e)),
         };
-        let parsed = serde_json::from_str::<serde_json::Value>(&json).ok().and_then(|value| {
-            if value.get("providers").is_some() {
-                serde_json::from_value::<Settings>(value).ok()
-            } else {
-                serde_json::from_value::<LegacySettings>(value).ok().map(LegacySettings::migrate)
-            }
-        });
+        let parsed = serde_json::from_str::<serde_json::Value>(&json)
+            .ok()
+            .and_then(|value| {
+                if value.get("providers").is_some() {
+                    serde_json::from_value::<Settings>(value).ok()
+                } else {
+                    serde_json::from_value::<LegacySettings>(value)
+                        .ok()
+                        .map(LegacySettings::migrate)
+                }
+            });
         match parsed {
             Some(settings) => Ok(settings.normalized()),
             None => {
-                std::fs::rename(path, path.with_file_name("settings.corrupt.json")).map_err(PennelError::storage)?;
+                std::fs::rename(path, path.with_file_name("settings.corrupt.json"))
+                    .map_err(PennelError::storage)?;
                 Ok(default_settings())
             }
         }
@@ -250,10 +262,22 @@ impl LegacySettings {
                 legacy.keychain_account.clone()
             };
             if !providers.iter().any(|p| p.id == id) {
-                let base_url = if legacy.base_url.is_empty() { default_base_url(legacy.kind) } else { legacy.base_url.clone() };
-                providers.push(ProviderAccount { id: id.clone(), kind: legacy.kind, name: legacy.kind.label().into(), base_url });
+                let base_url = if legacy.base_url.is_empty() {
+                    default_base_url(legacy.kind)
+                } else {
+                    legacy.base_url.clone()
+                };
+                providers.push(ProviderAccount {
+                    id: id.clone(),
+                    kind: legacy.kind,
+                    name: legacy.kind.label().into(),
+                    base_url,
+                });
             }
-            ModelChoice { provider_id: id, model: legacy.model.clone() }
+            ModelChoice {
+                provider_id: id,
+                model: legacy.model.clone(),
+            }
         };
         let dictation_stt = adopt(&self.dictation_stt);
         let meeting_stt = adopt(&self.meeting_stt);
@@ -302,12 +326,22 @@ mod tests {
     fn defaults_have_groq_and_local() {
         let s = default_settings();
         assert_eq!(ids(&s), ["groq", "local"]);
-        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "groq".into(), model: "whisper-large-v3-turbo".into() });
+        assert_eq!(
+            s.dictation_stt,
+            ModelChoice {
+                provider_id: "groq".into(),
+                model: "whisper-large-v3-turbo".into()
+            }
+        );
         assert_eq!(s.llm.provider_id, "groq");
         assert_eq!(s.mode, DictationMode::Clean);
         assert_eq!(s.hotkey, HotkeyTrigger::Fn);
         assert_eq!(s.local_unload_minutes, 5);
-        let slack = s.style_rules.iter().find(|r| r.bundle_id == "com.tinyspeck.slackmacgap").unwrap();
+        let slack = s
+            .style_rules
+            .iter()
+            .find(|r| r.bundle_id == "com.tinyspeck.slackmacgap")
+            .unwrap();
         assert_eq!(slack.style, Style::Casual);
     }
 
@@ -318,8 +352,20 @@ mod tests {
         std::fs::write(&path, V1_GROQ).unwrap();
         let s = Settings::load(&path).unwrap();
         assert_eq!(ids(&s), ["groq", "local"]);
-        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "groq".into(), model: "whisper-large-v3-turbo".into() });
-        assert_eq!(s.llm, ModelChoice { provider_id: "groq".into(), model: "llama-3.3-70b-versatile".into() });
+        assert_eq!(
+            s.dictation_stt,
+            ModelChoice {
+                provider_id: "groq".into(),
+                model: "whisper-large-v3-turbo".into()
+            }
+        );
+        assert_eq!(
+            s.llm,
+            ModelChoice {
+                provider_id: "groq".into(),
+                model: "llama-3.3-70b-versatile".into()
+            }
+        );
         assert_eq!(s.dictionary, ["Pennel"]);
         assert_eq!(s.style_rules.len(), 1);
         assert!(!dir.path().join("settings.corrupt.json").exists());
@@ -337,7 +383,13 @@ mod tests {
         std::fs::write(&path, v1).unwrap();
         let s = Settings::load(&path).unwrap();
         assert_eq!(ids(&s), ["groq", "openrouter", "local"]);
-        assert_eq!(s.llm, ModelChoice { provider_id: "openrouter".into(), model: "m".into() });
+        assert_eq!(
+            s.llm,
+            ModelChoice {
+                provider_id: "openrouter".into(),
+                model: "m".into()
+            }
+        );
     }
 
     #[test]
@@ -358,7 +410,13 @@ mod tests {
         std::fs::write(&path, v1).unwrap();
         let s = Settings::load(&path).unwrap();
         assert_eq!(ids(&s), ["lmstudio", "openrouter", "groq", "local"]);
-        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "lmstudio".into(), model: "w".into() });
+        assert_eq!(
+            s.dictation_stt,
+            ModelChoice {
+                provider_id: "lmstudio".into(),
+                model: "w".into()
+            }
+        );
         assert_eq!(s.providers[0].base_url, "http://localhost:1234/v1");
         assert_eq!(s.llm.provider_id, "groq");
     }
@@ -368,7 +426,13 @@ mod tests {
         let mut s = default_settings();
         s.providers.retain(|p| p.id != "groq");
         let s = s.normalized();
-        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "local".into(), model: "whisper-large-v3-turbo".into() });
+        assert_eq!(
+            s.dictation_stt,
+            ModelChoice {
+                provider_id: "local".into(),
+                model: "whisper-large-v3-turbo".into()
+            }
+        );
         assert_eq!(s.llm.provider_id, "groq");
     }
 
@@ -377,13 +441,22 @@ mod tests {
         let mut s = default_settings();
         s.providers.retain(|p| p.id != "groq");
         let s = s.normalized_with(&["whisper-small-q5_1".to_owned()]);
-        assert_eq!(s.dictation_stt, ModelChoice { provider_id: "local".into(), model: "whisper-small-q5_1".into() });
+        assert_eq!(
+            s.dictation_stt,
+            ModelChoice {
+                provider_id: "local".into(),
+                model: "whisper-small-q5_1".into()
+            }
+        );
     }
 
     #[test]
     fn local_choice_with_deleted_model_moves_to_downloaded_one() {
         let mut s = default_settings();
-        s.dictation_stt = ModelChoice { provider_id: "local".into(), model: "whisper-large-v3-turbo-q5_0".into() };
+        s.dictation_stt = ModelChoice {
+            provider_id: "local".into(),
+            model: "whisper-large-v3-turbo-q5_0".into(),
+        };
         let s = s.normalized_with(&["whisper-small-q5_1".to_owned()]);
         assert_eq!(s.dictation_stt.model, "whisper-small-q5_1");
     }
@@ -416,7 +489,10 @@ mod tests {
     #[test]
     fn load_missing_file_returns_defaults() {
         let dir = tempfile::tempdir().unwrap();
-        assert_eq!(Settings::load(&dir.path().join("settings.json")).unwrap(), default_settings());
+        assert_eq!(
+            Settings::load(&dir.path().join("settings.json")).unwrap(),
+            default_settings()
+        );
     }
 
     #[test]

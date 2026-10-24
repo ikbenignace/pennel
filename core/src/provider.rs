@@ -67,7 +67,13 @@ impl ProviderKind {
 
 #[uniffi::export]
 pub fn requires_key(kind: ProviderKind) -> bool {
-    matches!(kind, ProviderKind::OpenAi | ProviderKind::OpenRouter | ProviderKind::Groq | ProviderKind::Mistral)
+    matches!(
+        kind,
+        ProviderKind::OpenAi
+            | ProviderKind::OpenRouter
+            | ProviderKind::Groq
+            | ProviderKind::Mistral
+    )
 }
 
 #[uniffi::export]
@@ -94,7 +100,10 @@ pub fn default_model(kind: ProviderKind, task: ProviderTask) -> String {
     let is_stt = task != ProviderTask::Llm;
     let (stt, llm) = match kind {
         ProviderKind::OpenAi => ("gpt-4o-mini-transcribe", "gpt-4.1-mini"),
-        ProviderKind::OpenRouter => ("openai/whisper-large-v3-turbo", "google/gemini-3.5-flash-lite"),
+        ProviderKind::OpenRouter => (
+            "openai/whisper-large-v3-turbo",
+            "google/gemini-3.5-flash-lite",
+        ),
         ProviderKind::Groq => ("whisper-large-v3-turbo", "llama-3.3-70b-versatile"),
         ProviderKind::Mistral => ("voxtral-mini-latest", "mistral-small-latest"),
         ProviderKind::Ollama => ("", "gemma3:4b"),
@@ -111,7 +120,12 @@ pub fn new_account(kind: ProviderKind, existing: Vec<ProviderAccount>) -> Provid
         .chain((2..).map(|n| format!("{base}-{n}")))
         .find(|candidate| !existing.iter().any(|a| &a.id == candidate))
         .expect("unbounded iterator");
-    ProviderAccount { id, kind, name: kind.label().into(), base_url: default_base_url(kind) }
+    ProviderAccount {
+        id,
+        kind,
+        name: kind.label().into(),
+        base_url: default_base_url(kind),
+    }
 }
 
 #[cfg(test)]
@@ -120,16 +134,30 @@ mod tests {
 
     #[test]
     fn groq_defaults() {
-        assert_eq!(default_base_url(ProviderKind::Groq), "https://api.groq.com/openai/v1");
-        assert_eq!(default_model(ProviderKind::Groq, ProviderTask::DictationStt), "whisper-large-v3-turbo");
-        assert_eq!(default_model(ProviderKind::Local, ProviderTask::DictationStt), "whisper-large-v3-turbo");
+        assert_eq!(
+            default_base_url(ProviderKind::Groq),
+            "https://api.groq.com/openai/v1"
+        );
+        assert_eq!(
+            default_model(ProviderKind::Groq, ProviderTask::DictationStt),
+            "whisper-large-v3-turbo"
+        );
+        assert_eq!(
+            default_model(ProviderKind::Local, ProviderTask::DictationStt),
+            "whisper-large-v3-turbo"
+        );
     }
 
     #[test]
     fn requires_key_only_for_cloud() {
         assert!(requires_key(ProviderKind::Groq));
         assert!(requires_key(ProviderKind::OpenAi));
-        for kind in [ProviderKind::Custom, ProviderKind::Ollama, ProviderKind::LmStudio, ProviderKind::Local] {
+        for kind in [
+            ProviderKind::Custom,
+            ProviderKind::Ollama,
+            ProviderKind::LmStudio,
+            ProviderKind::Local,
+        ] {
             assert!(!requires_key(kind), "{kind:?}");
         }
     }

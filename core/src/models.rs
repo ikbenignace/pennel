@@ -1,8 +1,8 @@
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use sha2::{Digest, Sha256};
@@ -81,7 +81,11 @@ fn diarizer_entry() -> ModelEntry {
 
 impl ModelEntry {
     fn extension(&self) -> &str {
-        if self.url.ends_with(".gguf") { "gguf" } else { "bin" }
+        if self.url.ends_with(".gguf") {
+            "gguf"
+        } else {
+            "bin"
+        }
     }
 }
 
@@ -154,7 +158,11 @@ impl ModelStore {
     }
 
     pub fn with_catalog(data_dir: &Path, catalog: Vec<ModelEntry>) -> Self {
-        Self { dir: data_dir.join("models"), catalog, chunk_bytes: CHUNK_BYTES }
+        Self {
+            dir: data_dir.join("models"),
+            catalog,
+            chunk_bytes: CHUNK_BYTES,
+        }
     }
 
     fn entry(&self, id: &str) -> Option<&ModelEntry> {
@@ -226,20 +234,33 @@ impl ModelStore {
             .iter()
             .filter(|e| e.kind == ModelKind::Speech && self.final_path(&e.id).exists())
             .collect();
-        ids.sort_by_key(|e| recommended_rank(&e.id).or_else(|| e.scores.and_then(|s| recommended_rank(&s.id))).unwrap_or(usize::MAX));
+        ids.sort_by_key(|e| {
+            recommended_rank(&e.id)
+                .or_else(|| e.scores.and_then(|s| recommended_rank(&s.id)))
+                .unwrap_or(usize::MAX)
+        });
         ids.into_iter().map(|e| e.id.clone()).collect()
     }
 
     /// Downloads in bounded Range requests so a stalled connection times out instead of hanging,
     /// and cancel takes effect within one chunk.
-    pub fn download(&self, id: &str, listener: &dyn DownloadListener, cancel: &AtomicBool) -> Result<(), PennelError> {
+    pub fn download(
+        &self,
+        id: &str,
+        listener: &dyn DownloadListener,
+        cancel: &AtomicBool,
+    ) -> Result<(), PennelError> {
         let entry = self.entry(id).ok_or(PennelError::NotFound)?.clone();
         if self.path(id).is_some() {
             return Ok(());
         }
         std::fs::create_dir_all(&self.dir).map_err(PennelError::storage)?;
         let part = self.part_path(id);
-        let mut file = OpenOptions::new().create(true).append(true).open(&part).map_err(PennelError::storage)?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&part)
+            .map_err(PennelError::storage)?;
         let mut have = file.metadata().map_err(PennelError::storage)?.len();
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_connect(Some(Duration::from_secs(15)))
@@ -249,7 +270,11 @@ impl ModelStore {
             .build()
             .into();
         let mut restarted = false;
-        let mut progress = Progress { listener, total: entry.size_bytes, next_report: have + PROGRESS_STEP };
+        let mut progress = Progress {
+            listener,
+            total: entry.size_bytes,
+            next_report: have + PROGRESS_STEP,
+        };
 
         while have < entry.size_bytes {
             if cancel.load(Ordering::SeqCst) {
@@ -260,7 +285,9 @@ impl ModelStore {
                 .get(&entry.url)
                 .header("Range", range)
                 .call()
-                .map_err(|e| PennelError::Network { message: e.to_string() })?;
+                .map_err(|e| PennelError::Network {
+                    message: e.to_string(),
+                })?;
             match response.status().as_u16() {
                 206 => {}
                 200 => {
@@ -278,7 +305,11 @@ impl ModelStore {
                     return Err(http::map_status(status, &body));
                 }
             }
-            let reader = response.into_body().into_with_config().limit(u64::MAX).reader();
+            let reader = response
+                .into_body()
+                .into_with_config()
+                .limit(u64::MAX)
+                .reader();
             have = append_body(reader, &mut file, have, &mut progress, cancel)?;
         }
         file.flush().map_err(PennelError::storage)?;
@@ -286,7 +317,9 @@ impl ModelStore {
 
         if sha256_file(&part)? != entry.sha256 {
             let _ = std::fs::remove_file(&part);
-            return Err(PennelError::InvalidResponse { message: "checksum mismatch".into() });
+            return Err(PennelError::InvalidResponse {
+                message: "checksum mismatch".into(),
+            });
         }
         std::fs::rename(&part, self.final_path(id)).map_err(PennelError::storage)?;
         listener.on_progress(entry.size_bytes, entry.size_bytes);
@@ -296,7 +329,9 @@ impl ModelStore {
     pub fn delete(&self, id: &str) -> Result<(), PennelError> {
         for path in [self.final_path(id), self.part_path(id)] {
             match std::fs::remove_file(path) {
-                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(PennelError::storage(e)),
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                    return Err(PennelError::storage(e));
+                }
                 _ => {}
             }
         }
@@ -326,7 +361,9 @@ fn append_body(
         if cancel.load(Ordering::SeqCst) {
             return Err(PennelError::Cancelled);
         }
-        let n = reader.read(&mut buf).map_err(|e| PennelError::Network { message: e.to_string() })?;
+        let n = reader.read(&mut buf).map_err(|e| PennelError::Network {
+            message: e.to_string(),
+        })?;
         if n == 0 {
             return Ok(have);
         }
@@ -416,8 +453,15 @@ mod tests {
     fn auto_language_scores_dutch() {
         let dir = tempfile::tempdir().unwrap();
         let store = ModelStore::new(dir.path());
-        assert_eq!(store.local_models(None, true), store.local_models(Some("nl"), true));
-        let parakeet = store.local_models(None, true).into_iter().find(|m| m.id == "parakeet-tdt-0.6b-v3").unwrap();
+        assert_eq!(
+            store.local_models(None, true),
+            store.local_models(Some("nl"), true)
+        );
+        let parakeet = store
+            .local_models(None, true)
+            .into_iter()
+            .find(|m| m.id == "parakeet-tdt-0.6b-v3")
+            .unwrap();
         assert_eq!((parakeet.speed, parakeet.accuracy), (96, Some(60)));
         assert_eq!(parakeet.parameters.as_deref(), Some("627M"));
         assert!(parakeet.languages.contains(&"nl".to_string()));
@@ -437,8 +481,16 @@ mod tests {
         let models = ModelStore::new(dir.path()).local_models(Some("nl"), false);
         let rest = &models[catalog::RECOMMENDED.len()..];
         let first_unmeasured = rest.iter().position(|m| m.accuracy.is_none()).unwrap();
-        assert!(rest[first_unmeasured..].iter().all(|m| m.accuracy.is_none()));
-        assert!(rest[..first_unmeasured].windows(2).all(|w| w[0].accuracy >= w[1].accuracy));
+        assert!(
+            rest[first_unmeasured..]
+                .iter()
+                .all(|m| m.accuracy.is_none())
+        );
+        assert!(
+            rest[..first_unmeasured]
+                .windows(2)
+                .all(|w| w[0].accuracy >= w[1].accuracy)
+        );
     }
 
     #[test]
@@ -451,7 +503,10 @@ mod tests {
         assert_eq!(store.downloaded(), vec!["whisper-small-q5_1".to_string()]);
         assert_eq!(store.state("whisper-small-q5_1"), ModelState::Downloaded);
         let models = store.local_models(None, true);
-        let legacy = models.iter().find(|m| m.id == "whisper-small-q5_1").unwrap();
+        let legacy = models
+            .iter()
+            .find(|m| m.id == "whisper-small-q5_1")
+            .unwrap();
         let small = models.iter().find(|m| m.id == "whisper-small").unwrap();
         assert!(legacy.legacy);
         assert_eq!(legacy.accuracy, small.accuracy);
@@ -462,10 +517,21 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = ModelStore::new(dir.path());
         std::fs::create_dir_all(dir.path().join("models")).unwrap();
-        for file in ["parakeet-unified-en-0.6b.gguf", "whisper-small-q5_1.bin", "parakeet-tdt-0.6b-v3.gguf"] {
+        for file in [
+            "parakeet-unified-en-0.6b.gguf",
+            "whisper-small-q5_1.bin",
+            "parakeet-tdt-0.6b-v3.gguf",
+        ] {
             std::fs::write(dir.path().join("models").join(file), b"x").unwrap();
         }
-        assert_eq!(store.downloaded(), ["parakeet-tdt-0.6b-v3", "whisper-small-q5_1", "parakeet-unified-en-0.6b"]);
+        assert_eq!(
+            store.downloaded(),
+            [
+                "parakeet-tdt-0.6b-v3",
+                "whisper-small-q5_1",
+                "parakeet-unified-en-0.6b"
+            ]
+        );
     }
 
     #[test]
@@ -481,8 +547,14 @@ mod tests {
 
     #[test]
     fn diarizer_entry_matches_catalog() {
-        let catalog: serde_json::Value = serde_json::from_str(include_str!("catalog.json")).unwrap();
-        let model = catalog["models"].as_array().unwrap().iter().find(|m| m["id"] == DIARIZER_ID).unwrap();
+        let catalog: serde_json::Value =
+            serde_json::from_str(include_str!("catalog.json")).unwrap();
+        let model = catalog["models"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == DIARIZER_ID)
+            .unwrap();
         let file = &model["files"][model["quant"].as_str().unwrap()];
         let entry = diarizer_entry();
         assert_eq!(file["sha256"], entry.sha256.as_str());
@@ -496,7 +568,10 @@ mod tests {
         let store = ModelStore::new(dir.path());
         std::fs::create_dir_all(dir.path().join("models")).unwrap();
         std::fs::write(dir.path().join("models/parakeet-tdt-0.6b-v3.gguf"), b"x").unwrap();
-        assert_eq!(store.path("parakeet-tdt-0.6b-v3"), Some(dir.path().join("models/parakeet-tdt-0.6b-v3.gguf")));
+        assert_eq!(
+            store.path("parakeet-tdt-0.6b-v3"),
+            Some(dir.path().join("models/parakeet-tdt-0.6b-v3.gguf"))
+        );
     }
 
     #[test]
@@ -507,7 +582,9 @@ mod tests {
         let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
         assert_eq!(store.state("tiny"), ModelState::NotDownloaded);
         let listener = Recorder::default();
-        store.download("tiny", &listener, &AtomicBool::new(false)).unwrap();
+        store
+            .download("tiny", &listener, &AtomicBool::new(false))
+            .unwrap();
         assert_eq!(store.state("tiny"), ModelState::Downloaded);
         assert_eq!(std::fs::read(store.path("tiny").unwrap()).unwrap(), bytes);
         let total = bytes.len() as u64;
@@ -521,14 +598,19 @@ mod tests {
         let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
         std::fs::create_dir_all(dir.path().join("models")).unwrap();
         std::fs::write(dir.path().join("models/tiny.part"), &bytes[..MB]).unwrap();
-        assert_eq!(store.state("tiny"), ModelState::Partial { bytes: MB as u64 });
+        assert_eq!(
+            store.state("tiny"),
+            ModelState::Partial { bytes: MB as u64 }
+        );
         let mock = server
             .mock("GET", "/m.bin")
             .match_header("range", mockito::Matcher::Regex("^bytes=1048576-".into()))
             .with_status(206)
             .with_body(&bytes[MB..])
             .create();
-        store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        store
+            .download("tiny", &Recorder::default(), &AtomicBool::new(false))
+            .unwrap();
         mock.assert();
         assert_eq!(std::fs::read(store.path("tiny").unwrap()).unwrap(), bytes);
     }
@@ -540,7 +622,9 @@ mod tests {
         let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
         std::fs::create_dir_all(dir.path().join("models")).unwrap();
         std::fs::write(dir.path().join("models/tiny.part"), &bytes).unwrap();
-        store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        store
+            .download("tiny", &Recorder::default(), &AtomicBool::new(false))
+            .unwrap();
         assert_eq!(store.state("tiny"), ModelState::Downloaded);
     }
 
@@ -562,7 +646,9 @@ mod tests {
             .with_status(206)
             .with_body(&bytes)
             .create();
-        store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        store
+            .download("tiny", &Recorder::default(), &AtomicBool::new(false))
+            .unwrap();
         assert_eq!(std::fs::read(store.path("tiny").unwrap()).unwrap(), bytes);
     }
 
@@ -576,10 +662,18 @@ mod tests {
     fn checksum_mismatch_removes_part() {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let bytes = payload();
-        server.mock("GET", "/m.bin").with_body(vec![0u8; bytes.len()]).create();
+        server
+            .mock("GET", "/m.bin")
+            .with_body(vec![0u8; bytes.len()])
+            .create();
         let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
-        let err = store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap_err();
-        assert!(matches!(err, PennelError::InvalidResponse { .. }), "{err:?}");
+        let err = store
+            .download("tiny", &Recorder::default(), &AtomicBool::new(false))
+            .unwrap_err();
+        assert!(
+            matches!(err, PennelError::InvalidResponse { .. }),
+            "{err:?}"
+        );
         assert_eq!(store.state("tiny"), ModelState::NotDownloaded);
     }
 
@@ -590,8 +684,14 @@ mod tests {
         server.mock("GET", "/m.bin").with_body(&bytes).create();
         let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
         let cancel = Arc::new(AtomicBool::new(false));
-        let listener = Recorder { cancel_on_first: Some(cancel.clone()), ..Default::default() };
-        assert_eq!(store.download("tiny", &listener, &cancel).unwrap_err(), PennelError::Cancelled);
+        let listener = Recorder {
+            cancel_on_first: Some(cancel.clone()),
+            ..Default::default()
+        };
+        assert_eq!(
+            store.download("tiny", &listener, &cancel).unwrap_err(),
+            PennelError::Cancelled
+        );
         assert!(matches!(store.state("tiny"), ModelState::Partial { .. }));
     }
 
@@ -601,7 +701,9 @@ mod tests {
         let bytes = payload();
         server.mock("GET", "/m.bin").with_body(&bytes).create();
         let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
-        store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        store
+            .download("tiny", &Recorder::default(), &AtomicBool::new(false))
+            .unwrap();
         store.delete("tiny").unwrap();
         assert_eq!(store.state("tiny"), ModelState::NotDownloaded);
         assert_eq!(store.path("tiny"), None);
@@ -614,7 +716,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = ModelStore::new(dir.path());
         let started = std::time::Instant::now();
-        store.download("whisper-small", &Recorder::default(), &AtomicBool::new(false)).unwrap();
+        store
+            .download(
+                "whisper-small",
+                &Recorder::default(),
+                &AtomicBool::new(false),
+            )
+            .unwrap();
         eprintln!("downloaded in {:?}", started.elapsed());
         assert_eq!(store.state("whisper-small"), ModelState::Downloaded);
     }
@@ -623,7 +731,9 @@ mod tests {
     fn unknown_model_is_not_found() {
         let dir = tempfile::tempdir().unwrap();
         let store = ModelStore::new(dir.path());
-        let err = store.download("nope", &Recorder::default(), &AtomicBool::new(false)).unwrap_err();
+        let err = store
+            .download("nope", &Recorder::default(), &AtomicBool::new(false))
+            .unwrap_err();
         assert_eq!(err, PennelError::NotFound);
     }
 }

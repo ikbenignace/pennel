@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - name: Rust format
+        run: cargo fmt --manifest-path core/Cargo.toml -- --check
+      - name: Rust lint
+        run: cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
+      - name: Rust tests
+        run: cargo test --manifest-path core/Cargo.toml --lib
+      - name: Core bindings
+        run: make core
+      - name: Swift tests
+        run: swift test --package-path apps/macos
+      - name: App bundle
+        run: make app

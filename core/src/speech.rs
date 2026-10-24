@@ -22,7 +22,8 @@ pub fn has_speech(samples: &[f32], sample_rate: u32) -> bool {
 
 pub fn is_hallucination(text: &str) -> bool {
     let normalized = text.trim().to_lowercase();
-    let normalized = normalized.trim_end_matches(|c: char| c.is_ascii_punctuation() || c.is_whitespace());
+    let normalized =
+        normalized.trim_end_matches(|c: char| c.is_ascii_punctuation() || c.is_whitespace());
     HALLUCINATIONS.contains(&normalized)
 }
 
@@ -54,7 +55,9 @@ mod tests {
 
     #[test]
     fn filters_known_hallucinations() {
-        assert!(is_hallucination(" Ondertiteld door de Amara.org gemeenschap "));
+        assert!(is_hallucination(
+            " Ondertiteld door de Amara.org gemeenschap "
+        ));
         assert!(is_hallucination("Thank you for watching."));
         assert!(is_hallucination(""));
         assert!(!is_hallucination("Thank you, Sarah, see you tomorrow."));

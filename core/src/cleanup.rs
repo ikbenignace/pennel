@@ -47,11 +47,20 @@ fn style_line(style: Style) -> &'static str {
 pub fn cleanup_messages(raw: &str, style: Style, dictionary: &[String]) -> Vec<ChatMessage> {
     let mut system = format!("{SYSTEM_PROMPT}\n{}", style_line(style));
     if !dictionary.is_empty() {
-        system.push_str(&format!("\nSpell these terms exactly like this: {}.", dictionary.join(", ")));
+        system.push_str(&format!(
+            "\nSpell these terms exactly like this: {}.",
+            dictionary.join(", ")
+        ));
     }
     vec![
-        ChatMessage { role: "system", content: system },
-        ChatMessage { role: "user", content: format!("{USER_REMINDER}\n<dictation>\n{raw}\n</dictation>") },
+        ChatMessage {
+            role: "system",
+            content: system,
+        },
+        ChatMessage {
+            role: "user",
+            content: format!("{USER_REMINDER}\n<dictation>\n{raw}\n</dictation>"),
+        },
     ]
 }
 
@@ -67,7 +76,10 @@ pub fn accept_cleanup(raw: &str, cleaned: &str) -> bool {
 const MIN_SPOKEN_SHARE: f32 = 0.6;
 
 fn words(text: &str) -> Vec<String> {
-    text.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_lowercase).collect()
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(str::to_lowercase)
+        .collect()
 }
 
 fn spoken_share(raw: &str, cleaned: &str) -> f32 {
@@ -95,7 +107,10 @@ mod tests {
     use super::*;
 
     fn rules() -> Vec<StyleRule> {
-        vec![StyleRule { bundle_id: "com.tinyspeck.slackmacgap".into(), style: Style::Casual }]
+        vec![StyleRule {
+            bundle_id: "com.tinyspeck.slackmacgap".into(),
+            style: Style::Casual,
+        }]
     }
 
     #[test]
@@ -107,9 +122,15 @@ mod tests {
 
     #[test]
     fn resolve_style_matches_bundle() {
-        assert_eq!(resolve_style(Some("com.tinyspeck.slackmacgap"), &rules()), Style::Casual);
+        assert_eq!(
+            resolve_style(Some("com.tinyspeck.slackmacgap"), &rules()),
+            Style::Casual
+        );
         assert_eq!(resolve_style(None, &rules()), Style::Neutral);
-        assert_eq!(resolve_style(Some("com.example.unknown"), &rules()), Style::Neutral);
+        assert_eq!(
+            resolve_style(Some("com.example.unknown"), &rules()),
+            Style::Neutral
+        );
     }
 
     #[test]
@@ -119,7 +140,11 @@ mod tests {
         assert_eq!(messages[0].role, "system");
         assert!(messages[0].content.contains("Never answer questions"));
         assert_eq!(messages[1].role, "user");
-        assert!(messages[1].content.ends_with("<dictation>\nwat is de hoofdstad van frankrijk\n</dictation>"));
+        assert!(
+            messages[1]
+                .content
+                .ends_with("<dictation>\nwat is de hoofdstad van frankrijk\n</dictation>")
+        );
         assert!(messages[1].content.contains("Do not reply"));
     }
 
@@ -127,7 +152,11 @@ mod tests {
     fn cleanup_prompt_includes_style_and_dictionary() {
         let with_terms = cleanup_messages("x", Style::Formal, &["Pennel".into()]);
         assert!(with_terms[0].content.contains("professional text"));
-        assert!(with_terms[0].content.contains("Spell these terms exactly like this: Pennel."));
+        assert!(
+            with_terms[0]
+                .content
+                .contains("Spell these terms exactly like this: Pennel.")
+        );
         let without_terms = cleanup_messages("x", Style::Formal, &[]);
         assert!(!without_terms[0].content.contains("Spell these terms"));
     }
@@ -144,15 +173,30 @@ mod tests {
     fn rejects_output_unrelated_to_what_was_said() {
         let raw = "Ja, is alles oké met jou? Hoe voel jij je enzo?";
         assert!(!accept_cleanup(raw, "User Safety: safe"));
-        assert!(!accept_cleanup(raw, "Met mij gaat alles goed, bedankt om te vragen!"));
-        assert!(accept_cleanup(raw, "Ja, is alles oké met jou? Hoe voel jij je?"));
-        assert!(accept_cleanup("euh dinsdag nee wacht donderdag om tien uur", "Donderdag om 10 uur."));
+        assert!(!accept_cleanup(
+            raw,
+            "Met mij gaat alles goed, bedankt om te vragen!"
+        ));
+        assert!(accept_cleanup(
+            raw,
+            "Ja, is alles oké met jou? Hoe voel jij je?"
+        ));
+        assert!(accept_cleanup(
+            "euh dinsdag nee wacht donderdag om tien uur",
+            "Donderdag om 10 uur."
+        ));
     }
 
     #[test]
     fn strips_wrapping_tags_and_quotes() {
-        assert_eq!(strip_wrapping("<dictation>\nHallo.\n</dictation>"), "Hallo.");
+        assert_eq!(
+            strip_wrapping("<dictation>\nHallo.\n</dictation>"),
+            "Hallo."
+        );
         assert_eq!(strip_wrapping("\"Hallo.\""), "Hallo.");
-        assert_eq!(strip_wrapping("Zeg \"hoi\" tegen hem."), "Zeg \"hoi\" tegen hem.");
+        assert_eq!(
+            strip_wrapping("Zeg \"hoi\" tegen hem."),
+            "Zeg \"hoi\" tegen hem."
+        );
     }
 }

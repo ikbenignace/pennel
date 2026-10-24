@@ -67,13 +67,28 @@ pub fn decide_recording(
     event_title: Option<String>,
 ) -> RecordAction {
     let by_event = event_title.as_deref().and_then(|title| {
-        settings.event_rules.iter().find(|r| r.title.trim().eq_ignore_ascii_case(title.trim())).map(|r| r.action)
+        settings
+            .event_rules
+            .iter()
+            .find(|r| r.title.trim().eq_ignore_ascii_case(title.trim()))
+            .map(|r| r.action)
     });
-    let by_calendar = calendar_id
-        .as_deref()
-        .and_then(|id| settings.calendar_rules.iter().find(|r| r.calendar_id == id).map(|r| r.action));
-    let by_app = settings.app_rules.iter().find(|r| r.bundle_id == bundle_id).map(|r| r.action);
-    by_event.or(by_calendar).or(by_app).unwrap_or(RecordAction::Ask)
+    let by_calendar = calendar_id.as_deref().and_then(|id| {
+        settings
+            .calendar_rules
+            .iter()
+            .find(|r| r.calendar_id == id)
+            .map(|r| r.action)
+    });
+    let by_app = settings
+        .app_rules
+        .iter()
+        .find(|r| r.bundle_id == bundle_id)
+        .map(|r| r.action);
+    by_event
+        .or(by_calendar)
+        .or(by_app)
+        .unwrap_or(RecordAction::Ask)
 }
 
 #[cfg(test)]
@@ -85,31 +100,63 @@ mod tests {
 
     #[test]
     fn default_is_ask() {
-        assert_eq!(decide_recording(default_settings(), TEAMS.into(), None, None), RecordAction::Ask);
+        assert_eq!(
+            decide_recording(default_settings(), TEAMS.into(), None, None),
+            RecordAction::Ask
+        );
     }
 
     #[test]
     fn app_rule_applies() {
         let mut s = default_settings();
-        s.app_rules.push(AppRule { bundle_id: TEAMS.into(), action: RecordAction::Never });
-        assert_eq!(decide_recording(s, TEAMS.into(), None, None), RecordAction::Never);
+        s.app_rules.push(AppRule {
+            bundle_id: TEAMS.into(),
+            action: RecordAction::Never,
+        });
+        assert_eq!(
+            decide_recording(s, TEAMS.into(), None, None),
+            RecordAction::Never
+        );
     }
 
     #[test]
     fn calendar_rule_beats_app_rule() {
         let mut s = default_settings();
-        s.app_rules.push(AppRule { bundle_id: TEAMS.into(), action: RecordAction::Never });
-        s.calendar_rules.push(CalendarRule { calendar_id: "werk".into(), calendar_name: "Werk".into(), action: RecordAction::Always });
-        assert_eq!(decide_recording(s.clone(), TEAMS.into(), Some("werk".into()), None), RecordAction::Always);
-        assert_eq!(decide_recording(s, TEAMS.into(), Some("prive".into()), None), RecordAction::Never);
+        s.app_rules.push(AppRule {
+            bundle_id: TEAMS.into(),
+            action: RecordAction::Never,
+        });
+        s.calendar_rules.push(CalendarRule {
+            calendar_id: "werk".into(),
+            calendar_name: "Werk".into(),
+            action: RecordAction::Always,
+        });
+        assert_eq!(
+            decide_recording(s.clone(), TEAMS.into(), Some("werk".into()), None),
+            RecordAction::Always
+        );
+        assert_eq!(
+            decide_recording(s, TEAMS.into(), Some("prive".into()), None),
+            RecordAction::Never
+        );
     }
 
     #[test]
     fn event_rule_beats_calendar_and_app() {
         let mut s = default_settings();
-        s.app_rules.push(AppRule { bundle_id: TEAMS.into(), action: RecordAction::Always });
-        s.calendar_rules.push(CalendarRule { calendar_id: "werk".into(), calendar_name: "Werk".into(), action: RecordAction::Always });
-        s.event_rules.push(EventRule { title: "Standup".into(), action: RecordAction::Never });
+        s.app_rules.push(AppRule {
+            bundle_id: TEAMS.into(),
+            action: RecordAction::Always,
+        });
+        s.calendar_rules.push(CalendarRule {
+            calendar_id: "werk".into(),
+            calendar_name: "Werk".into(),
+            action: RecordAction::Always,
+        });
+        s.event_rules.push(EventRule {
+            title: "Standup".into(),
+            action: RecordAction::Never,
+        });
         assert_eq!(
             decide_recording(s, TEAMS.into(), Some("werk".into()), Some("standup".into())),
             RecordAction::Never
@@ -129,8 +176,16 @@ mod tests {
         let path = dir.path().join("settings.json");
         let mut value = serde_json::to_value(default_settings()).unwrap();
         let map = value.as_object_mut().unwrap();
-        for key in ["app_rules", "calendar_rules", "event_rules", "calendar_enabled", "echo_cancellation",
-                    "record_shortcut_enabled", "consent_enabled", "auto_detect"] {
+        for key in [
+            "app_rules",
+            "calendar_rules",
+            "event_rules",
+            "calendar_enabled",
+            "echo_cancellation",
+            "record_shortcut_enabled",
+            "consent_enabled",
+            "auto_detect",
+        ] {
             map.remove(key);
         }
         std::fs::write(&path, value.to_string()).unwrap();

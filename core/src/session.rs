@@ -39,7 +39,9 @@ pub(crate) fn failed_path(meeting_dir: &Path, speaker: Speaker, start_ms: u64) -
         Speaker::Me => "me",
         Speaker::Others => "others",
     };
-    meeting_dir.join("failed").join(format!("{who}-{start_ms}.wav"))
+    meeting_dir
+        .join("failed")
+        .join(format!("{who}-{start_ms}.wav"))
 }
 
 /// A recording in progress: audio goes in per speaker, transcript segments come out in the background.
@@ -63,7 +65,12 @@ fn index(speaker: Speaker) -> usize {
 }
 
 impl MeetingSession {
-    pub(crate) fn start(engine: Arc<PennelEngine>, store: MeetingStore, id: String, keys: ApiKeys) -> Arc<Self> {
+    pub(crate) fn start(
+        engine: Arc<PennelEngine>,
+        store: MeetingStore,
+        id: String,
+        keys: ApiKeys,
+    ) -> Arc<Self> {
         let (sender, receiver) = mpsc::channel::<Job>();
         let progress = Arc::new(Mutex::new(Progress::default()));
         let worker_progress = progress.clone();
@@ -95,7 +102,9 @@ impl MeetingSession {
 
     fn enqueue(&self, speaker: Speaker, chunks: Vec<Chunk>) {
         let sender = self.sender.lock().unwrap();
-        let Some(sender) = sender.as_ref() else { return };
+        let Some(sender) = sender.as_ref() else {
+            return;
+        };
         for chunk in chunks {
             self.progress.lock().unwrap().pending += 1;
             if sender.send(Job { speaker, chunk }).is_err() {
@@ -105,7 +114,13 @@ impl MeetingSession {
     }
 }
 
-fn transcribe_job(engine: &PennelEngine, store: &MeetingStore, id: &str, keys: &ApiKeys, job: Job) -> Option<Segment> {
+fn transcribe_job(
+    engine: &PennelEngine,
+    store: &MeetingStore,
+    id: &str,
+    keys: &ApiKeys,
+    job: Job,
+) -> Option<Segment> {
     let settings = engine.settings();
     let wav = encode_wav(&job.chunk.samples, SAMPLE_RATE);
     let start_ms = job.chunk.start_ms;
@@ -119,12 +134,26 @@ fn transcribe_job(engine: &PennelEngine, store: &MeetingStore, id: &str, keys: &
     }
     match result {
         Ok(text) if is_hallucination(&text) => None,
-        Ok(text) => Some(Segment { start_ms, end_ms, speaker: job.speaker, text, failed: false, voice: None }),
+        Ok(text) => Some(Segment {
+            start_ms,
+            end_ms,
+            speaker: job.speaker,
+            text,
+            failed: false,
+            voice: None,
+        }),
         Err(_) => {
             let path = failed_path(&store.dir_of(id), job.speaker, start_ms);
             let _ = std::fs::create_dir_all(path.parent().expect("failed dir"));
             let _ = std::fs::write(&path, &wav);
-            Some(Segment { start_ms, end_ms, speaker: job.speaker, text: String::new(), failed: true, voice: None })
+            Some(Segment {
+                start_ms,
+                end_ms,
+                speaker: job.speaker,
+                text: String::new(),
+                failed: true,
+                voice: None,
+            })
         }
     }
 }
@@ -141,11 +170,12 @@ impl MeetingSession {
 
     /// Accepts 16 kHz mono samples; transcription happens on a background thread.
     pub fn push_audio(&self, speaker: Speaker, samples: Vec<f32>) {
-        let samples = if speaker == Speaker::Me && self.dictating.load(std::sync::atomic::Ordering::SeqCst) {
-            vec![0.0; samples.len()]
-        } else {
-            samples
-        };
+        let samples =
+            if speaker == Speaker::Me && self.dictating.load(std::sync::atomic::Ordering::SeqCst) {
+                vec![0.0; samples.len()]
+            } else {
+                samples
+            };
         self.pushed_samples.lock().unwrap()[index(speaker)] += samples.len() as u64;
         let chunks = self.chunkers.lock().unwrap()[index(speaker)].push(&samples);
         self.enqueue(speaker, chunks);
@@ -161,12 +191,17 @@ impl MeetingSession {
 
     /// While true, the user's microphone is replaced by silence: they are dictating into another app.
     pub fn set_dictating(&self, dictating: bool) {
-        self.dictating.store(dictating, std::sync::atomic::Ordering::SeqCst);
+        self.dictating
+            .store(dictating, std::sync::atomic::Ordering::SeqCst);
     }
 
     /// Marks a period (meeting timeline, ms) in which the user dictated into another app.
     pub fn mark_dictation(&self, start_ms: u64, end_ms: u64) {
-        self.progress.lock().unwrap().dictations.push((start_ms, end_ms));
+        self.progress
+            .lock()
+            .unwrap()
+            .dictations
+            .push((start_ms, end_ms));
     }
 
     pub fn pending(&self) -> u32 {
@@ -184,7 +219,13 @@ impl MeetingSession {
             let _ = worker.join();
         }
         self.store.write_transcript(&self.id, &self.transcript())?;
-        let longest = *self.pushed_samples.lock().unwrap().iter().max().unwrap_or(&0);
+        let longest = *self
+            .pushed_samples
+            .lock()
+            .unwrap()
+            .iter()
+            .max()
+            .unwrap_or(&0);
         let minutes = longest.div_ceil(u64::from(SAMPLE_RATE) * 60) as u32;
         self.store.set_duration(&self.id, minutes)
     }
@@ -207,11 +248,14 @@ mod tests {
     }
 
     fn keys() -> ApiKeys {
-        ApiKeys { by_provider: HashMap::from([("groq".to_owned(), "k".to_owned())]) }
+        ApiKeys {
+            by_provider: HashMap::from([("groq".to_owned(), "k".to_owned())]),
+        }
     }
 
     fn engine(dir: &tempfile::TempDir, server: &mockito::Server) -> Arc<PennelEngine> {
-        let engine = PennelEngine::new(dir.path().join("data").to_string_lossy().into_owned()).unwrap();
+        let engine =
+            PennelEngine::new(dir.path().join("data").to_string_lossy().into_owned()).unwrap();
         let mut settings = engine.settings();
         settings.providers[0].base_url = server.url();
         settings.meetings_dir = dir.path().join("meetings").to_string_lossy().into_owned();
@@ -247,8 +291,12 @@ mod tests {
         assert_eq!(transcript[0].speaker, Speaker::Me);
         assert_eq!(transcript[1].speaker, Speaker::Others);
         assert_eq!(transcript[0].end_ms, 20_000);
-        let md = std::fs::read_to_string(PathBuf::from(session.dir()).join("transcript.md")).unwrap();
-        assert!(md.contains("**Ik:** hallo") && md.contains("**Anderen:** hallo"), "{md}");
+        let md =
+            std::fs::read_to_string(PathBuf::from(session.dir()).join("transcript.md")).unwrap();
+        assert!(
+            md.contains("**Ik:** hallo") && md.contains("**Anderen:** hallo"),
+            "{md}"
+        );
         assert_eq!(engine.meetings()[0].duration_min, 1);
     }
 
@@ -257,10 +305,14 @@ mod tests {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server);
         stt_ok(&mut server, "eerste stuk");
-        let session = engine.clone().start_meeting("Crash".into(), keys()).unwrap();
+        let session = engine
+            .clone()
+            .start_meeting("Crash".into(), keys())
+            .unwrap();
         session.push_audio(Speaker::Me, tone(31.0));
         wait_idle(&session);
-        let md = std::fs::read_to_string(PathBuf::from(session.dir()).join("transcript.md")).unwrap();
+        let md =
+            std::fs::read_to_string(PathBuf::from(session.dir()).join("transcript.md")).unwrap();
         assert!(md.contains("eerste stuk"), "{md}");
     }
 
@@ -268,14 +320,25 @@ mod tests {
     fn failed_chunk_is_saved_and_retranscribed() {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server);
-        let failing = server.mock("POST", "/audio/transcriptions").with_status(503).expect(2).create();
-        let session = engine.clone().start_meeting("Wifi weg".into(), keys()).unwrap();
+        let failing = server
+            .mock("POST", "/audio/transcriptions")
+            .with_status(503)
+            .expect(2)
+            .create();
+        let session = engine
+            .clone()
+            .start_meeting("Wifi weg".into(), keys())
+            .unwrap();
         session.push_audio(Speaker::Me, tone(10.0));
         session.stop().unwrap();
         failing.assert();
         let transcript = session.transcript();
         assert!(transcript[0].failed);
-        assert!(PathBuf::from(session.dir()).join("failed/me-0.wav").exists());
+        assert!(
+            PathBuf::from(session.dir())
+                .join("failed/me-0.wav")
+                .exists()
+        );
 
         failing.remove();
         stt_ok(&mut server, "hersteld");
@@ -283,7 +346,11 @@ mod tests {
         let fixed = engine.meeting_transcript(session.id());
         assert!(!fixed[0].failed);
         assert_eq!(fixed[0].text, "hersteld");
-        assert!(!PathBuf::from(session.dir()).join("failed/me-0.wav").exists());
+        assert!(
+            !PathBuf::from(session.dir())
+                .join("failed/me-0.wav")
+                .exists()
+        );
     }
 
     #[test]
@@ -296,16 +363,29 @@ mod tests {
         session.push_audio(Speaker::Me, [tone(20.0), quiet, tone(25.0)].concat());
         wait_idle(&session);
         first.remove();
-        let failing = server.mock("POST", "/audio/transcriptions").with_status(503).expect(2).create();
+        let failing = server
+            .mock("POST", "/audio/transcriptions")
+            .with_status(503)
+            .expect(2)
+            .create();
         session.stop().unwrap();
         failing.assert();
         let failed = session.transcript().into_iter().find(|s| s.failed).unwrap();
-        assert_ne!(failed.start_ms % 1000, 0, "test needs an off-second chunk start");
+        assert_ne!(
+            failed.start_ms % 1000,
+            0,
+            "test needs an off-second chunk start"
+        );
 
         failing.remove();
         stt_ok(&mut server, "tweede");
         assert_eq!(engine.retranscribe_failed(session.id(), keys()).unwrap(), 1);
-        assert!(engine.meeting_transcript(session.id()).iter().all(|s| !s.failed));
+        assert!(
+            engine
+                .meeting_transcript(session.id())
+                .iter()
+                .all(|s| !s.failed)
+        );
     }
 
     #[test]
@@ -313,7 +393,10 @@ mod tests {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server);
         let mock = stt_ok(&mut server, "stuur de planning naar Sarah").expect(0);
-        let session = engine.clone().start_meeting("Dictaat".into(), keys()).unwrap();
+        let session = engine
+            .clone()
+            .start_meeting("Dictaat".into(), keys())
+            .unwrap();
         session.set_dictating(true);
         session.push_audio(Speaker::Me, tone(8.0));
         session.set_dictating(false);
@@ -327,12 +410,16 @@ mod tests {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server);
         stt_ok(&mut server, "stuur de planning naar Sarah vandaag");
-        let session = engine.clone().start_meeting("Dictaat".into(), keys()).unwrap();
+        let session = engine
+            .clone()
+            .start_meeting("Dictaat".into(), keys())
+            .unwrap();
         session.push_audio(Speaker::Me, tone(10.0));
         session.mark_dictation(0, 10_000);
         session.stop().unwrap();
         assert!(session.transcript().is_empty());
-        let md = std::fs::read_to_string(PathBuf::from(session.dir()).join("transcript.md")).unwrap();
+        let md =
+            std::fs::read_to_string(PathBuf::from(session.dir()).join("transcript.md")).unwrap();
         assert!(!md.contains("Sarah"), "{md}");
     }
 
@@ -353,7 +440,10 @@ mod tests {
     fn notes_are_written_and_meeting_is_listed() {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server);
-        let session = engine.clone().start_meeting("Notities".into(), keys()).unwrap();
+        let session = engine
+            .clone()
+            .start_meeting("Notities".into(), keys())
+            .unwrap();
         session.set_notes("- export naar Excel".into()).unwrap();
         assert_eq!(engine.meeting_notes(session.id()), "- export naar Excel");
         assert_eq!(engine.meetings()[0].id, session.id());

@@ -19,14 +19,25 @@ pub fn map_status(status: u16, body: &str) -> PennelError {
 }
 
 /// Sends a prepared request and returns the body of a 2xx response, mapping everything else to `PennelError`.
-pub fn send(request: ureq::RequestBuilder<ureq::typestate::WithBody>, body: &[u8]) -> Result<String, PennelError> {
-    let mut response = request.send(body).map_err(|e| PennelError::Network { message: e.to_string() })?;
+pub fn send(
+    request: ureq::RequestBuilder<ureq::typestate::WithBody>,
+    body: &[u8],
+) -> Result<String, PennelError> {
+    let mut response = request.send(body).map_err(|e| PennelError::Network {
+        message: e.to_string(),
+    })?;
     let status = response.status().as_u16();
     let text = response
         .body_mut()
         .read_to_string()
-        .map_err(|e| PennelError::Network { message: e.to_string() })?;
-    if (200..300).contains(&status) { Ok(text) } else { Err(map_status(status, &text)) }
+        .map_err(|e| PennelError::Network {
+            message: e.to_string(),
+        })?;
+    if (200..300).contains(&status) {
+        Ok(text)
+    } else {
+        Err(map_status(status, &text))
+    }
 }
 
 pub fn with_auth(
@@ -47,14 +58,19 @@ mod tests {
     fn map_status_uses_openai_error_message() {
         assert_eq!(
             map_status(401, r#"{"error":{"message":"Invalid API key"}}"#),
-            PennelError::Http { status: 401, message: "Invalid API key".into() }
+            PennelError::Http {
+                status: 401,
+                message: "Invalid API key".into()
+            }
         );
     }
 
     #[test]
     fn map_status_falls_back_to_truncated_body() {
         let body = "x".repeat(500);
-        let PennelError::Http { status, message } = map_status(502, &body) else { panic!() };
+        let PennelError::Http { status, message } = map_status(502, &body) else {
+            panic!()
+        };
         assert_eq!(status, 502);
         assert_eq!(message.len(), 200);
     }

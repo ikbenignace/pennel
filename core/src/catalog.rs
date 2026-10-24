@@ -118,11 +118,23 @@ fn parse(json: &str) -> Vec<CatalogModel> {
             let results = root.results.get(&m.id);
             let rtf = results.and_then(|r| r.performance.accelerated.or(r.performance.cpu));
             let word_error = results
-                .map(|r| r.accuracy.iter().map(|(lang, cell)| (lang.clone(), cell.error)).collect())
+                .map(|r| {
+                    r.accuracy
+                        .iter()
+                        .map(|(lang, cell)| (lang.clone(), cell.error))
+                        .collect()
+                })
                 .unwrap_or_default();
-            let url = format!("https://huggingface.co/{}/resolve/{}/{}", m.repository, m.revision, file.filename);
+            let url = format!(
+                "https://huggingface.co/{}/resolve/{}/{}",
+                m.repository, m.revision, file.filename
+            );
             Some(CatalogModel {
-                description: if m.description.is_empty() { generated_description(&m.languages) } else { m.description },
+                description: if m.description.is_empty() {
+                    generated_description(&m.languages)
+                } else {
+                    m.description
+                },
                 id: m.id,
                 name: m.name,
                 parameters: m.parameters,
@@ -165,7 +177,10 @@ mod tests {
             "https://huggingface.co/handy-computer/parakeet-tdt-0.6b-v3-gguf/resolve/85ac09ea12fc4b1112fa76810059364bc6adc9de/parakeet-tdt-0.6b-v3-Q8_0.gguf"
         );
         assert_eq!(parakeet.file.size, 739_508_576);
-        assert_eq!(parakeet.file.sha256, "5859f77944efcd8eafa23a6350731960b2b55b2203df51f319665c807d802cc7");
+        assert_eq!(
+            parakeet.file.sha256,
+            "5859f77944efcd8eafa23a6350731960b2b55b2203df51f319665c807d802cc7"
+        );
         assert!(parakeet.supports("nl"));
         for id in RECOMMENDED {
             assert!(find(id).is_some(), "{id}");
@@ -203,7 +218,11 @@ mod tests {
             description: String::new(),
             parameters: None,
             languages: vec!["nl-BE".into()],
-            file: CatalogFile { filename: "x.gguf".into(), size: 1, sha256: String::new() },
+            file: CatalogFile {
+                filename: "x.gguf".into(),
+                size: 1,
+                sha256: String::new(),
+            },
             url: String::new(),
             speed: 10,
             word_error: HashMap::new(),

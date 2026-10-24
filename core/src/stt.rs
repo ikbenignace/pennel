@@ -18,30 +18,44 @@ pub fn transcribe(
     language: Option<&str>,
 ) -> Result<String, PennelError> {
     let boundary = format!("pennel-{}", uuid::Uuid::now_v7().simple());
-    let mut fields = vec![("model", provider.model.as_str()), ("response_format", "json")];
+    let mut fields = vec![
+        ("model", provider.model.as_str()),
+        ("response_format", "json"),
+    ];
     fields.extend(prompt.map(|p| ("prompt", p)));
     fields.extend(language.map(|l| ("language", l)));
     let body = multipart(&boundary, &fields, wav);
 
-    let url = format!("{}/audio/transcriptions", provider.base_url.trim_end_matches('/'));
-    let request = http::agent(timeout_secs(body.len()))
-        .post(&url)
-        .header("Content-Type", format!("multipart/form-data; boundary={boundary}"));
+    let url = format!(
+        "{}/audio/transcriptions",
+        provider.base_url.trim_end_matches('/')
+    );
+    let request = http::agent(timeout_secs(body.len())).post(&url).header(
+        "Content-Type",
+        format!("multipart/form-data; boundary={boundary}"),
+    );
     let response = http::send(http::with_auth(request, api_key), &body)?;
 
     let parsed: serde_json::Value =
-        serde_json::from_str(&response).map_err(|e| PennelError::InvalidResponse { message: e.to_string() })?;
+        serde_json::from_str(&response).map_err(|e| PennelError::InvalidResponse {
+            message: e.to_string(),
+        })?;
     parsed["text"]
         .as_str()
         .map(|t| t.trim().to_owned())
-        .ok_or_else(|| PennelError::InvalidResponse { message: "missing text field".into() })
+        .ok_or_else(|| PennelError::InvalidResponse {
+            message: "missing text field".into(),
+        })
 }
 
 fn multipart(boundary: &str, fields: &[(&str, &str)], wav: &[u8]) -> Vec<u8> {
     let mut body = Vec::with_capacity(wav.len() + 512);
     for (name, value) in fields {
         body.extend_from_slice(
-            format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes(),
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n"
+            )
+            .as_bytes(),
         );
     }
     body.extend_from_slice(
@@ -72,7 +86,11 @@ mod tests {
     #[test]
     fn timeout_grows_with_upload_size() {
         assert_eq!(timeout_secs(0), 30);
-        assert!(timeout_secs(19_200_000) >= 100, "{}", timeout_secs(19_200_000));
+        assert!(
+            timeout_secs(19_200_000) >= 100,
+            "{}",
+            timeout_secs(19_200_000)
+        );
     }
 
     #[test]
@@ -116,7 +134,14 @@ mod tests {
             ]))
             .with_body(r#"{"text":"ok"}"#)
             .create();
-        transcribe(&provider(server.url()), None, b"RIFF", Some("Pennel, Q8"), Some("nl")).unwrap();
+        transcribe(
+            &provider(server.url()),
+            None,
+            b"RIFF",
+            Some("Pennel, Q8"),
+            Some("nl"),
+        )
+        .unwrap();
         mock.assert();
     }
 
@@ -128,21 +153,41 @@ mod tests {
             .with_status(401)
             .with_body(r#"{"error":{"message":"Invalid API key"}}"#)
             .create();
-        let err = transcribe(&provider(server.url()), Some("bad"), b"RIFF", None, None).unwrap_err();
-        assert_eq!(err, PennelError::Http { status: 401, message: "Invalid API key".into() });
+        let err =
+            transcribe(&provider(server.url()), Some("bad"), b"RIFF", None, None).unwrap_err();
+        assert_eq!(
+            err,
+            PennelError::Http {
+                status: 401,
+                message: "Invalid API key".into()
+            }
+        );
     }
 
     #[test]
     fn maps_connection_refused_to_network() {
-        let err = transcribe(&provider("http://127.0.0.1:9".into()), None, b"RIFF", None, None).unwrap_err();
+        let err = transcribe(
+            &provider("http://127.0.0.1:9".into()),
+            None,
+            b"RIFF",
+            None,
+            None,
+        )
+        .unwrap_err();
         assert!(matches!(err, PennelError::Network { .. }), "{err:?}");
     }
 
     #[test]
     fn invalid_json_is_invalid_response() {
         let mut server = mockito::Server::new();
-        server.mock("POST", "/audio/transcriptions").with_body("<html>").create();
+        server
+            .mock("POST", "/audio/transcriptions")
+            .with_body("<html>")
+            .create();
         let err = transcribe(&provider(server.url()), None, b"RIFF", None, None).unwrap_err();
-        assert!(matches!(err, PennelError::InvalidResponse { .. }), "{err:?}");
+        assert!(
+            matches!(err, PennelError::InvalidResponse { .. }),
+            "{err:?}"
+        );
     }
 }

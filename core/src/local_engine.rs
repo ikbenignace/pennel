@@ -22,7 +22,9 @@ pub struct LocalEngine {
 }
 
 fn engine_error(e: transcribe_cpp::Error) -> PennelError {
-    PennelError::InvalidResponse { message: format!("lokaal model: {e}") }
+    PennelError::InvalidResponse {
+        message: format!("lokaal model: {e}"),
+    }
 }
 
 /// Only passes options the loaded model can use: an unsupported language falls back to autodetect,
@@ -35,14 +37,19 @@ pub(crate) fn run_options(
     supports_context: bool,
 ) -> RunOptions {
     let base = |code: &str| code.split(['-', '_']).next().unwrap_or(code).to_lowercase();
-    let language = language
-        .and_then(|lang| {
-            if model_languages.is_empty() {
-                return Some(lang.to_owned());
-            }
-            model_languages.iter().find(|l| base(l) == base(lang)).cloned()
-        });
-    let mut options = RunOptions { language, ..Default::default() };
+    let language = language.and_then(|lang| {
+        if model_languages.is_empty() {
+            return Some(lang.to_owned());
+        }
+        model_languages
+            .iter()
+            .find(|l| base(l) == base(lang))
+            .cloned()
+    });
+    let mut options = RunOptions {
+        language,
+        ..Default::default()
+    };
     if !vocabulary.is_empty() {
         if supports_vocabulary {
             options.vocabulary = vocabulary.to_vec();
@@ -100,15 +107,22 @@ impl LocalEngine {
             });
         }
         let model = loaded.as_mut().expect("loaded above");
-        let options =
-            run_options(language, &model.languages, vocabulary, model.supports_vocabulary, model.supports_context);
+        let options = run_options(
+            language,
+            &model.languages,
+            vocabulary,
+            model.supports_vocabulary,
+            model.supports_context,
+        );
         let result = model.session.run(samples, &options);
         model.last_used = Instant::now();
         match result {
             Ok(transcript) => Ok(transcript.text.trim().to_owned()),
             // Repetition loops and truncation still carry the usable text decoded so far.
             Err(e) => match e.partial() {
-                Some(partial) if !partial.text.trim().is_empty() => Ok(partial.text.trim().to_owned()),
+                Some(partial) if !partial.text.trim().is_empty() => {
+                    Ok(partial.text.trim().to_owned())
+                }
                 _ => Err(engine_error(e)),
             },
         }
@@ -133,17 +147,45 @@ mod tests {
     #[test]
     fn missing_model_file_is_model_not_downloaded() {
         let engine = LocalEngine::default();
-        let err = engine.transcribe(Path::new("/nonexistent/model.bin"), &[0.0; 16000], None, &[]).unwrap_err();
+        let err = engine
+            .transcribe(
+                Path::new("/nonexistent/model.bin"),
+                &[0.0; 16000],
+                None,
+                &[],
+            )
+            .unwrap_err();
         assert_eq!(err, PennelError::ModelNotDownloaded);
     }
 
     #[test]
     fn run_options_drops_unsupported_language() {
-        assert_eq!(run_options(Some("nl"), &langs(&["en"]), &[], false, false).language, None);
-        assert_eq!(run_options(Some("nl"), &langs(&["nl", "en"]), &[], false, false).language.as_deref(), Some("nl"));
-        assert_eq!(run_options(Some("nl"), &[], &[], false, false).language.as_deref(), Some("nl"));
-        assert_eq!(run_options(None, &langs(&["nl"]), &[], false, false).language, None);
-        assert_eq!(run_options(Some("nl"), &langs(&["en-US", "nl-NL"]), &[], false, false).language.as_deref(), Some("nl-NL"));
+        assert_eq!(
+            run_options(Some("nl"), &langs(&["en"]), &[], false, false).language,
+            None
+        );
+        assert_eq!(
+            run_options(Some("nl"), &langs(&["nl", "en"]), &[], false, false)
+                .language
+                .as_deref(),
+            Some("nl")
+        );
+        assert_eq!(
+            run_options(Some("nl"), &[], &[], false, false)
+                .language
+                .as_deref(),
+            Some("nl")
+        );
+        assert_eq!(
+            run_options(None, &langs(&["nl"]), &[], false, false).language,
+            None
+        );
+        assert_eq!(
+            run_options(Some("nl"), &langs(&["en-US", "nl-NL"]), &[], false, false)
+                .language
+                .as_deref(),
+            Some("nl-NL")
+        );
     }
 
     #[test]
@@ -162,12 +204,20 @@ mod tests {
 
     fn real_model_transcribes(file: &str) {
         let home = std::env::var("HOME").unwrap();
-        let model = PathBuf::from(home).join("Library/Application Support/Pennel/models").join(file);
-        let wav = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hello.wav")).unwrap();
+        let model = PathBuf::from(home)
+            .join("Library/Application Support/Pennel/models")
+            .join(file);
+        let wav = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/hello.wav"
+        ))
+        .unwrap();
         let (samples, _) = crate::wav::decode_wav(&wav).unwrap();
         let engine = LocalEngine::default();
         let started = Instant::now();
-        let text = engine.transcribe(&model, &samples, Some("en"), &[]).unwrap();
+        let text = engine
+            .transcribe(&model, &samples, Some("en"), &[])
+            .unwrap();
         eprintln!("{file} transcribed in {:?}: {text}", started.elapsed());
         assert!(text.to_lowercase().contains("test"), "{text}");
         assert!(engine.is_loaded());
@@ -180,13 +230,21 @@ mod tests {
     #[ignore]
     fn real_parakeet_transcribes() {
         let home = std::env::var("HOME").unwrap();
-        let store = crate::models::ModelStore::new(&PathBuf::from(home).join("Library/Application Support/Pennel"));
+        let store = crate::models::ModelStore::new(
+            &PathBuf::from(home).join("Library/Application Support/Pennel"),
+        );
         struct Quiet;
         impl crate::models::DownloadListener for Quiet {
             fn on_progress(&self, _: u64, _: u64) {}
         }
         let started = Instant::now();
-        store.download("parakeet-tdt-0.6b-v3", &Quiet, &std::sync::atomic::AtomicBool::new(false)).unwrap();
+        store
+            .download(
+                "parakeet-tdt-0.6b-v3",
+                &Quiet,
+                &std::sync::atomic::AtomicBool::new(false),
+            )
+            .unwrap();
         eprintln!("download ready in {:?}", started.elapsed());
         real_model_transcribes("parakeet-tdt-0.6b-v3.gguf");
     }

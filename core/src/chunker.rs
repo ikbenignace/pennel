@@ -22,7 +22,12 @@ pub struct Chunker {
 
 impl Chunker {
     pub fn new(sample_rate: u32) -> Self {
-        Self { sample_rate, buffer: Vec::new(), buffer_start: 0, quiet: Vec::new() }
+        Self {
+            sample_rate,
+            buffer: Vec::new(),
+            buffer_start: 0,
+            quiet: Vec::new(),
+        }
     }
 
     fn frame_len(&self) -> usize {
@@ -111,7 +116,11 @@ mod tests {
         let audio = [tone(20.0), silence(1.0), tone(5.0)].concat();
         let chunks = chunker.push(&audio);
         assert_eq!(chunks.len(), 1);
-        assert!((20.0..=21.0).contains(&secs(&chunks[0])), "{}", secs(&chunks[0]));
+        assert!(
+            (20.0..=21.0).contains(&secs(&chunks[0])),
+            "{}",
+            secs(&chunks[0])
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::error::PennelError;
 
@@ -33,7 +33,8 @@ impl HistoryStore {
     pub fn open(data_dir: &Path) -> Result<Self, PennelError> {
         let audio_dir = data_dir.join("failed-audio");
         std::fs::create_dir_all(&audio_dir).map_err(PennelError::storage)?;
-        let conn = Connection::open(data_dir.join("history.sqlite")).map_err(PennelError::storage)?;
+        let conn =
+            Connection::open(data_dir.join("history.sqlite")).map_err(PennelError::storage)?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS dictations (
                 id TEXT PRIMARY KEY,
@@ -55,7 +56,13 @@ impl HistoryStore {
         self.audio_dir.join(format!("{id}.wav"))
     }
 
-    pub fn insert_done(&self, app: Option<&str>, raw: &str, text: &str, now_ms: i64) -> Result<String, PennelError> {
+    pub fn insert_done(
+        &self,
+        app: Option<&str>,
+        raw: &str,
+        text: &str,
+        now_ms: i64,
+    ) -> Result<String, PennelError> {
         let id = uuid::Uuid::now_v7().to_string();
         self.conn
             .execute(
@@ -66,7 +73,13 @@ impl HistoryStore {
         Ok(id)
     }
 
-    pub fn insert_failed(&self, app: Option<&str>, wav: &[u8], error: &str, now_ms: i64) -> Result<String, PennelError> {
+    pub fn insert_failed(
+        &self,
+        app: Option<&str>,
+        wav: &[u8],
+        error: &str,
+        now_ms: i64,
+    ) -> Result<String, PennelError> {
         let id = uuid::Uuid::now_v7().to_string();
         std::fs::write(self.audio_path(&id), wav).map_err(PennelError::storage)?;
         self.conn
@@ -102,7 +115,11 @@ impl HistoryStore {
 
     pub fn app_bundle_id(&self, id: &str) -> Result<Option<String>, PennelError> {
         self.conn
-            .query_row("SELECT app_bundle_id FROM dictations WHERE id = ?1", [id], |row| row.get(0))
+            .query_row(
+                "SELECT app_bundle_id FROM dictations WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
             .optional()
             .map_err(PennelError::storage)?
             .ok_or(PennelError::NotFound)
@@ -124,7 +141,11 @@ impl HistoryStore {
                     app_bundle_id: row.get(2)?,
                     raw: row.get(3)?,
                     text: row.get(4)?,
-                    status: if row.get::<_, String>(5)? == "failed" { HistoryStatus::Failed } else { HistoryStatus::Done },
+                    status: if row.get::<_, String>(5)? == "failed" {
+                        HistoryStatus::Failed
+                    } else {
+                        HistoryStatus::Done
+                    },
                     error: row.get(6)?,
                     has_audio: row.get(7)?,
                 })
@@ -179,12 +200,17 @@ mod tests {
     fn insert_and_list_newest_first() {
         let dir = tempfile::tempdir().unwrap();
         let store = HistoryStore::open(dir.path()).unwrap();
-        store.insert_done(Some("com.apple.TextEdit"), "een", "Een.", 1_000).unwrap();
+        store
+            .insert_done(Some("com.apple.TextEdit"), "een", "Een.", 1_000)
+            .unwrap();
         store.insert_done(None, "twee", "Twee.", 2_000).unwrap();
         let entries = store.list(10).unwrap();
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].text, "Twee.");
-        assert_eq!(entries[1].app_bundle_id.as_deref(), Some("com.apple.TextEdit"));
+        assert_eq!(
+            entries[1].app_bundle_id.as_deref(),
+            Some("com.apple.TextEdit")
+        );
         assert_eq!(entries[1].status, HistoryStatus::Done);
         assert!(!entries[1].has_audio);
     }
@@ -193,7 +219,9 @@ mod tests {
     fn failed_entry_keeps_audio_until_marked_done() {
         let dir = tempfile::tempdir().unwrap();
         let store = HistoryStore::open(dir.path()).unwrap();
-        let id = store.insert_failed(Some("com.apple.TextEdit"), b"RIFFdata", "http 503", 1_000).unwrap();
+        let id = store
+            .insert_failed(Some("com.apple.TextEdit"), b"RIFFdata", "http 503", 1_000)
+            .unwrap();
         let entry = &store.list(1).unwrap()[0];
         assert_eq!(entry.status, HistoryStatus::Failed);
         assert_eq!(entry.error.as_deref(), Some("http 503"));
@@ -213,11 +241,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = HistoryStore::open(dir.path()).unwrap();
         let now = 100 * DAY_MS;
-        let old = store.insert_failed(None, b"old", "x", now - 31 * DAY_MS).unwrap();
-        store.insert_done(None, "new", "New.", now - DAY_MS).unwrap();
+        let old = store
+            .insert_failed(None, b"old", "x", now - 31 * DAY_MS)
+            .unwrap();
+        store
+            .insert_done(None, "new", "New.", now - DAY_MS)
+            .unwrap();
         assert_eq!(store.prune(30, now).unwrap(), 1);
         assert_eq!(store.list(10).unwrap().len(), 1);
-        assert!(!dir.path().join("failed-audio").join(format!("{old}.wav")).exists());
+        assert!(
+            !dir.path()
+                .join("failed-audio")
+                .join(format!("{old}.wav"))
+                .exists()
+        );
     }
 
     #[test]
@@ -233,8 +270,14 @@ mod tests {
     fn unknown_id_is_not_found() {
         let dir = tempfile::tempdir().unwrap();
         let store = HistoryStore::open(dir.path()).unwrap();
-        assert_eq!(store.failed_audio("nope").unwrap_err(), PennelError::NotFound);
-        assert_eq!(store.mark_done("nope", "a", "b").unwrap_err(), PennelError::NotFound);
+        assert_eq!(
+            store.failed_audio("nope").unwrap_err(),
+            PennelError::NotFound
+        );
+        assert_eq!(
+            store.mark_done("nope", "a", "b").unwrap_err(),
+            PennelError::NotFound
+        );
     }
 
     #[test]
@@ -244,6 +287,11 @@ mod tests {
         let id = store.insert_failed(None, b"a", "x", 0).unwrap();
         store.delete(&id).unwrap();
         assert!(store.list(10).unwrap().is_empty());
-        assert!(!dir.path().join("failed-audio").join(format!("{id}.wav")).exists());
+        assert!(
+            !dir.path()
+                .join("failed-audio")
+                .join(format!("{id}.wav"))
+                .exists()
+        );
     }
 }

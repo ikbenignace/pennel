@@ -55,17 +55,26 @@ pub fn is_router_model(id: String) -> bool {
 }
 
 fn per_million(per_token: Option<&String>) -> Option<f64> {
-    per_token?.parse::<f64>().ok().filter(|p| *p >= 0.0).map(|p| (p * 1_000_000.0 * 1000.0).round() / 1000.0)
+    per_token?
+        .parse::<f64>()
+        .ok()
+        .filter(|p| *p >= 0.0)
+        .map(|p| (p * 1_000_000.0 * 1000.0).round() / 1000.0)
 }
 
 fn convert(raw: RawModel) -> RemoteModel {
     let lower = raw.id.to_lowercase();
-    let audio_input = raw.architecture.as_ref().is_some_and(|a| a.input_modalities.iter().any(|m| m == "audio"))
+    let audio_input = raw
+        .architecture
+        .as_ref()
+        .is_some_and(|a| a.input_modalities.iter().any(|m| m == "audio"))
         || SPEECH_HINTS.iter().any(|hint| lower.contains(hint));
     RemoteModel {
         is_router: is_router(&raw.id),
         prompt_price_per_million: per_million(raw.pricing.as_ref().and_then(|p| p.prompt.as_ref())),
-        completion_price_per_million: per_million(raw.pricing.as_ref().and_then(|p| p.completion.as_ref())),
+        completion_price_per_million: per_million(
+            raw.pricing.as_ref().and_then(|p| p.completion.as_ref()),
+        ),
         id: raw.id,
         name: raw.name,
         context_length: raw.context_length,
@@ -75,20 +84,32 @@ fn convert(raw: RawModel) -> RemoteModel {
 
 /// Lists a provider's models via the OpenAI-compatible `GET /models`; OpenRouter adds prices and context.
 #[uniffi::export]
-pub fn provider_models(base_url: String, api_key: Option<String>) -> Result<Vec<RemoteModel>, PennelError> {
+pub fn provider_models(
+    base_url: String,
+    api_key: Option<String>,
+) -> Result<Vec<RemoteModel>, PennelError> {
     let url = format!("{}/models", base_url.trim_end_matches('/'));
     let mut request = http::agent(TIMEOUT_SECS).get(&url);
     if let Some(key) = api_key.filter(|k| !k.is_empty()) {
         request = request.header("Authorization", format!("Bearer {key}"));
     }
-    let mut response = request.call().map_err(|e| PennelError::Network { message: e.to_string() })?;
+    let mut response = request.call().map_err(|e| PennelError::Network {
+        message: e.to_string(),
+    })?;
     let status = response.status().as_u16();
-    let body = response.body_mut().read_to_string().map_err(|e| PennelError::Network { message: e.to_string() })?;
+    let body = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|e| PennelError::Network {
+            message: e.to_string(),
+        })?;
     if !(200..300).contains(&status) {
         return Err(http::map_status(status, &body));
     }
     let list: ModelList =
-        serde_json::from_str(&body).map_err(|e| PennelError::InvalidResponse { message: e.to_string() })?;
+        serde_json::from_str(&body).map_err(|e| PennelError::InvalidResponse {
+            message: e.to_string(),
+        })?;
     let mut models: Vec<RemoteModel> = list.data.into_iter().map(convert).collect();
     models.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(models)
@@ -100,7 +121,12 @@ mod tests {
 
     fn serve(status: usize, body: &str) -> mockito::ServerGuard {
         let mut server = mockito::Server::new();
-        server.mock("GET", "/models").match_header("authorization", "Bearer k").with_status(status).with_body(body).create();
+        server
+            .mock("GET", "/models")
+            .match_header("authorization", "Bearer k")
+            .with_status(status)
+            .with_body(body)
+            .create();
         server
     }
 
@@ -129,19 +155,33 @@ mod tests {
 
     #[test]
     fn plain_openai_models_list() {
-        let server = serve(200, r#"{"data":[{"id":"whisper-large-v3-turbo"},{"id":"llama-3.3-70b-versatile"}]}"#);
+        let server = serve(
+            200,
+            r#"{"data":[{"id":"whisper-large-v3-turbo"},{"id":"llama-3.3-70b-versatile"}]}"#,
+        );
         let models = provider_models(server.url(), Some("k".into())).unwrap();
         assert_eq!(models[0].id, "llama-3.3-70b-versatile");
         assert!(!models[0].audio_input);
         assert!(models[1].audio_input);
-        assert!(models.iter().all(|m| m.prompt_price_per_million.is_none() && m.context_length.is_none()));
+        assert!(
+            models
+                .iter()
+                .all(|m| m.prompt_price_per_million.is_none() && m.context_length.is_none())
+        );
     }
 
     #[test]
     fn flags_routers() {
-        let server = serve(200, r#"{"data":[{"id":"openrouter/free"},{"id":"openrouter/auto"},{"id":"openai/gpt-4.1-mini"}]}"#);
+        let server = serve(
+            200,
+            r#"{"data":[{"id":"openrouter/free"},{"id":"openrouter/auto"},{"id":"openai/gpt-4.1-mini"}]}"#,
+        );
         let models = provider_models(server.url(), Some("k".into())).unwrap();
-        let routers: Vec<&str> = models.iter().filter(|m| m.is_router).map(|m| m.id.as_str()).collect();
+        let routers: Vec<&str> = models
+            .iter()
+            .filter(|m| m.is_router)
+            .map(|m| m.id.as_str())
+            .collect();
         assert_eq!(routers, ["openrouter/auto", "openrouter/free"]);
     }
 
@@ -149,6 +189,12 @@ mod tests {
     fn http_error_maps() {
         let server = serve(401, r#"{"error":{"message":"bad key"}}"#);
         let err = provider_models(server.url(), Some("k".into())).unwrap_err();
-        assert_eq!(err, PennelError::Http { status: 401, message: "bad key".into() });
+        assert_eq!(
+            err,
+            PennelError::Http {
+                status: 401,
+                message: "bad key".into()
+            }
+        );
     }
 }

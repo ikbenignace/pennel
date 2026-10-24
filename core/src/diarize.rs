@@ -18,7 +18,9 @@ pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, PennelEr
     if !model_path.exists() {
         return Err(PennelError::ModelNotDownloaded);
     }
-    let error = |e: transcribe_cpp::Error| PennelError::InvalidResponse { message: format!("sprekers herkennen: {e}") };
+    let error = |e: transcribe_cpp::Error| PennelError::InvalidResponse {
+        message: format!("sprekers herkennen: {e}"),
+    };
     let model = Model::load(model_path).map_err(error)?;
     let mut session = model.diarize_session().map_err(error)?;
     let turns = session.run(samples, &Default::default()).map_err(error)?;
@@ -32,13 +34,21 @@ pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, PennelEr
 /// Gives each "Anderen" segment the voice that overlaps it most. Transcripts store start times only, so a
 /// segment ends at the next "Anderen" start, at 30 s, or when its words would have been spoken, whichever is first.
 pub fn assign_voices(segments: &mut [Segment], turns: &[Turn]) {
-    let starts: Vec<u64> = segments.iter().filter(|s| s.speaker == Speaker::Others).map(|s| s.start_ms).collect();
+    let starts: Vec<u64> = segments
+        .iter()
+        .filter(|s| s.speaker == Speaker::Others)
+        .map(|s| s.start_ms)
+        .collect();
     for segment in segments.iter_mut().filter(|s| s.speaker == Speaker::Others) {
         if segment.failed || segment.text.trim().is_empty() {
             segment.voice = None;
             continue;
         }
-        let next = starts.iter().copied().filter(|s| *s > segment.start_ms).min();
+        let next = starts
+            .iter()
+            .copied()
+            .filter(|s| *s > segment.start_ms)
+            .min();
         let words = segment.text.split_whitespace().count() as u64;
         let cap = segment.start_ms + MAX_SEGMENT_MS.min(1_000 + words * MS_PER_WORD);
         let end = next.map_or(cap, |n| n.min(cap)).max(segment.end_ms);
@@ -53,7 +63,10 @@ pub fn assign_voices(segments: &mut [Segment], turns: &[Turn]) {
                 None => overlap.push((voice, shared)),
             }
         }
-        segment.voice = overlap.into_iter().max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0))).map(|(voice, _)| voice);
+        segment.voice = overlap
+            .into_iter()
+            .max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0)))
+            .map(|(voice, _)| voice);
     }
 }
 
@@ -62,7 +75,14 @@ mod tests {
     use super::*;
 
     fn others(start_ms: u64, text: &str) -> Segment {
-        Segment { start_ms, end_ms: start_ms, speaker: Speaker::Others, text: text.into(), failed: false, voice: None }
+        Segment {
+            start_ms,
+            end_ms: start_ms,
+            speaker: Speaker::Others,
+            text: text.into(),
+            failed: false,
+            voice: None,
+        }
     }
 
     #[test]
@@ -70,11 +90,20 @@ mod tests {
         let long = "woord ".repeat(30);
         let mut segments = vec![
             others(0, &long),
-            Segment { speaker: Speaker::Me, ..others(3_000, "ik") },
+            Segment {
+                speaker: Speaker::Me,
+                ..others(3_000, "ik")
+            },
             others(5_000, &long),
             others(15_000, &long),
         ];
-        let turns = [(0, 4_600, 1), (5_100, 8_900, 2), (9_500, 14_200, 1), (14_600, 15_100, 2), (15_100, 18_500, 3)];
+        let turns = [
+            (0, 4_600, 1),
+            (5_100, 8_900, 2),
+            (9_500, 14_200, 1),
+            (14_600, 15_100, 2),
+            (15_100, 18_500, 3),
+        ];
         assign_voices(&mut segments, &turns);
         let voices: Vec<Option<u32>> = segments.iter().map(|s| s.voice).collect();
         assert_eq!(voices, [Some(1), None, Some(1), Some(3)]);
@@ -105,7 +134,13 @@ mod tests {
 
     #[test]
     fn failed_segments_get_no_voice() {
-        let mut segments = vec![Segment { failed: true, ..others(0, "") }, others(5_000, "b")];
+        let mut segments = vec![
+            Segment {
+                failed: true,
+                ..others(0, "")
+            },
+            others(5_000, "b"),
+        ];
         assign_voices(&mut segments, &[(0, 10_000, 1)]);
         assert_eq!(segments[0].voice, None);
         assert_eq!(segments[1].voice, Some(1));
@@ -119,7 +154,9 @@ mod tests {
         let model = std::path::PathBuf::from(home)
             .join("Library/Application Support/Pennel/models")
             .join(format!("{}.gguf", crate::models::DIARIZER_ID));
-        let wav = std::fs::read(std::env::var("DIAR_WAV").unwrap_or("/tmp/diar/meeting.wav".into())).unwrap();
+        let wav =
+            std::fs::read(std::env::var("DIAR_WAV").unwrap_or("/tmp/diar/meeting.wav".into()))
+                .unwrap();
         let (samples, _) = crate::wav::decode_wav(&wav).unwrap();
         let turns = diarize(&model, &samples).unwrap();
         let voices: std::collections::HashSet<u32> = turns.iter().map(|t| t.2).collect();
