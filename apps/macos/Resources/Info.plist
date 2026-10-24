@@ -28,6 +28,8 @@
 	<string>14.4</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Pennel gebruikt Apple-dicteren op je Mac om wat je zegt om te zetten naar tekst, als je die provider kiest.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Pennel gebruikt je microfoon om wat je dicteert om te zetten naar tekst.</string>
 	<key>NSAudioCaptureUsageDescription</key>

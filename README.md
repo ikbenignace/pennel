@@ -5,7 +5,7 @@
 - **Dictate anywhere.** Hold `fn`, speak, let go: cleaned-up text appears where your cursor is. Fillers, false starts and self-corrections are removed; style adapts per app (casual in Slack, formal in Mail, literal in your terminal). Double-tap for hands-free.
 - **Commands.** Add `⇧` while speaking: rewrite the selected text ("make this more formal", "translate to English") or write something new ("draft a short mail saying I'm late").
 - **Meetings.** Records your microphone and the call's system audio (Teams, Meet, Zoom, …) as separate tracks, detects calls and asks to record, transcribes in chunks, splits speakers and lets you name them, then writes notes or a summary from your own templates. Search everything, ask questions with cited answers, export to Notion/Slack/Mail.
-- **Private first.** Run speech models locally (Whisper, Parakeet and more, via Metal) or bring your own provider (OpenAI, Groq, OpenRouter, Mistral, Ollama, LM Studio, any OpenAI-compatible endpoint). Meetings are plain Markdown files in a folder you choose. No account, no telemetry. Keys live in the Keychain.
+- **Private first.** Run speech models locally (Apple's own on-device dictation model on macOS 26+, or Whisper, Parakeet and more via Metal) or bring your own provider (OpenAI, Groq, OpenRouter, Mistral, Ollama, LM Studio, any OpenAI-compatible endpoint). Meetings are plain Markdown files in a folder you choose. No account, no telemetry. Keys live in the Keychain.
 - **Light.** ~14 MB app, ~16 MB memory at rest. Rust core, native Swift UI.
 
 Requires macOS 14.4+ on Apple Silicon.

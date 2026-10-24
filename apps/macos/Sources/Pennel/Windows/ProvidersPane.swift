@@ -22,6 +22,7 @@ extension ProviderKind {
         case .copilot: "GitHub Copilot"
         case .cursorAgent: "Cursor"
         case .geminiCli: "Gemini CLI"
+        case .appleSpeech: "Apple-dicteren (op deze Mac)"
         }
     }
 
@@ -85,12 +86,18 @@ struct ProvidersPane: View {
     }
 
     private var addableKinds: [ProviderKind] {
-        let hasLocal = state.settings.providers.contains { $0.kind == .local }
-        return ProviderKind.all.filter { $0 != .local || !hasLocal }
+        let present = Set(state.settings.providers.map(\.kind).filter { $0 == .local || $0 == .appleSpeech })
+        var kinds = ProviderKind.all
+        if #available(macOS 26, *) { kinds.append(.appleSpeech) }
+        return kinds.filter { !present.contains($0) }
     }
 
     private func ready(_ account: ProviderAccount) -> Bool {
         if account.kind == .local { return !state.downloads.downloaded.isEmpty }
+        if account.kind == .appleSpeech {
+            if #available(macOS 26, *) { return true }
+            return false
+        }
         if isCliAgent(kind: account.kind) { return FileManager.default.isExecutableFile(atPath: account.baseUrl) }
         return !requiresKey(kind: account.kind) || state.hasKey(account)
     }
@@ -149,6 +156,11 @@ private struct ProviderDetail: View {
                 }
                 if isCliAgent(kind: account.kind) {
                     CliAgentDetail(account: account)
+                } else if account.kind == .appleSpeech {
+                    Text("Het dicteermodel van macOS zelf. Gratis, volledig offline en zonder download: macOS beheert de taalbestanden. Werkt voor dicteren en meetings vanaf macOS 26.")
+                        .font(.figtree(12))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else if account.kind != .local {
                     FieldRow(label: "Base URL") {
                         TextField("https://…", text: $account.baseUrl).textFieldStyle(.roundedBorder)
