@@ -113,6 +113,7 @@ struct MeetingDetailView: View {
     @State private var message: String?
     @State private var highlightMs: UInt64?
     @State private var scrollToken = UUID()
+    @State private var copied: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -173,6 +174,20 @@ struct MeetingDetailView: View {
                 Button(working ? "Bezig…" : (markdown == nil ? "Samenvatten" : "Opnieuw genereren"), action: regenerate)
                     .disabled(working)
                 Spacer()
+                if let copied {
+                    Text(copied).font(.figtree(11)).foregroundStyle(Theme.muted)
+                }
+                Menu("Delen") {
+                    Button("Kopieer opgemaakt") { share { MeetingShare.copyFormatted($0); confirm("Gekopieerd") } }
+                    Button("Kopieer als Markdown") { share { MeetingShare.copyMarkdown($0); confirm("Gekopieerd") } }
+                    Button("Kopieer met transcript") {
+                        share(transcript: true) { MeetingShare.copyFormatted($0); confirm("Gekopieerd met transcript") }
+                    }
+                    Divider()
+                    Button("Mail…") { share { MeetingShare.mail($0) } }
+                    Button("Deel…") { share { MeetingShare.share($0, from: nil) } }
+                }
+                .fixedSize()
                 Button("Toon in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: state.engine.meetingDir(id: meetingId))])
                 }
@@ -203,6 +218,22 @@ struct MeetingDetailView: View {
         let date = ISO8601DateFormatter().date(from: info.startIso)
         let when = date?.formatted(date: .complete, time: .shortened) ?? info.startIso
         return info.durationMin > 0 ? "\(when) · \(info.durationMin) min" : when
+    }
+
+    private func share(transcript: Bool = false, _ action: (MeetingExport) -> Void) {
+        do {
+            action(try state.engine.exportMeeting(id: meetingId, includeTranscript: transcript))
+        } catch {
+            message = "Exporteren mislukt: \(error)"
+        }
+    }
+
+    private func confirm(_ text: String) {
+        copied = text
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if copied == text { copied = nil }
+        }
     }
 
     private func consumeJump() {
