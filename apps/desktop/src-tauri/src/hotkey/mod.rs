@@ -1,7 +1,6 @@
 //! System-wide listening for the dictation key. Platform hooks translate raw key events into [`Key`]s;
 //! [`TriggerTracker`] turns those into edges for the gesture, interrupts and Shift changes.
 #![cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
-#![cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
