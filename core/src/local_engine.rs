@@ -162,6 +162,22 @@ mod tests {
         assert!(!engine.is_loaded());
     }
 
+    /// Downloads Parakeet v3 into the app's model folder if missing; run with `cargo test -- --ignored`.
+    #[test]
+    #[ignore]
+    fn real_parakeet_transcribes() {
+        let home = std::env::var("HOME").unwrap();
+        let store = crate::models::ModelStore::new(&PathBuf::from(home).join("Library/Application Support/Musli"));
+        struct Quiet;
+        impl crate::models::DownloadListener for Quiet {
+            fn on_progress(&self, _: u64, _: u64) {}
+        }
+        let started = Instant::now();
+        store.download("parakeet-tdt-0.6b-v3", &Quiet, &std::sync::atomic::AtomicBool::new(false)).unwrap();
+        eprintln!("download ready in {:?}", started.elapsed());
+        real_model_transcribes("parakeet-tdt-0.6b-v3.gguf");
+    }
+
     /// Needs the legacy small model in the app's model folder; run with `cargo test -- --ignored`.
     #[test]
     #[ignore]

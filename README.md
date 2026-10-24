@@ -41,6 +41,16 @@ MUSLI_SIGN_IDENTITY="Musli Local Dev" make app
 
 Houd **fn** ingedrukt om te praten, laat los en de tekst verschijnt waar je cursor staat. Twee keer tikken = handenvrij.
 
+## Lokale modellen
+
+Lokale spraakherkenning draait via [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) met Metal: Whisper, Parakeet, Canary, Cohere, Qwen3-ASR en meer. De lijst in **Providers → Lokaal** komt uit de meegebakken catalogus van [`@handy-computer/models`](https://github.com/handy-computer/models) (`core/src/catalog.json`), met per model snelheid, nauwkeurigheid per taal en ondersteunde talen. Bijwerken:
+
+```sh
+scripts/update-catalog.sh 0.2.2
+```
+
+Op een M2 Pro: Parakeet TDT 0.6B v3 transcribeert een korte zin in ~0,7 s (inclusief laden), Whisper small in ~0,6 s. App: 13 MB, ~16 MB geheugen in rust.
+
 ## Waar staat wat
 
 - Instellingen en geschiedenis: `~/Library/Application Support/Musli/`
