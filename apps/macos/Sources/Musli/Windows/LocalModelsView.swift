@@ -4,13 +4,36 @@ import SwiftUI
 
 struct LocalModelsView: View {
     @Bindable var state: AppState
+    @State private var showAll = false
+    @State private var pendingDelete: LocalModel?
 
     var body: some View {
+        let downloads = state.downloads
         PaneSection(title: "Modellen", subtitle: "Draaien volledig op je Mac. Je audio verlaat je computer niet.") {
-            ForEach(state.downloads.models, id: \.id) { model in
-                row(model)
-                if model.id != state.downloads.models.last?.id { Divider().overlay(Theme.line) }
+            HStack(spacing: 12) {
+                Picker("Nauwkeurigheid voor", selection: languageBinding) {
+                    ForEach(LanguageNames.common, id: \.self) { Text(LanguageNames.name($0)).tag($0) }
+                }
+                .frame(maxWidth: 260)
+                Toggle("Alleen deze taal", isOn: supportedOnlyBinding)
+                    .toggleStyle(.checkbox)
             }
+            .font(.figtree(12))
+            Text("Scores uit onafhankelijke benchmarks: snelheid op Apple Silicon, nauwkeurigheid in de gekozen taal (hoger is beter).")
+                .font(.figtree(11))
+                .foregroundStyle(Theme.muted)
+
+            let recommended = downloads.visible.filter { $0.recommended || isDownloaded($0) }
+            let others = downloads.visible.filter { !$0.recommended && !isDownloaded($0) }
+            list(recommended)
+            if !others.isEmpty {
+                DisclosureGroup(isExpanded: $showAll) {
+                    list(others)
+                } label: {
+                    Text("Alle modellen (\(others.count))").font(.figtree(12, weight: .medium))
+                }
+            }
+
             FieldRow(label: "Vrijgeven na") {
                 Picker("", selection: $state.settings.localUnloadMinutes) {
                     Text("1 min").tag(UInt32(1))
@@ -25,44 +48,42 @@ struct LocalModelsView: View {
                 .font(.figtree(11))
                 .foregroundStyle(Theme.muted)
         }
+        .onAppear { downloads.scoreLanguage = state.settings.language ?? "nl" }
+        .confirmationDialog(
+            "Dit model is in gebruik. Verwijderen?",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            presenting: pendingDelete
+        ) { model in
+            Button("Verwijder", role: .destructive) { downloads.delete(model.id) }
+        } message: { _ in
+            Text("Dicteren schakelt over naar een ander gedownload model, of werkt niet meer tot je er een downloadt.")
+        }
     }
 
-    private func row(_ model: LocalModel) -> some View {
-        let downloads = state.downloads
-        let inUse = isInUse(model)
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(model.name).font(.figtree(13, weight: .medium))
-                        if inUse {
-                            Text("In gebruik")
-                                .font(.figtree(10, weight: .medium))
-                                .foregroundStyle(Theme.accent)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 1)
-                                .background(Capsule().stroke(Theme.accent.opacity(0.5)))
-                        }
-                    }
-                    Text("\(model.description) · \(megabytes(model.sizeBytes))")
-                        .font(.figtree(11))
-                        .foregroundStyle(Theme.muted)
-                }
-                Spacer()
-                actions(model, inUse: inUse)
+    private func list(_ models: [LocalModel]) -> some View {
+        ForEach(models, id: \.id) { model in
+            ModelCard(
+                model: model,
+                inUse: isInUse(model),
+                progress: state.downloads.progress[model.id],
+                error: state.downloads.errors[model.id]
+            ) {
+                actions(model)
             }
-            if let progress = downloads.progress[model.id] {
-                ProgressView(value: progress).tint(Theme.accent)
-            }
-            if let error = downloads.errors[model.id] {
-                Text(error).font(.figtree(11)).foregroundStyle(Theme.accent)
-            }
+            if model.id != models.last?.id { Divider().overlay(Theme.line) }
         }
-        .padding(.vertical, 4)
+    }
+
+    private var languageBinding: Binding<String> {
+        Binding(get: { state.downloads.scoreLanguage }, set: { state.downloads.scoreLanguage = $0 })
+    }
+
+    private var supportedOnlyBinding: Binding<Bool> {
+        Binding(get: { state.downloads.supportedOnly }, set: { state.downloads.supportedOnly = $0 })
     }
 
     @ViewBuilder
-    private func actions(_ model: LocalModel, inUse: Bool) -> some View {
+    private func actions(_ model: LocalModel) -> some View {
         let downloads = state.downloads
         if downloads.isDownloading(model.id) {
             Button("Annuleren") { downloads.cancel(model.id) }
@@ -70,8 +91,8 @@ struct LocalModelsView: View {
             switch downloads.states[model.id] ?? .notDownloaded {
             case .downloaded:
                 HStack(spacing: 8) {
-                    if !inUse { Button("Gebruik") { use(model) } }
-                    Button("Verwijder") { downloads.delete(model.id) }
+                    if !isInUse(model) { Button("Gebruik") { use(model) } }
+                    Button("Verwijder") { delete(model) }
                 }
             case .partial:
                 HStack(spacing: 8) {
@@ -84,16 +105,22 @@ struct LocalModelsView: View {
         }
     }
 
+    private func isDownloaded(_ model: LocalModel) -> Bool {
+        state.downloads.states[model.id] == .downloaded
+    }
+
     private func isInUse(_ model: LocalModel) -> Bool {
-        state.account(state.settings.dictationStt.providerId)?.kind == .local && state.settings.dictationStt.model == model.id
+        [state.settings.dictationStt, state.settings.meetingStt].contains { choice in
+            state.account(choice.providerId)?.kind == .local && choice.model == model.id
+        }
+    }
+
+    private func delete(_ model: LocalModel) {
+        if isInUse(model) { pendingDelete = model } else { state.downloads.delete(model.id) }
     }
 
     private func use(_ model: LocalModel) {
         guard let local = state.settings.providers.first(where: { $0.kind == .local }) else { return }
         state.settings.dictationStt = ModelChoice(providerId: local.id, model: model.id)
-    }
-
-    private func megabytes(_ bytes: UInt64) -> String {
-        "\(bytes / 1_000_000) MB"
     }
 }

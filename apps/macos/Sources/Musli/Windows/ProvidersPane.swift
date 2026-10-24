@@ -188,16 +188,6 @@ enum ConnectionTest {
         }
     }
 
-    static func modelIds(baseUrl: String, apiKey: String?) async -> [String] {
-        guard let url = URL(string: baseUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/models"),
-              let (data, response) = try? await URLSession.shared.data(for: request(url, apiKey ?? "")),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let items = json["data"] as? [[String: Any]]
-        else { return [] }
-        return items.compactMap { $0["id"] as? String }.sorted()
-    }
-
     private static func request(_ url: URL, _ apiKey: String) -> URLRequest {
         var request = URLRequest(url: url, timeoutInterval: 10)
         if !apiKey.isEmpty { request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }

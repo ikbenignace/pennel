@@ -22,7 +22,11 @@ private final class ProgressRelay: DownloadListener, @unchecked Sendable {
 @MainActor
 @Observable
 final class ModelDownloads {
-    let models = localModels()
+    /// Downloaded legacy files included; the screen shows `visible`, pickers use `models`.
+    private(set) var models: [LocalModel] = []
+    private(set) var visible: [LocalModel] = []
+    var scoreLanguage = "nl" { didSet { reload() } }
+    var supportedOnly = true { didSet { reload() } }
     private(set) var states: [String: ModelState] = [:]
     private(set) var progress: [String: Double] = [:]
     private(set) var errors: [String: String] = [:]
@@ -31,7 +35,7 @@ final class ModelDownloads {
 
     init(engine: MusliEngine) {
         self.engine = engine
-        refresh()
+        reload()
     }
 
     var downloaded: [LocalModel] {
@@ -42,10 +46,16 @@ final class ModelDownloads {
         progress[id] != nil
     }
 
-    func refresh() {
+    func reload() {
+        models = engine.localModels(language: scoreLanguage, supportedOnly: false)
+        visible = engine.localModels(language: scoreLanguage, supportedOnly: supportedOnly)
         for model in models {
             states[model.id] = engine.modelState(id: model.id)
         }
+    }
+
+    func refresh() {
+        reload()
     }
 
     func start(_ id: String) {

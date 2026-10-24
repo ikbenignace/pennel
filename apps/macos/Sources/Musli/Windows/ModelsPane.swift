@@ -38,7 +38,7 @@ private struct TaskModelEditor: View {
     let subtitle: String
     let task: ProviderTask
     @Binding var choice: ModelChoice
-    @State private var available: [String] = []
+    @State private var available: [RemoteModel] = []
 
     var body: some View {
         PaneSection(title: title, subtitle: subtitle) {
@@ -57,12 +57,14 @@ private struct TaskModelEditor: View {
                     TextField(account.map { defaultModel(kind: $0.kind, task: task) } ?? "model", text: $choice.model)
                         .textFieldStyle(.roundedBorder)
                     if !available.isEmpty {
-                        Menu("Kies") {
-                            ForEach(available, id: \.self) { id in Button(id) { choice.model = id } }
-                        }
-                        .frame(width: 70)
+                        RemoteModelPicker(models: available, task: task, selection: $choice.model)
                     }
                 }
+            }
+            if account?.kind != .local, isRouterModel(id: choice.model) {
+                Text("Kiest per aanvraag een willekeurig model — opkuisen wordt onbetrouwbaar.")
+                    .font(.figtree(11))
+                    .foregroundStyle(Theme.accent)
             }
         }
         .task(id: choice.providerId) { await loadModels() }
@@ -106,6 +108,7 @@ private struct TaskModelEditor: View {
     private func loadModels() async {
         available = []
         guard let account, account.kind != .local, !account.baseUrl.isEmpty else { return }
-        available = await ConnectionTest.modelIds(baseUrl: account.baseUrl, apiKey: Keychain.get(account.id))
+        let (baseUrl, key) = (account.baseUrl, Keychain.get(account.id))
+        available = await Task.detached { (try? providerModels(baseUrl: baseUrl, apiKey: key)) ?? [] }.value
     }
 }
