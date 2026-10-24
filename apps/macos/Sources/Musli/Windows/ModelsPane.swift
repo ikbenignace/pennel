@@ -109,6 +109,8 @@ private struct TaskModelEditor: View {
         available = []
         guard let account, account.kind != .local, !account.baseUrl.isEmpty else { return }
         let (baseUrl, key) = (account.baseUrl, Keychain.get(account.id))
-        available = await Task.detached { (try? providerModels(baseUrl: baseUrl, apiKey: key)) ?? [] }.value
+        let models = await Task.detached { (try? providerModels(baseUrl: baseUrl, apiKey: key)) ?? [] }.value
+        guard !Task.isCancelled else { return }
+        available = models
     }
 }

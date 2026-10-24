@@ -6,6 +6,7 @@ struct LocalModelsView: View {
     @Bindable var state: AppState
     @State private var showAll = false
     @State private var pendingDelete: LocalModel?
+    @State private var languageInitialized = false
 
     var body: some View {
         let downloads = state.downloads
@@ -48,7 +49,11 @@ struct LocalModelsView: View {
                 .font(.figtree(11))
                 .foregroundStyle(Theme.muted)
         }
-        .onAppear { downloads.scoreLanguage = state.settings.language ?? "nl" }
+        .onAppear {
+            guard !languageInitialized else { return }
+            languageInitialized = true
+            downloads.scoreLanguage = state.settings.language ?? "nl"
+        }
         .confirmationDialog(
             "Dit model is in gebruik. Verwijderen?",
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),

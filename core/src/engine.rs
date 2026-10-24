@@ -71,6 +71,19 @@ struct Transcript {
     cleanup: CleanupStatus,
 }
 
+/// Leading dictionary terms whose comma-joined length fits in `max_chars`.
+fn capped_terms(terms: &[String], max_chars: usize) -> Vec<String> {
+    let mut used = 0;
+    terms
+        .iter()
+        .take_while(|term| {
+            used += term.chars().count() + 2;
+            used <= max_chars + 2
+        })
+        .cloned()
+        .collect()
+}
+
 fn now_ms() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
 }
@@ -336,7 +349,8 @@ impl MusliEngine {
         if account.kind == ProviderKind::Local {
             let path = self.models.path(&model).ok_or(MusliError::ModelNotDownloaded)?;
             let (samples, _) = decode_wav(wav).ok_or(MusliError::InvalidResponse { message: "bad audio".into() })?;
-            return self.local.transcribe(&path, &samples, settings.language.as_deref(), &settings.dictionary);
+            let vocabulary = capped_terms(&settings.dictionary, MAX_PROMPT_CHARS);
+            return self.local.transcribe(&path, &samples, settings.language.as_deref(), &vocabulary);
         }
         let key = keys.get(&account);
         if requires_key(account.kind) && key.is_none() {
@@ -614,5 +628,15 @@ mod tests {
         settings.mode = DictationMode::Fast;
         engine.update_settings(settings).unwrap();
         assert_eq!(MusliEngine::new(path).unwrap().settings().mode, DictationMode::Fast);
+    }
+
+    #[test]
+    fn local_vocabulary_is_capped() {
+        let terms: Vec<String> = (0..300).map(|i| format!("term{i:03}")).collect();
+        let capped = capped_terms(&terms, MAX_PROMPT_CHARS);
+        assert!(capped.join(", ").chars().count() <= MAX_PROMPT_CHARS);
+        assert_eq!(capped[0], "term000");
+        assert!(capped.len() > 50);
+        assert_eq!(capped_terms(&terms[..2], MAX_PROMPT_CHARS), terms[..2]);
     }
 }

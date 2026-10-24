@@ -34,9 +34,14 @@ pub(crate) fn run_options(
     supports_vocabulary: bool,
     supports_context: bool,
 ) -> RunOptions {
+    let base = |code: &str| code.split(['-', '_']).next().unwrap_or(code).to_lowercase();
     let language = language
-        .filter(|lang| model_languages.is_empty() || model_languages.iter().any(|l| l == lang))
-        .map(str::to_owned);
+        .and_then(|lang| {
+            if model_languages.is_empty() {
+                return Some(lang.to_owned());
+            }
+            model_languages.iter().find(|l| base(l) == base(lang)).cloned()
+        });
     let mut options = RunOptions { language, ..Default::default() };
     if !vocabulary.is_empty() {
         if supports_vocabulary {
@@ -97,9 +102,16 @@ impl LocalEngine {
         let model = loaded.as_mut().expect("loaded above");
         let options =
             run_options(language, &model.languages, vocabulary, model.supports_vocabulary, model.supports_context);
-        let transcript = model.session.run(samples, &options).map_err(engine_error)?;
+        let result = model.session.run(samples, &options);
         model.last_used = Instant::now();
-        Ok(transcript.text.trim().to_owned())
+        match result {
+            Ok(transcript) => Ok(transcript.text.trim().to_owned()),
+            // Repetition loops and truncation still carry the usable text decoded so far.
+            Err(e) => match e.partial() {
+                Some(partial) if !partial.text.trim().is_empty() => Ok(partial.text.trim().to_owned()),
+                _ => Err(engine_error(e)),
+            },
+        }
     }
 }
 
@@ -131,6 +143,7 @@ mod tests {
         assert_eq!(run_options(Some("nl"), &langs(&["nl", "en"]), &[], false, false).language.as_deref(), Some("nl"));
         assert_eq!(run_options(Some("nl"), &[], &[], false, false).language.as_deref(), Some("nl"));
         assert_eq!(run_options(None, &langs(&["nl"]), &[], false, false).language, None);
+        assert_eq!(run_options(Some("nl"), &langs(&["en-US", "nl-NL"]), &[], false, false).language.as_deref(), Some("nl-NL"));
     }
 
     #[test]

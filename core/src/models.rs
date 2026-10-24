@@ -190,8 +190,11 @@ impl ModelStore {
         models
     }
 
+    /// Recommended models first, so a fallback after deleting the active model stays multilingual.
     pub fn downloaded(&self) -> Vec<String> {
-        self.catalog.iter().filter(|e| self.final_path(&e.id).exists()).map(|e| e.id.clone()).collect()
+        let mut ids: Vec<&ModelEntry> = self.catalog.iter().filter(|e| self.final_path(&e.id).exists()).collect();
+        ids.sort_by_key(|e| recommended_rank(&e.id).or_else(|| e.scores.and_then(|s| recommended_rank(&s.id))).unwrap_or(usize::MAX));
+        ids.into_iter().map(|e| e.id.clone()).collect()
     }
 
     /// Downloads in bounded Range requests so a stalled connection times out instead of hanging,
@@ -418,6 +421,17 @@ mod tests {
         let small = models.iter().find(|m| m.id == "whisper-small").unwrap();
         assert!(legacy.legacy);
         assert_eq!(legacy.accuracy, small.accuracy);
+    }
+
+    #[test]
+    fn downloaded_lists_recommended_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        for file in ["parakeet-unified-en-0.6b.gguf", "whisper-small-q5_1.bin", "parakeet-tdt-0.6b-v3.gguf"] {
+            std::fs::write(dir.path().join("models").join(file), b"x").unwrap();
+        }
+        assert_eq!(store.downloaded(), ["parakeet-tdt-0.6b-v3", "whisper-small-q5_1", "parakeet-unified-en-0.6b"]);
     }
 
     #[test]
