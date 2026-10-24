@@ -17,7 +17,10 @@ enum AudioDecoder {
             guard let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: chunk) else { break }
             var readError: Error?
             let status = converter.convert(to: output, error: nil) { frames, inputStatus in
-                guard let input = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames) else {
+                // AVAudioFile throws at end of file instead of reading zero frames.
+                guard file.framePosition < file.length,
+                      let input = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames)
+                else {
                     inputStatus.pointee = .endOfStream
                     return nil
                 }

@@ -108,7 +108,7 @@ mod tests {
         let model = std::path::PathBuf::from(home)
             .join("Library/Application Support/Musli/models")
             .join(format!("{}.gguf", crate::models::DIARIZER_ID));
-        let wav = std::fs::read("/tmp/diar/meeting.wav").unwrap();
+        let wav = std::fs::read(std::env::var("DIAR_WAV").unwrap_or("/tmp/diar/meeting.wav".into())).unwrap();
         let (samples, _) = crate::wav::decode_wav(&wav).unwrap();
         let turns = diarize(&model, &samples).unwrap();
         let voices: std::collections::HashSet<u32> = turns.iter().map(|t| t.2).collect();
