@@ -41,7 +41,15 @@ sign --preserve-metadata=entitlements "$sparkle/XPCServices/Downloader.xpc"
 sign "$sparkle/Autoupdate"
 sign "$sparkle/Updater.app"
 sign "$app/Contents/Frameworks/Sparkle.framework"
-sign --entitlements "$pkg/Resources/Pennel.entitlements" "$app"
+entitlements="$pkg/Resources/Pennel.entitlements"
+if [ "${PENNEL_RELEASE:-}" != 1 ]; then
+  # A local certificate has no Team ID, so the hardened runtime would refuse the embedded Sparkle
+  # framework; Developer ID releases share one Team ID and keep library validation on.
+  entitlements="$(mktemp -t pennel-entitlements).plist"
+  cp "$pkg/Resources/Pennel.entitlements" "$entitlements"
+  /usr/libexec/PlistBuddy -c "Add :com.apple.security.cs.disable-library-validation bool true" "$entitlements"
+fi
+sign --entitlements "$entitlements" "$app"
 
 if [ "$identity" = "-" ]; then
   echo "warning: ad-hoc signed; macOS forgets Pennel's permissions after every build." >&2
