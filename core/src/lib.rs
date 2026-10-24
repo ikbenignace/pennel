@@ -12,6 +12,7 @@ mod meetings;
 mod local_engine;
 mod models;
 mod provider;
+mod remote_models;
 mod rules;
 mod session;
 mod settings;
