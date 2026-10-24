@@ -1,11 +1,17 @@
 import Foundation
+import MusliKit
 import Security
 
 enum Keychain {
     private static let service = "dev.musli.Musli"
+    private static let cache = SecretCache(load: read)
 
     static func get(_ account: String) -> String? {
         guard !account.isEmpty else { return nil }
+        return cache.get(account)
+    }
+
+    private static func read(_ account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -28,7 +34,9 @@ enum Keychain {
             kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
-        guard let value, !value.isEmpty else { return }
+        let value = value.flatMap { $0.isEmpty ? nil : $0 }
+        cache.store(value, for: account)
+        guard let value else { return }
         var attributes = query
         attributes[kSecValueData as String] = Data(value.utf8)
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
