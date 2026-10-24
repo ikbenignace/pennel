@@ -420,6 +420,9 @@ impl MusliEngine {
         let path = self.models.path(crate::models::DIARIZER_ID).ok_or(MusliError::ModelNotDownloaded)?;
         let turns = crate::diarize::diarize(&path, &samples)?;
         let store = self.meeting_store();
+        if store.unparsed_transcript_lines(&id) > 0 {
+            return Err(MusliError::InvalidResponse { message: "transcript bevat regels die Musli niet herkent".into() });
+        }
         let mut segments = store.read_transcript(&id);
         crate::diarize::assign_voices(&mut segments, &turns);
         store.write_transcript(&id, &segments)?;

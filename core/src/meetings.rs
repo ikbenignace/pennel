@@ -41,6 +41,8 @@ pub struct SpeakerName {
 }
 
 const SPEAKER_NAME_MAX: usize = 40;
+/// Sortformer tells at most four voices apart.
+pub const VOICES: std::ops::RangeInclusive<u32> = 1..=4;
 
 /// "Ik", a participant's name, "Anderen 2" or "Anderen".
 pub fn speaker_label(segment: &Segment, names: &[SpeakerName]) -> String {
@@ -207,6 +209,11 @@ impl MeetingStore {
         self.write_file(id, "transcript.md", &body)
     }
 
+    /// Number of non-empty transcript lines that did not parse; rewriting the transcript would drop them.
+    pub fn unparsed_transcript_lines(&self, id: &str) -> usize {
+        self.read_file(id, "transcript.md").lines().filter(|l| !l.trim().is_empty() && parse_segment(l).is_none()).count()
+    }
+
     pub fn read_transcript(&self, id: &str) -> Vec<Segment> {
         self.read_file(id, "transcript.md").lines().filter_map(parse_segment).collect()
     }
@@ -260,7 +267,8 @@ impl MeetingStore {
                 list.split(';')
                     .filter_map(|pair| {
                         let (voice, name) = pair.split_once('=')?;
-                        Some(SpeakerName { voice: voice.trim().parse().ok()?, name: name.trim().to_owned() })
+                        let voice = voice.trim().parse().ok().filter(|v| VOICES.contains(v))?;
+                        Some(SpeakerName { voice, name: name.trim().to_owned() })
                     })
                     .filter(|n| !n.name.is_empty())
                     .collect()
@@ -272,6 +280,9 @@ impl MeetingStore {
 
     /// An empty name forgets the voice's name.
     pub fn rename_speaker(&self, id: &str, voice: u32, name: &str) -> Result<(), MusliError> {
+        if !VOICES.contains(&voice) {
+            return Err(MusliError::NotFound);
+        }
         let mut names = self.speaker_names(id);
         names.retain(|n| n.voice != voice);
         let name = sanitize_speaker(name);
@@ -425,7 +436,7 @@ fn parse_segment(line: &str) -> Option<Segment> {
     let (speaker, voice) = match label {
         "Ik" => (Speaker::Me, None),
         "Anderen" => (Speaker::Others, None),
-        other => (Speaker::Others, Some(other.strip_prefix("Anderen ")?.parse().ok()?)),
+        other => (Speaker::Others, Some(other.strip_prefix("Anderen ")?.parse().ok().filter(|v| VOICES.contains(v))?)),
     };
     let start_ms = parse_timestamp(stamp)?;
     let failed = text.trim() == FAILED_MARK;
@@ -458,6 +469,9 @@ mod tests {
         assert_eq!(read[1].voice, Some(2));
         assert_eq!(read[1].speaker, Speaker::Others);
         assert!(std::fs::read_to_string(store.dir_of(&id).join("transcript.md")).unwrap().contains("[00:05] **Anderen 2:** Klopt"));
+        assert_eq!(parse_segment("[00:01] **Anderen 0:** x"), None);
+        assert_eq!(parse_segment("[00:01] **Anderen 9:** x"), None);
+        assert_eq!(store.rename_speaker(&id, 0, "x"), Err(MusliError::NotFound));
     }
 
     #[test]

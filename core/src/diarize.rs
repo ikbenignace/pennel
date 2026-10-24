@@ -7,6 +7,8 @@ use crate::meetings::{Segment, Speaker};
 
 /// Upper bound for a transcript chunk; the live session never cuts longer pieces.
 const MAX_SEGMENT_MS: u64 = 30_000;
+/// Generous speaking pace, so a short remark before a long silence doesn't borrow the next speaker's voice.
+const MS_PER_WORD: u64 = 450;
 
 /// A stretch of audio attributed to one voice: `(start_ms, end_ms, voice)`.
 pub type Turn = (u64, u64, u32);
@@ -27,8 +29,8 @@ pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, MusliErr
         .collect())
 }
 
-/// Gives each "Anderen" segment the voice that overlaps it most. Transcripts store start times only,
-/// so a segment ends where the next "Anderen" segment starts (at most 30 s later).
+/// Gives each "Anderen" segment the voice that overlaps it most. Transcripts store start times only, so a
+/// segment ends at the next "Anderen" start, at 30 s, or when its words would have been spoken, whichever is first.
 pub fn assign_voices(segments: &mut [Segment], turns: &[Turn]) {
     let starts: Vec<u64> = segments.iter().filter(|s| s.speaker == Speaker::Others).map(|s| s.start_ms).collect();
     for segment in segments.iter_mut().filter(|s| s.speaker == Speaker::Others) {
@@ -37,7 +39,8 @@ pub fn assign_voices(segments: &mut [Segment], turns: &[Turn]) {
             continue;
         }
         let next = starts.iter().copied().filter(|s| *s > segment.start_ms).min();
-        let cap = segment.start_ms + MAX_SEGMENT_MS;
+        let words = segment.text.split_whitespace().count() as u64;
+        let cap = segment.start_ms + MAX_SEGMENT_MS.min(1_000 + words * MS_PER_WORD);
         let end = next.map_or(cap, |n| n.min(cap)).max(segment.end_ms);
         let mut overlap: Vec<(u32, u64)> = Vec::new();
         for &(t0, t1, voice) in turns {
@@ -64,11 +67,12 @@ mod tests {
 
     #[test]
     fn assign_voices_by_overlap() {
+        let long = "woord ".repeat(30);
         let mut segments = vec![
-            others(0, "a"),
+            others(0, &long),
             Segment { speaker: Speaker::Me, ..others(3_000, "ik") },
-            others(5_000, "b"),
-            others(15_000, "c"),
+            others(5_000, &long),
+            others(15_000, &long),
         ];
         let turns = [(0, 4_600, 1), (5_100, 8_900, 2), (9_500, 14_200, 1), (14_600, 15_100, 2), (15_100, 18_500, 3)];
         assign_voices(&mut segments, &turns);
@@ -77,8 +81,15 @@ mod tests {
     }
 
     #[test]
+    fn short_remark_before_silence_keeps_its_own_voice() {
+        let mut segments = vec![others(0, "ja klopt"), others(28_000, "verder")];
+        assign_voices(&mut segments, &[(0, 1_500, 1), (3_000, 27_000, 2)]);
+        assert_eq!(segments[0].voice, Some(1));
+    }
+
+    #[test]
     fn ties_go_to_lower_voice() {
-        let mut segments = vec![others(0, "a"), others(10_000, "b")];
+        let mut segments = vec![others(0, &"woord ".repeat(30)), others(10_000, "b")];
         assign_voices(&mut segments, &[(0, 5_000, 2), (5_000, 10_000, 1)]);
         assert_eq!(segments[0].voice, Some(1));
     }

@@ -148,7 +148,7 @@ struct MeetingDetailView: View {
                                 TranscriptList(
                                     segments: segments,
                                     audioDir: audioDir,
-                                    onRetry: retryFailed,
+                                    onRetry: diarizing ? nil : Optional(retryFailed),
                                     highlightMs: highlightMs,
                                     names: speakers,
                                     suggestions: attendees,
@@ -254,8 +254,10 @@ struct MeetingDetailView: View {
         reload()
     }
 
+    /// A meeting still being recorded has no duration yet, and its transcript is still being rewritten.
     private var canDiarize: Bool {
-        segments.contains { $0.speaker == .others && !$0.failed }
+        (info?.durationMin ?? 0) > 0
+            && segments.contains { $0.speaker == .others && !$0.failed }
             && state.engine.modelState(id: state.engine.diarizerModelId()) == .downloaded
             && FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("anderen.m4a").path)
     }
@@ -395,6 +397,8 @@ struct TranscriptList: View {
             ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(Self.stamp(segment.startMs)).font(.figtree(11)).foregroundStyle(Theme.muted).frame(width: 52, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture { play(segment) }
                     speakerLabel(segment)
                         .frame(width: 84, alignment: .leading)
                     if segment.failed {
@@ -402,6 +406,7 @@ struct TranscriptList: View {
                         if let onRetry { Button("Opnieuw proberen", action: onRetry) }
                     } else {
                         Text(segment.text).textSelection(.enabled)
+                            .onTapGesture { play(segment) }
                     }
                     Spacer()
                 }
@@ -412,8 +417,6 @@ struct TranscriptList: View {
                         .fill(segment.startMs == highlightMs ? Theme.wave.opacity(0.35) : .clear)
                         .padding(.horizontal, -6)
                 )
-                .contentShape(Rectangle())
-                .onTapGesture { play(segment) }
                 .id(segment.startMs)
             }
         }

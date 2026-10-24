@@ -94,7 +94,13 @@ final class MeetingController {
             try? session.stop()
             var id = session.id()
             if let renameTo, let renamed = try? engine.renameMeeting(id: id, title: renameTo) { id = renamed }
-            if diarize { _ = try? Self.diarize(engine: engine, meetingId: id) }
+            if diarize, engine.modelState(id: engine.diarizerModelId()) == .downloaded {
+                do {
+                    _ = try Self.diarize(engine: engine, meetingId: id)
+                } catch {
+                    Logger(subsystem: "dev.musli.Musli", category: "meeting").error("diarization failed: \(String(describing: error), privacy: .public)")
+                }
+            }
             let summary = Result { try engine.summarizeMeeting(id: id, templateId: template, keys: keys) }
             await MainActor.run { self.finish(id: id, summary: summary) }
         }

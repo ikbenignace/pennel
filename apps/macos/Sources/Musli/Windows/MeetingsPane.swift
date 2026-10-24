@@ -106,7 +106,7 @@ private struct SpeakersSection: View {
                 if state.downloads.isDownloading(modelId) {
                     Button("Annuleren") { state.downloads.cancel(modelId) }
                 } else if modelState != .downloaded {
-                    Button("Download model (139 MB)") { state.downloads.start(modelId) }
+                    Button("Download model (139 MB)") { state.downloads.start(modelId, sizeBytes: 139_310_336) }
                 }
             }
             if let progress = state.downloads.progress[modelId] {

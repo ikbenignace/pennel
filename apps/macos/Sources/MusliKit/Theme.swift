@@ -12,7 +12,7 @@ public enum Theme {
     private static let voices = [Color(hex: 0x2F6F62), Color(hex: 0x6D4C8F), Color(hex: 0x2F5D8A), Color(hex: 0x8A6A2F)]
 
     public static func voice(_ number: UInt32) -> Color {
-        voices[Int(number - 1) % voices.count]
+        voices[Int(number &- 1) % voices.count]
     }
 }
 

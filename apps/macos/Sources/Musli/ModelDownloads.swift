@@ -58,10 +58,11 @@ final class ModelDownloads {
         reload()
     }
 
-    func start(_ id: String) {
+    /// `sizeBytes` is needed for models outside the speech list (the diarizer) to resume the bar at the right spot.
+    func start(_ id: String, sizeBytes: UInt64? = nil) {
         guard progress[id] == nil else { return }
         errors[id] = nil
-        progress[id] = partialFraction(id)
+        progress[id] = partialFraction(id, size: sizeBytes)
         let engine = engine
         let relay = ProgressRelay { [weak self] fraction in
             Task { @MainActor in
@@ -102,9 +103,9 @@ final class ModelDownloads {
         refresh()
     }
 
-    private func partialFraction(_ id: String) -> Double {
+    private func partialFraction(_ id: String, size known: UInt64?) -> Double {
         guard case .partial(let bytes) = engine.modelState(id: id),
-              let size = models.first(where: { $0.id == id })?.sizeBytes, size > 0
+              let size = known ?? models.first(where: { $0.id == id })?.sizeBytes, size > 0
         else { return 0 }
         return Double(bytes) / Double(size)
     }
