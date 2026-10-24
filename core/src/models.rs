@@ -53,6 +53,30 @@ pub struct ModelEntry {
     /// Benchmarks and languages; for legacy entries those of the catalog model they were quantized from.
     pub scores: Option<&'static CatalogModel>,
     pub legacy: bool,
+    pub kind: ModelKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelKind {
+    Speech,
+    Diarizer,
+}
+
+pub const DIARIZER_ID: &str = "diar_streaming_sortformer_4spk-v2.1";
+
+/// Splits "Anderen" into voices; pinned from the catalog's `diarize` entry.
+fn diarizer_entry() -> ModelEntry {
+    ModelEntry {
+        id: DIARIZER_ID.into(),
+        name: "Sortformer (sprekers)".into(),
+        description: "Herkent tot 4 sprekers in een meeting".into(),
+        size_bytes: 139_310_336,
+        sha256: "a5dacdc650790266c7a362e54e6bf51952015487edaa606c4e11632bc32442a9".into(),
+        url: "https://huggingface.co/handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf/resolve/ae4afbb5c3d33b71cf2dbf600022b655ee706dd0/diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf".into(),
+        scores: None,
+        legacy: false,
+        kind: ModelKind::Diarizer,
+    }
 }
 
 impl ModelEntry {
@@ -74,6 +98,7 @@ fn legacy_entries() -> Vec<ModelEntry> {
             url: format!("{hf}/ggml-large-v3-turbo-q5_0.bin"),
             scores: catalog::find("whisper-large-v3-turbo"),
             legacy: true,
+            kind: ModelKind::Speech,
         },
         ModelEntry {
             id: "whisper-small-q5_1".into(),
@@ -84,6 +109,7 @@ fn legacy_entries() -> Vec<ModelEntry> {
             url: format!("{hf}/ggml-small-q5_1.bin"),
             scores: catalog::find("whisper-small"),
             legacy: true,
+            kind: ModelKind::Speech,
         },
     ]
 }
@@ -100,9 +126,11 @@ fn entries() -> Vec<ModelEntry> {
             url: m.url.clone(),
             scores: Some(m),
             legacy: false,
+            kind: ModelKind::Speech,
         })
         .collect();
     entries.extend(legacy_entries());
+    entries.push(diarizer_entry());
     entries
 }
 
@@ -164,6 +192,7 @@ impl ModelStore {
         let mut models: Vec<LocalModel> = self
             .catalog
             .iter()
+            .filter(|e| e.kind == ModelKind::Speech)
             .filter(|e| !e.legacy || self.final_path(&e.id).exists())
             .filter(|e| !supported_only || e.scores.is_none_or(|s| s.supports(language)))
             .map(|e| LocalModel {
@@ -192,7 +221,11 @@ impl ModelStore {
 
     /// Recommended models first, so a fallback after deleting the active model stays multilingual.
     pub fn downloaded(&self) -> Vec<String> {
-        let mut ids: Vec<&ModelEntry> = self.catalog.iter().filter(|e| self.final_path(&e.id).exists()).collect();
+        let mut ids: Vec<&ModelEntry> = self
+            .catalog
+            .iter()
+            .filter(|e| e.kind == ModelKind::Speech && self.final_path(&e.id).exists())
+            .collect();
         ids.sort_by_key(|e| recommended_rank(&e.id).or_else(|| e.scores.and_then(|s| recommended_rank(&s.id))).unwrap_or(usize::MAX));
         ids.into_iter().map(|e| e.id.clone()).collect()
     }
@@ -346,6 +379,7 @@ mod tests {
                 url,
                 scores: None,
                 legacy: false,
+                kind: ModelKind::Speech,
             }],
         )
     }
@@ -432,6 +466,28 @@ mod tests {
             std::fs::write(dir.path().join("models").join(file), b"x").unwrap();
         }
         assert_eq!(store.downloaded(), ["parakeet-tdt-0.6b-v3", "whisper-small-q5_1", "parakeet-unified-en-0.6b"]);
+    }
+
+    #[test]
+    fn diarizer_not_listed_as_speech_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(dir.path().join(format!("models/{DIARIZER_ID}.gguf")), b"x").unwrap();
+        assert_eq!(store.state(DIARIZER_ID), ModelState::Downloaded);
+        assert!(store.downloaded().is_empty());
+        assert!(!ids(&store.local_models(None, false)).contains(&DIARIZER_ID));
+    }
+
+    #[test]
+    fn diarizer_entry_matches_catalog() {
+        let catalog: serde_json::Value = serde_json::from_str(include_str!("catalog.json")).unwrap();
+        let model = catalog["models"].as_array().unwrap().iter().find(|m| m["id"] == DIARIZER_ID).unwrap();
+        let file = &model["files"][model["quant"].as_str().unwrap()];
+        let entry = diarizer_entry();
+        assert_eq!(file["sha256"], entry.sha256.as_str());
+        assert_eq!(file["size"], entry.size_bytes);
+        assert!(entry.url.contains(model["revision"].as_str().unwrap()));
     }
 
     #[test]

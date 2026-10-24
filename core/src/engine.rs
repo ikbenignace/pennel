@@ -13,6 +13,7 @@ use crate::session::MeetingSession;
 use crate::settings::ModelChoice;
 use crate::meeting_chat::{ChatTurn, MeetingAnswer};
 use crate::export::MeetingExport;
+use crate::meetings::SpeakerName;
 use crate::templates::{MeetingTemplate, TemplateStore};
 use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
 use crate::models::{CancelFlag, DownloadListener, LocalModel, ModelState, ModelStore};
@@ -407,6 +408,33 @@ impl MusliEngine {
         let (title, markdown) =
             crate::export::export_markdown(&self.meeting_store(), &id, include_transcript).ok_or(MusliError::NotFound)?;
         Ok(MeetingExport { html: crate::export::markdown_to_html(&markdown), title, markdown })
+    }
+
+    pub fn diarizer_model_id(&self) -> String {
+        crate::models::DIARIZER_ID.to_owned()
+    }
+
+    /// Splits the meeting's "Anderen" segments into voices from the full others-track (16 kHz mono);
+    /// returns how many voices were found.
+    pub fn diarize_meeting(&self, id: String, samples: Vec<f32>) -> Result<u32, MusliError> {
+        let path = self.models.path(crate::models::DIARIZER_ID).ok_or(MusliError::ModelNotDownloaded)?;
+        let turns = crate::diarize::diarize(&path, &samples)?;
+        let store = self.meeting_store();
+        let mut segments = store.read_transcript(&id);
+        crate::diarize::assign_voices(&mut segments, &turns);
+        store.write_transcript(&id, &segments)?;
+        let mut voices: Vec<u32> = segments.iter().filter_map(|s| s.voice).collect();
+        voices.sort_unstable();
+        voices.dedup();
+        Ok(voices.len() as u32)
+    }
+
+    pub fn meeting_speakers(&self, id: String) -> Vec<SpeakerName> {
+        self.meeting_store().speaker_names(&id)
+    }
+
+    pub fn rename_speaker(&self, id: String, voice: u32, name: String) -> Result<(), MusliError> {
+        self.meeting_store().rename_speaker(&id, voice, &name)
     }
 
     pub fn meeting_templates(&self) -> Vec<MeetingTemplate> {
@@ -931,5 +959,13 @@ mod tests {
         let engine = engine(&dir, &server, DictationMode::Clean);
         let huge = "x".repeat(crate::command::MAX_SELECTION_CHARS + 1);
         assert!(matches!(engine.command(request(speech(), None), Some(huge)), Err(MusliError::InvalidResponse { .. })));
+    }
+
+    #[test]
+    fn diarize_without_model_is_model_not_downloaded() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        let id = add_meeting(&engine, "Sync", 9, "hallo");
+        assert_eq!(engine.diarize_meeting(id, vec![0.0; 16000]), Err(MusliError::ModelNotDownloaded));
     }
 }

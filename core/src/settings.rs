@@ -80,6 +80,8 @@ pub struct Settings {
     pub consent_enabled: bool,
     #[serde(default = "enabled")]
     pub auto_detect: bool,
+    #[serde(default)]
+    pub diarization: bool,
 }
 
 fn enabled() -> bool {
@@ -142,6 +144,7 @@ pub fn default_settings() -> Settings {
         record_shortcut_enabled: true,
         consent_enabled: false,
         auto_detect: true,
+        diarization: false,
     }
 }
 
