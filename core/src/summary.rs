@@ -1,11 +1,11 @@
 use crate::llm::ChatMessage;
-use crate::meetings::{timestamp, Segment, Speaker};
+use crate::meetings::{speaker_label, timestamp, Segment, SpeakerName};
 use crate::templates::TemplateSpec;
 
 pub(crate) const MAP_REDUCE_ABOVE: usize = 40_000;
 pub(crate) const BLOCK_CHARS: usize = 30_000;
 
-const SYSTEM_PROMPT: &str = "You write meeting notes from a transcript. \"Ik\" is the user; \"Anderen\" are the other participants.
+const SYSTEM_PROMPT: &str = "You write meeting notes from a transcript. \"Ik\" is the user; every other label (\"Anderen\", \"Anderen 2\" or a name) is another participant.
 Write in the language the meeting was held in (Dutch or English). Never invent facts that are not in the transcript or notes.";
 
 const ACTION_RULE: &str = "Under Actiepunten use \"- [ ] Person — action\" lines; write \"- Geen\" when there are none.";
@@ -49,14 +49,11 @@ pub fn chunk_messages(part: &str) -> Vec<ChatMessage> {
     ]
 }
 
-pub fn transcript_text(segments: &[Segment]) -> String {
+pub fn transcript_text(segments: &[Segment], names: &[SpeakerName]) -> String {
     segments
         .iter()
         .filter(|s| !s.failed && !s.text.is_empty())
-        .map(|s| {
-            let who = if s.speaker == Speaker::Me { "Ik" } else { "Anderen" };
-            format!("[{}] {who}: {}", timestamp(s.start_ms), s.text)
-        })
+        .map(|s| format!("[{}] {}: {}", timestamp(s.start_ms), speaker_label(s, names), s.text))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -86,7 +83,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn seg(start_ms: u64, speaker: Speaker, text: &str, failed: bool) -> Segment {
-        Segment { start_ms, end_ms: start_ms, speaker, text: text.into(), failed }
+        Segment { start_ms, end_ms: start_ms, speaker, text: text.into(), failed, voice: None }
     }
 
     fn spec(id: &str) -> TemplateSpec {
@@ -141,7 +138,7 @@ mod tests {
             seg(0, Speaker::Me, "Hallo", false),
             seg(5_000, Speaker::Others, "", true),
             seg(65_000, Speaker::Others, "Dag", false),
-        ]);
+        ], &[]);
         assert_eq!(text, "[00:00] Ik: Hallo\n[01:05] Anderen: Dag");
     }
 

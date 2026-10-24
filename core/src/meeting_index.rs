@@ -4,7 +4,7 @@ use std::path::Path;
 use rusqlite::{Connection, params};
 
 use crate::error::MusliError;
-use crate::meetings::{MeetingInfo, MeetingStore, Segment};
+use crate::meetings::{speaker_label, MeetingInfo, MeetingStore, Segment, SpeakerName};
 
 const PASSAGE_CHARS: usize = 600;
 const SCHEMA_VERSION: i64 = 2;
@@ -96,12 +96,12 @@ fn pack(pieces: impl IntoIterator<Item = (Option<u64>, String)>) -> Vec<(Option<
     passages
 }
 
-fn transcript_passages(segments: &[Segment]) -> Vec<(Option<u64>, String)> {
+fn transcript_passages(segments: &[Segment], names: &[SpeakerName]) -> Vec<(Option<u64>, String)> {
     pack(
         segments
             .iter()
             .filter(|s| !s.failed && !s.text.trim().is_empty())
-            .map(|s| (Some(s.start_ms), format!("{}: {}", s.speaker.label(), s.text.trim()))),
+            .map(|s| (Some(s.start_ms), format!("{}: {}", speaker_label(s, names), s.text.trim()))),
     )
 }
 
@@ -158,14 +158,20 @@ impl MeetingIndex {
                 tx.execute("DELETE FROM files WHERE meeting_id = ?1 AND name = ?2", params![id, name]).map_err(db)?;
             }
         }
+        let unchanged = |id: &String, name: &str| {
+            store.file_stamp(id, name).map(|(mtime, len)| (mtime, len as i64)).as_ref()
+                == known.get(&(id.clone(), name.to_owned()))
+        };
         for id in &meetings {
+            // Speaker names live in meeting.md, so renaming a voice re-labels the transcript passages too.
+            let names_changed = !unchanged(id, "meeting.md");
             for (name, kind) in FILES {
                 let Some((mtime, len)) = store.file_stamp(id, name) else { continue };
-                if known.get(&(id.clone(), name.to_owned())) == Some(&(mtime, len as i64)) {
+                if unchanged(id, name) && !(kind == PassageKind::Transcript && names_changed) {
                     continue;
                 }
                 let passages = match kind {
-                    PassageKind::Transcript => transcript_passages(&store.read_transcript(id)),
+                    PassageKind::Transcript => transcript_passages(&store.read_transcript(id), &store.speaker_names(id)),
                     PassageKind::Notes => text_passages(&store.read_notes(id)),
                     PassageKind::Summary => text_passages(&store.read_meeting(id).unwrap_or_default()),
                 };
@@ -328,7 +334,7 @@ mod tests {
     }
 
     fn segment(start_ms: u64, text: &str) -> Segment {
-        Segment { start_ms, end_ms: start_ms + 1000, speaker: Speaker::Others, text: text.into(), failed: false }
+        Segment { start_ms, end_ms: start_ms + 1000, speaker: Speaker::Others, text: text.into(), failed: false, voice: None }
     }
 
     fn meeting(store: &MeetingStore, title: &str, hour: u32) -> String {
@@ -413,7 +419,7 @@ mod tests {
     #[test]
     fn transcript_passages_capped() {
         let segments: Vec<Segment> = (0..50).map(|i| segment(i * 1000, &format!("zin nummer {i:02} {}", "x".repeat(20)))).collect();
-        let passages = transcript_passages(&segments);
+        let passages = transcript_passages(&segments, &[]);
         assert!(passages.len() > 1);
         assert!(passages.iter().all(|(_, text)| text.len() <= PASSAGE_CHARS));
         let joined: String = passages.iter().map(|(_, t)| t.as_str()).collect::<Vec<_>>().join("\n");
@@ -462,6 +468,21 @@ mod tests {
         let mut index = MeetingIndex::open(&path).unwrap();
         index.sync(&store).unwrap();
         assert_eq!(index.search(&store, "papaya", None, 5).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn renamed_speaker_is_searchable() {
+        let mut f = fixture();
+        let id = meeting(&f.store, "Sync", 9);
+        let mut said = segment(0, "de offerte is klaar");
+        said.voice = Some(1);
+        f.store.write_transcript(&id, &[said]).unwrap();
+        f.index.sync(&f.store).unwrap();
+        f.store.rename_speaker(&id, 1, "Annelies").unwrap();
+        f.index.sync(&f.store).unwrap();
+        let hits = f.index.search(&f.store, "annelies", None, 5).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].kind, PassageKind::Transcript);
     }
 
     #[test]

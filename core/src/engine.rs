@@ -329,7 +329,7 @@ impl MusliEngine {
         let store = self.meeting_store();
         let info = store.info(&id).ok_or(MusliError::NotFound)?;
         let notes = store.read_notes(&id);
-        let transcript = transcript_text(&store.read_transcript(&id));
+        let transcript = transcript_text(&store.read_transcript(&id), &store.speaker_names(&id));
         if transcript.trim().is_empty() && notes.trim().is_empty() {
             return Err(MusliError::NoSpeech);
         }
@@ -822,6 +822,7 @@ mod tests {
             speaker: crate::meetings::Speaker::Others,
             text: said.into(),
             failed: false,
+            voice: None,
         };
         store.write_transcript(&id, &[segment]).unwrap();
         id

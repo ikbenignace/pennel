@@ -119,12 +119,12 @@ fn transcribe_job(engine: &MusliEngine, store: &MeetingStore, id: &str, keys: &A
     }
     match result {
         Ok(text) if is_hallucination(&text) => None,
-        Ok(text) => Some(Segment { start_ms, end_ms, speaker: job.speaker, text, failed: false }),
+        Ok(text) => Some(Segment { start_ms, end_ms, speaker: job.speaker, text, failed: false, voice: None }),
         Err(_) => {
             let path = failed_path(&store.dir_of(id), job.speaker, start_ms);
             let _ = std::fs::create_dir_all(path.parent().expect("failed dir"));
             let _ = std::fs::write(&path, &wav);
-            Some(Segment { start_ms, end_ms, speaker: job.speaker, text: String::new(), failed: true })
+            Some(Segment { start_ms, end_ms, speaker: job.speaker, text: String::new(), failed: true, voice: None })
         }
     }
 }

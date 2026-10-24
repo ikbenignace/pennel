@@ -30,6 +30,33 @@ pub struct Segment {
     pub speaker: Speaker,
     pub text: String,
     pub failed: bool,
+    /// Which of the other participants spoke, after diarization (1-based); `None` for "Ik" or undiarized.
+    pub voice: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct SpeakerName {
+    pub voice: u32,
+    pub name: String,
+}
+
+const SPEAKER_NAME_MAX: usize = 40;
+
+/// "Ik", a participant's name, "Anderen 2" or "Anderen".
+pub fn speaker_label(segment: &Segment, names: &[SpeakerName]) -> String {
+    match (segment.speaker, segment.voice) {
+        (Speaker::Me, _) => "Ik".to_owned(),
+        (Speaker::Others, Some(voice)) => names
+            .iter()
+            .find(|n| n.voice == voice)
+            .map_or_else(|| format!("Anderen {voice}"), |n| n.name.clone()),
+        (Speaker::Others, None) => "Anderen".to_owned(),
+    }
+}
+
+fn sanitize_speaker(name: &str) -> String {
+    let clean: String = name.chars().filter(|c| !matches!(c, ';' | '=' | ':' | '\n' | '\r' | '[' | ']' | '*')).collect();
+    clean.trim().chars().take(SPEAKER_NAME_MAX).collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -170,7 +197,11 @@ impl MeetingStore {
             .iter()
             .map(|s| {
                 let text = if s.failed { FAILED_MARK.to_owned() } else { s.text.split_whitespace().collect::<Vec<_>>().join(" ") };
-                format!("[{}] **{}:** {}\n", timestamp(s.start_ms), s.speaker.label(), text)
+                let label = match (s.speaker, s.voice) {
+                    (Speaker::Others, Some(voice)) => format!("Anderen {voice}"),
+                    _ => s.speaker.label().to_owned(),
+                };
+                format!("[{}] **{label}:** {text}\n", timestamp(s.start_ms))
             })
             .collect();
         self.write_file(id, "transcript.md", &body)
@@ -217,6 +248,44 @@ impl MeetingStore {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub fn speaker_names(&self, id: &str) -> Vec<SpeakerName> {
+        let Some((front, _)) = self.frontmatter(id) else { return Vec::new() };
+        let mut names: Vec<SpeakerName> = front
+            .extra
+            .iter()
+            .find_map(|line| line.strip_prefix("speakers:"))
+            .map(|list| {
+                list.split(';')
+                    .filter_map(|pair| {
+                        let (voice, name) = pair.split_once('=')?;
+                        Some(SpeakerName { voice: voice.trim().parse().ok()?, name: name.trim().to_owned() })
+                    })
+                    .filter(|n| !n.name.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        names.sort_by_key(|n| n.voice);
+        names
+    }
+
+    /// An empty name forgets the voice's name.
+    pub fn rename_speaker(&self, id: &str, voice: u32, name: &str) -> Result<(), MusliError> {
+        let mut names = self.speaker_names(id);
+        names.retain(|n| n.voice != voice);
+        let name = sanitize_speaker(name);
+        if !name.is_empty() {
+            names.push(SpeakerName { voice, name });
+        }
+        names.sort_by_key(|n| n.voice);
+        let (mut front, body) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
+        front.extra.retain(|line| !line.starts_with("speakers:"));
+        if !names.is_empty() {
+            let list: Vec<String> = names.iter().map(|n| format!("{}={}", n.voice, n.name)).collect();
+            front.extra.push(format!("speakers: {}", list.join("; ")));
+        }
+        self.write_file(id, "meeting.md", &render_meeting(&front, &body))
     }
 
     pub fn set_duration(&self, id: &str, duration_min: u32) -> Result<(), MusliError> {
@@ -353,14 +422,14 @@ fn parse_segment(line: &str) -> Option<Segment> {
     let rest = line.strip_prefix('[')?;
     let (stamp, rest) = rest.split_once("] **")?;
     let (label, text) = rest.split_once(":** ")?;
-    let speaker = match label {
-        "Ik" => Speaker::Me,
-        "Anderen" => Speaker::Others,
-        _ => return None,
+    let (speaker, voice) = match label {
+        "Ik" => (Speaker::Me, None),
+        "Anderen" => (Speaker::Others, None),
+        other => (Speaker::Others, Some(other.strip_prefix("Anderen ")?.parse().ok()?)),
     };
     let start_ms = parse_timestamp(stamp)?;
     let failed = text.trim() == FAILED_MARK;
-    Some(Segment { start_ms, end_ms: start_ms, speaker, text: if failed { String::new() } else { text.to_owned() }, failed })
+    Some(Segment { start_ms, end_ms: start_ms, speaker, text: if failed { String::new() } else { text.to_owned() }, failed, voice })
 }
 
 #[cfg(test)]
@@ -373,7 +442,51 @@ mod tests {
     }
 
     fn seg(start_ms: u64, speaker: Speaker, text: &str) -> Segment {
-        Segment { start_ms, end_ms: start_ms + 1000, speaker, text: text.into(), failed: false }
+        Segment { start_ms, end_ms: start_ms + 1000, speaker, text: text.into(), failed: false, voice: None }
+    }
+
+    #[test]
+    fn transcript_voice_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Sync", start()).unwrap();
+        let mut two = seg(5_000, Speaker::Others, "Klopt");
+        two.voice = Some(2);
+        store.write_transcript(&id, &[seg(0, Speaker::Others, "Hallo"), two.clone(), seg(9_000, Speaker::Me, "Ok")]).unwrap();
+        let read = store.read_transcript(&id);
+        assert_eq!(read[0].voice, None);
+        assert_eq!(read[1].voice, Some(2));
+        assert_eq!(read[1].speaker, Speaker::Others);
+        assert!(std::fs::read_to_string(store.dir_of(&id).join("transcript.md")).unwrap().contains("[00:05] **Anderen 2:** Klopt"));
+    }
+
+    #[test]
+    fn speaker_names_are_sanitized() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Sync", start()).unwrap();
+        store.rename_speaker(&id, 2, "Jan; De=Smet: CEO").unwrap();
+        store.rename_speaker(&id, 1, "Els").unwrap();
+        assert_eq!(
+            store.speaker_names(&id),
+            vec![SpeakerName { voice: 1, name: "Els".into() }, SpeakerName { voice: 2, name: "Jan DeSmet CEO".into() }]
+        );
+        store.rename_speaker(&id, 1, "  ").unwrap();
+        assert_eq!(store.speaker_names(&id).len(), 1);
+        assert_eq!(store.info(&id).unwrap().title, "Sync");
+    }
+
+    #[test]
+    fn labels_use_names() {
+        let names = [SpeakerName { voice: 2, name: "Jan".into() }];
+        let mut two = seg(0, Speaker::Others, "x");
+        two.voice = Some(2);
+        let mut three = two.clone();
+        three.voice = Some(3);
+        assert_eq!(speaker_label(&two, &names), "Jan");
+        assert_eq!(speaker_label(&three, &names), "Anderen 3");
+        assert_eq!(speaker_label(&seg(0, Speaker::Others, "x"), &names), "Anderen");
+        assert_eq!(speaker_label(&seg(0, Speaker::Me, "x"), &names), "Ik");
     }
 
     #[test]

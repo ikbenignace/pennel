@@ -16,7 +16,8 @@
 - Opt-in setting `diarization` (default off); model id `diar_streaming_sortformer_4spk-v2.1` (Q8_0, sha `a5dacdc6…`), stored like local models but never listed as a speech model nor used as a fallback.
 - Segment gains `voice: Option<u32>` (1–4); `None` = undiarized ("Anderen"). "Ik" segments never get a voice.
 - Label rule everywhere: Me → "Ik"; Others with voice and name → name; with voice → "Anderen N"; else "Anderen".
-- Overlap assignment: voice with the largest overlap in ms; ties → lower id; no overlap → `None`.
+- Overlap assignment: voice with the largest overlap in ms; ties → lower id; no overlap → `None`. A segment's end is the next Others segment's start (max 30 s), because `transcript.md` stores start times only.
+- v1 limitation (decision): a 15–30 s "Anderen" chunk gets one voice, the majority speaker. Re-transcribing per diarized turn is a later improvement.
 - Diarization failure never blocks the summary; it logs and continues.
 
 ## Review Focus

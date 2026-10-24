@@ -1,4 +1,4 @@
-use crate::meetings::{timestamp, MeetingStore, Speaker};
+use crate::meetings::{speaker_label, timestamp, MeetingStore};
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct MeetingExport {
@@ -34,14 +34,12 @@ pub fn export_markdown(store: &MeetingStore, id: &str, include_transcript: bool)
         out.push_str(&format!("\n{}\n", body.trim()));
     }
     if include_transcript {
+        let names = store.speaker_names(id);
         let lines: Vec<String> = store
             .read_transcript(id)
             .into_iter()
             .filter(|s| !s.failed && !s.text.trim().is_empty())
-            .map(|s| {
-                let who = if s.speaker == Speaker::Me { "Ik" } else { "Anderen" };
-                format!("**[{}] {who}:** {}", timestamp(s.start_ms), s.text.trim())
-            })
+            .map(|s| format!("**[{}] {}:** {}", timestamp(s.start_ms), speaker_label(&s, &names), s.text.trim()))
             .collect();
         if !lines.is_empty() {
             out.push_str(&format!("\n## Transcript\n\n{}\n", lines.join("\n\n")));
@@ -203,7 +201,7 @@ pub fn markdown_to_html(markdown: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::meetings::Segment;
+    use crate::meetings::{Segment, Speaker};
     use chrono::TimeZone;
 
     fn store() -> (tempfile::TempDir, MeetingStore, String) {
@@ -214,7 +212,7 @@ mod tests {
     }
 
     fn segment(ms: u64, speaker: Speaker, text: &str, failed: bool) -> Segment {
-        Segment { start_ms: ms, end_ms: ms + 1000, speaker, text: text.into(), failed }
+        Segment { start_ms: ms, end_ms: ms + 1000, speaker, text: text.into(), failed, voice: None }
     }
 
     #[test]

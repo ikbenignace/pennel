@@ -59,7 +59,7 @@ mod tests {
     use crate::meetings::Speaker;
 
     fn seg(start_s: u64, end_s: u64, speaker: Speaker, text: &str) -> Segment {
-        Segment { start_ms: start_s * 1000, end_ms: end_s * 1000, speaker, text: text.into(), failed: false }
+        Segment { start_ms: start_s * 1000, end_ms: end_s * 1000, speaker, text: text.into(), failed: false, voice: None }
     }
 
     #[test]
