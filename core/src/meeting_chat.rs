@@ -6,6 +6,8 @@ pub const WHOLE_MEETING_CHARS: usize = 60_000;
 pub const MEETING_PASSAGES: u32 = 25;
 pub const ALL_MEETINGS_PASSAGES: u32 = 12;
 pub const ASK_TIMEOUT_SECS: u64 = 60;
+const HISTORY_TURNS: usize = 6;
+const HISTORY_ANSWER_CHARS: usize = 2_000;
 
 const STOP_WORDS: &[&str] = &[
     "aan", "als", "bij", "dan", "dat", "die", "dit", "een", "en", "er", "het", "hoe", "hun", "ik", "in", "is", "je",
@@ -27,10 +29,17 @@ pub struct ChatTurn {
     pub answer: String,
 }
 
+/// A passage the answer cites, with the `[number]` used in the answer text.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct Citation {
+    pub number: u32,
+    pub passage: Passage,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct MeetingAnswer {
     pub text: String,
-    pub sources: Vec<Passage>,
+    pub citations: Vec<Citation>,
 }
 
 pub fn search_terms(question: &str) -> Vec<String> {
@@ -63,16 +72,19 @@ pub fn chat_messages(question: &str, history: &[ChatTurn], sources: &[Passage]) 
         .join("\n");
     let context = if numbered.is_empty() { "(geen bronnen gevonden)".to_owned() } else { numbered };
     let mut messages = vec![ChatMessage { role: "system", content: format!("{SYSTEM_PROMPT}\n\nSources:\n{context}") }];
-    for turn in history {
+    for turn in &history[history.len().saturating_sub(HISTORY_TURNS)..] {
         messages.push(ChatMessage { role: "user", content: turn.question.clone() });
-        messages.push(ChatMessage { role: "assistant", content: turn.answer.clone() });
+        messages.push(ChatMessage {
+            role: "assistant",
+            content: turn.answer.chars().take(HISTORY_ANSWER_CHARS).collect(),
+        });
     }
     messages.push(ChatMessage { role: "user", content: question.to_owned() });
     messages
 }
 
-/// Sources the answer refers to as `[n]`, in order of first citation.
-pub fn cited(answer: &str, sources: &[Passage]) -> Vec<Passage> {
+/// Sources the answer refers to as `[n]`, ordered by number.
+pub fn cited(answer: &str, sources: &[Passage]) -> Vec<Citation> {
     let mut picked: Vec<usize> = Vec::new();
     let mut rest = answer;
     while let Some(open) = rest.find('[') {
@@ -88,7 +100,8 @@ pub fn cited(answer: &str, sources: &[Passage]) -> Vec<Passage> {
         }
         rest = &rest[close + 1..];
     }
-    picked.into_iter().map(|i| sources[i].clone()).collect()
+    picked.sort_unstable();
+    picked.into_iter().map(|i| Citation { number: i as u32 + 1, passage: sources[i].clone() }).collect()
 }
 
 #[cfg(test)]
@@ -135,10 +148,22 @@ mod tests {
     }
 
     #[test]
+    fn history_is_capped() {
+        let history: Vec<ChatTurn> =
+            (0..10).map(|i| ChatTurn { question: format!("vraag {i}"), answer: "x".repeat(5_000) }).collect();
+        let messages = chat_messages("nu", &history, &[]);
+        assert_eq!(messages.len(), 1 + 2 * HISTORY_TURNS + 1);
+        assert_eq!(messages[1].content, "vraag 4");
+        assert_eq!(messages[2].content.len(), HISTORY_ANSWER_CHARS);
+    }
+
+    #[test]
     fn citations_out_of_range_ignored() {
         let sources: Vec<Passage> =
             ["a", "b", "c"].iter().map(|t| passage(t, PassageKind::Notes, None, t)).collect();
-        assert_eq!(cited("Ja [2] en [7], ook [2, 3].", &sources), vec![sources[1].clone(), sources[2].clone()]);
+        let found = cited("Ja [3] en [7], ook [2, 3].", &sources);
+        assert_eq!(found.iter().map(|c| c.number).collect::<Vec<_>>(), [2, 3]);
+        assert_eq!(found[0].passage, sources[1]);
         assert!(cited("Geen idee", &sources).is_empty());
         assert!(cited("kapot [", &sources).is_empty());
     }

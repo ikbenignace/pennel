@@ -9,6 +9,9 @@ final class AppState {
     let downloads: ModelDownloads
     var settings: Settings
     var lastError: String?
+    /// Set by a chat source; the meeting detail view consumes it once its transcript is loaded.
+    var transcriptJump: TranscriptJump?
+    private var chats: [String: MeetingChat] = [:]
     var onHotkeyChange: ((HotkeyTrigger) -> Void)?
     var onRecordingSettingsChange: (() -> Void)?
     /// Keychain is not observable; bumping this re-renders views that show key status.
@@ -23,6 +26,14 @@ final class AppState {
             guard let self else { return }
             self.settings = self.engine.settings()
         }
+    }
+
+    func chat(for meetingId: String?) -> MeetingChat {
+        let key = meetingId ?? ""
+        if let chat = chats[key] { return chat }
+        let chat = MeetingChat(meetingId: meetingId)
+        chats[key] = chat
+        return chat
     }
 
     func save() {

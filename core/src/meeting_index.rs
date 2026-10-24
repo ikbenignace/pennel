@@ -7,6 +7,7 @@ use crate::error::MusliError;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 
 const PASSAGE_CHARS: usize = 600;
+const SCHEMA_VERSION: i64 = 2;
 const FILES: [(&str, PassageKind); 3] =
     [("notes.md", PassageKind::Notes), ("transcript.md", PassageKind::Transcript), ("meeting.md", PassageKind::Summary)];
 
@@ -51,15 +52,45 @@ pub(crate) fn fts_terms(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// Cuts text longer than a passage on word boundaries, so nothing is dropped from the index.
+fn split_long(text: &str) -> Vec<String> {
+    let mut parts = vec![String::new()];
+    for word in text.split(' ') {
+        let current = parts.last_mut().expect("non-empty");
+        if !current.is_empty() && current.len() + word.len() + 1 > PASSAGE_CHARS {
+            parts.push(String::new());
+        }
+        let current = parts.last_mut().expect("non-empty");
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        let room = PASSAGE_CHARS.saturating_sub(current.len());
+        if word.len() > room {
+            let mut cut = room;
+            while !word.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            current.push_str(&word[..cut]);
+            parts.extend(split_long(&word[cut..]));
+        } else {
+            current.push_str(word);
+        }
+    }
+    parts.retain(|p| !p.is_empty());
+    parts
+}
+
 fn pack(pieces: impl IntoIterator<Item = (Option<u64>, String)>) -> Vec<(Option<u64>, String)> {
     let mut passages: Vec<(Option<u64>, String)> = Vec::new();
     for (start, piece) in pieces {
-        match passages.last_mut() {
-            Some((_, text)) if text.len() + piece.len() < PASSAGE_CHARS => {
-                text.push('\n');
-                text.push_str(&piece);
+        for part in split_long(&piece) {
+            match passages.last_mut() {
+                Some((_, text)) if text.len() + part.len() < PASSAGE_CHARS => {
+                    text.push('\n');
+                    text.push_str(&part);
+                }
+                _ => passages.push((start, part)),
             }
-            _ => passages.push((start, piece.chars().take(PASSAGE_CHARS).collect())),
         }
     }
     passages
@@ -75,26 +106,41 @@ fn transcript_passages(segments: &[Segment]) -> Vec<(Option<u64>, String)> {
 }
 
 fn text_passages(text: &str) -> Vec<(Option<u64>, String)> {
-    pack(text.split("\n\n").map(str::trim).filter(|p| !p.is_empty()).map(|p| (None, p.to_owned())))
+    pack(text.lines().map(str::trim).filter(|p| !p.is_empty()).map(|p| (None, p.to_owned())))
 }
 
 impl MeetingIndex {
     pub fn open(path: &Path) -> Result<Self, MusliError> {
         let conn = Connection::open(path).map_err(db)?;
-        conn.execute_batch(
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).map_err(db)?;
+        if version != SCHEMA_VERSION {
+            conn.execute_batch(
+                "DROP TABLE IF EXISTS files; DROP TABLE IF EXISTS passages; DROP TABLE IF EXISTS chunks;",
+            )
+            .map_err(db)?;
+        }
+        conn.execute_batch(&format!(
             "CREATE TABLE IF NOT EXISTS files (
                 meeting_id TEXT NOT NULL, name TEXT NOT NULL, mtime INTEGER NOT NULL, len INTEGER NOT NULL,
                 PRIMARY KEY (meeting_id, name));
+             CREATE TABLE IF NOT EXISTS chunks (
+                id INTEGER PRIMARY KEY, meeting_id TEXT NOT NULL, name TEXT NOT NULL, start_ms INTEGER, text TEXT NOT NULL);
+             CREATE INDEX IF NOT EXISTS chunks_file ON chunks (meeting_id, name);
              CREATE VIRTUAL TABLE IF NOT EXISTS passages USING fts5(
-                meeting_id UNINDEXED, name UNINDEXED, start_ms UNINDEXED, text,
-                tokenize = 'unicode61 remove_diacritics 2');",
-        )
+                text, content = 'chunks', content_rowid = 'id', tokenize = 'unicode61 remove_diacritics 2');
+             CREATE TRIGGER IF NOT EXISTS chunks_insert AFTER INSERT ON chunks BEGIN
+                INSERT INTO passages (rowid, text) VALUES (new.id, new.text); END;
+             CREATE TRIGGER IF NOT EXISTS chunks_delete AFTER DELETE ON chunks BEGIN
+                INSERT INTO passages (passages, rowid, text) VALUES ('delete', old.id, old.text); END;
+             PRAGMA user_version = {SCHEMA_VERSION};"
+        ))
         .map_err(db)?;
         Ok(Self { conn })
     }
 
     pub fn sync(&mut self, store: &MeetingStore) -> Result<(), MusliError> {
         let meetings: Vec<String> = store.list().into_iter().map(|m| m.id).collect();
+        let present: std::collections::HashSet<&String> = meetings.iter().collect();
         let tx = self.conn.transaction().map_err(db)?;
         let known: Vec<(String, String, i64, i64)> = {
             let mut stmt = tx.prepare("SELECT meeting_id, name, mtime, len FROM files").map_err(db)?;
@@ -107,8 +153,8 @@ impl MeetingIndex {
             known.into_iter().map(|(id, name, mtime, len)| ((id, name), (mtime, len))).collect();
 
         for (id, name) in known.keys() {
-            if !meetings.contains(id) || store.file_stamp(id, name).is_none() {
-                tx.execute("DELETE FROM passages WHERE meeting_id = ?1 AND name = ?2", params![id, name]).map_err(db)?;
+            if !present.contains(id) || store.file_stamp(id, name).is_none() {
+                tx.execute("DELETE FROM chunks WHERE meeting_id = ?1 AND name = ?2", params![id, name]).map_err(db)?;
                 tx.execute("DELETE FROM files WHERE meeting_id = ?1 AND name = ?2", params![id, name]).map_err(db)?;
             }
         }
@@ -123,10 +169,10 @@ impl MeetingIndex {
                     PassageKind::Notes => text_passages(&store.read_notes(id)),
                     PassageKind::Summary => text_passages(&store.read_meeting(id).unwrap_or_default()),
                 };
-                tx.execute("DELETE FROM passages WHERE meeting_id = ?1 AND name = ?2", params![id, name]).map_err(db)?;
+                tx.execute("DELETE FROM chunks WHERE meeting_id = ?1 AND name = ?2", params![id, name]).map_err(db)?;
                 for (start, text) in passages {
                     tx.execute(
-                        "INSERT INTO passages (meeting_id, name, start_ms, text) VALUES (?1, ?2, ?3, ?4)",
+                        "INSERT INTO chunks (meeting_id, name, start_ms, text) VALUES (?1, ?2, ?3, ?4)",
                         params![id, name, start.map(|ms| ms as i64), text],
                     )
                     .map_err(db)?;
@@ -177,12 +223,38 @@ impl MeetingIndex {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT meeting_id, name, start_ms, text, snippet(passages, 3, '«', '»', '…', 12)
-                 FROM passages WHERE passages MATCH ?1 AND (?2 IS NULL OR meeting_id = ?2)
+                "SELECT c.meeting_id, c.name, c.start_ms, c.text, snippet(passages, 0, '«', '»', '…', 12)
+                 FROM passages JOIN chunks c ON c.id = passages.rowid
+                 WHERE passages MATCH ?1 AND (?2 IS NULL OR c.meeting_id = ?2)
                  ORDER BY bm25(passages) LIMIT ?3",
             )
             .map_err(db)?;
         let rows = stmt.query_map(params![expression, meeting_id, limit], row).map_err(db)?;
+        resolve(store, rows.collect::<Result<_, _>>().map_err(db)?)
+    }
+
+    /// Every matching meeting, best first, with its `per_meeting` best passages.
+    pub fn search_grouped(&self, store: &MeetingStore, query: &str, per_meeting: u32) -> Result<Vec<Passage>, MusliError> {
+        let expression = fts_terms(query).join(" ");
+        if expression.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut stmt = self
+            .conn
+            .prepare(
+                "WITH hits AS (
+                    SELECT c.meeting_id, c.name, c.start_ms, c.text,
+                           snippet(passages, 0, '«', '»', '…', 12) AS snippet, bm25(passages) AS rank
+                    FROM passages JOIN chunks c ON c.id = passages.rowid WHERE passages MATCH ?1),
+                 ranked AS (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY meeting_id ORDER BY rank) AS position,
+                           MIN(rank) OVER (PARTITION BY meeting_id) AS best
+                    FROM hits)
+                 SELECT meeting_id, name, start_ms, text, snippet FROM ranked
+                 WHERE position <= ?2 ORDER BY best, meeting_id, position",
+            )
+            .map_err(db)?;
+        let rows = stmt.query_map(params![expression, per_meeting], row).map_err(db)?;
         resolve(store, rows.collect::<Result<_, _>>().map_err(db)?)
     }
 
@@ -195,7 +267,7 @@ impl MeetingIndex {
         let mut out = Vec::new();
         let mut stmt = self
             .conn
-            .prepare("SELECT meeting_id, name, start_ms, text, '' FROM passages WHERE meeting_id = ?1 ORDER BY rowid")
+            .prepare("SELECT meeting_id, name, start_ms, text, '' FROM chunks WHERE meeting_id = ?1 ORDER BY id")
             .map_err(db)?;
         for id in order {
             let rows: Vec<RawRow> = stmt.query_map(params![id], row).map_err(db)?.collect::<Result<_, _>>().map_err(db)?;
@@ -346,6 +418,49 @@ mod tests {
         let joined: String = passages.iter().map(|(_, t)| t.as_str()).collect::<Vec<_>>().join("\n");
         assert!(joined.find("nummer 00").unwrap() < joined.find("nummer 49").unwrap());
         assert_eq!(passages[0].0, Some(0));
+    }
+
+    #[test]
+    fn long_single_paragraph_is_fully_indexed() {
+        let mut f = fixture();
+        let id = meeting(&f.store, "Lang", 9);
+        let note = format!("{} slotwoord", "bla ".repeat(500));
+        f.store.write_notes(&id, &format!("- eerste\n- tweede\n{note}")).unwrap();
+        f.index.sync(&f.store).unwrap();
+        assert_eq!(f.index.search(&f.store, "slotwoord", None, 10).unwrap().len(), 1);
+        assert!(split_long(&"x".repeat(1500)).iter().all(|p| p.len() <= PASSAGE_CHARS));
+        assert_eq!(split_long(&"é".repeat(400)).concat(), "é".repeat(400));
+    }
+
+    #[test]
+    fn grouped_search_keeps_every_meeting() {
+        let mut f = fixture();
+        let busy = meeting(&f.store, "Druk", 9);
+        let quiet = meeting(&f.store, "Stil", 10);
+        let lines: Vec<String> = (0..80).map(|i| format!("budget punt {i}\n")).collect();
+        f.store.write_notes(&busy, &lines.join("\n")).unwrap();
+        f.store.write_notes(&quiet, "ook het budget").unwrap();
+        f.index.sync(&f.store).unwrap();
+        let hits = f.index.search_grouped(&f.store, "budget", 2).unwrap();
+        let meetings: std::collections::HashSet<&str> = hits.iter().map(|h| h.meeting_id.as_str()).collect();
+        assert_eq!(meetings, [busy.as_str(), quiet.as_str()].into_iter().collect());
+        assert!(hits.iter().filter(|h| h.meeting_id == busy).count() <= 2);
+    }
+
+    #[test]
+    fn old_schema_is_rebuilt() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("index.sqlite");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch("CREATE VIRTUAL TABLE passages USING fts5(meeting_id UNINDEXED, name UNINDEXED, start_ms UNINDEXED, text);").unwrap();
+        drop(conn);
+        let store = MeetingStore::new(&dir.path().join("m"));
+        std::fs::create_dir_all(dir.path().join("m")).unwrap();
+        let id = store.create("A", chrono::Local::now()).unwrap();
+        store.write_notes(&id, "papaya").unwrap();
+        let mut index = MeetingIndex::open(&path).unwrap();
+        index.sync(&store).unwrap();
+        assert_eq!(index.search(&store, "papaya", None, 5).unwrap().len(), 1);
     }
 
     #[test]

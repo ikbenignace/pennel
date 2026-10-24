@@ -203,29 +203,33 @@ impl MusliEngine {
 
     /// Title matches first, then meetings in full-text rank order.
     pub fn search_meetings(&self, query: String) -> Vec<MeetingInfo> {
-        let store = self.meeting_store();
-        if query.trim().is_empty() {
-            return store.list();
-        }
-        let Some(passages) = self.with_index(&store, |index| index.search(&store, &query, None, 200)) else {
-            return store.search(&query);
-        };
-        let needle = query.trim().to_lowercase();
-        let mut found: Vec<MeetingInfo> =
-            store.list().into_iter().filter(|m| m.title.to_lowercase().contains(&needle)).collect();
-        for passage in passages {
-            if !found.iter().any(|m| m.id == passage.meeting_id)
-                && let Some(info) = store.info(&passage.meeting_id)
-            {
-                found.push(info);
-            }
-        }
-        found
+        self.search_library(query).meetings
     }
 
     pub fn search_passages(&self, query: String) -> Vec<Passage> {
+        self.search_library(query).passages
+    }
+
+    /// Matching meetings plus up to two snippets each, from one index sync.
+    pub fn search_library(&self, query: String) -> LibrarySearch {
         let store = self.meeting_store();
-        self.with_index(&store, |index| index.search(&store, &query, None, 50)).unwrap_or_default()
+        if query.trim().is_empty() {
+            return LibrarySearch { meetings: store.list(), passages: Vec::new() };
+        }
+        let Some(passages) = self.with_index(&store, |index| index.search_grouped(&store, &query, 2)) else {
+            return LibrarySearch { meetings: store.search(&query), passages: Vec::new() };
+        };
+        let needle = query.trim().to_lowercase();
+        let all = store.list();
+        let mut meetings: Vec<MeetingInfo> = all.iter().filter(|m| m.title.to_lowercase().contains(&needle)).cloned().collect();
+        for passage in &passages {
+            if !meetings.iter().any(|m| m.id == passage.meeting_id)
+                && let Some(info) = all.iter().find(|m| m.id == passage.meeting_id)
+            {
+                meetings.push(info.clone());
+            }
+        }
+        LibrarySearch { meetings, passages }
     }
 
     pub fn meeting_info(&self, id: String) -> Option<MeetingInfo> {
@@ -346,7 +350,8 @@ impl MusliEngine {
                     }
                     let mut picked: Vec<Passage> =
                         all.iter().filter(|p| p.kind == PassageKind::Summary).cloned().collect();
-                    picked.extend(index.search_any(&store, &terms, Some(id), MEETING_PASSAGES)?);
+                    let found = index.search_any(&store, &terms, Some(id), MEETING_PASSAGES)?;
+                    picked.extend(if found.is_empty() { index.recent(&store, Some(id), MEETING_PASSAGES)? } else { found });
                     return Ok(picked);
                 }
                 let found = index.search_any(&store, &terms, None, ALL_MEETINGS_PASSAGES)?;
@@ -359,7 +364,7 @@ impl MusliEngine {
             &chat_messages(&question, &history, &sources),
             ASK_TIMEOUT_SECS,
         )?;
-        Ok(MeetingAnswer { sources: cited(&answer, &sources), text: answer })
+        Ok(MeetingAnswer { citations: cited(&answer, &sources), text: answer })
     }
 
     pub fn local_models(&self, language: Option<String>, supported_only: bool) -> Vec<LocalModel> {
@@ -393,6 +398,12 @@ impl MusliEngine {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct LibrarySearch {
+    pub meetings: Vec<MeetingInfo>,
+    pub passages: Vec<Passage>,
+}
+
 fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
     MeetingIndex::open(path).ok().or_else(|| {
         let _ = std::fs::remove_file(path);
@@ -407,7 +418,7 @@ impl MusliEngine {
         store: &MeetingStore,
         query: impl FnOnce(&MeetingIndex) -> Result<T, MusliError>,
     ) -> Option<T> {
-        let mut guard = self.index.lock().unwrap();
+        let mut guard = self.index.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let index = guard.as_mut()?;
         index.sync(store).ok()?;
         query(index).ok()
@@ -782,8 +793,8 @@ mod tests {
         let answer = engine.ask_meetings("wat?".into(), vec![], None, keys()).unwrap();
         mock.assert();
         assert_eq!(answer.text, "Mango [1].");
-        assert_eq!(answer.sources.len(), 1);
-        assert_eq!(answer.sources[0].title, "Nieuw");
+        assert_eq!(answer.citations.len(), 1);
+        assert_eq!(answer.citations[0].passage.title, "Nieuw");
     }
 
     #[test]
@@ -805,6 +816,6 @@ mod tests {
         let answer = engine.ask_meetings("Waar verhuizen we naartoe?".into(), vec![], Some(id), keys()).unwrap();
         mock.assert();
         other.assert();
-        assert!(answer.sources.is_empty());
+        assert!(answer.citations.is_empty());
     }
 }

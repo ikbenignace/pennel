@@ -2,34 +2,21 @@
 import MusliKit
 import SwiftUI
 
-extension Notification.Name {
-    static let musliShowTranscriptAt = Notification.Name("dev.musli.showTranscriptAt")
-}
-
 struct MeetingChatView: View {
     let state: AppState
-    let meetingId: String?
-
-    private struct Exchange: Identifiable {
-        let id = UUID()
-        let question: String
-        var answer: MeetingAnswer?
-        var error: String?
-    }
-
-    @State private var exchanges: [Exchange] = []
+    let chat: MeetingChat
     @State private var draft = ""
     @FocusState private var focused: Bool
 
-    private var busy: Bool { exchanges.last.map { $0.answer == nil && $0.error == nil } ?? false }
+    private var meetingId: String? { chat.meetingId }
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        if exchanges.isEmpty { placeholder }
-                        ForEach(exchanges) { exchange in
+                        if chat.exchanges.isEmpty { placeholder }
+                        ForEach(chat.exchanges) { exchange in
                             exchangeView(exchange).id(exchange.id)
                         }
                     }
@@ -37,8 +24,8 @@ struct MeetingChatView: View {
                     .padding(.vertical, 16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .onChange(of: exchanges.count) {
-                    if let last = exchanges.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
+                .onChange(of: chat.exchanges.count, initial: true) {
+                    if let last = chat.exchanges.last { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
             HStack(spacing: 8) {
@@ -46,8 +33,8 @@ struct MeetingChatView: View {
                     .textFieldStyle(.roundedBorder)
                     .focused($focused)
                     .onSubmit(ask)
-                    .disabled(busy)
-                Button("Vraag", action: ask).disabled(busy || draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(chat.busy)
+                Button("Vraag", action: ask).disabled(chat.busy || draft.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(.horizontal, 32)
             .padding(.vertical, 14)
@@ -67,7 +54,7 @@ struct MeetingChatView: View {
         }
     }
 
-    private func exchangeView(_ exchange: Exchange) -> some View {
+    private func exchangeView(_ exchange: MeetingChat.Exchange) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Spacer()
@@ -78,11 +65,8 @@ struct MeetingChatView: View {
                     .background(RoundedRectangle(cornerRadius: 10).fill(Theme.line))
             }
             if let answer = exchange.answer {
-                Text(Self.markdown(answer.text))
-                    .font(.figtree(14))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !answer.sources.isEmpty { sources(answer.sources) }
+                MarkdownBlock(text: answer.text)
+                if !answer.citations.isEmpty { sources(answer.citations) }
             } else if let error = exchange.error {
                 Text(error).font(.figtree(12)).foregroundStyle(Theme.accent)
             } else {
@@ -91,13 +75,13 @@ struct MeetingChatView: View {
         }
     }
 
-    private func sources(_ passages: [Passage]) -> some View {
+    private func sources(_ citations: [Citation]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            ForEach(Array(passages.enumerated()), id: \.offset) { index, passage in
+            ForEach(citations, id: \.number) { citation in
                 Button {
-                    open(passage)
+                    open(citation.passage)
                 } label: {
-                    Text("\(index + 1). \(Self.label(passage))")
+                    Text("[\(citation.number)] \(Self.label(citation.passage))")
                         .font(.figtree(11))
                         .foregroundStyle(Theme.muted)
                         .underline()
@@ -108,41 +92,17 @@ struct MeetingChatView: View {
     }
 
     private func open(_ passage: Passage) {
-        NotificationCenter.default.post(name: .musliSelectMeeting, object: passage.meetingId)
         if passage.kind == .transcript, let ms = passage.startMs {
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: .musliShowTranscriptAt, object: ms)
-            }
+            state.transcriptJump = TranscriptJump(meetingId: passage.meetingId, ms: ms)
         }
+        NotificationCenter.default.post(name: .musliSelectMeeting, object: passage.meetingId)
     }
 
     private func ask() {
         let question = draft.trimmingCharacters(in: .whitespaces)
-        guard !question.isEmpty, !busy else { return }
+        guard !question.isEmpty, !chat.busy else { return }
         draft = ""
-        let history = exchanges.compactMap { exchange in
-            exchange.answer.map { ChatTurn(question: exchange.question, answer: $0.text) }
-        }
-        exchanges.append(Exchange(question: question))
-        let (engine, keys, scope) = (state.engine, state.keys(), meetingId)
-        Task {
-            let result = await Task.detached {
-                Result { try engine.askMeetings(question: question, history: history, meetingId: scope, keys: keys) }
-            }.value
-            guard let index = exchanges.indices.last else { return }
-            switch result {
-            case .success(let answer): exchanges[index].answer = answer
-            case .failure(let error): exchanges[index].error = Self.message(error)
-            }
-        }
-    }
-
-    private static func message(_ error: Error) -> String {
-        switch error as? MusliError {
-        case .MissingApiKey, .NotFound: "Geen taalmodel ingesteld — kies er een bij Instellingen → Modellen."
-        case .Network: "Geen verbinding met je taalmodel."
-        default: "Vragen mislukt: \(error)"
-        }
+        chat.ask(question, engine: state.engine, keys: state.keys())
     }
 
     static func label(_ passage: Passage) -> String {
@@ -155,8 +115,47 @@ struct MeetingChatView: View {
         }
         return "\(passage.title) · \(day) · \(place)"
     }
+}
 
-    static func markdown(_ text: String) -> AttributedString {
+/// Renders the block Markdown an LLM answers with: headings, bullets and paragraphs with inline styling.
+struct MarkdownBlock: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(Array(text.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
+                lineView(line.trimmingCharacters(in: .whitespaces))
+            }
+        }
+        .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private func lineView(_ line: String) -> some View {
+        if line.isEmpty {
+            Color.clear.frame(height: 2)
+        } else if let heading = Self.heading(line) {
+            Text(Self.inline(heading)).font(.figtree(14, weight: .semibold)).padding(.top, 4)
+        } else if let item = ["- ", "* ", "• "].first(where: line.hasPrefix).map({ String(line.dropFirst($0.count)) }) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("•").foregroundStyle(Theme.muted)
+                Text(Self.inline(item))
+            }
+            .font(.figtree(14))
+        } else {
+            Text(Self.inline(line)).font(.figtree(14))
+        }
+    }
+
+    static func heading(_ line: String) -> String? {
+        guard line.hasPrefix("#") else { return nil }
+        let rest = line.drop(while: { $0 == "#" })
+        guard rest.hasPrefix(" ") else { return nil }
+        return rest.trimmingCharacters(in: .whitespaces)
+    }
+
+    static func inline(_ text: String) -> AttributedString {
         (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(text)
     }

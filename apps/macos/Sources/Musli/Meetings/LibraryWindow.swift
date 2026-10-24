@@ -30,7 +30,7 @@ struct LibraryView: View {
                 .background(Theme.background)
             Group {
                 if asking {
-                    MeetingChatView(state: state, meetingId: nil)
+                    MeetingChatView(state: state, chat: state.chat(for: nil))
                 } else if let selection, meetings.contains(where: { $0.id == selection }) {
                     MeetingDetailView(state: state, meetingId: selection).id(selection)
                 } else {
@@ -198,12 +198,10 @@ struct LibraryView: View {
         search = Task {
             if !query.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
             guard !Task.isCancelled else { return }
-            let (found, passages) = await Task.detached {
-                (engine.searchMeetings(query: query), query.isEmpty ? [] : engine.searchPassages(query: query))
-            }.value
+            let result = await Task.detached { engine.searchLibrary(query: query) }.value
             guard !Task.isCancelled else { return }
-            meetings = found
-            snippets = Dictionary(grouping: passages, by: \.meetingId).mapValues { Array($0.prefix(2).map(\.snippet)) }
+            meetings = result.meetings
+            snippets = Dictionary(grouping: result.passages, by: \.meetingId).mapValues { Array($0.prefix(2).map(\.snippet)) }
             if selection == nil { selection = meetings.first?.id }
         }
     }

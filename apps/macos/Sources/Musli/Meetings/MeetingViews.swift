@@ -112,6 +112,7 @@ struct MeetingDetailView: View {
     @State private var working = false
     @State private var message: String?
     @State private var highlightMs: UInt64?
+    @State private var scrollToken = UUID()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -130,7 +131,7 @@ struct MeetingDetailView: View {
                 Text(text).font(.figtree(12)).foregroundStyle(Theme.accent).padding(.horizontal, 32)
             }
             if tab == .ask {
-                MeetingChatView(state: state, meetingId: meetingId)
+                MeetingChatView(state: state, chat: state.chat(for: meetingId))
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -150,8 +151,9 @@ struct MeetingDetailView: View {
                         .padding(.vertical, 12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .onChange(of: highlightMs) {
-                        if let ms = highlightMs { withAnimation { proxy.scrollTo(ms, anchor: .center) } }
+                    .onChange(of: scrollToken, initial: true) {
+                        guard let ms = highlightMs, tab == .transcript else { return }
+                        DispatchQueue.main.async { withAnimation { proxy.scrollTo(ms, anchor: .center) } }
                     }
                 }
                 footer
@@ -161,11 +163,7 @@ struct MeetingDetailView: View {
         .onAppear(perform: reload)
         .onChange(of: meetingId) { reload() }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in reload() }
-        .onReceive(NotificationCenter.default.publisher(for: .musliShowTranscriptAt)) { note in
-            guard let ms = note.object as? UInt64 else { return }
-            tab = .transcript
-            highlightMs = segments.last(where: { $0.startMs <= ms })?.startMs ?? ms
-        }
+        .onChange(of: state.transcriptJump, initial: true) { consumeJump() }
     }
 
     private var footer: some View {
@@ -208,6 +206,15 @@ struct MeetingDetailView: View {
         let date = ISO8601DateFormatter().date(from: info.startIso)
         let when = date?.formatted(date: .complete, time: .shortened) ?? info.startIso
         return info.durationMin > 0 ? "\(when) · \(info.durationMin) min" : when
+    }
+
+    private func consumeJump() {
+        guard let jump = state.transcriptJump, jump.meetingId == meetingId else { return }
+        state.transcriptJump = nil
+        if segments.isEmpty { segments = state.engine.meetingTranscript(id: meetingId) }
+        tab = .transcript
+        highlightMs = segments.last(where: { $0.startMs <= jump.ms })?.startMs ?? jump.ms
+        scrollToken = UUID()
     }
 
     private func reload() {
