@@ -104,7 +104,11 @@ pub fn app_info(shared: State<'_, Arc<Shared>>) -> AppInfo {
 }
 
 #[tauri::command]
-pub fn save_settings(settings: Settings, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
+pub fn save_settings(
+    settings: Settings,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<AppInfo> {
     let previous = shared.settings().hotkey;
     shared.engine.update_settings(settings).map_err(err)?;
     let hotkey = shared.settings().hotkey;
@@ -113,6 +117,9 @@ pub fn save_settings(settings: Settings, shared: State<'_, Arc<Shared>>) -> Resu
             listener.set_trigger(hotkey);
         }
         let _ = shared.dictation.send(Msg::TriggerChanged);
+        if let Some(hint) = app.try_state::<crate::TrayHint>() {
+            let _ = hint.0.set_text(crate::hotkey_hint(&shared));
+        }
         LOG.info(format!("sneltoets gewijzigd naar {hotkey:?}"));
     }
     Ok(info(&shared))

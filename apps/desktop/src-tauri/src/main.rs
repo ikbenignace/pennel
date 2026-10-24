@@ -69,18 +69,25 @@ fn hotkey_label(trigger: pennel_core::HotkeyTrigger) -> &'static str {
     }
 }
 
-fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
-    let hint = match shared.hotkey_error.lock().unwrap().as_ref() {
+pub struct TrayHint(pub MenuItem<tauri::Wry>);
+
+pub fn hotkey_hint(shared: &Shared) -> String {
+    match shared.hotkey_error.lock().unwrap().as_ref() {
         None => format!(
             "Dicteren — houd {} ingedrukt",
             hotkey_label(shared.settings().hotkey)
         ),
         Some(_) => "Sneltoets niet beschikbaar (zie logboek)".into(),
-    };
+    }
+}
+
+fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
+    let hint = MenuItem::with_id(app, "hint", hotkey_hint(shared), false, None::<&str>)?;
+    app.manage(TrayHint(hint.clone()));
     let menu = Menu::with_items(
         app,
         &[
-            &MenuItem::with_id(app, "hint", hint, false, None::<&str>)?,
+            &hint,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "open", "Open Pennel", true, None::<&str>)?,
             &MenuItem::with_id(app, "meeting", "Meeting opnemen…", true, None::<&str>)?,

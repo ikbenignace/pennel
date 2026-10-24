@@ -174,4 +174,3 @@ Linux desktop):
   cannot run afterwards.
 - No onboarding wizard (the app opens on Providers when dictation is not set up), no auto-start at
   login, no auto-update, unsigned installers.
-- The tray hint does not update after changing the hotkey until restart.
