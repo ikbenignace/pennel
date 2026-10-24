@@ -19,6 +19,7 @@ final class DictationController {
     private var ticker: Timer?
     private var noticeTask: Task<Void, Never>?
     private var recordingApp: String?
+    private var recordingPid: pid_t?
     private var isRecording = false
     private var insertion: Task<Void, Never>?
     weak var meeting: MeetingController?
@@ -66,7 +67,7 @@ final class DictationController {
 
     private func shift(_ down: Bool) {
         let wasCommand = command.isCommand
-        command.shift(down, keyHeld: isRecording)
+        command.shift(down, keyHeld: isRecording && (monitor?.isKeyDown ?? false))
         if command.isCommand && !wasCommand {
             status.markCommand()
             render()
@@ -89,6 +90,7 @@ final class DictationController {
             return
         }
         recordingApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        recordingPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
         do {
             try recorder.start { [weak self] level in
                 Task { @MainActor in self?.pill.model.level = level }
@@ -153,12 +155,21 @@ final class DictationController {
         status.recordingSubmitted()
         render()
         if isCommand {
+            let pid = recordingPid
+            let pendingPastes = insertion
             Task {
+                // Earlier pastes restore the clipboard first, so ⌘C never snapshots Musli's own text.
+                await pendingPastes?.value
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+                    self.finish(seq, .failure(CommandError.appChanged), released: released, isCommand: true)
+                    return
+                }
                 let selection = await SelectionReader.read()
                 let outcome = await Task.detached(priority: .userInitiated) {
                     Result { try engine.command(request: request, selection: selection) }
                 }.value
-                self.finish(seq, outcome, released: released, isCommand: true)
+                let stillThere = NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
+                self.finish(seq, stillThere ? outcome : .failure(CommandError.appChanged), released: released, isCommand: true)
             }
             return
         }
@@ -230,14 +241,19 @@ final class DictationController {
         }
     }
 
+    private enum CommandError: Error { case appChanged }
+
     /// Commands are not kept in history when they fail, so these notices don't promise a retry.
     private static func commandNotice(for error: Error) -> String? {
+        if case .appChanged = error as? CommandError { return "Andere app actief — opdracht niet geplakt" }
         switch error as? MusliError {
-        case .NoSpeech: nil
-        case .MissingApiKey: "Geen API-sleutel ingesteld"
-        case .InvalidResponse(let message) where message == "selection too long": "Selectie te lang voor een opdracht"
-        case .Network: "Geen verbinding"
-        default: "Opdracht mislukt"
+        case .NoSpeech: return nil
+        case .MissingApiKey: return "Geen API-sleutel ingesteld"
+        case .NotFound: return "Geen taalmodel ingesteld"
+        case .Http(let status, _) where status == 401 || status == 403: return "API-sleutel geweigerd"
+        case .InvalidResponse(let message) where message == "selection too long": return "Selectie te lang voor een opdracht"
+        case .Network: return "Geen verbinding"
+        default: return "Opdracht mislukt"
         }
     }
 

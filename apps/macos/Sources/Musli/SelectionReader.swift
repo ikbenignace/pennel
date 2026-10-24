@@ -6,6 +6,7 @@ import ApplicationServices
 enum SelectionReader {
     private static let cKey: CGKeyCode = 8
     private static let copyWait: Duration = .milliseconds(300)
+    private static let lateCopyWatch: Duration = .seconds(2)
 
     static func read() async -> String? {
         switch axSelection() {
@@ -23,6 +24,7 @@ enum SelectionReader {
               let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
         else { return nil }
         let element = focused as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, 0.25)
         var selected: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selected) == .success else {
             return nil
@@ -46,9 +48,26 @@ enum SelectionReader {
         while pasteboard.changeCount == before, ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(20))
         }
-        guard pasteboard.changeCount != before else { return nil }
+        guard pasteboard.changeCount != before else {
+            restoreIfCopiedLate(saved, before: before)
+            return nil
+        }
         let text = pasteboard.string(forType: .string)
         system.restore(saved)
         return text?.isEmpty == false ? text : nil
+    }
+
+    /// A slow app may still answer ⌘C after we gave up; put the user's clipboard back when it does.
+    private static func restoreIfCopiedLate(_ saved: [[String: Data]], before: Int) {
+        Task {
+            let deadline = ContinuousClock.now + lateCopyWatch
+            while ContinuousClock.now < deadline {
+                try? await Task.sleep(for: .milliseconds(50))
+                if NSPasteboard.general.changeCount != before {
+                    SystemPasteboard().restore(saved)
+                    return
+                }
+            }
+        }
     }
 }

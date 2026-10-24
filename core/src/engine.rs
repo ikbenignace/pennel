@@ -175,13 +175,16 @@ impl MusliEngine {
         }
         let wav = encode_wav(&request.samples, request.sample_rate);
         let instruction = self.stt(&settings, &settings.dictation_stt, &wav, &request.keys)?;
-        if is_hallucination(&instruction) {
+        if instruction.trim().is_empty() || is_hallucination(&instruction) {
             return Err(MusliError::NoSpeech);
         }
         let selection = selection.filter(|s| !s.trim().is_empty());
         let messages = command_messages(&instruction, selection.as_deref(), &settings.dictionary);
         let output = crate::llm::chat_complete_within(&endpoint(&llm_account, llm_model), llm_key, &messages, COMMAND_TIMEOUT_SECS)?;
         let text = strip_wrapping(&output);
+        if text.is_empty() {
+            return Err(MusliError::InvalidResponse { message: "empty command result".into() });
+        }
         let app = request.app_bundle_id.as_deref();
         let history_id = self.history.lock().unwrap().insert_done(app, &instruction, &text, now_ms())?;
         Ok(DictationResult { history_id, text, raw: instruction, cleanup: CleanupStatus::Applied })
@@ -878,7 +881,7 @@ mod tests {
         stt(&mut server, "maak hier een mail van");
         let mock = server
             .mock("POST", "/chat/completions")
-            .match_body(mockito::Matcher::Regex("selection>.{2}ik ben later".into()))
+            .match_body(mockito::Matcher::Regex("selection-[0-9a-f]{8}>.{2}ik ben later".into()))
             .with_body(r#"{"choices":[{"message":{"content":"\"Beste Jan, ik ben later.\""}}]}"#)
             .create();
         let result = engine.command(request(speech(), Some("com.apple.mail")), Some("ik ben later".into())).unwrap();
@@ -897,6 +900,21 @@ mod tests {
         let err = engine.command(request(vec![0.0; 16000], None), Some("tekst".into())).unwrap_err();
         assert_eq!(err, MusliError::NoSpeech);
         calls.assert();
+    }
+
+    #[test]
+    fn empty_instruction_or_result_pastes_nothing() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        let stt_mock = stt(&mut server, "  ");
+        let llm_mock = llm(&mut server, "x").expect(0);
+        assert_eq!(engine.command(request(speech(), None), Some("tekst".into())).unwrap_err(), MusliError::NoSpeech);
+        stt_mock.remove();
+        llm_mock.assert();
+        llm_mock.remove();
+        stt(&mut server, "maak korter");
+        llm(&mut server, "\"\"");
+        assert!(matches!(engine.command(request(speech(), None), Some("tekst".into())), Err(MusliError::InvalidResponse { .. })));
     }
 
     #[test]

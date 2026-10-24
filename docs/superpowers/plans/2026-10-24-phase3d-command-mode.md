@@ -12,7 +12,8 @@
 
 ## Global Constraints
 
-- Command = dictation key held + ⇧ pressed at any moment during the hold (or hands-free + ⇧). ⇧ alone never starts anything.
+- Command = dictation key physically held + ⇧ down at any moment during the hold, including ⇧ already down when the key is pressed (the "⇧ fn" chord). Hands-free recordings never become commands. ⇧ alone never starts anything.
+- When neither Accessibility nor ⌘C yields a selection, the command runs in write mode (decision: apps without AX support and nothing selected are common; secure fields are not a command use case).
 - Output is the transformed text only: no quotes, preamble or explanation (reuse `strip_wrapping`).
 - Selection limit 20 000 chars; longer → notice "Selectie te lang" and nothing is sent.
 - The ⌘C fallback restores the clipboard (same `PasteboardGuard` rules) and waits at most 300 ms for the copy.

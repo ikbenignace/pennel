@@ -28,6 +28,7 @@ final class HotkeyMonitor {
     deinit { stop() }
 
     var isRunning: Bool { tap != nil }
+    var isKeyDown: Bool { isDown }
 
     func setTrigger(_ trigger: HotkeyTrigger) {
         self.trigger = trigger
