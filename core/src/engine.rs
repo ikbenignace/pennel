@@ -3,10 +3,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::cleanup::{accept_cleanup, cleanup_messages, resolve_style, strip_wrapping};
+use crate::cleanup::{accept_cleanup, cleanup_messages, cleanup_timeout_secs, resolve_style, strip_wrapping};
 use crate::error::MusliError;
 use crate::history::{HistoryEntry, HistoryStore};
-use crate::llm::chat_complete;
 use crate::local_engine::LocalEngine;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::session::MeetingSession;
@@ -577,7 +576,8 @@ fn clean(settings: &Settings, raw: &str, app: Option<&str>, keys: &ApiKeys) -> (
         return (raw.to_owned(), CleanupStatus::Failed { message: "missing llm key".into() });
     }
     let style = resolve_style(app, &settings.style_rules);
-    match chat_complete(&endpoint(&account, model), key, &cleanup_messages(raw, style, &settings.dictionary)) {
+    let messages = cleanup_messages(raw, style, &settings.dictionary);
+    match crate::llm::chat_complete_within(&endpoint(&account, model), key, &messages, cleanup_timeout_secs(raw)) {
         Ok(output) => {
             let cleaned = strip_wrapping(&output);
             if accept_cleanup(raw, &cleaned) {

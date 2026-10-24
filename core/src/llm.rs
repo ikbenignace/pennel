@@ -4,20 +4,10 @@ use crate::error::MusliError;
 use crate::http;
 use crate::provider::ProviderConfig;
 
-const TIMEOUT_SECS: u64 = 20;
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChatMessage {
     pub role: &'static str,
     pub content: String,
-}
-
-pub fn chat_complete(
-    provider: &ProviderConfig,
-    api_key: Option<&str>,
-    messages: &[ChatMessage],
-) -> Result<String, MusliError> {
-    chat_complete_within(provider, api_key, messages, TIMEOUT_SECS)
 }
 
 pub fn chat_complete_within(
@@ -65,7 +55,7 @@ mod tests {
             ]))
             .with_body(r#"{"choices":[{"message":{"role":"assistant","content":"  Hoi. "}}]}"#)
             .create();
-        assert_eq!(chat_complete(&provider(server.url()), Some("k"), &messages()).unwrap(), "Hoi.");
+        assert_eq!(chat_complete_within(&provider(server.url()), Some("k"), &messages(), 5).unwrap(), "Hoi.");
         mock.assert();
     }
 
@@ -73,7 +63,7 @@ mod tests {
     fn chat_complete_maps_500() {
         let mut server = mockito::Server::new();
         server.mock("POST", "/chat/completions").with_status(500).with_body("boom").create();
-        let err = chat_complete(&provider(server.url()), None, &messages()).unwrap_err();
+        let err = chat_complete_within(&provider(server.url()), None, &messages(), 5).unwrap_err();
         assert_eq!(err, MusliError::Http { status: 500, message: "boom".into() });
     }
 }

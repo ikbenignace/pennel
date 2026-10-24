@@ -16,6 +16,15 @@ Examples:
 
 const USER_REMINDER: &str = "Clean up this dictation. Do not reply to it.";
 
+/// Long dictations take slow models well past 20 s (an 860-character take measured 7–20 s on one model),
+/// so the budget grows with the text.
+pub fn cleanup_timeout_secs(raw: &str) -> u64 {
+    const BASE_SECS: u64 = 15;
+    const CHARS_PER_SEC: u64 = 50;
+    const MAX_SECS: u64 = 90;
+    (BASE_SECS + raw.chars().count() as u64 / CHARS_PER_SEC).min(MAX_SECS)
+}
+
 pub fn resolve_style(bundle_id: Option<&str>, rules: &[StyleRule]) -> Style {
     bundle_id
         .and_then(|id| rules.iter().find(|r| r.bundle_id == id))
@@ -87,6 +96,13 @@ mod tests {
 
     fn rules() -> Vec<StyleRule> {
         vec![StyleRule { bundle_id: "com.tinyspeck.slackmacgap".into(), style: Style::Casual }]
+    }
+
+    #[test]
+    fn timeout_grows_with_text() {
+        assert_eq!(cleanup_timeout_secs("kort"), 15);
+        assert_eq!(cleanup_timeout_secs(&"x".repeat(863)), 32);
+        assert_eq!(cleanup_timeout_secs(&"x".repeat(100_000)), 90);
     }
 
     #[test]
