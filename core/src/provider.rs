@@ -17,6 +17,7 @@ pub enum ProviderKind {
     Copilot,
     CursorAgent,
     GeminiCli,
+    AppleSpeech,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -60,6 +61,7 @@ impl ProviderKind {
             ProviderKind::Copilot => "copilot",
             ProviderKind::CursorAgent => "cursor",
             ProviderKind::GeminiCli => "gemini-cli",
+            ProviderKind::AppleSpeech => "apple",
         }
     }
 
@@ -79,6 +81,7 @@ impl ProviderKind {
             ProviderKind::Copilot => "GitHub Copilot",
             ProviderKind::CursorAgent => "Cursor",
             ProviderKind::GeminiCli => "Gemini CLI",
+            ProviderKind::AppleSpeech => "Apple-dicteren",
         }
     }
 
@@ -112,6 +115,9 @@ pub fn supports(kind: ProviderKind, task: ProviderTask) -> bool {
     if kind.is_cli_agent() {
         return task == ProviderTask::Llm;
     }
+    if kind == ProviderKind::AppleSpeech {
+        return task != ProviderTask::Llm;
+    }
     !(kind == ProviderKind::Local && task == ProviderTask::Llm)
 }
 
@@ -129,7 +135,7 @@ pub fn default_base_url(kind: ProviderKind) -> String {
         ProviderKind::Mistral => "https://api.mistral.ai/v1",
         ProviderKind::Ollama => "http://localhost:11434/v1",
         ProviderKind::LmStudio => "http://localhost:1234/v1",
-        ProviderKind::Custom | ProviderKind::Local => "",
+        ProviderKind::Custom | ProviderKind::Local | ProviderKind::AppleSpeech => "",
         // The executable path, filled in by detection.
         ProviderKind::ClaudeCode
         | ProviderKind::Codex
@@ -155,6 +161,7 @@ pub fn default_model(kind: ProviderKind, task: ProviderTask) -> String {
         ProviderKind::Ollama => ("", "gemma3:4b"),
         ProviderKind::LmStudio | ProviderKind::Custom => ("", ""),
         ProviderKind::Local => ("whisper-large-v3-turbo", ""),
+        ProviderKind::AppleSpeech => ("dictation", ""),
         // Haiku answers a cleanup in ~3 s; the other CLIs use the model configured in the CLI itself.
         ProviderKind::ClaudeCode => ("", "haiku"),
         ProviderKind::Codex

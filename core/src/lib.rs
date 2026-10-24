@@ -25,6 +25,7 @@ mod settings;
 mod speech;
 mod stt;
 mod summary;
+mod system_stt;
 mod templates;
 mod transcript_filter;
 mod wav;
