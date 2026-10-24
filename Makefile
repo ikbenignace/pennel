@@ -11,4 +11,4 @@ app: core
 	scripts/bundle-app.sh
 
 run: app
-	open build/Musli.app
+	open build/Pennel.app

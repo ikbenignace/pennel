@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::cleanup::{accept_cleanup, cleanup_messages, cleanup_timeout_secs, resolve_style, strip_wrapping};
-use crate::error::MusliError;
+use crate::error::PennelError;
 use crate::history::{HistoryEntry, HistoryStore};
 use crate::local_engine::LocalEngine;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
@@ -61,7 +61,7 @@ pub struct DictationResult {
 }
 
 #[derive(uniffi::Object)]
-pub struct MusliEngine {
+pub struct PennelEngine {
     settings_path: PathBuf,
     settings: RwLock<Settings>,
     history: Mutex<HistoryStore>,
@@ -99,11 +99,11 @@ fn endpoint(account: &ProviderAccount, model: String) -> ProviderConfig {
 }
 
 #[uniffi::export]
-impl MusliEngine {
+impl PennelEngine {
     #[uniffi::constructor]
-    pub fn new(data_dir: String) -> Result<Arc<Self>, MusliError> {
+    pub fn new(data_dir: String) -> Result<Arc<Self>, PennelError> {
         let dir = PathBuf::from(data_dir);
-        std::fs::create_dir_all(&dir).map_err(MusliError::storage)?;
+        std::fs::create_dir_all(&dir).map_err(PennelError::storage)?;
         let settings_path = dir.join("settings.json");
         let models = ModelStore::new(&dir);
         let settings = Settings::load(&settings_path)?.normalized_with(&models.downloaded());
@@ -124,30 +124,30 @@ impl MusliEngine {
         self.settings.read().unwrap().clone()
     }
 
-    pub fn update_settings(&self, settings: Settings) -> Result<(), MusliError> {
+    pub fn update_settings(&self, settings: Settings) -> Result<(), PennelError> {
         let settings = settings.normalized_with(&self.models.downloaded());
         settings.save(&self.settings_path)?;
         *self.settings.write().unwrap() = settings;
         Ok(())
     }
 
-    pub fn dictate(&self, request: DictationRequest) -> Result<DictationResult, MusliError> {
+    pub fn dictate(&self, request: DictationRequest) -> Result<DictationResult, PennelError> {
         if !has_speech(&request.samples, request.sample_rate) {
-            return Err(MusliError::NoSpeech);
+            return Err(PennelError::NoSpeech);
         }
         let settings = self.settings();
-        let (account, _) = settings.resolve(&settings.dictation_stt).ok_or(MusliError::NotFound)?;
+        let (account, _) = settings.resolve(&settings.dictation_stt).ok_or(PennelError::NotFound)?;
         if requires_key(account.kind) && request.keys.get(&account).is_none() {
-            return Err(MusliError::MissingApiKey { task: "stt".into() });
+            return Err(PennelError::MissingApiKey { task: "stt".into() });
         }
         let wav = encode_wav(&request.samples, request.sample_rate);
         let app = request.app_bundle_id.as_deref();
         let transcript = match self.process(&settings, &wav, app, &request.keys) {
             Err(
-                e @ (MusliError::Http { .. }
-                | MusliError::Network { .. }
-                | MusliError::InvalidResponse { .. }
-                | MusliError::ModelNotDownloaded),
+                e @ (PennelError::Http { .. }
+                | PennelError::Network { .. }
+                | PennelError::InvalidResponse { .. }
+                | PennelError::ModelNotDownloaded),
             ) => {
                 self.history.lock().unwrap().insert_failed(app, &wav, &e.to_string(), now_ms())?;
                 return Err(e);
@@ -160,39 +160,39 @@ impl MusliEngine {
     }
 
     /// Speaks an instruction that rewrites `selection`, or writes new text when nothing is selected.
-    pub fn command(&self, request: DictationRequest, selection: Option<String>) -> Result<DictationResult, MusliError> {
+    pub fn command(&self, request: DictationRequest, selection: Option<String>) -> Result<DictationResult, PennelError> {
         use crate::command::{command_messages, COMMAND_TIMEOUT_SECS, MAX_SELECTION_CHARS};
 
         if !has_speech(&request.samples, request.sample_rate) {
-            return Err(MusliError::NoSpeech);
+            return Err(PennelError::NoSpeech);
         }
         if selection.as_ref().is_some_and(|s| s.chars().count() > MAX_SELECTION_CHARS) {
-            return Err(MusliError::InvalidResponse { message: "selection too long".into() });
+            return Err(PennelError::InvalidResponse { message: "selection too long".into() });
         }
         let settings = self.settings();
-        let (llm_account, llm_model) = settings.resolve(&settings.llm).ok_or(MusliError::NotFound)?;
+        let (llm_account, llm_model) = settings.resolve(&settings.llm).ok_or(PennelError::NotFound)?;
         let llm_key = request.keys.get(&llm_account);
         if requires_key(llm_account.kind) && llm_key.is_none() {
-            return Err(MusliError::MissingApiKey { task: "llm".into() });
+            return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
         let wav = encode_wav(&request.samples, request.sample_rate);
         let instruction = self.stt(&settings, &settings.dictation_stt, &wav, &request.keys)?;
         if instruction.trim().is_empty() || is_hallucination(&instruction) {
-            return Err(MusliError::NoSpeech);
+            return Err(PennelError::NoSpeech);
         }
         let selection = selection.filter(|s| !s.trim().is_empty());
         let messages = command_messages(&instruction, selection.as_deref(), &settings.dictionary);
         let output = crate::llm::chat_complete_within(&endpoint(&llm_account, llm_model), llm_key, &messages, COMMAND_TIMEOUT_SECS, Reasoning::Off)?;
         let text = strip_wrapping(&output);
         if text.is_empty() {
-            return Err(MusliError::InvalidResponse { message: "empty command result".into() });
+            return Err(PennelError::InvalidResponse { message: "empty command result".into() });
         }
         let app = request.app_bundle_id.as_deref();
         let history_id = self.history.lock().unwrap().insert_done(app, &instruction, &text, now_ms())?;
         Ok(DictationResult { history_id, text, raw: instruction, cleanup: CleanupStatus::Applied })
     }
 
-    pub fn retry(&self, history_id: String, keys: ApiKeys) -> Result<DictationResult, MusliError> {
+    pub fn retry(&self, history_id: String, keys: ApiKeys) -> Result<DictationResult, PennelError> {
         let settings = self.settings();
         let (wav, app) = {
             let history = self.history.lock().unwrap();
@@ -203,11 +203,11 @@ impl MusliEngine {
         Ok(DictationResult { history_id, text: transcript.text, raw: transcript.raw, cleanup: transcript.cleanup })
     }
 
-    pub fn history(&self, limit: u32) -> Result<Vec<HistoryEntry>, MusliError> {
+    pub fn history(&self, limit: u32) -> Result<Vec<HistoryEntry>, PennelError> {
         self.history.lock().unwrap().list(limit)
     }
 
-    pub fn delete_history(&self, id: String) -> Result<(), MusliError> {
+    pub fn delete_history(&self, id: String) -> Result<(), PennelError> {
         self.history.lock().unwrap().delete(&id)
     }
 
@@ -217,7 +217,7 @@ impl MusliEngine {
         self.local.unload_if_idle(std::time::Duration::from_secs(minutes * 60), std::time::Instant::now())
     }
 
-    pub fn start_meeting(self: Arc<Self>, title: String, keys: ApiKeys) -> Result<Arc<MeetingSession>, MusliError> {
+    pub fn start_meeting(self: Arc<Self>, title: String, keys: ApiKeys) -> Result<Arc<MeetingSession>, PennelError> {
         self.start_meeting_with(title, Vec::new(), keys)
     }
 
@@ -226,7 +226,7 @@ impl MusliEngine {
         title: String,
         attendees: Vec<String>,
         keys: ApiKeys,
-    ) -> Result<Arc<MeetingSession>, MusliError> {
+    ) -> Result<Arc<MeetingSession>, PennelError> {
         let store = self.meeting_store();
         let id = store.create(&title, chrono::Local::now())?;
         store.set_attendees(&id, &attendees)?;
@@ -288,11 +288,11 @@ impl MusliEngine {
         self.meeting_store().dir_of(&id).to_string_lossy().into_owned()
     }
 
-    pub fn rename_meeting(&self, id: String, title: String) -> Result<String, MusliError> {
+    pub fn rename_meeting(&self, id: String, title: String) -> Result<String, PennelError> {
         self.meeting_store().rename(&id, &title)
     }
 
-    pub fn delete_meeting(&self, id: String) -> Result<(), MusliError> {
+    pub fn delete_meeting(&self, id: String) -> Result<(), PennelError> {
         self.meeting_store().delete(&id)
     }
 
@@ -302,7 +302,7 @@ impl MusliEngine {
     }
 
     /// Retries chunks whose transcription failed during the meeting; returns how many were recovered.
-    pub fn retranscribe_failed(&self, id: String, keys: ApiKeys) -> Result<u32, MusliError> {
+    pub fn retranscribe_failed(&self, id: String, keys: ApiKeys) -> Result<u32, PennelError> {
         let store = self.meeting_store();
         let settings = self.settings();
         let mut segments = store.read_transcript(&id);
@@ -323,22 +323,22 @@ impl MusliEngine {
     }
 
     /// Writes `meeting.md`: enhanced notes when the user typed any, otherwise a summary.
-    pub fn summarize_meeting(&self, id: String, template_id: String, keys: ApiKeys) -> Result<String, MusliError> {
+    pub fn summarize_meeting(&self, id: String, template_id: String, keys: ApiKeys) -> Result<String, PennelError> {
         use crate::summary::{blocks, chunk_messages, summary_messages, transcript_text, BLOCK_CHARS, MAP_REDUCE_ABOVE};
         const SUMMARY_TIMEOUT_SECS: u64 = 180;
 
         let store = self.meeting_store();
-        let info = store.info(&id).ok_or(MusliError::NotFound)?;
+        let info = store.info(&id).ok_or(PennelError::NotFound)?;
         let notes = store.read_notes(&id);
         let transcript = transcript_text(&store.read_transcript(&id), &store.speaker_names(&id));
         if transcript.trim().is_empty() && notes.trim().is_empty() {
-            return Err(MusliError::NoSpeech);
+            return Err(PennelError::NoSpeech);
         }
         let settings = self.settings();
-        let (account, model) = settings.resolve(&settings.llm).ok_or(MusliError::NotFound)?;
+        let (account, model) = settings.resolve(&settings.llm).ok_or(PennelError::NotFound)?;
         let key = keys.get(&account);
         if requires_key(account.kind) && key.is_none() {
-            return Err(MusliError::MissingApiKey { task: "llm".into() });
+            return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
         let provider = endpoint(&account, model);
         let ask = |messages: Vec<crate::llm::ChatMessage>| {
@@ -366,14 +366,14 @@ impl MusliEngine {
         history: Vec<ChatTurn>,
         meeting_id: Option<String>,
         keys: ApiKeys,
-    ) -> Result<MeetingAnswer, MusliError> {
+    ) -> Result<MeetingAnswer, PennelError> {
         use crate::meeting_chat::*;
 
         let settings = self.settings();
-        let (account, model) = settings.resolve(&settings.llm).ok_or(MusliError::NotFound)?;
+        let (account, model) = settings.resolve(&settings.llm).ok_or(PennelError::NotFound)?;
         let key = keys.get(&account);
         if requires_key(account.kind) && key.is_none() {
-            return Err(MusliError::MissingApiKey { task: "llm".into() });
+            return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
         let store = self.meeting_store();
         let scope = meeting_id.as_deref();
@@ -394,7 +394,7 @@ impl MusliEngine {
                 let found = index.search_any(&store, &terms, None, ALL_MEETINGS_PASSAGES)?;
                 if found.is_empty() { index.recent(&store, None, ALL_MEETINGS_PASSAGES) } else { Ok(found) }
             })
-            .ok_or(MusliError::Storage { message: "zoekindex niet beschikbaar".into() })?;
+            .ok_or(PennelError::Storage { message: "zoekindex niet beschikbaar".into() })?;
         let answer = crate::llm::chat_complete_within(
             &endpoint(&account, model),
             key,
@@ -405,9 +405,9 @@ impl MusliEngine {
         Ok(MeetingAnswer { citations: cited(&answer, &sources), text: answer })
     }
 
-    pub fn export_meeting(&self, id: String, include_transcript: bool) -> Result<MeetingExport, MusliError> {
+    pub fn export_meeting(&self, id: String, include_transcript: bool) -> Result<MeetingExport, PennelError> {
         let (title, markdown) =
-            crate::export::export_markdown(&self.meeting_store(), &id, include_transcript).ok_or(MusliError::NotFound)?;
+            crate::export::export_markdown(&self.meeting_store(), &id, include_transcript).ok_or(PennelError::NotFound)?;
         Ok(MeetingExport { html: crate::export::markdown_to_html(&markdown), title, markdown })
     }
 
@@ -417,12 +417,12 @@ impl MusliEngine {
 
     /// Splits the meeting's "Anderen" segments into voices from the full others-track (16 kHz mono);
     /// returns how many voices were found.
-    pub fn diarize_meeting(&self, id: String, samples: Vec<f32>) -> Result<u32, MusliError> {
-        let path = self.models.path(crate::models::DIARIZER_ID).ok_or(MusliError::ModelNotDownloaded)?;
+    pub fn diarize_meeting(&self, id: String, samples: Vec<f32>) -> Result<u32, PennelError> {
+        let path = self.models.path(crate::models::DIARIZER_ID).ok_or(PennelError::ModelNotDownloaded)?;
         let turns = crate::diarize::diarize(&path, &samples)?;
         let store = self.meeting_store();
         if store.unparsed_transcript_lines(&id) > 0 {
-            return Err(MusliError::InvalidResponse { message: "transcript bevat regels die Musli niet herkent".into() });
+            return Err(PennelError::InvalidResponse { message: "transcript bevat regels die Pennel niet herkent".into() });
         }
         let mut segments = store.read_transcript(&id);
         crate::diarize::assign_voices(&mut segments, &turns);
@@ -441,7 +441,7 @@ impl MusliEngine {
         self.meeting_store().speaker_names(&id)
     }
 
-    pub fn rename_speaker(&self, id: String, voice: u32, name: String) -> Result<(), MusliError> {
+    pub fn rename_speaker(&self, id: String, voice: u32, name: String) -> Result<(), PennelError> {
         self.meeting_store().rename_speaker(&id, voice, &name)
     }
 
@@ -453,11 +453,11 @@ impl MusliEngine {
         self.template_store().source(&id)
     }
 
-    pub fn save_template(&self, id: Option<String>, name: String, body: String) -> Result<String, MusliError> {
+    pub fn save_template(&self, id: Option<String>, name: String, body: String) -> Result<String, PennelError> {
         self.template_store().save(id.as_deref(), &name, &body)
     }
 
-    pub fn delete_template(&self, id: String) -> Result<(), MusliError> {
+    pub fn delete_template(&self, id: String) -> Result<(), PennelError> {
         self.template_store().delete(&id)
     }
 
@@ -470,7 +470,7 @@ impl MusliEngine {
     }
 
     /// Blocks until the download finishes, fails or is cancelled via `cancel_download`.
-    pub fn download_model(&self, id: String, listener: Arc<dyn DownloadListener>) -> Result<(), MusliError> {
+    pub fn download_model(&self, id: String, listener: Arc<dyn DownloadListener>) -> Result<(), PennelError> {
         let cancel = CancelFlag::default();
         self.downloads.lock().unwrap().insert(id.clone(), cancel.clone());
         let result = self.models.download(&id, listener.as_ref(), &cancel);
@@ -485,7 +485,7 @@ impl MusliEngine {
     }
 
     /// Also moves dictation off the deleted model when another local model is available.
-    pub fn delete_model(&self, id: String) -> Result<(), MusliError> {
+    pub fn delete_model(&self, id: String) -> Result<(), PennelError> {
         self.models.delete(&id)?;
         let settings = self.settings();
         self.update_settings(settings)
@@ -505,12 +505,12 @@ fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
     })
 }
 
-impl MusliEngine {
+impl PennelEngine {
     /// Syncs the index with the meeting files first; `None` when the index is unavailable.
     pub(crate) fn with_index<T>(
         &self,
         store: &MeetingStore,
-        query: impl FnOnce(&MeetingIndex) -> Result<T, MusliError>,
+        query: impl FnOnce(&MeetingIndex) -> Result<T, PennelError>,
     ) -> Option<T> {
         let mut guard = self.index.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let index = guard.as_mut()?;
@@ -518,10 +518,10 @@ impl MusliEngine {
         query(index).ok()
     }
 
-    fn process(&self, settings: &Settings, wav: &[u8], app: Option<&str>, keys: &ApiKeys) -> Result<Transcript, MusliError> {
+    fn process(&self, settings: &Settings, wav: &[u8], app: Option<&str>, keys: &ApiKeys) -> Result<Transcript, PennelError> {
         let raw = self.stt(settings, &settings.dictation_stt, wav, keys)?;
         if is_hallucination(&raw) {
-            return Err(MusliError::NoSpeech);
+            return Err(PennelError::NoSpeech);
         }
         let (text, cleanup) = match settings.mode {
             DictationMode::Fast => (raw.clone(), CleanupStatus::Skipped),
@@ -537,19 +537,19 @@ impl MusliEngine {
         choice: &ModelChoice,
         wav: &[u8],
         keys: &ApiKeys,
-    ) -> Result<String, MusliError> {
+    ) -> Result<String, PennelError> {
         let prompt: Option<String> = (!settings.dictionary.is_empty())
             .then(|| settings.dictionary.join(", ").chars().take(MAX_PROMPT_CHARS).collect());
-        let (account, model) = settings.resolve(choice).ok_or(MusliError::NotFound)?;
+        let (account, model) = settings.resolve(choice).ok_or(PennelError::NotFound)?;
         if account.kind == ProviderKind::Local {
-            let path = self.models.path(&model).ok_or(MusliError::ModelNotDownloaded)?;
-            let (samples, _) = decode_wav(wav).ok_or(MusliError::InvalidResponse { message: "bad audio".into() })?;
+            let path = self.models.path(&model).ok_or(PennelError::ModelNotDownloaded)?;
+            let (samples, _) = decode_wav(wav).ok_or(PennelError::InvalidResponse { message: "bad audio".into() })?;
             let vocabulary = capped_terms(&settings.dictionary, MAX_PROMPT_CHARS);
             return self.local.transcribe(&path, &samples, settings.language.as_deref(), &vocabulary);
         }
         let key = keys.get(&account);
         if requires_key(account.kind) && key.is_none() {
-            return Err(MusliError::MissingApiKey { task: "stt".into() });
+            return Err(PennelError::MissingApiKey { task: "stt".into() });
         }
         transcribe(&endpoint(&account, model), key, wav, prompt.as_deref(), settings.language.as_deref())
     }
@@ -561,7 +561,7 @@ impl MusliEngine {
     pub(crate) fn meeting_store(&self) -> MeetingStore {
         let configured = self.settings.read().unwrap().meetings_dir.clone();
         let dir = if configured.is_empty() {
-            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("Musli")
+            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("Pennel")
         } else {
             PathBuf::from(configured)
         };
@@ -610,8 +610,8 @@ mod tests {
         DictationRequest { samples, sample_rate: 16000, app_bundle_id: app.map(str::to_owned), keys: keys() }
     }
 
-    fn engine(dir: &tempfile::TempDir, server: &mockito::Server, mode: DictationMode) -> Arc<MusliEngine> {
-        let engine = MusliEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+    fn engine(dir: &tempfile::TempDir, server: &mockito::Server, mode: DictationMode) -> Arc<PennelEngine> {
+        let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
         let mut settings = engine.settings();
         settings.providers[0].base_url = server.url();
         settings.mode = mode;
@@ -687,7 +687,7 @@ mod tests {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server, DictationMode::Clean);
         let stt_mock = stt(&mut server, "x").expect(0);
-        assert_eq!(engine.dictate(request(vec![0.0; 16000], None)).unwrap_err(), MusliError::NoSpeech);
+        assert_eq!(engine.dictate(request(vec![0.0; 16000], None)).unwrap_err(), PennelError::NoSpeech);
         stt_mock.assert();
         assert!(engine.history(10).unwrap().is_empty());
     }
@@ -697,7 +697,7 @@ mod tests {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server, DictationMode::Clean);
         stt(&mut server, "Ondertiteld door de Amara.org gemeenschap");
-        assert_eq!(engine.dictate(request(speech(), None)).unwrap_err(), MusliError::NoSpeech);
+        assert_eq!(engine.dictate(request(speech(), None)).unwrap_err(), PennelError::NoSpeech);
     }
 
     #[test]
@@ -706,7 +706,7 @@ mod tests {
         let engine = engine(&dir, &server, DictationMode::Fast);
         let failing = server.mock("POST", "/audio/transcriptions").with_status(503).with_body("down").create();
         let err = engine.dictate(request(speech(), Some("com.apple.TextEdit"))).unwrap_err();
-        assert!(matches!(err, MusliError::Http { status: 503, .. }));
+        assert!(matches!(err, PennelError::Http { status: 503, .. }));
         let entry = engine.history(10).unwrap().remove(0);
         assert_eq!(entry.status, HistoryStatus::Failed);
         assert!(entry.has_audio);
@@ -728,7 +728,7 @@ mod tests {
         let stt_mock = stt(&mut server, "x").expect(0);
         let mut req = request(speech(), None);
         req.keys.by_provider.clear();
-        assert_eq!(engine.dictate(req).unwrap_err(), MusliError::MissingApiKey { task: "stt".into() });
+        assert_eq!(engine.dictate(req).unwrap_err(), PennelError::MissingApiKey { task: "stt".into() });
         stt_mock.assert();
     }
 
@@ -761,7 +761,7 @@ mod tests {
         settings.dictation_stt =
             crate::settings::ModelChoice { provider_id: "local".into(), model: "whisper-small-q5_1".into() };
         engine.update_settings(settings).unwrap();
-        assert_eq!(engine.dictate(request(speech(), None)).unwrap_err(), MusliError::ModelNotDownloaded);
+        assert_eq!(engine.dictate(request(speech(), None)).unwrap_err(), PennelError::ModelNotDownloaded);
         let entry = engine.history(1).unwrap().remove(0);
         assert_eq!(entry.status, HistoryStatus::Failed);
         assert!(entry.has_audio);
@@ -775,9 +775,9 @@ mod tests {
     #[test]
     fn engine_model_api_reports_state_and_unknown_ids() {
         let dir = tempfile::tempdir().unwrap();
-        let engine = MusliEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
         assert_eq!(engine.model_state("whisper-small-q5_1".into()), crate::models::ModelState::NotDownloaded);
-        assert_eq!(engine.download_model("nope".into(), Arc::new(Silent)).unwrap_err(), MusliError::NotFound);
+        assert_eq!(engine.download_model("nope".into(), Arc::new(Silent)).unwrap_err(), PennelError::NotFound);
         engine.cancel_download("whisper-small-q5_1".into());
         engine.delete_model("whisper-small-q5_1".into()).unwrap();
     }
@@ -785,7 +785,7 @@ mod tests {
     #[test]
     fn unload_idle_models_without_loaded_model_is_noop() {
         let dir = tempfile::tempdir().unwrap();
-        let engine = MusliEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
         assert!(!engine.unload_idle_models());
     }
 
@@ -808,11 +808,11 @@ mod tests {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server, DictationMode::Fast);
         let mut settings = engine.settings();
-        settings.dictionary = vec!["Musli".into(), "Q8".into()];
+        settings.dictionary = vec!["Pennel".into(), "Q8".into()];
         engine.update_settings(settings).unwrap();
         let stt_mock = server
             .mock("POST", "/audio/transcriptions")
-            .match_body(Matcher::Regex("name=\"prompt\"\r\n\r\nMusli, Q8".into()))
+            .match_body(Matcher::Regex("name=\"prompt\"\r\n\r\nPennel, Q8".into()))
             .with_body(r#"{"text":"ok"}"#)
             .create();
         engine.dictate(request(speech(), None)).unwrap();
@@ -823,11 +823,11 @@ mod tests {
     fn settings_persist_across_engines() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().to_string_lossy().into_owned();
-        let engine = MusliEngine::new(path.clone()).unwrap();
+        let engine = PennelEngine::new(path.clone()).unwrap();
         let mut settings = engine.settings();
         settings.mode = DictationMode::Fast;
         engine.update_settings(settings).unwrap();
-        assert_eq!(MusliEngine::new(path).unwrap().settings().mode, DictationMode::Fast);
+        assert_eq!(PennelEngine::new(path).unwrap().settings().mode, DictationMode::Fast);
     }
 
     #[test]
@@ -840,7 +840,7 @@ mod tests {
         assert_eq!(capped_terms(&terms[..2], MAX_PROMPT_CHARS), terms[..2]);
     }
 
-    fn meeting_engine(dir: &tempfile::TempDir, server: &mockito::Server) -> Arc<MusliEngine> {
+    fn meeting_engine(dir: &tempfile::TempDir, server: &mockito::Server) -> Arc<PennelEngine> {
         let engine = engine(dir, server, DictationMode::Clean);
         let mut settings = engine.settings();
         settings.meetings_dir = dir.path().join("meetings").to_string_lossy().into_owned();
@@ -848,7 +848,7 @@ mod tests {
         engine
     }
 
-    fn add_meeting(engine: &MusliEngine, title: &str, hour: u32, said: &str) -> String {
+    fn add_meeting(engine: &PennelEngine, title: &str, hour: u32, said: &str) -> String {
         use chrono::TimeZone;
         let store = engine.meeting_store();
         std::fs::create_dir_all(engine.settings().meetings_dir).unwrap();
@@ -943,7 +943,7 @@ mod tests {
         let engine = engine(&dir, &server, DictationMode::Clean);
         let calls = server.mock("POST", mockito::Matcher::Any).expect(0).create();
         let err = engine.command(request(vec![0.0; 16000], None), Some("tekst".into())).unwrap_err();
-        assert_eq!(err, MusliError::NoSpeech);
+        assert_eq!(err, PennelError::NoSpeech);
         calls.assert();
     }
 
@@ -953,13 +953,13 @@ mod tests {
         let engine = engine(&dir, &server, DictationMode::Clean);
         let stt_mock = stt(&mut server, "  ");
         let llm_mock = llm(&mut server, "x").expect(0);
-        assert_eq!(engine.command(request(speech(), None), Some("tekst".into())).unwrap_err(), MusliError::NoSpeech);
+        assert_eq!(engine.command(request(speech(), None), Some("tekst".into())).unwrap_err(), PennelError::NoSpeech);
         stt_mock.remove();
         llm_mock.assert();
         llm_mock.remove();
         stt(&mut server, "maak korter");
         llm(&mut server, "\"\"");
-        assert!(matches!(engine.command(request(speech(), None), Some("tekst".into())), Err(MusliError::InvalidResponse { .. })));
+        assert!(matches!(engine.command(request(speech(), None), Some("tekst".into())), Err(PennelError::InvalidResponse { .. })));
     }
 
     #[test]
@@ -967,7 +967,7 @@ mod tests {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server, DictationMode::Clean);
         let huge = "x".repeat(crate::command::MAX_SELECTION_CHARS + 1);
-        assert!(matches!(engine.command(request(speech(), None), Some(huge)), Err(MusliError::InvalidResponse { .. })));
+        assert!(matches!(engine.command(request(speech(), None), Some(huge)), Err(PennelError::InvalidResponse { .. })));
     }
 
     #[test]
@@ -975,6 +975,6 @@ mod tests {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = meeting_engine(&dir, &server);
         let id = add_meeting(&engine, "Sync", 9, "hallo");
-        assert_eq!(engine.diarize_meeting(id, vec![0.0; 16000]), Err(MusliError::ModelNotDownloaded));
+        assert_eq!(engine.diarize_meeting(id, vec![0.0; 16000]), Err(PennelError::ModelNotDownloaded));
     }
 }

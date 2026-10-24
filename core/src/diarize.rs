@@ -2,7 +2,7 @@ use std::path::Path;
 
 use transcribe_cpp::Model;
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 use crate::meetings::{Segment, Speaker};
 
 /// Upper bound for a transcript chunk; the live session never cuts longer pieces.
@@ -14,11 +14,11 @@ const MS_PER_WORD: u64 = 450;
 pub type Turn = (u64, u64, u32);
 
 /// Runs the diarization model over a whole track (16 kHz mono).
-pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, MusliError> {
+pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, PennelError> {
     if !model_path.exists() {
-        return Err(MusliError::ModelNotDownloaded);
+        return Err(PennelError::ModelNotDownloaded);
     }
-    let error = |e: transcribe_cpp::Error| MusliError::InvalidResponse { message: format!("sprekers herkennen: {e}") };
+    let error = |e: transcribe_cpp::Error| PennelError::InvalidResponse { message: format!("sprekers herkennen: {e}") };
     let model = Model::load(model_path).map_err(error)?;
     let mut session = model.diarize_session().map_err(error)?;
     let turns = session.run(samples, &Default::default()).map_err(error)?;
@@ -117,7 +117,7 @@ mod tests {
     fn real_diarization_splits_voices() {
         let home = std::env::var("HOME").unwrap();
         let model = std::path::PathBuf::from(home)
-            .join("Library/Application Support/Musli/models")
+            .join("Library/Application Support/Pennel/models")
             .join(format!("{}.gguf", crate::models::DIARIZER_ID));
         let wav = std::fs::read(std::env::var("DIAR_WAV").unwrap_or("/tmp/diar/meeting.wav".into())).unwrap();
         let (samples, _) = crate::wav::decode_wav(&wav).unwrap();

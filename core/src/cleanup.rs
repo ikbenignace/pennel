@@ -125,9 +125,9 @@ mod tests {
 
     #[test]
     fn cleanup_prompt_includes_style_and_dictionary() {
-        let with_terms = cleanup_messages("x", Style::Formal, &["Musli".into()]);
+        let with_terms = cleanup_messages("x", Style::Formal, &["Pennel".into()]);
         assert!(with_terms[0].content.contains("professional text"));
-        assert!(with_terms[0].content.contains("Spell these terms exactly like this: Musli."));
+        assert!(with_terms[0].content.contains("Spell these terms exactly like this: Pennel."));
         let without_terms = cleanup_messages("x", Style::Formal, &[]);
         assert!(!without_terms[0].content.contains("Spell these terms"));
     }

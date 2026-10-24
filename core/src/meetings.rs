@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use chrono::{DateTime, Local};
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 
 const TITLE_MAX: usize = 60;
 const FAILED_MARK: &str = "_(transcriptie mislukt)_";
@@ -148,13 +148,13 @@ impl MeetingStore {
         self.dir.join(id)
     }
 
-    pub fn create(&self, title: &str, start: DateTime<Local>) -> Result<String, MusliError> {
+    pub fn create(&self, title: &str, start: DateTime<Local>) -> Result<String, PennelError> {
         let base = format!("{} {}", start.format("%Y-%m-%d %H%M"), sanitize(title));
         let id = std::iter::once(base.clone())
             .chain((2..).map(|n| format!("{base} ({n})")))
             .find(|candidate| !self.dir.join(candidate).exists())
             .expect("unbounded iterator");
-        std::fs::create_dir_all(self.dir_of(&id)).map_err(MusliError::storage)?;
+        std::fs::create_dir_all(self.dir_of(&id)).map_err(PennelError::storage)?;
         let front = Frontmatter {
             title: sanitize(title),
             start_iso: start.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
@@ -166,11 +166,11 @@ impl MeetingStore {
         Ok(id)
     }
 
-    fn write_file(&self, id: &str, name: &str, content: &str) -> Result<(), MusliError> {
+    fn write_file(&self, id: &str, name: &str, content: &str) -> Result<(), PennelError> {
         let path = self.dir_of(id).join(name);
         let tmp = path.with_extension("tmp");
-        std::fs::write(&tmp, content).map_err(MusliError::storage)?;
-        std::fs::rename(&tmp, &path).map_err(MusliError::storage)
+        std::fs::write(&tmp, content).map_err(PennelError::storage)?;
+        std::fs::rename(&tmp, &path).map_err(PennelError::storage)
     }
 
     /// Modification time (ns) and length, enough to notice any rewrite of a meeting file.
@@ -184,7 +184,7 @@ impl MeetingStore {
         std::fs::read_to_string(self.dir_of(id).join(name)).unwrap_or_default()
     }
 
-    pub fn write_notes(&self, id: &str, notes: &str) -> Result<(), MusliError> {
+    pub fn write_notes(&self, id: &str, notes: &str) -> Result<(), PennelError> {
         self.write_file(id, "notes.md", notes)
     }
 
@@ -192,7 +192,7 @@ impl MeetingStore {
         self.read_file(id, "notes.md")
     }
 
-    pub fn write_transcript(&self, id: &str, segments: &[Segment]) -> Result<(), MusliError> {
+    pub fn write_transcript(&self, id: &str, segments: &[Segment]) -> Result<(), PennelError> {
         let mut sorted = segments.to_vec();
         sorted.sort_by_key(|s| s.start_ms);
         let body: String = sorted
@@ -222,15 +222,15 @@ impl MeetingStore {
         parse_meeting(&self.read_file(id, "meeting.md"))
     }
 
-    pub fn write_meeting(&self, id: &str, duration_min: u32, template: &str, body: &str) -> Result<(), MusliError> {
-        let (mut front, _) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
+    pub fn write_meeting(&self, id: &str, duration_min: u32, template: &str, body: &str) -> Result<(), PennelError> {
+        let (mut front, _) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         front.duration_min = duration_min;
         front.template = template.to_owned();
         self.write_file(id, "meeting.md", &render_meeting(&front, body))
     }
 
-    pub fn set_attendees(&self, id: &str, attendees: &[String]) -> Result<(), MusliError> {
-        let (mut front, body) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
+    pub fn set_attendees(&self, id: &str, attendees: &[String]) -> Result<(), PennelError> {
+        let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         front.extra.retain(|line| !line.starts_with("attendees:"));
         if !attendees.is_empty() {
             let names: Vec<String> = attendees.iter().map(|a| a.replace([',', '[', ']'], " ").trim().to_owned()).collect();
@@ -279,9 +279,9 @@ impl MeetingStore {
     }
 
     /// An empty name forgets the voice's name.
-    pub fn rename_speaker(&self, id: &str, voice: u32, name: &str) -> Result<(), MusliError> {
+    pub fn rename_speaker(&self, id: &str, voice: u32, name: &str) -> Result<(), PennelError> {
         if !VOICES.contains(&voice) {
-            return Err(MusliError::NotFound);
+            return Err(PennelError::NotFound);
         }
         let mut names = self.speaker_names(id);
         names.retain(|n| n.voice != voice);
@@ -290,7 +290,7 @@ impl MeetingStore {
             names.push(SpeakerName { voice, name });
         }
         names.sort_by_key(|n| n.voice);
-        let (mut front, body) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
+        let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         front.extra.retain(|line| !line.starts_with("speakers:"));
         if !names.is_empty() {
             let list: Vec<String> = names.iter().map(|n| format!("{}={}", n.voice, n.name)).collect();
@@ -299,8 +299,8 @@ impl MeetingStore {
         self.write_file(id, "meeting.md", &render_meeting(&front, &body))
     }
 
-    pub fn set_duration(&self, id: &str, duration_min: u32) -> Result<(), MusliError> {
-        let (mut front, body) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
+    pub fn set_duration(&self, id: &str, duration_min: u32) -> Result<(), PennelError> {
+        let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         front.duration_min = duration_min;
         self.write_file(id, "meeting.md", &render_meeting(&front, &body))
     }
@@ -346,8 +346,8 @@ impl MeetingStore {
             .collect()
     }
 
-    pub fn rename(&self, id: &str, title: &str) -> Result<String, MusliError> {
-        let (mut front, body) = self.frontmatter(id).ok_or(MusliError::NotFound)?;
+    pub fn rename(&self, id: &str, title: &str) -> Result<String, PennelError> {
+        let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         let prefix: String = id.chars().take("YYYY-MM-DD HHmm ".len()).collect();
         let base = format!("{prefix}{}", sanitize(title));
         let new_id = std::iter::once(base.clone())
@@ -355,15 +355,15 @@ impl MeetingStore {
             .find(|candidate| candidate == id || !self.dir.join(candidate).exists())
             .expect("unbounded iterator");
         if new_id != id {
-            std::fs::rename(self.dir_of(id), self.dir_of(&new_id)).map_err(MusliError::storage)?;
+            std::fs::rename(self.dir_of(id), self.dir_of(&new_id)).map_err(PennelError::storage)?;
         }
         front.title = sanitize(title);
         self.write_file(&new_id, "meeting.md", &render_meeting(&front, &body))?;
         Ok(new_id)
     }
 
-    pub fn delete(&self, id: &str) -> Result<(), MusliError> {
-        std::fs::remove_dir_all(self.dir_of(id)).map_err(MusliError::storage)
+    pub fn delete(&self, id: &str) -> Result<(), PennelError> {
+        std::fs::remove_dir_all(self.dir_of(id)).map_err(PennelError::storage)
     }
 
     pub fn prune_audio(&self, retention_days: u32, now: SystemTime) -> u32 {
@@ -471,7 +471,7 @@ mod tests {
         assert!(std::fs::read_to_string(store.dir_of(&id).join("transcript.md")).unwrap().contains("[00:05] **Anderen 2:** Klopt"));
         assert_eq!(parse_segment("[00:01] **Anderen 0:** x"), None);
         assert_eq!(parse_segment("[00:01] **Anderen 9:** x"), None);
-        assert_eq!(store.rename_speaker(&id, 0, "x"), Err(MusliError::NotFound));
+        assert_eq!(store.rename_speaker(&id, 0, "x"), Err(PennelError::NotFound));
     }
 
     #[test]

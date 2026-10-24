@@ -28,8 +28,8 @@ mod templates;
 mod transcript_filter;
 mod wav;
 
-pub use engine::{ApiKeys, CleanupStatus, DictationRequest, DictationResult, MusliEngine};
-pub use error::MusliError;
+pub use engine::{ApiKeys, CleanupStatus, DictationRequest, DictationResult, PennelEngine};
+pub use error::PennelError;
 pub use history::{HistoryEntry, HistoryStatus};
 pub use rules::{browser_apps, decide_recording, known_call_apps, AppRule, CalendarRule, EventRule, RecordAction};
 pub use session::MeetingSession;

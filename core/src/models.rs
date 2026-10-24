@@ -8,7 +8,7 @@ use std::time::Duration;
 use sha2::{Digest, Sha256};
 
 use crate::catalog::{self, CatalogModel};
-use crate::error::MusliError;
+use crate::error::PennelError;
 use crate::http;
 
 const PROGRESS_STEP: u64 = 1024 * 1024;
@@ -85,7 +85,7 @@ impl ModelEntry {
     }
 }
 
-/// whisper.cpp files Musli offered before the catalog; still loadable, only listed once downloaded.
+/// whisper.cpp files Pennel offered before the catalog; still loadable, only listed once downloaded.
 fn legacy_entries() -> Vec<ModelEntry> {
     let hf = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
     vec![
@@ -232,15 +232,15 @@ impl ModelStore {
 
     /// Downloads in bounded Range requests so a stalled connection times out instead of hanging,
     /// and cancel takes effect within one chunk.
-    pub fn download(&self, id: &str, listener: &dyn DownloadListener, cancel: &AtomicBool) -> Result<(), MusliError> {
-        let entry = self.entry(id).ok_or(MusliError::NotFound)?.clone();
+    pub fn download(&self, id: &str, listener: &dyn DownloadListener, cancel: &AtomicBool) -> Result<(), PennelError> {
+        let entry = self.entry(id).ok_or(PennelError::NotFound)?.clone();
         if self.path(id).is_some() {
             return Ok(());
         }
-        std::fs::create_dir_all(&self.dir).map_err(MusliError::storage)?;
+        std::fs::create_dir_all(&self.dir).map_err(PennelError::storage)?;
         let part = self.part_path(id);
-        let mut file = OpenOptions::new().create(true).append(true).open(&part).map_err(MusliError::storage)?;
-        let mut have = file.metadata().map_err(MusliError::storage)?.len();
+        let mut file = OpenOptions::new().create(true).append(true).open(&part).map_err(PennelError::storage)?;
+        let mut have = file.metadata().map_err(PennelError::storage)?.len();
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_connect(Some(Duration::from_secs(15)))
             .timeout_recv_response(Some(Duration::from_secs(30)))
@@ -253,23 +253,23 @@ impl ModelStore {
 
         while have < entry.size_bytes {
             if cancel.load(Ordering::SeqCst) {
-                return Err(MusliError::Cancelled);
+                return Err(PennelError::Cancelled);
             }
             let range = range_header(have, entry.size_bytes, self.chunk_bytes);
             let mut response = agent
                 .get(&entry.url)
                 .header("Range", range)
                 .call()
-                .map_err(|e| MusliError::Network { message: e.to_string() })?;
+                .map_err(|e| PennelError::Network { message: e.to_string() })?;
             match response.status().as_u16() {
                 206 => {}
                 200 => {
-                    file.set_len(0).map_err(MusliError::storage)?;
+                    file.set_len(0).map_err(PennelError::storage)?;
                     have = 0;
                 }
                 416 if !restarted => {
                     restarted = true;
-                    file.set_len(0).map_err(MusliError::storage)?;
+                    file.set_len(0).map_err(PennelError::storage)?;
                     have = 0;
                     continue;
                 }
@@ -281,22 +281,22 @@ impl ModelStore {
             let reader = response.into_body().into_with_config().limit(u64::MAX).reader();
             have = append_body(reader, &mut file, have, &mut progress, cancel)?;
         }
-        file.flush().map_err(MusliError::storage)?;
+        file.flush().map_err(PennelError::storage)?;
         drop(file);
 
         if sha256_file(&part)? != entry.sha256 {
             let _ = std::fs::remove_file(&part);
-            return Err(MusliError::InvalidResponse { message: "checksum mismatch".into() });
+            return Err(PennelError::InvalidResponse { message: "checksum mismatch".into() });
         }
-        std::fs::rename(&part, self.final_path(id)).map_err(MusliError::storage)?;
+        std::fs::rename(&part, self.final_path(id)).map_err(PennelError::storage)?;
         listener.on_progress(entry.size_bytes, entry.size_bytes);
         Ok(())
     }
 
-    pub fn delete(&self, id: &str) -> Result<(), MusliError> {
+    pub fn delete(&self, id: &str) -> Result<(), PennelError> {
         for path in [self.final_path(id), self.part_path(id)] {
             match std::fs::remove_file(path) {
-                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(MusliError::storage(e)),
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(PennelError::storage(e)),
                 _ => {}
             }
         }
@@ -320,17 +320,17 @@ fn append_body(
     mut have: u64,
     progress: &mut Progress,
     cancel: &AtomicBool,
-) -> Result<u64, MusliError> {
+) -> Result<u64, PennelError> {
     let mut buf = vec![0u8; 64 * 1024];
     loop {
         if cancel.load(Ordering::SeqCst) {
-            return Err(MusliError::Cancelled);
+            return Err(PennelError::Cancelled);
         }
-        let n = reader.read(&mut buf).map_err(|e| MusliError::Network { message: e.to_string() })?;
+        let n = reader.read(&mut buf).map_err(|e| PennelError::Network { message: e.to_string() })?;
         if n == 0 {
             return Ok(have);
         }
-        file.write_all(&buf[..n]).map_err(MusliError::storage)?;
+        file.write_all(&buf[..n]).map_err(PennelError::storage)?;
         have += n as u64;
         if have >= progress.next_report {
             progress.listener.on_progress(have, progress.total);
@@ -339,12 +339,12 @@ fn append_body(
     }
 }
 
-fn sha256_file(path: &Path) -> Result<String, MusliError> {
-    let mut file = File::open(path).map_err(MusliError::storage)?;
+fn sha256_file(path: &Path) -> Result<String, PennelError> {
+    let mut file = File::open(path).map_err(PennelError::storage)?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1024 * 1024];
     loop {
-        let n = file.read(&mut buf).map_err(MusliError::storage)?;
+        let n = file.read(&mut buf).map_err(PennelError::storage)?;
         if n == 0 {
             break;
         }
@@ -579,7 +579,7 @@ mod tests {
         server.mock("GET", "/m.bin").with_body(vec![0u8; bytes.len()]).create();
         let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
         let err = store.download("tiny", &Recorder::default(), &AtomicBool::new(false)).unwrap_err();
-        assert!(matches!(err, MusliError::InvalidResponse { .. }), "{err:?}");
+        assert!(matches!(err, PennelError::InvalidResponse { .. }), "{err:?}");
         assert_eq!(store.state("tiny"), ModelState::NotDownloaded);
     }
 
@@ -591,7 +591,7 @@ mod tests {
         let store = store(&dir, format!("{}/m.bin", server.url()), &bytes);
         let cancel = Arc::new(AtomicBool::new(false));
         let listener = Recorder { cancel_on_first: Some(cancel.clone()), ..Default::default() };
-        assert_eq!(store.download("tiny", &listener, &cancel).unwrap_err(), MusliError::Cancelled);
+        assert_eq!(store.download("tiny", &listener, &cancel).unwrap_err(), PennelError::Cancelled);
         assert!(matches!(store.state("tiny"), ModelState::Partial { .. }));
     }
 
@@ -624,6 +624,6 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = ModelStore::new(dir.path());
         let err = store.download("nope", &Recorder::default(), &AtomicBool::new(false)).unwrap_err();
-        assert_eq!(err, MusliError::NotFound);
+        assert_eq!(err, PennelError::NotFound);
     }
 }

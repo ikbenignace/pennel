@@ -78,7 +78,7 @@ pub fn blocks(text: &str, max: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::{ApiKeys, MusliEngine};
+    use crate::engine::{ApiKeys, PennelEngine};
     use crate::meetings::{Segment, Speaker};
     use std::collections::HashMap;
 
@@ -142,8 +142,8 @@ mod tests {
         assert_eq!(text, "[00:00] Ik: Hallo\n[01:05] Anderen: Dag");
     }
 
-    fn engine(dir: &tempfile::TempDir, server: &mockito::Server) -> std::sync::Arc<MusliEngine> {
-        let engine = MusliEngine::new(dir.path().join("data").to_string_lossy().into_owned()).unwrap();
+    fn engine(dir: &tempfile::TempDir, server: &mockito::Server) -> std::sync::Arc<PennelEngine> {
+        let engine = PennelEngine::new(dir.path().join("data").to_string_lossy().into_owned()).unwrap();
         let mut settings = engine.settings();
         settings.providers[0].base_url = server.url();
         settings.meetings_dir = dir.path().join("meetings").to_string_lossy().into_owned();
@@ -196,6 +196,6 @@ mod tests {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = engine(&dir, &server);
         let id = engine.meeting_store().create("Leeg", chrono::Local::now()).unwrap();
-        assert_eq!(engine.summarize_meeting(id, "algemeen".into(), keys()).unwrap_err(), crate::error::MusliError::NoSpeech);
+        assert_eq!(engine.summarize_meeting(id, "algemeen".into(), keys()).unwrap_err(), crate::error::PennelError::NoSpeech);
     }
 }

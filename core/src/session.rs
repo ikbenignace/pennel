@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use crate::chunker::{Chunk, Chunker};
-use crate::engine::{ApiKeys, MusliEngine};
-use crate::error::MusliError;
+use crate::engine::{ApiKeys, PennelEngine};
+use crate::error::PennelError;
 use crate::meetings::{MeetingStore, Segment, Speaker};
 use crate::speech::is_hallucination;
 use crate::transcript_filter::filter_segments;
@@ -63,7 +63,7 @@ fn index(speaker: Speaker) -> usize {
 }
 
 impl MeetingSession {
-    pub(crate) fn start(engine: Arc<MusliEngine>, store: MeetingStore, id: String, keys: ApiKeys) -> Arc<Self> {
+    pub(crate) fn start(engine: Arc<PennelEngine>, store: MeetingStore, id: String, keys: ApiKeys) -> Arc<Self> {
         let (sender, receiver) = mpsc::channel::<Job>();
         let progress = Arc::new(Mutex::new(Progress::default()));
         let worker_progress = progress.clone();
@@ -105,12 +105,12 @@ impl MeetingSession {
     }
 }
 
-fn transcribe_job(engine: &MusliEngine, store: &MeetingStore, id: &str, keys: &ApiKeys, job: Job) -> Option<Segment> {
+fn transcribe_job(engine: &PennelEngine, store: &MeetingStore, id: &str, keys: &ApiKeys, job: Job) -> Option<Segment> {
     let settings = engine.settings();
     let wav = encode_wav(&job.chunk.samples, SAMPLE_RATE);
     let start_ms = job.chunk.start_ms;
     let end_ms = start_ms + job.chunk.samples.len() as u64 * 1000 / u64::from(SAMPLE_RATE);
-    let mut result = Err(MusliError::NotFound);
+    let mut result = Err(PennelError::NotFound);
     for _ in 0..ATTEMPTS {
         result = engine.stt(&settings, &settings.meeting_stt, &wav, keys);
         if result.is_ok() {
@@ -151,7 +151,7 @@ impl MeetingSession {
         self.enqueue(speaker, chunks);
     }
 
-    pub fn set_notes(&self, text: String) -> Result<(), MusliError> {
+    pub fn set_notes(&self, text: String) -> Result<(), PennelError> {
         self.store.write_notes(&self.id, &text)
     }
 
@@ -174,7 +174,7 @@ impl MeetingSession {
     }
 
     /// Flushes the remaining audio, waits for every chunk to be transcribed and records the duration.
-    pub fn stop(&self) -> Result<(), MusliError> {
+    pub fn stop(&self) -> Result<(), PennelError> {
         for speaker in [Speaker::Me, Speaker::Others] {
             let rest = self.chunkers.lock().unwrap()[index(speaker)].flush();
             self.enqueue(speaker, rest.into_iter().collect());
@@ -193,7 +193,7 @@ impl MeetingSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::{ApiKeys, MusliEngine};
+    use crate::engine::{ApiKeys, PennelEngine};
     use crate::meetings::Speaker;
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
@@ -210,8 +210,8 @@ mod tests {
         ApiKeys { by_provider: HashMap::from([("groq".to_owned(), "k".to_owned())]) }
     }
 
-    fn engine(dir: &tempfile::TempDir, server: &mockito::Server) -> Arc<MusliEngine> {
-        let engine = MusliEngine::new(dir.path().join("data").to_string_lossy().into_owned()).unwrap();
+    fn engine(dir: &tempfile::TempDir, server: &mockito::Server) -> Arc<PennelEngine> {
+        let engine = PennelEngine::new(dir.path().join("data").to_string_lossy().into_owned()).unwrap();
         let mut settings = engine.settings();
         settings.providers[0].base_url = server.url();
         settings.meetings_dir = dir.path().join("meetings").to_string_lossy().into_owned();

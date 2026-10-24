@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 use crate::http;
 
 const TIMEOUT_SECS: u64 = 10;
@@ -75,20 +75,20 @@ fn convert(raw: RawModel) -> RemoteModel {
 
 /// Lists a provider's models via the OpenAI-compatible `GET /models`; OpenRouter adds prices and context.
 #[uniffi::export]
-pub fn provider_models(base_url: String, api_key: Option<String>) -> Result<Vec<RemoteModel>, MusliError> {
+pub fn provider_models(base_url: String, api_key: Option<String>) -> Result<Vec<RemoteModel>, PennelError> {
     let url = format!("{}/models", base_url.trim_end_matches('/'));
     let mut request = http::agent(TIMEOUT_SECS).get(&url);
     if let Some(key) = api_key.filter(|k| !k.is_empty()) {
         request = request.header("Authorization", format!("Bearer {key}"));
     }
-    let mut response = request.call().map_err(|e| MusliError::Network { message: e.to_string() })?;
+    let mut response = request.call().map_err(|e| PennelError::Network { message: e.to_string() })?;
     let status = response.status().as_u16();
-    let body = response.body_mut().read_to_string().map_err(|e| MusliError::Network { message: e.to_string() })?;
+    let body = response.body_mut().read_to_string().map_err(|e| PennelError::Network { message: e.to_string() })?;
     if !(200..300).contains(&status) {
         return Err(http::map_status(status, &body));
     }
     let list: ModelList =
-        serde_json::from_str(&body).map_err(|e| MusliError::InvalidResponse { message: e.to_string() })?;
+        serde_json::from_str(&body).map_err(|e| PennelError::InvalidResponse { message: e.to_string() })?;
     let mut models: Vec<RemoteModel> = list.data.into_iter().map(convert).collect();
     models.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(models)
@@ -149,6 +149,6 @@ mod tests {
     fn http_error_maps() {
         let server = serve(401, r#"{"error":{"message":"bad key"}}"#);
         let err = provider_models(server.url(), Some("k".into())).unwrap_err();
-        assert_eq!(err, MusliError::Http { status: 401, message: "bad key".into() });
+        assert_eq!(err, PennelError::Http { status: 401, message: "bad key".into() });
     }
 }

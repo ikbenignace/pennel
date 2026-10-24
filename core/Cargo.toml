@@ -1,11 +1,11 @@
 [package]
-name = "musli-core"
+name = "pennel-core"
 version = "0.1.0"
 edition = "2024"
 publish = false
 
 [lib]
-name = "musli_core"
+name = "pennel_core"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [[bin]]

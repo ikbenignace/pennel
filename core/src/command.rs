@@ -62,9 +62,9 @@ mod tests {
 
     #[test]
     fn write_mode_without_selection() {
-        let messages = command_messages("schrijf een mail dat ik later ben", None, &["Musli".into()]);
+        let messages = command_messages("schrijf een mail dat ik later ben", None, &["Pennel".into()]);
         assert!(messages[0].content.contains("You write text for the user"));
-        assert!(messages[0].content.contains("Spell these terms exactly like this: Musli."));
+        assert!(messages[0].content.contains("Spell these terms exactly like this: Pennel."));
         assert!(!messages[1].content.contains("<selection>"));
     }
 }

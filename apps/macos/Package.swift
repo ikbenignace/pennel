@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "Musli",
+    name: "Pennel",
     platforms: [.macOS("14.4")],
     targets: [
-        .binaryTarget(name: "MusliCoreFFI", path: "Frameworks/MusliCoreFFI.xcframework"),
+        .binaryTarget(name: "PennelCoreFFI", path: "Frameworks/PennelCoreFFI.xcframework"),
         .target(
-            name: "MusliCore",
-            dependencies: ["MusliCoreFFI"],
+            name: "PennelCore",
+            dependencies: ["PennelCoreFFI"],
             swiftSettings: [.swiftLanguageMode(.v5)],
             // whisper.cpp inside the Rust core runs on Metal/Accelerate and is C++.
             linkerSettings: [
@@ -19,9 +19,9 @@ let package = Package(
                 .linkedLibrary("c++"),
             ]
         ),
-        .target(name: "MusliKit"),
-        .executableTarget(name: "Musli", dependencies: ["MusliCore", "MusliKit"]),
-        .testTarget(name: "MusliKitTests", dependencies: ["MusliKit"]),
-        .testTarget(name: "MusliCoreSmokeTests", dependencies: ["MusliCore"]),
+        .target(name: "PennelKit"),
+        .executableTarget(name: "Pennel", dependencies: ["PennelCore", "PennelKit"]),
+        .testTarget(name: "PennelKitTests", dependencies: ["PennelKit"]),
+        .testTarget(name: "PennelCoreSmokeTests", dependencies: ["PennelCore"]),
     ]
 )

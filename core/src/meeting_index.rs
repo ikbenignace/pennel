@@ -3,7 +3,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, params};
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 use crate::meetings::{speaker_label, MeetingInfo, MeetingStore, Segment, SpeakerName};
 
 const PASSAGE_CHARS: usize = 600;
@@ -40,8 +40,8 @@ pub struct MeetingIndex {
     conn: Connection,
 }
 
-fn db(e: rusqlite::Error) -> MusliError {
-    MusliError::Storage { message: e.to_string() }
+fn db(e: rusqlite::Error) -> PennelError {
+    PennelError::Storage { message: e.to_string() }
 }
 
 /// Words only, each as a quoted prefix term, so user input can never be read as FTS syntax.
@@ -110,7 +110,7 @@ fn text_passages(text: &str) -> Vec<(Option<u64>, String)> {
 }
 
 impl MeetingIndex {
-    pub fn open(path: &Path) -> Result<Self, MusliError> {
+    pub fn open(path: &Path) -> Result<Self, PennelError> {
         let conn = Connection::open(path).map_err(db)?;
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).map_err(db)?;
         if version != SCHEMA_VERSION {
@@ -138,7 +138,7 @@ impl MeetingIndex {
         Ok(Self { conn })
     }
 
-    pub fn sync(&mut self, store: &MeetingStore) -> Result<(), MusliError> {
+    pub fn sync(&mut self, store: &MeetingStore) -> Result<(), PennelError> {
         let meetings: Vec<String> = store.list().into_iter().map(|m| m.id).collect();
         let present: std::collections::HashSet<&String> = meetings.iter().collect();
         let tx = self.conn.transaction().map_err(db)?;
@@ -201,7 +201,7 @@ impl MeetingIndex {
         query: &str,
         meeting_id: Option<&str>,
         limit: u32,
-    ) -> Result<Vec<Passage>, MusliError> {
+    ) -> Result<Vec<Passage>, PennelError> {
         self.matching(store, &fts_terms(query).join(" "), meeting_id, limit)
     }
 
@@ -212,7 +212,7 @@ impl MeetingIndex {
         words: &[String],
         meeting_id: Option<&str>,
         limit: u32,
-    ) -> Result<Vec<Passage>, MusliError> {
+    ) -> Result<Vec<Passage>, PennelError> {
         let terms: Vec<String> = words.iter().flat_map(|w| fts_terms(w)).collect();
         self.matching(store, &terms.join(" OR "), meeting_id, limit)
     }
@@ -223,7 +223,7 @@ impl MeetingIndex {
         expression: &str,
         meeting_id: Option<&str>,
         limit: u32,
-    ) -> Result<Vec<Passage>, MusliError> {
+    ) -> Result<Vec<Passage>, PennelError> {
         if expression.is_empty() {
             return Ok(Vec::new());
         }
@@ -241,7 +241,7 @@ impl MeetingIndex {
     }
 
     /// Every matching meeting, best first, with its `per_meeting` best passages.
-    pub fn search_grouped(&self, store: &MeetingStore, query: &str, per_meeting: u32) -> Result<Vec<Passage>, MusliError> {
+    pub fn search_grouped(&self, store: &MeetingStore, query: &str, per_meeting: u32) -> Result<Vec<Passage>, PennelError> {
         let expression = fts_terms(query).join(" ");
         if expression.is_empty() {
             return Ok(Vec::new());
@@ -266,7 +266,7 @@ impl MeetingIndex {
     }
 
     /// Passages from the most recent meetings, newest first, for questions without searchable words.
-    pub fn recent(&self, store: &MeetingStore, meeting_id: Option<&str>, limit: u32) -> Result<Vec<Passage>, MusliError> {
+    pub fn recent(&self, store: &MeetingStore, meeting_id: Option<&str>, limit: u32) -> Result<Vec<Passage>, PennelError> {
         let order: Vec<String> = match meeting_id {
             Some(id) => vec![id.to_owned()],
             None => store.list().into_iter().map(|m| m.id).collect(),
@@ -294,7 +294,7 @@ fn row(r: &rusqlite::Row) -> rusqlite::Result<RawRow> {
     Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
 }
 
-fn resolve(store: &MeetingStore, rows: Vec<RawRow>) -> Result<Vec<Passage>, MusliError> {
+fn resolve(store: &MeetingStore, rows: Vec<RawRow>) -> Result<Vec<Passage>, PennelError> {
     let mut infos: HashMap<String, Option<MeetingInfo>> = HashMap::new();
     Ok(rows
         .into_iter()

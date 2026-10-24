@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 use crate::rules::{AppRule, CalendarRule, EventRule};
 use crate::provider::{
     default_base_url, default_model, new_account, supports, ProviderAccount, ProviderKind, ProviderTask,
@@ -57,7 +57,7 @@ pub struct Settings {
     pub history_retention_days: u32,
     pub hotkey: HotkeyTrigger,
     pub local_unload_minutes: u32,
-    /// Empty means `~/Musli`.
+    /// Empty means `~/Pennel`.
     #[serde(default)]
     pub meetings_dir: String,
     #[serde(default)]
@@ -149,11 +149,11 @@ pub fn default_settings() -> Settings {
 }
 
 impl Settings {
-    pub fn load(path: &Path) -> Result<Settings, MusliError> {
+    pub fn load(path: &Path) -> Result<Settings, PennelError> {
         let json = match std::fs::read_to_string(path) {
             Ok(json) => json,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(default_settings()),
-            Err(e) => return Err(MusliError::storage(e)),
+            Err(e) => return Err(PennelError::storage(e)),
         };
         let parsed = serde_json::from_str::<serde_json::Value>(&json).ok().and_then(|value| {
             if value.get("providers").is_some() {
@@ -165,17 +165,17 @@ impl Settings {
         match parsed {
             Some(settings) => Ok(settings.normalized()),
             None => {
-                std::fs::rename(path, path.with_file_name("settings.corrupt.json")).map_err(MusliError::storage)?;
+                std::fs::rename(path, path.with_file_name("settings.corrupt.json")).map_err(PennelError::storage)?;
                 Ok(default_settings())
             }
         }
     }
 
-    pub fn save(&self, path: &Path) -> Result<(), MusliError> {
-        let json = serde_json::to_string_pretty(self).map_err(MusliError::storage)?;
+    pub fn save(&self, path: &Path) -> Result<(), PennelError> {
+        let json = serde_json::to_string_pretty(self).map_err(PennelError::storage)?;
         let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, json).map_err(MusliError::storage)?;
-        std::fs::rename(&tmp, path).map_err(MusliError::storage)
+        std::fs::write(&tmp, json).map_err(PennelError::storage)?;
+        std::fs::rename(&tmp, path).map_err(PennelError::storage)
     }
 
     pub fn resolve(&self, choice: &ModelChoice) -> Option<(ProviderAccount, String)> {
@@ -289,7 +289,7 @@ mod tests {
       "dictation_stt": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"whisper-large-v3-turbo","keychain_account":"groq"},
       "meeting_stt": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"whisper-large-v3-turbo","keychain_account":"groq"},
       "llm": {"kind":"groq","base_url":"https://api.groq.com/openai/v1","model":"llama-3.3-70b-versatile","keychain_account":"groq"},
-      "mode":"clean","language":null,"dictionary":["Musli"],
+      "mode":"clean","language":null,"dictionary":["Pennel"],
       "style_rules":[{"bundle_id":"com.tinyspeck.slackmacgap","style":"casual"}],
       "history_retention_days":30,"hotkey":"fn"
     }"#;
@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(ids(&s), ["groq", "local"]);
         assert_eq!(s.dictation_stt, ModelChoice { provider_id: "groq".into(), model: "whisper-large-v3-turbo".into() });
         assert_eq!(s.llm, ModelChoice { provider_id: "groq".into(), model: "llama-3.3-70b-versatile".into() });
-        assert_eq!(s.dictionary, ["Musli"]);
+        assert_eq!(s.dictionary, ["Pennel"]);
         assert_eq!(s.style_rules.len(), 1);
         assert!(!dir.path().join("settings.corrupt.json").exists());
     }
@@ -424,7 +424,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json");
         let mut s = default_settings();
-        s.dictionary = vec!["Musli".into(), "Q8".into()];
+        s.dictionary = vec!["Pennel".into(), "Q8".into()];
         s.save(&path).unwrap();
         assert_eq!(Settings::load(&path).unwrap(), s);
     }

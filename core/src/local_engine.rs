@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use transcribe_cpp::{Feature, Model, RunOptions, Session};
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 
 struct Loaded {
     path: PathBuf,
@@ -21,8 +21,8 @@ pub struct LocalEngine {
     loaded: Mutex<Option<Loaded>>,
 }
 
-fn engine_error(e: transcribe_cpp::Error) -> MusliError {
-    MusliError::InvalidResponse { message: format!("lokaal model: {e}") }
+fn engine_error(e: transcribe_cpp::Error) -> PennelError {
+    PennelError::InvalidResponse { message: format!("lokaal model: {e}") }
 }
 
 /// Only passes options the loaded model can use: an unsupported language falls back to autodetect,
@@ -76,9 +76,9 @@ impl LocalEngine {
         samples: &[f32],
         language: Option<&str>,
         vocabulary: &[String],
-    ) -> Result<String, MusliError> {
+    ) -> Result<String, PennelError> {
         if !model_path.exists() {
-            return Err(MusliError::ModelNotDownloaded);
+            return Err(PennelError::ModelNotDownloaded);
         }
         let mut loaded = self.loaded.lock().unwrap();
         if loaded.as_ref().is_none_or(|m| m.path != model_path) {
@@ -134,7 +134,7 @@ mod tests {
     fn missing_model_file_is_model_not_downloaded() {
         let engine = LocalEngine::default();
         let err = engine.transcribe(Path::new("/nonexistent/model.bin"), &[0.0; 16000], None, &[]).unwrap_err();
-        assert_eq!(err, MusliError::ModelNotDownloaded);
+        assert_eq!(err, PennelError::ModelNotDownloaded);
     }
 
     #[test]
@@ -148,13 +148,13 @@ mod tests {
 
     #[test]
     fn run_options_routes_vocabulary() {
-        let terms = langs(&["Musli"]);
+        let terms = langs(&["Pennel"]);
         let vocab = run_options(None, &[], &terms, true, true);
         assert_eq!(vocab.vocabulary, terms);
         assert_eq!(vocab.prompt, None);
         let context = run_options(None, &[], &terms, false, true);
         assert!(context.vocabulary.is_empty());
-        assert_eq!(context.prompt.as_deref(), Some("Musli"));
+        assert_eq!(context.prompt.as_deref(), Some("Pennel"));
         let neither = run_options(None, &[], &terms, false, false);
         assert!(neither.vocabulary.is_empty());
         assert_eq!(neither.prompt, None);
@@ -162,7 +162,7 @@ mod tests {
 
     fn real_model_transcribes(file: &str) {
         let home = std::env::var("HOME").unwrap();
-        let model = PathBuf::from(home).join("Library/Application Support/Musli/models").join(file);
+        let model = PathBuf::from(home).join("Library/Application Support/Pennel/models").join(file);
         let wav = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hello.wav")).unwrap();
         let (samples, _) = crate::wav::decode_wav(&wav).unwrap();
         let engine = LocalEngine::default();
@@ -180,7 +180,7 @@ mod tests {
     #[ignore]
     fn real_parakeet_transcribes() {
         let home = std::env::var("HOME").unwrap();
-        let store = crate::models::ModelStore::new(&PathBuf::from(home).join("Library/Application Support/Musli"));
+        let store = crate::models::ModelStore::new(&PathBuf::from(home).join("Library/Application Support/Pennel"));
         struct Quiet;
         impl crate::models::DownloadListener for Quiet {
             fn on_progress(&self, _: u64, _: u64) {}

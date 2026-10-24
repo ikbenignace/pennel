@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>dev.musli.Musli</string>
+	<string>dev.pennel.Pennel</string>
 	<key>CFBundleName</key>
-	<string>Musli</string>
+	<string>Pennel</string>
 	<key>CFBundleDisplayName</key>
-	<string>Musli</string>
+	<string>Pennel</string>
 	<key>CFBundleExecutable</key>
-	<string>Musli</string>
+	<string>Pennel</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,11 +21,11 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Musli gebruikt je microfoon om wat je dicteert om te zetten naar tekst.</string>
+	<string>Pennel gebruikt je microfoon om wat je dicteert om te zetten naar tekst.</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Musli neemt de audio van je call op om er een transcript van te maken.</string>
+	<string>Pennel neemt de audio van je call op om er een transcript van te maken.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Musli gebruikt je agenda om meetings een titel en deelnemers te geven.</string>
+	<string>Pennel gebruikt je agenda om meetings een titel en deelnemers te geven.</string>
 	<key>ATSApplicationFontsPath</key>
 	<string>Fonts</string>
 	<key>NSHighResolutionCapable</key>

@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, uniffi::Error)]
-pub enum MusliError {
+pub enum PennelError {
     #[error("no speech detected")]
     NoSpeech,
     #[error("missing api key for {task}")]
@@ -20,8 +20,8 @@ pub enum MusliError {
     ModelNotDownloaded,
 }
 
-impl MusliError {
+impl PennelError {
     pub(crate) fn storage(err: impl std::fmt::Display) -> Self {
-        MusliError::Storage { message: err.to_string() }
+        PennelError::Storage { message: err.to_string() }
     }
 }

@@ -12,7 +12,7 @@ pub const RECOMMENDED: [&str; 5] = [
     "whisper-small",
 ];
 
-/// Scored when no dictation language is set; Musli's users dictate mostly in Dutch.
+/// Scored when no dictation language is set; Pennel's users dictate mostly in Dutch.
 pub const DEFAULT_SCORE_LANGUAGE: &str = "nl";
 
 const SPEED_SCALE: f64 = 8.0;

@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 use crate::http;
 use crate::provider::{ProviderConfig, ProviderKind};
 
@@ -38,18 +38,18 @@ pub fn chat_complete_within(
     messages: &[ChatMessage],
     timeout_secs: u64,
     reasoning: Reasoning,
-) -> Result<String, MusliError> {
+) -> Result<String, PennelError> {
     let body = request_body(provider, messages, reasoning);
     let url = format!("{}/chat/completions", provider.base_url.trim_end_matches('/'));
     let request = http::agent(timeout_secs).post(&url).header("Content-Type", "application/json");
     let response = http::send(http::with_auth(request, api_key), body.to_string().as_bytes())?;
 
     let parsed: serde_json::Value =
-        serde_json::from_str(&response).map_err(|e| MusliError::InvalidResponse { message: e.to_string() })?;
+        serde_json::from_str(&response).map_err(|e| PennelError::InvalidResponse { message: e.to_string() })?;
     parsed["choices"][0]["message"]["content"]
         .as_str()
         .map(|t| t.trim().to_owned())
-        .ok_or_else(|| MusliError::InvalidResponse { message: "missing choices[0].message.content".into() })
+        .ok_or_else(|| PennelError::InvalidResponse { message: "missing choices[0].message.content".into() })
 }
 
 #[cfg(test)]
@@ -120,6 +120,6 @@ mod tests {
         let mut server = mockito::Server::new();
         server.mock("POST", "/chat/completions").with_status(500).with_body("boom").create();
         let err = chat_complete_within(&provider(server.url()), None, &messages(), 5, Reasoning::ModelDefault).unwrap_err();
-        assert_eq!(err, MusliError::Http { status: 500, message: "boom".into() });
+        assert_eq!(err, PennelError::Http { status: 500, message: "boom".into() });
     }
 }

@@ -6,7 +6,7 @@ target=aarch64-apple-darwin
 export MACOSX_DEPLOYMENT_TARGET=14.4
 lib_dir="$root/core/target/$target/release"
 bindings="$root/build/bindings"
-framework="$root/apps/macos/Frameworks/MusliCoreFFI.xcframework"
+framework="$root/apps/macos/Frameworks/PennelCoreFFI.xcframework"
 
 command -v cmake >/dev/null || { echo "cmake is required to build whisper.cpp: brew install cmake" >&2; exit 1; }
 
@@ -15,18 +15,18 @@ cargo build --manifest-path "$root/core/Cargo.toml" --release --target "$target"
 rm -rf "$bindings"
 # Library mode reads crate metadata via `cargo metadata`, which needs the crate directory as cwd.
 (cd "$root/core" && cargo run --quiet --bin uniffi-bindgen -- \
-  generate --library "$lib_dir/libmusli_core.dylib" --language swift --out-dir "$bindings")
+  generate --library "$lib_dir/libpennel_core.dylib" --language swift --out-dir "$bindings")
 
 mkdir -p "$bindings/headers"
-mv "$bindings/musli_coreFFI.h" "$bindings/headers/"
-mv "$bindings/musli_coreFFI.modulemap" "$bindings/headers/module.modulemap"
+mv "$bindings/pennel_coreFFI.h" "$bindings/headers/"
+mv "$bindings/pennel_coreFFI.modulemap" "$bindings/headers/module.modulemap"
 
 rm -rf "$framework"
 xcodebuild -create-xcframework \
-  -library "$lib_dir/libmusli_core.a" \
+  -library "$lib_dir/libpennel_core.a" \
   -headers "$bindings/headers" \
   -output "$framework" >/dev/null
 
-mkdir -p "$root/apps/macos/Sources/MusliCore"
-cp "$bindings/musli_core.swift" "$root/apps/macos/Sources/MusliCore/"
+mkdir -p "$root/apps/macos/Sources/PennelCore"
+cp "$bindings/pennel_core.swift" "$root/apps/macos/Sources/PennelCore/"
 echo "built $framework"

@@ -1,4 +1,4 @@
-use crate::error::MusliError;
+use crate::error::PennelError;
 use crate::http;
 use crate::provider::ProviderConfig;
 
@@ -16,8 +16,8 @@ pub fn transcribe(
     wav: &[u8],
     prompt: Option<&str>,
     language: Option<&str>,
-) -> Result<String, MusliError> {
-    let boundary = format!("musli-{}", uuid::Uuid::now_v7().simple());
+) -> Result<String, PennelError> {
+    let boundary = format!("pennel-{}", uuid::Uuid::now_v7().simple());
     let mut fields = vec![("model", provider.model.as_str()), ("response_format", "json")];
     fields.extend(prompt.map(|p| ("prompt", p)));
     fields.extend(language.map(|l| ("language", l)));
@@ -30,11 +30,11 @@ pub fn transcribe(
     let response = http::send(http::with_auth(request, api_key), &body)?;
 
     let parsed: serde_json::Value =
-        serde_json::from_str(&response).map_err(|e| MusliError::InvalidResponse { message: e.to_string() })?;
+        serde_json::from_str(&response).map_err(|e| PennelError::InvalidResponse { message: e.to_string() })?;
     parsed["text"]
         .as_str()
         .map(|t| t.trim().to_owned())
-        .ok_or_else(|| MusliError::InvalidResponse { message: "missing text field".into() })
+        .ok_or_else(|| PennelError::InvalidResponse { message: "missing text field".into() })
 }
 
 fn multipart(boundary: &str, fields: &[(&str, &str)], wav: &[u8]) -> Vec<u8> {
@@ -111,12 +111,12 @@ mod tests {
         let mock = server
             .mock("POST", "/audio/transcriptions")
             .match_body(Matcher::AllOf(vec![
-                Matcher::Regex("name=\"prompt\"\r\n\r\nMusli, Q8".into()),
+                Matcher::Regex("name=\"prompt\"\r\n\r\nPennel, Q8".into()),
                 Matcher::Regex("name=\"language\"\r\n\r\nnl".into()),
             ]))
             .with_body(r#"{"text":"ok"}"#)
             .create();
-        transcribe(&provider(server.url()), None, b"RIFF", Some("Musli, Q8"), Some("nl")).unwrap();
+        transcribe(&provider(server.url()), None, b"RIFF", Some("Pennel, Q8"), Some("nl")).unwrap();
         mock.assert();
     }
 
@@ -129,13 +129,13 @@ mod tests {
             .with_body(r#"{"error":{"message":"Invalid API key"}}"#)
             .create();
         let err = transcribe(&provider(server.url()), Some("bad"), b"RIFF", None, None).unwrap_err();
-        assert_eq!(err, MusliError::Http { status: 401, message: "Invalid API key".into() });
+        assert_eq!(err, PennelError::Http { status: 401, message: "Invalid API key".into() });
     }
 
     #[test]
     fn maps_connection_refused_to_network() {
         let err = transcribe(&provider("http://127.0.0.1:9".into()), None, b"RIFF", None, None).unwrap_err();
-        assert!(matches!(err, MusliError::Network { .. }), "{err:?}");
+        assert!(matches!(err, PennelError::Network { .. }), "{err:?}");
     }
 
     #[test]
@@ -143,6 +143,6 @@ mod tests {
         let mut server = mockito::Server::new();
         server.mock("POST", "/audio/transcriptions").with_body("<html>").create();
         let err = transcribe(&provider(server.url()), None, b"RIFF", None, None).unwrap_err();
-        assert!(matches!(err, MusliError::InvalidResponse { .. }), "{err:?}");
+        assert!(matches!(err, PennelError::InvalidResponse { .. }), "{err:?}");
     }
 }

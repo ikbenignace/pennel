@@ -1,10 +1,10 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# Musli
+# Pennel
 
 Ultralichte Mac-app om overal te dicteren en (binnenkort) meetings op te nemen en samen te vatten. Je kiest zelf naar welke provider je audio en tekst gaan — OpenAI, OpenRouter, Groq, Mistral, een lokale server of je eigen endpoint. Geen account, geen telemetrie.
 
-Ontwerp: [`docs/superpowers/specs/2026-10-23-musli-design.md`](docs/superpowers/specs/2026-10-23-musli-design.md)
+Ontwerp: [`docs/superpowers/specs/2026-10-23-pennel-design.md`](docs/superpowers/specs/2026-10-23-pennel-design.md)
 
 ## Vereisten
 
@@ -18,11 +18,11 @@ Ontwerp: [`docs/superpowers/specs/2026-10-23-musli-design.md`](docs/superpowers/
 ```sh
 make core   # Rust-kern + Swift-bindings + XCFramework
 make test   # Rust- en Swift-tests
-make app    # build/Musli.app
+make app    # build/Pennel.app
 make run    # bouwen en openen
 ```
 
-`apps/macos/Frameworks/` en `apps/macos/Sources/MusliCore/` worden door `make core` gegenereerd en staan niet in git.
+`apps/macos/Frameworks/` en `apps/macos/Sources/PennelCore/` worden door `make core` gegenereerd en staan niet in git.
 
 ### Ondertekenen
 
@@ -30,7 +30,7 @@ Zonder instelling wordt de app ad-hoc ondertekend. macOS vergeet dan na elke bui
 
 ```sh
 scripts/create-dev-cert.sh
-MUSLI_SIGN_IDENTITY="Musli Local Dev" make app
+PENNEL_SIGN_IDENTITY="Pennel Local Dev" make app
 ```
 
 ## Eerste start
@@ -41,7 +41,7 @@ MUSLI_SIGN_IDENTITY="Musli Local Dev" make app
 
 Houd **fn** ingedrukt om te praten, laat los en de tekst verschijnt waar je cursor staat. Twee keer tikken = handenvrij.
 
-**Opdrachten:** druk tijdens het inspreken ook op **⇧ Shift**. Met tekst geselecteerd herschrijft Musli die selectie ("maak formeler", "vertaal naar Engels", "maak er een lijstje van"); zonder selectie schrijft het wat je vraagt ("schrijf een korte mail dat ik later ben") en plakt het waar je cursor staat.
+**Opdrachten:** druk tijdens het inspreken ook op **⇧ Shift**. Met tekst geselecteerd herschrijft Pennel die selectie ("maak formeler", "vertaal naar Engels", "maak er een lijstje van"); zonder selectie schrijft het wat je vraagt ("schrijf een korte mail dat ik later ben") en plakt het waar je cursor staat.
 
 ## Lokale modellen
 
@@ -55,11 +55,11 @@ Op een M2 Pro: Parakeet TDT 0.6B v3 transcribeert een korte zin in ~0,7 s (inclu
 
 ## Waar staat wat
 
-- Instellingen en geschiedenis: `~/Library/Application Support/Musli/`
-- API-sleutels: in de Keychain (service `dev.musli.Musli`), nooit in bestanden
+- Instellingen en geschiedenis: `~/Library/Application Support/Pennel/`
+- API-sleutels: in de Keychain (service `dev.pennel.Pennel`), nooit in bestanden
 
 ## Structuur
 
-- `core/` — Rust-kern (`musli-core`): providers, opkuisen, geschiedenis, dicteer-pipeline; via UniFFI naar Swift
-- `apps/macos/` — Swift Package: `MusliKit` (pure logica, getest) en `Musli` (de app)
+- `core/` — Rust-kern (`pennel-core`): providers, opkuisen, geschiedenis, dicteer-pipeline; via UniFFI naar Swift
+- `apps/macos/` — Swift Package: `PennelKit` (pure logica, getest) en `Pennel` (de app)
 - `scripts/` — build- en bundelscripts

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 
 const DAY_MS: i64 = 86_400_000;
 
@@ -30,10 +30,10 @@ pub struct HistoryStore {
 }
 
 impl HistoryStore {
-    pub fn open(data_dir: &Path) -> Result<Self, MusliError> {
+    pub fn open(data_dir: &Path) -> Result<Self, PennelError> {
         let audio_dir = data_dir.join("failed-audio");
-        std::fs::create_dir_all(&audio_dir).map_err(MusliError::storage)?;
-        let conn = Connection::open(data_dir.join("history.sqlite")).map_err(MusliError::storage)?;
+        std::fs::create_dir_all(&audio_dir).map_err(PennelError::storage)?;
+        let conn = Connection::open(data_dir.join("history.sqlite")).map_err(PennelError::storage)?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS dictations (
                 id TEXT PRIMARY KEY,
@@ -47,7 +47,7 @@ impl HistoryStore {
             );
             PRAGMA user_version = 1;",
         )
-        .map_err(MusliError::storage)?;
+        .map_err(PennelError::storage)?;
         Ok(Self { conn, audio_dir })
     }
 
@@ -55,67 +55,67 @@ impl HistoryStore {
         self.audio_dir.join(format!("{id}.wav"))
     }
 
-    pub fn insert_done(&self, app: Option<&str>, raw: &str, text: &str, now_ms: i64) -> Result<String, MusliError> {
+    pub fn insert_done(&self, app: Option<&str>, raw: &str, text: &str, now_ms: i64) -> Result<String, PennelError> {
         let id = uuid::Uuid::now_v7().to_string();
         self.conn
             .execute(
                 "INSERT INTO dictations VALUES (?1, ?2, ?3, ?4, ?5, 'done', NULL, 0)",
                 params![id, now_ms, app, raw, text],
             )
-            .map_err(MusliError::storage)?;
+            .map_err(PennelError::storage)?;
         Ok(id)
     }
 
-    pub fn insert_failed(&self, app: Option<&str>, wav: &[u8], error: &str, now_ms: i64) -> Result<String, MusliError> {
+    pub fn insert_failed(&self, app: Option<&str>, wav: &[u8], error: &str, now_ms: i64) -> Result<String, PennelError> {
         let id = uuid::Uuid::now_v7().to_string();
-        std::fs::write(self.audio_path(&id), wav).map_err(MusliError::storage)?;
+        std::fs::write(self.audio_path(&id), wav).map_err(PennelError::storage)?;
         self.conn
             .execute(
                 "INSERT INTO dictations VALUES (?1, ?2, ?3, '', '', 'failed', ?4, 1)",
                 params![id, now_ms, app, error],
             )
-            .map_err(MusliError::storage)?;
+            .map_err(PennelError::storage)?;
         Ok(id)
     }
 
-    pub fn mark_done(&self, id: &str, raw: &str, text: &str) -> Result<(), MusliError> {
+    pub fn mark_done(&self, id: &str, raw: &str, text: &str) -> Result<(), PennelError> {
         let changed = self
             .conn
             .execute(
                 "UPDATE dictations SET raw = ?2, text = ?3, status = 'done', error = NULL, has_audio = 0 WHERE id = ?1",
                 params![id, raw, text],
             )
-            .map_err(MusliError::storage)?;
+            .map_err(PennelError::storage)?;
         if changed == 0 {
-            return Err(MusliError::NotFound);
+            return Err(PennelError::NotFound);
         }
         remove_if_exists(&self.audio_path(id))
     }
 
-    pub fn failed_audio(&self, id: &str) -> Result<Vec<u8>, MusliError> {
+    pub fn failed_audio(&self, id: &str) -> Result<Vec<u8>, PennelError> {
         match std::fs::read(self.audio_path(id)) {
             Ok(bytes) => Ok(bytes),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(MusliError::NotFound),
-            Err(e) => Err(MusliError::storage(e)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(PennelError::NotFound),
+            Err(e) => Err(PennelError::storage(e)),
         }
     }
 
-    pub fn app_bundle_id(&self, id: &str) -> Result<Option<String>, MusliError> {
+    pub fn app_bundle_id(&self, id: &str) -> Result<Option<String>, PennelError> {
         self.conn
             .query_row("SELECT app_bundle_id FROM dictations WHERE id = ?1", [id], |row| row.get(0))
             .optional()
-            .map_err(MusliError::storage)?
-            .ok_or(MusliError::NotFound)
+            .map_err(PennelError::storage)?
+            .ok_or(PennelError::NotFound)
     }
 
-    pub fn list(&self, limit: u32) -> Result<Vec<HistoryEntry>, MusliError> {
+    pub fn list(&self, limit: u32) -> Result<Vec<HistoryEntry>, PennelError> {
         let mut stmt = self
             .conn
             .prepare(
                 "SELECT id, created_at_ms, app_bundle_id, raw, text, status, error, has_audio
                  FROM dictations ORDER BY created_at_ms DESC, id DESC LIMIT ?1",
             )
-            .map_err(MusliError::storage)?;
+            .map_err(PennelError::storage)?;
         let rows = stmt
             .query_map([limit], |row| {
                 Ok(HistoryEntry {
@@ -129,11 +129,11 @@ impl HistoryStore {
                     has_audio: row.get(7)?,
                 })
             })
-            .map_err(MusliError::storage)?;
-        rows.collect::<Result<_, _>>().map_err(MusliError::storage)
+            .map_err(PennelError::storage)?;
+        rows.collect::<Result<_, _>>().map_err(PennelError::storage)
     }
 
-    pub fn prune(&self, retention_days: u32, now_ms: i64) -> Result<u32, MusliError> {
+    pub fn prune(&self, retention_days: u32, now_ms: i64) -> Result<u32, PennelError> {
         if retention_days == 0 {
             return Ok(0);
         }
@@ -142,11 +142,11 @@ impl HistoryStore {
             let mut stmt = self
                 .conn
                 .prepare("SELECT id FROM dictations WHERE created_at_ms < ?1")
-                .map_err(MusliError::storage)?;
+                .map_err(PennelError::storage)?;
             stmt.query_map([cutoff], |row| row.get(0))
-                .map_err(MusliError::storage)?
+                .map_err(PennelError::storage)?
                 .collect::<Result<_, _>>()
-                .map_err(MusliError::storage)?
+                .map_err(PennelError::storage)?
         };
         for id in &ids {
             self.delete(id)?;
@@ -154,17 +154,17 @@ impl HistoryStore {
         Ok(ids.len() as u32)
     }
 
-    pub fn delete(&self, id: &str) -> Result<(), MusliError> {
+    pub fn delete(&self, id: &str) -> Result<(), PennelError> {
         self.conn
             .execute("DELETE FROM dictations WHERE id = ?1", [id])
-            .map_err(MusliError::storage)?;
+            .map_err(PennelError::storage)?;
         remove_if_exists(&self.audio_path(id))
     }
 }
 
-fn remove_if_exists(path: &Path) -> Result<(), MusliError> {
+fn remove_if_exists(path: &Path) -> Result<(), PennelError> {
     match std::fs::remove_file(path) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(MusliError::storage(e)),
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(PennelError::storage(e)),
         _ => Ok(()),
     }
 }
@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(entry.status, HistoryStatus::Done);
         assert_eq!(entry.text, "Hallo.");
         assert!(!entry.has_audio);
-        assert_eq!(store.failed_audio(&id).unwrap_err(), MusliError::NotFound);
+        assert_eq!(store.failed_audio(&id).unwrap_err(), PennelError::NotFound);
     }
 
     #[test]
@@ -233,8 +233,8 @@ mod tests {
     fn unknown_id_is_not_found() {
         let dir = tempfile::tempdir().unwrap();
         let store = HistoryStore::open(dir.path()).unwrap();
-        assert_eq!(store.failed_audio("nope").unwrap_err(), MusliError::NotFound);
-        assert_eq!(store.mark_done("nope", "a", "b").unwrap_err(), MusliError::NotFound);
+        assert_eq!(store.failed_audio("nope").unwrap_err(), PennelError::NotFound);
+        assert_eq!(store.mark_done("nope", "a", "b").unwrap_err(), PennelError::NotFound);
     }
 
     #[test]

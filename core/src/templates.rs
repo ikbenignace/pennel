@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::error::MusliError;
+use crate::error::PennelError;
 
 pub const FALLBACK_ID: &str = "algemeen";
 pub const DEFAULT_SECTIONS: [&str; 3] = ["Samenvatting", "Beslissingen", "Actiepunten"];
@@ -180,11 +180,11 @@ impl TemplateStore {
             .or_else(|| Self::builtin(id).map(|(_, _, instruction)| builtin_body(instruction)))
     }
 
-    pub fn save(&self, id: Option<&str>, name: &str, body: &str) -> Result<String, MusliError> {
-        std::fs::create_dir_all(&self.dir).map_err(MusliError::storage)?;
+    pub fn save(&self, id: Option<&str>, name: &str, body: &str) -> Result<String, PennelError> {
+        std::fs::create_dir_all(&self.dir).map_err(PennelError::storage)?;
         let id = match id {
             Some(id) if self.is_known(id) => id.to_owned(),
-            Some(_) => return Err(MusliError::NotFound),
+            Some(_) => return Err(PennelError::NotFound),
             None => {
                 let base = slug(name);
                 std::iter::once(base.clone())
@@ -194,20 +194,20 @@ impl TemplateStore {
             }
         };
         let tmp = self.dir.join(format!(".{id}.tmp"));
-        std::fs::write(&tmp, render(name, body)).map_err(MusliError::storage)?;
-        std::fs::rename(&tmp, self.path(&id)).map_err(MusliError::storage)?;
+        std::fs::write(&tmp, render(name, body)).map_err(PennelError::storage)?;
+        std::fs::rename(&tmp, self.path(&id)).map_err(PennelError::storage)?;
         Ok(id)
     }
 
     /// Removes a custom template, or the override of a built-in (restoring the original).
-    pub fn delete(&self, id: &str) -> Result<(), MusliError> {
+    pub fn delete(&self, id: &str) -> Result<(), PennelError> {
         if !self.custom_ids().iter().any(|c| c == id) {
-            return Err(MusliError::NotFound);
+            return Err(PennelError::NotFound);
         }
         match std::fs::remove_file(self.path(id)) {
             Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(MusliError::NotFound),
-            Err(e) => Err(MusliError::storage(e)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(PennelError::NotFound),
+            Err(e) => Err(PennelError::storage(e)),
         }
     }
 }
@@ -297,10 +297,10 @@ mod tests {
     fn ids_outside_the_folder_are_rejected() {
         let (dir, store) = store();
         std::fs::write(dir.path().join("geheim.md"), "x").unwrap();
-        assert_eq!(store.delete("../geheim"), Err(MusliError::NotFound));
+        assert_eq!(store.delete("../geheim"), Err(PennelError::NotFound));
         assert!(dir.path().join("geheim.md").exists());
         assert_eq!(store.source("../geheim"), None);
-        assert_eq!(store.save(Some("../geheim"), "x", "y"), Err(MusliError::NotFound));
+        assert_eq!(store.save(Some("../geheim"), "x", "y"), Err(PennelError::NotFound));
     }
 
     #[test]
@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn builtin_cannot_be_deleted() {
         let (_dir, store) = store();
-        assert_eq!(store.delete("algemeen"), Err(MusliError::NotFound));
+        assert_eq!(store.delete("algemeen"), Err(PennelError::NotFound));
         assert!(ids(&store).contains(&"algemeen".to_string()));
     }
 }

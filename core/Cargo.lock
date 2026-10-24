@@ -784,24 +784,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "musli-core"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "mockito",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "transcribe-cpp",
- "uniffi",
- "ureq",
- "uuid",
-]
-
-[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -847,6 +829,24 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-link",
+]
+
+[[package]]
+name = "pennel-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "mockito",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "transcribe-cpp",
+ "uniffi",
+ "ureq",
+ "uuid",
 ]
 
 [[package]]

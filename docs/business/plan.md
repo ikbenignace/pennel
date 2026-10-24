@@ -1,11 +1,11 @@
-# Musli commercialiseren — open source + freemium
+# Pennel commercialiseren — open source + freemium
 
 Stand: 2026-10-24. Concept om samen te beslissen; prijzen en bronnen uit marktonderzoek van dezelfde dag (zie onderaan).
 
 ## 0. Eerst: drie blokkers vóór je iets publiek zet
 
-1. **Naam.** Er bestaat al een open-source (MIT) Mac-app **Muesli** (`Muesli-HQ/muesli`) die bijna hetzelfde doet: dicteren + meetings opnemen (mic + systeemaudio), Granola-alternatief. `musli.com/.app/.ai/.io/.be` en `getmusli.com` zijn bezet. Een publieke lancering onder "Musli" zorgt voor verwarring en een zwak merk. **Advies: hernoemen vóór de publieke repo.** De branding-agent werkt naamalternatieven uit (`branding/names.md`).
-2. **Werkgever.** Check je arbeidscontract bij AE op IP-clausules (eigendom van software gemaakt tijdens of naast je job, concurrentiebeding, nevenactiviteiten). Laat bij twijfel schriftelijk bevestigen dat Musli jouw project is. Dit bepaalt of je het überhaupt mag verkopen.
+1. **Naam — beslist: Pennel.** De werknaam "Musli" botste met de open-source Mac-app **Muesli** (`Muesli-HQ/muesli`) die bijna hetzelfde doet, en alle musli-domeinen waren bezet. Onderzoek in `branding/naming-research.md`. Nog te doen: pennel.app (+ .ai, getpennel.com) registreren en een merkenonderzoek in klasse 9 en 42.
+2. **Werkgever.** Check je arbeidscontract bij AE op IP-clausules (eigendom van software gemaakt tijdens of naast je job, concurrentiebeding, nevenactiviteiten). Laat bij twijfel schriftelijk bevestigen dat Pennel jouw project is. Dit bepaalt of je het überhaupt mag verkopen.
 3. **Juridische vorm.** Om te factureren via een Merchant of Record heb je een ondernemingsnummer nodig (eenmanszaak in bijberoep volstaat om te starten; BV later voor aansprakelijkheid).
 
 ## 1. Positionering
@@ -24,7 +24,7 @@ Waarom iemand voor ons kiest i.p.v. Wispr Flow ($12–15/m) + Granola ($14/m):
 | Laag | Licentie | Waarom |
 |------|----------|--------|
 | App + Rust-kern | **Apache-2.0** (aanbevolen) of MIT | Maximale adoptie en bijdragen (Handy: MIT, ~23k sterren). Apache geeft patentbescherming. Merknaam blijft van jou. |
-| Musli Cloud (backend) | **Gesloten** (of FSL-1.1 als je hem toch wil tonen) | De waarde zit in de gehoste dienst (sleutels, kwaliteit, privacygaranties, facturatie), niet in proxycode. |
+| Pennel Cloud (backend) | **Gesloten** (of FSL-1.1 als je hem toch wil tonen) | De waarde zit in de gehoste dienst (sleutels, kwaliteit, privacygaranties, facturatie), niet in proxycode. |
 | Merk + logo | Geregistreerd merk (BOIP/EUIPO) | Forks mogen de code, niet de naam. |
 
 Alternatief: GPL-3.0 + CLA (zoals VoiceInk, die betaalde ondertekende builds verkoopt). Nadeel: minder bijdragers, App Store-complicaties. Niet aangeraden: AGPL/BSL/ELv2 op de app — botst met "echt open source" en levert hier weinig op.
@@ -38,7 +38,7 @@ Alternatief: GPL-3.0 + CLA (zoals VoiceInk, die betaalde ondertekende builds ver
 | Prijs | €0 | €0 (account) | **€9/m of €90/j** | **€15/gebruiker/m** (€150/j) |
 | Lokaal dicteren + meetings | onbeperkt | onbeperkt | onbeperkt | onbeperkt |
 | Eigen API-sleutels (BYOK) | ✓ | ✓ | ✓ | ✓ |
-| Musli Cloud (geen sleutels nodig) | — | 2.000 woorden/week + 2 meetings/m | fair use: ~40 u dicteren + 20 u meetings/m | idem per gebruiker |
+| Pennel Cloud (geen sleutels nodig) | — | 2.000 woorden/week + 2 meetings/m | fair use: ~40 u dicteren + 20 u meetings/m | idem per gebruiker |
 | Beste hosted modellen, sprekers in de cloud, vragen over meetings | — | basis | ✓ | ✓ |
 | Sync (instellingen, woordenlijst, sjablonen; later iPhone) | — | — | ✓ | ✓ |
 | Gedeelde sjablonen, teamwoordenlijst, beheer, facturatie op factuur | — | — | — | ✓ |
@@ -51,12 +51,12 @@ Waarom zo:
 - **Team** is waar het geld zit (B2B, consultancy, AE als eerste pilot).
 - Jaarplannen pushen: vaste transactiekost (~$0,50) weegt zwaar op €9.
 
-## 4. Musli Cloud — architectuur
+## 4. Pennel Cloud — architectuur
 
 Doel: weinig ops, lage kost, privacy aantoonbaar.
 
 ```
-Musli app ──(token)──► api.<merk>.app  (Cloudflare Workers)
+Pennel app ──(token)──► api.<merk>.app  (Cloudflare Workers)
                          ├─ /v1/audio/transcriptions   → Groq whisper-large-v3-turbo  (EU-optie: Mistral Voxtral)
                          ├─ /v1/chat/completions       → snel goedkoop LLM (Gemini Flash-Lite / gpt-5-nano / Mistral Small)
                          ├─ /auth (magic link / device code), /account, /usage
@@ -64,7 +64,7 @@ Musli app ──(token)──► api.<merk>.app  (Cloudflare Workers)
                        D1 (accounts, abonnementen, verbruik)  ·  Durable Object per gebruiker (quota, rate limits)
 ```
 
-- **OpenAI-compatibel**: de app kent dit al. Musli Cloud wordt gewoon een nieuwe providersoort ("Musli Cloud") met vaste `base_url` en een token in plaats van een sleutel. Minimale app-wijziging.
+- **OpenAI-compatibel**: de app kent dit al. Pennel Cloud wordt gewoon een nieuwe providersoort ("Pennel Cloud") met vaste `base_url` en een token in plaats van een sleutel. Minimale app-wijziging.
 - **Geen opslag** van audio of tekst: enkel tellers (seconden audio, tokens). Providers met zero-retention (Groq-console, OpenAI ZDR aanvragen). Betaalde Gemini-tier (de gratis tier traint op data).
 - **Misbruik**: kortlevende tokens per toestel, quota per gebruiker, max clipduur, max gelijktijdige streams, dagelijkse kostenplafond per provider, wegwerpmail blokkeren voor de gratis tier.
 - **Auth**: account via magic link of device-code login vanuit de app; abonnement gekoppeld aan de klant bij de betaalprovider.
@@ -113,16 +113,16 @@ Bij €9/m: na ~10 % fee van de Merchant of Record en ~€2 providerkost → **�
 
 | Fase | Inhoud | Klaar als |
 |------|--------|-----------|
-| **A. Fundament** (1–2 w) | Naam + branding kiezen, werkgever-check, Developer ID, notarisatie, Sparkle, licentie, Engelse README, publieke repo | Een vreemde kan Musli downloaden en installeren zonder waarschuwing |
-| **B. Musli Cloud MVP** (2–3 w) | Workers-proxy (STT + LLM), accounts (magic link), quota/rate limits, "Musli Cloud"-provider in de app + inloggen | Nieuwe gebruiker dicteert zonder eigen sleutel |
+| **A. Fundament** (1–2 w) | Naam + branding kiezen, werkgever-check, Developer ID, notarisatie, Sparkle, licentie, Engelse README, publieke repo | Een vreemde kan Pennel downloaden en installeren zonder waarschuwing |
+| **B. Pennel Cloud MVP** (2–3 w) | Workers-proxy (STT + LLM), accounts (magic link), quota/rate limits, "Pennel Cloud"-provider in de app + inloggen | Nieuwe gebruiker dicteert zonder eigen sleutel |
 | **C. Betalen** (1 w) | Polar/Lemon Squeezy, webhooks → abonnement, verbruikspagina, upgrade-flow in de app | Iemand kan Pro kopen en het werkt meteen |
 | **D. Website + lancering** (1 w) | Landing, prijzen, docs, privacy/DPA, lancering | Publieke launch |
 | **E. Team** | Workspaces, gedeelde sjablonen/woordenlijst, facturatie, EU-only | Eerste betalend team |
-| **F. iPhone** | Toetsenbord + opnemen, via Musli Cloud | Pro-feature op iOS |
+| **F. iPhone** | Toetsenbord + opnemen, via Pennel Cloud | Pro-feature op iOS |
 
 ## 11. Beslissingen voor jou
 
-1. Nieuwe naam (zie `branding/names.md`) — of bewust toch "Musli"?
+1. ~~Naam~~ → Pennel (beslist). Logo-richting kiezen (`branding/pennel/`).
 2. Licentie app: **Apache-2.0** (advies), MIT, of GPL-3.0 + CLA?
 3. Prijzen: €9 Pro / €15 Team ok? Jaarkorting?
 4. Betaalprovider: Polar, Lemon Squeezy of Paddle?
