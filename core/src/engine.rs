@@ -12,6 +12,7 @@ use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::session::MeetingSession;
 use crate::settings::ModelChoice;
 use crate::meeting_chat::{ChatTurn, MeetingAnswer};
+use crate::templates::{MeetingTemplate, TemplateStore};
 use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
 use crate::models::{CancelFlag, DownloadListener, LocalModel, ModelState, ModelStore};
 use crate::provider::{requires_key, ProviderAccount, ProviderConfig, ProviderKind};
@@ -317,7 +318,8 @@ impl MusliEngine {
         } else {
             transcript
         };
-        let body = ask(summary_messages(&template_id, &notes, &source))?;
+        let spec = self.template_store().spec(&template_id);
+        let body = ask(summary_messages(&spec, &notes, &source))?;
         store.write_meeting(&id, info.duration_min, &template_id, &body)?;
         Ok(body.trim().to_owned())
     }
@@ -365,6 +367,22 @@ impl MusliEngine {
             ASK_TIMEOUT_SECS,
         )?;
         Ok(MeetingAnswer { citations: cited(&answer, &sources), text: answer })
+    }
+
+    pub fn meeting_templates(&self) -> Vec<MeetingTemplate> {
+        self.template_store().list()
+    }
+
+    pub fn template_source(&self, id: String) -> Option<String> {
+        self.template_store().source(&id)
+    }
+
+    pub fn save_template(&self, id: Option<String>, name: String, body: String) -> Result<String, MusliError> {
+        self.template_store().save(id.as_deref(), &name, &body)
+    }
+
+    pub fn delete_template(&self, id: String) -> Result<(), MusliError> {
+        self.template_store().delete(&id)
     }
 
     pub fn local_models(&self, language: Option<String>, supported_only: bool) -> Vec<LocalModel> {
@@ -458,6 +476,10 @@ impl MusliEngine {
             return Err(MusliError::MissingApiKey { task: "stt".into() });
         }
         transcribe(&endpoint(&account, model), key, wav, prompt.as_deref(), settings.language.as_deref())
+    }
+
+    fn template_store(&self) -> TemplateStore {
+        TemplateStore::new(&self.meeting_store().root())
     }
 
     pub(crate) fn meeting_store(&self) -> MeetingStore {

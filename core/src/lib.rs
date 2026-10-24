@@ -21,6 +21,7 @@ mod settings;
 mod speech;
 mod stt;
 mod summary;
+mod templates;
 mod transcript_filter;
 mod wav;
 
@@ -29,7 +30,7 @@ pub use error::MusliError;
 pub use history::{HistoryEntry, HistoryStatus};
 pub use rules::{browser_apps, decide_recording, known_call_apps, AppRule, CalendarRule, EventRule, RecordAction};
 pub use session::MeetingSession;
-pub use summary::{meeting_templates, MeetingTemplate};
+pub use templates::MeetingTemplate;
 pub use meetings::{mark_lines, MeetingInfo, NoteLine, Segment, Speaker};
 pub use models::{DownloadListener, LocalModel, ModelState};
 pub use provider::{default_base_url, default_model, new_account, requires_key, supports, ProviderAccount, ProviderKind, ProviderTask};

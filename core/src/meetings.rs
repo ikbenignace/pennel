@@ -111,6 +111,10 @@ impl MeetingStore {
         Self { dir: dir.to_owned() }
     }
 
+    pub fn root(&self) -> PathBuf {
+        self.dir.clone()
+    }
+
     pub fn dir_of(&self, id: &str) -> PathBuf {
         self.dir.join(id)
     }

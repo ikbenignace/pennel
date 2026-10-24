@@ -1,50 +1,39 @@
 use crate::llm::ChatMessage;
 use crate::meetings::{timestamp, Segment, Speaker};
+use crate::templates::TemplateSpec;
 
 pub(crate) const MAP_REDUCE_ABOVE: usize = 40_000;
 pub(crate) const BLOCK_CHARS: usize = 30_000;
 
 const SYSTEM_PROMPT: &str = "You write meeting notes from a transcript. \"Ik\" is the user; \"Anderen\" are the other participants.
-Write in the language the meeting was held in (Dutch or English). Use Markdown with exactly these sections:
-## Samenvatting
-## Beslissingen
-## Actiepunten
-Under Actiepunten use \"- [ ] Person — action\" lines; write \"- Geen\" when there are none. Never invent facts that are not in the transcript or notes.";
+Write in the language the meeting was held in (Dutch or English). Never invent facts that are not in the transcript or notes.";
 
-const MODE_SUMMARY: &str = "Summarize the meeting in short bullet points under Samenvatting.";
-const MODE_NOTES: &str = "The user took the notes below during the meeting. Under Samenvatting, keep every line of the user's notes verbatim (you may reorder them) and add missing important details from the transcript as separate bullet lines.";
+const ACTION_RULE: &str = "Under Actiepunten use \"- [ ] Person — action\" lines; write \"- Geen\" when there are none.";
 const MAP_PROMPT: &str = "Summarize this part of a meeting transcript as concise bullet points: facts, decisions and action items with who is responsible. Keep the language of the meeting. \"Ik\" is the user.";
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
-pub struct MeetingTemplate {
-    pub id: String,
-    pub name: String,
+fn notes_section(spec: &TemplateSpec) -> &str {
+    spec.sections.iter().find(|s| s.as_str() == "Samenvatting").unwrap_or(&spec.sections[0])
 }
 
-const TEMPLATES: &[(&str, &str, &str)] = &[
-    ("algemeen", "Algemeen", "Focus on what was discussed and agreed."),
-    ("een-op-een", "1-op-1", "This is a 1-on-1. Include feedback, wellbeing and personal follow-ups."),
-    (
-        "klantgesprek",
-        "Klantgesprek",
-        "This is a client meeting. Capture the client's needs, questions, commitments made to them and next steps.",
-    ),
-    ("standup", "Standup", "This is a standup. Per person: done, next, blockers."),
-];
-
-#[uniffi::export]
-pub fn meeting_templates() -> Vec<MeetingTemplate> {
-    TEMPLATES.iter().map(|(id, name, _)| MeetingTemplate { id: (*id).into(), name: (*name).into() }).collect()
-}
-
-fn template_instruction(id: &str) -> &'static str {
-    TEMPLATES.iter().find(|(t, _, _)| *t == id).map_or(TEMPLATES[0].2, |(_, _, i)| i)
-}
-
-pub fn summary_messages(template_id: &str, notes: &str, transcript: &str) -> Vec<ChatMessage> {
+pub fn summary_messages(spec: &TemplateSpec, notes: &str, transcript: &str) -> Vec<ChatMessage> {
     let notes = notes.trim();
-    let mode = if notes.is_empty() { MODE_SUMMARY } else { MODE_NOTES };
-    let system = format!("{SYSTEM_PROMPT}\n{}\n{mode}", template_instruction(template_id));
+    let sections: String = spec.sections.iter().map(|s| format!("## {s}\n")).collect();
+    let mut system = format!("{SYSTEM_PROMPT}\nUse Markdown with exactly these sections:\n{sections}");
+    if spec.sections.iter().any(|s| s == "Actiepunten") {
+        system.push_str(ACTION_RULE);
+        system.push('\n');
+    }
+    if !spec.instruction.is_empty() {
+        system.push_str(&format!("Template \"{}\": {}\n", spec.name, spec.instruction));
+    }
+    let target = notes_section(spec);
+    if notes.is_empty() {
+        system.push_str(&format!("Summarize the meeting in short bullet points under {target}."));
+    } else {
+        system.push_str(&format!(
+            "The user took the notes below during the meeting. Under {target}, keep every line of the user's notes verbatim (you may reorder them) and add missing important details from the transcript as separate bullet lines."
+        ));
+    }
     let mut user = String::new();
     if !notes.is_empty() {
         user.push_str(&format!("<notes>\n{notes}\n</notes>\n"));
@@ -100,15 +89,13 @@ mod tests {
         Segment { start_ms, end_ms: start_ms, speaker, text: text.into(), failed }
     }
 
-    #[test]
-    fn templates_are_builtin() {
-        let ids: Vec<String> = meeting_templates().into_iter().map(|t| t.id).collect();
-        assert_eq!(ids, ["algemeen", "een-op-een", "klantgesprek", "standup"]);
+    fn spec(id: &str) -> TemplateSpec {
+        crate::templates::TemplateStore::new(std::path::Path::new("/nonexistent")).spec(id)
     }
 
     #[test]
     fn prompt_without_notes_summarizes() {
-        let messages = summary_messages("algemeen", "", "[00:00] Ik: hallo");
+        let messages = summary_messages(&spec("algemeen"), "", "[00:00] Ik: hallo");
         assert!(messages[0].content.contains("Summarize the meeting in short bullet points"));
         assert!(messages[0].content.contains("## Actiepunten"));
         assert!(!messages[1].content.contains("<notes>"));
@@ -117,17 +104,35 @@ mod tests {
 
     #[test]
     fn prompt_with_notes_keeps_lines_verbatim() {
-        let messages = summary_messages("algemeen", "- export naar Excel", "[00:00] Ik: hallo");
+        let messages = summary_messages(&spec("algemeen"), "- export naar Excel", "[00:00] Ik: hallo");
         assert!(messages[0].content.contains("keep every line of the user's notes verbatim"));
         assert!(messages[1].content.starts_with("<notes>\n- export naar Excel\n</notes>"));
     }
 
     #[test]
     fn template_instructions_are_included() {
-        let messages = summary_messages("klantgesprek", "", "x");
+        let messages = summary_messages(&spec("klantgesprek"), "", "x");
         assert!(messages[0].content.contains("This is a client meeting"));
-        let unknown = summary_messages("bestaat-niet", "", "x");
+        let unknown = summary_messages(&spec("bestaat-niet"), "", "x");
         assert!(unknown[0].content.contains("Focus on what was discussed and agreed."));
+    }
+
+    #[test]
+    fn custom_sections_drive_prompt() {
+        let retro = TemplateSpec::parse("Retro", "Wat ging goed en wat beter kan.\n## Goed\n## Beter\n## Actiepunten");
+        let messages = summary_messages(&retro, "", "x");
+        assert!(messages[0].content.contains("## Goed\n## Beter\n## Actiepunten\n"));
+        assert!(messages[0].content.contains("Wat ging goed en wat beter kan."));
+        assert!(messages[0].content.contains("- [ ] Person"));
+        assert!(!messages[0].content.contains("## Beslissingen"));
+    }
+
+    #[test]
+    fn notes_rule_targets_first_section_without_samenvatting() {
+        let retro = TemplateSpec::parse("Retro", "## Goed\n## Beter");
+        let messages = summary_messages(&retro, "- koffie", "x");
+        assert!(messages[0].content.contains("Under Goed, keep every line of the user's notes verbatim"));
+        assert!(!messages[0].content.contains("- [ ] Person"));
     }
 
     #[test]
