@@ -8,6 +8,8 @@ mod error;
 mod history;
 mod http;
 mod llm;
+mod meeting_chat;
+mod meeting_index;
 mod meetings;
 mod local_engine;
 mod models;

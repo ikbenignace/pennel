@@ -11,6 +11,8 @@ use crate::local_engine::LocalEngine;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::session::MeetingSession;
 use crate::settings::ModelChoice;
+use crate::meeting_chat::{ChatTurn, MeetingAnswer};
+use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
 use crate::models::{CancelFlag, DownloadListener, LocalModel, ModelState, ModelStore};
 use crate::provider::{requires_key, ProviderAccount, ProviderConfig, ProviderKind};
 use crate::settings::{DictationMode, Settings};
@@ -63,6 +65,7 @@ pub struct MusliEngine {
     models: ModelStore,
     downloads: Mutex<HashMap<String, CancelFlag>>,
     local: LocalEngine,
+    index: Mutex<Option<MeetingIndex>>,
 }
 
 struct Transcript {
@@ -110,6 +113,7 @@ impl MusliEngine {
             models,
             downloads: Mutex::new(HashMap::new()),
             local: LocalEngine::default(),
+            index: Mutex::new(open_index(&dir.join("index.sqlite"))),
         }))
     }
 
@@ -197,8 +201,31 @@ impl MusliEngine {
         self.meeting_store().list()
     }
 
+    /// Title matches first, then meetings in full-text rank order.
     pub fn search_meetings(&self, query: String) -> Vec<MeetingInfo> {
-        self.meeting_store().search(&query)
+        let store = self.meeting_store();
+        if query.trim().is_empty() {
+            return store.list();
+        }
+        let Some(passages) = self.with_index(&store, |index| index.search(&store, &query, None, 200)) else {
+            return store.search(&query);
+        };
+        let needle = query.trim().to_lowercase();
+        let mut found: Vec<MeetingInfo> =
+            store.list().into_iter().filter(|m| m.title.to_lowercase().contains(&needle)).collect();
+        for passage in passages {
+            if !found.iter().any(|m| m.id == passage.meeting_id)
+                && let Some(info) = store.info(&passage.meeting_id)
+            {
+                found.push(info);
+            }
+        }
+        found
+    }
+
+    pub fn search_passages(&self, query: String) -> Vec<Passage> {
+        let store = self.meeting_store();
+        self.with_index(&store, |index| index.search(&store, &query, None, 50)).unwrap_or_default()
     }
 
     pub fn meeting_info(&self, id: String) -> Option<MeetingInfo> {
@@ -291,6 +318,50 @@ impl MusliEngine {
         Ok(body.trim().to_owned())
     }
 
+    /// Answers from one meeting (`meeting_id`) or all meetings, citing the passages it used.
+    pub fn ask_meetings(
+        &self,
+        question: String,
+        history: Vec<ChatTurn>,
+        meeting_id: Option<String>,
+        keys: ApiKeys,
+    ) -> Result<MeetingAnswer, MusliError> {
+        use crate::meeting_chat::*;
+
+        let settings = self.settings();
+        let (account, model) = settings.resolve(&settings.llm).ok_or(MusliError::NotFound)?;
+        let key = keys.get(&account);
+        if requires_key(account.kind) && key.is_none() {
+            return Err(MusliError::MissingApiKey { task: "llm".into() });
+        }
+        let store = self.meeting_store();
+        let scope = meeting_id.as_deref();
+        let terms = search_terms(&question);
+        let sources = self
+            .with_index(&store, |index| {
+                if let Some(id) = scope {
+                    let all = index.recent(&store, Some(id), u32::MAX)?;
+                    if all.iter().map(|p| p.text.len()).sum::<usize>() <= WHOLE_MEETING_CHARS {
+                        return Ok(all);
+                    }
+                    let mut picked: Vec<Passage> =
+                        all.iter().filter(|p| p.kind == PassageKind::Summary).cloned().collect();
+                    picked.extend(index.search_any(&store, &terms, Some(id), MEETING_PASSAGES)?);
+                    return Ok(picked);
+                }
+                let found = index.search_any(&store, &terms, None, ALL_MEETINGS_PASSAGES)?;
+                if found.is_empty() { index.recent(&store, None, ALL_MEETINGS_PASSAGES) } else { Ok(found) }
+            })
+            .ok_or(MusliError::Storage { message: "zoekindex niet beschikbaar".into() })?;
+        let answer = crate::llm::chat_complete_within(
+            &endpoint(&account, model),
+            key,
+            &chat_messages(&question, &history, &sources),
+            ASK_TIMEOUT_SECS,
+        )?;
+        Ok(MeetingAnswer { sources: cited(&answer, &sources), text: answer })
+    }
+
     pub fn local_models(&self, language: Option<String>, supported_only: bool) -> Vec<LocalModel> {
         self.models.local_models(language.as_deref(), supported_only)
     }
@@ -322,7 +393,26 @@ impl MusliEngine {
     }
 }
 
+fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
+    MeetingIndex::open(path).ok().or_else(|| {
+        let _ = std::fs::remove_file(path);
+        MeetingIndex::open(path).ok()
+    })
+}
+
 impl MusliEngine {
+    /// Syncs the index with the meeting files first; `None` when the index is unavailable.
+    pub(crate) fn with_index<T>(
+        &self,
+        store: &MeetingStore,
+        query: impl FnOnce(&MeetingIndex) -> Result<T, MusliError>,
+    ) -> Option<T> {
+        let mut guard = self.index.lock().unwrap();
+        let index = guard.as_mut()?;
+        index.sync(store).ok()?;
+        query(index).ok()
+    }
+
     fn process(&self, settings: &Settings, wav: &[u8], app: Option<&str>, keys: &ApiKeys) -> Result<Transcript, MusliError> {
         let raw = self.stt(settings, &settings.dictation_stt, wav, keys)?;
         if is_hallucination(&raw) {
@@ -638,5 +728,81 @@ mod tests {
         assert_eq!(capped[0], "term000");
         assert!(capped.len() > 50);
         assert_eq!(capped_terms(&terms[..2], MAX_PROMPT_CHARS), terms[..2]);
+    fn meeting_engine(dir: &tempfile::TempDir, server: &mockito::Server) -> Arc<MusliEngine> {
+        let engine = engine(dir, server, DictationMode::Clean);
+        let mut settings = engine.settings();
+        settings.meetings_dir = dir.path().join("meetings").to_string_lossy().into_owned();
+        engine.update_settings(settings).unwrap();
+        engine
+    }
+
+    fn add_meeting(engine: &MusliEngine, title: &str, hour: u32, said: &str) -> String {
+        use chrono::TimeZone;
+        let store = engine.meeting_store();
+        std::fs::create_dir_all(engine.settings().meetings_dir).unwrap();
+        let id = store.create(title, chrono::Local.with_ymd_and_hms(2026, 10, 20, hour, 0, 0).unwrap()).unwrap();
+        let segment = crate::meetings::Segment {
+            start_ms: 1000,
+            end_ms: 2000,
+            speaker: crate::meetings::Speaker::Others,
+            text: said.into(),
+            failed: false,
+        };
+        store.write_transcript(&id, &[segment]).unwrap();
+        id
+    }
+
+    #[test]
+    fn search_meetings_uses_titles_then_full_text() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        let a = add_meeting(&engine, "Budget review", 9, "niets bijzonders");
+        let b = add_meeting(&engine, "Weekly", 10, "het budget is goedgekeurd");
+        add_meeting(&engine, "Lunch", 11, "pasta");
+        let ids: Vec<String> = engine.search_meetings("budget".into()).into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, [a, b]);
+        let hits = engine.search_passages("goedgekeurd".into());
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].snippet.contains("«goedgekeurd»"));
+    }
+
+    #[test]
+    fn no_terms_uses_recent_passages() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        add_meeting(&engine, "Oud", 8, "oude kiwi");
+        add_meeting(&engine, "Nieuw", 11, "verse mango");
+        let mock = server
+            .mock("POST", "/chat/completions")
+            .match_body(mockito::Matcher::Regex("verse mango".into()))
+            .with_body(r#"{"choices":[{"message":{"content":"Mango [1]."}}]}"#)
+            .create();
+        let answer = engine.ask_meetings("wat?".into(), vec![], None, keys()).unwrap();
+        mock.assert();
+        assert_eq!(answer.text, "Mango [1].");
+        assert_eq!(answer.sources.len(), 1);
+        assert_eq!(answer.sources[0].title, "Nieuw");
+    }
+
+    #[test]
+    fn single_meeting_sends_whole_meeting() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        let id = add_meeting(&engine, "Sync", 9, "we verhuizen naar Gent");
+        add_meeting(&engine, "Ander", 10, "geheime ananas");
+        engine.meeting_store().write_meeting(&id, 30, "algemeen", "## Besluiten\n- Verhuis naar Gent").unwrap();
+        let mock = server
+            .mock("POST", "/chat/completions")
+            .match_body(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::Regex("we verhuizen naar Gent".into()),
+                mockito::Matcher::Regex("Besluiten".into()),
+            ]))
+            .with_body(r#"{"choices":[{"message":{"content":"Gent."}}]}"#)
+            .create();
+        let other = server.mock("POST", "/chat/completions").match_body(mockito::Matcher::Regex("ananas".into())).expect(0).create();
+        let answer = engine.ask_meetings("Waar verhuizen we naartoe?".into(), vec![], Some(id), keys()).unwrap();
+        mock.assert();
+        other.assert();
+        assert!(answer.sources.is_empty());
     }
 }

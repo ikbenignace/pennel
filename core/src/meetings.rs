@@ -15,7 +15,7 @@ pub enum Speaker {
 }
 
 impl Speaker {
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Speaker::Me => "Ik",
             Speaker::Others => "Anderen",
@@ -138,6 +138,13 @@ impl MeetingStore {
         let tmp = path.with_extension("tmp");
         std::fs::write(&tmp, content).map_err(MusliError::storage)?;
         std::fs::rename(&tmp, &path).map_err(MusliError::storage)
+    }
+
+    /// Modification time (ns) and length, enough to notice any rewrite of a meeting file.
+    pub fn file_stamp(&self, id: &str, name: &str) -> Option<(i64, u64)> {
+        let meta = std::fs::metadata(self.dir_of(id).join(name)).ok()?;
+        let modified = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
+        Some((modified.as_nanos() as i64, meta.len()))
     }
 
     fn read_file(&self, id: &str, name: &str) -> String {
