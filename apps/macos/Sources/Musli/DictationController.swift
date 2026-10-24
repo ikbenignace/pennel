@@ -189,8 +189,11 @@ final class DictationController {
     }
 
     private static func notice(for cleanup: CleanupStatus) -> String? {
-        if case .failed = cleanup { return "Opkuisen mislukt — ruwe tekst geplakt" }
-        return nil
+        switch cleanup {
+        case .failed: "Opkuisen mislukt — ruwe tekst geplakt"
+        case .rejected: "Model antwoordde i.p.v. op te kuisen — ruwe tekst geplakt"
+        default: nil
+        }
     }
 
     private static func notice(for error: Error) -> String? {
