@@ -166,9 +166,10 @@ extension MenuBarController: NSMenuDelegate {
 extension HotkeyTrigger {
     var label: String {
         switch self {
-        case .fn: "fn"
+        case .fn, .controlSuper: "fn"
         case .rightOption: "rechter ⌥"
         case .rightCommand: "rechter ⌘"
+        case .rightControl: "rechter ⌃"
         }
     }
 }

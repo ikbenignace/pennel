@@ -37,7 +37,16 @@ pub enum HotkeyTrigger {
     Fn,
     RightOption,
     RightCommand,
+    /// Windows/Linux: there is no fn key there, so Right Ctrl is the default.
+    RightControl,
+    /// Windows/Linux: Ctrl + Windows/Super held together.
+    ControlSuper,
 }
+
+#[cfg(target_os = "macos")]
+const DEFAULT_HOTKEY: HotkeyTrigger = HotkeyTrigger::Fn;
+#[cfg(not(target_os = "macos"))]
+const DEFAULT_HOTKEY: HotkeyTrigger = HotkeyTrigger::RightControl;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
 pub struct ModelChoice {
@@ -138,7 +147,7 @@ pub fn default_settings() -> Settings {
             })
             .collect(),
         history_retention_days: 30,
-        hotkey: HotkeyTrigger::Fn,
+        hotkey: DEFAULT_HOTKEY,
         local_unload_minutes: 5,
         meetings_dir: String::new(),
         meeting_audio_retention_days: 0,
@@ -335,7 +344,7 @@ mod tests {
         );
         assert_eq!(s.llm.provider_id, "groq");
         assert_eq!(s.mode, DictationMode::Clean);
-        assert_eq!(s.hotkey, HotkeyTrigger::Fn);
+        assert_eq!(s.hotkey, DEFAULT_HOTKEY);
         assert_eq!(s.local_unload_minutes, 5);
         let slack = s
             .style_rules

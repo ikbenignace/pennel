@@ -92,21 +92,24 @@ final class HotkeyMonitor {
     }
 }
 
+/// `.controlSuper` is a Windows/Linux chord; a Mac falls back to fn for it.
 private extension HotkeyTrigger {
     var keyCode: Int64 {
         switch self {
-        case .fn: 63
+        case .fn, .controlSuper: 63
         case .rightOption: 61
         case .rightCommand: 54
+        case .rightControl: 62
         }
     }
 
     /// Device-dependent modifier bits, so left and right keys are told apart.
     var deviceMask: UInt64 {
         switch self {
-        case .fn: CGEventFlags.maskSecondaryFn.rawValue
+        case .fn, .controlSuper: CGEventFlags.maskSecondaryFn.rawValue
         case .rightOption: 0x40
         case .rightCommand: 0x10
+        case .rightControl: 0x2000
         }
     }
 }
