@@ -728,6 +728,8 @@ mod tests {
         assert_eq!(capped[0], "term000");
         assert!(capped.len() > 50);
         assert_eq!(capped_terms(&terms[..2], MAX_PROMPT_CHARS), terms[..2]);
+    }
+
     fn meeting_engine(dir: &tempfile::TempDir, server: &mockito::Server) -> Arc<MusliEngine> {
         let engine = engine(dir, server, DictationMode::Clean);
         let mut settings = engine.settings();
