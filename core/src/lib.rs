@@ -8,7 +8,7 @@ mod history;
 mod http;
 mod llm;
 mod meetings;
-mod local_stt;
+mod local_engine;
 mod models;
 mod provider;
 mod rules;

@@ -7,7 +7,7 @@ use crate::cleanup::{accept_cleanup, cleanup_messages, resolve_style, strip_wrap
 use crate::error::MusliError;
 use crate::history::{HistoryEntry, HistoryStore};
 use crate::llm::chat_complete;
-use crate::local_stt::LocalWhisper;
+use crate::local_engine::LocalEngine;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::session::MeetingSession;
 use crate::settings::ModelChoice;
@@ -62,7 +62,7 @@ pub struct MusliEngine {
     history: Mutex<HistoryStore>,
     models: ModelStore,
     downloads: Mutex<HashMap<String, CancelFlag>>,
-    local: LocalWhisper,
+    local: LocalEngine,
 }
 
 struct Transcript {
@@ -96,7 +96,7 @@ impl MusliEngine {
             history: Mutex::new(history),
             models,
             downloads: Mutex::new(HashMap::new()),
-            local: LocalWhisper::default(),
+            local: LocalEngine::default(),
         }))
     }
 
@@ -332,7 +332,7 @@ impl MusliEngine {
         if account.kind == ProviderKind::Local {
             let path = self.models.path(&model).ok_or(MusliError::ModelNotDownloaded)?;
             let (samples, _) = decode_wav(wav).ok_or(MusliError::InvalidResponse { message: "bad audio".into() })?;
-            return self.local.transcribe(&path, &samples, settings.language.as_deref(), prompt.as_deref());
+            return self.local.transcribe(&path, &samples, settings.language.as_deref(), &settings.dictionary);
         }
         let key = keys.get(&account);
         if requires_key(account.kind) && key.is_none() {

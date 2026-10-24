@@ -17,6 +17,7 @@ bin="$(swift build -c release --package-path "$pkg" --show-bin-path)/Musli"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/Fonts"
 cp "$bin" "$app/Contents/MacOS/Musli"
+strip -x "$app/Contents/MacOS/Musli"
 cp "$pkg/Resources/Info.plist" "$app/Contents/Info.plist"
 cp "$pkg/Resources/Fonts/"* "$app/Contents/Resources/Fonts/"
 
