@@ -1,7 +1,6 @@
 import AppKit
 @preconcurrency import MusliCore
 import MusliKit
-import os
 
 /// Watches for calls and applies the user's recording rules.
 @MainActor
@@ -11,7 +10,7 @@ final class CallCoordinator {
     private let calendar: CalendarProvider
     private let prompt = RecordPromptPanel()
     private let monitor = MicUsageMonitor(callApps: knownCallApps(), browsers: browserApps())
-    private let log = Logger(subsystem: "dev.musli.Musli", category: "calls")
+    private let log = Diagnostics("calls")
     private var detector = CallDetector(ownBundleId: Bundle.main.bundleIdentifier ?? "dev.musli.Musli")
     private var running = false
 
@@ -43,7 +42,7 @@ final class CallCoordinator {
     }
 
     private func callStarted(_ app: String) {
-        log.notice("call started: \(app, privacy: .public)")
+        log.notice("call started: \(app)")
         guard !meeting.isRecording else { return }
         let event = state.settings.calendarEnabled ? calendar.currentEvent() : nil
         let action = decideRecording(settings: state.settings, bundleId: app, calendarId: event?.calendarId, eventTitle: event?.title)
@@ -74,7 +73,7 @@ final class CallCoordinator {
     }
 
     private func callEnded(_ app: String) {
-        log.notice("call ended: \(app, privacy: .public)")
+        log.notice("call ended: \(app)")
         prompt.dismiss()
         if meeting.isRecording, meeting.detectedApp == app {
             meeting.stop()

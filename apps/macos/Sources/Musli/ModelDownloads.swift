@@ -98,6 +98,7 @@ final class ModelDownloads {
                 errors[id] = nil
             } else {
                 errors[id] = "Download mislukt: \(error)"
+                Diagnostics("models").error("download \(id) mislukt: \(error)")
             }
         }
         refresh()

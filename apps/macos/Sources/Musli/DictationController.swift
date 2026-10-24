@@ -1,7 +1,6 @@
 import AppKit
 @preconcurrency import MusliCore
 import MusliKit
-import os
 
 @MainActor
 final class DictationController {
@@ -11,7 +10,7 @@ final class DictationController {
     private let pill = PillPanel()
     private let recorder = AudioRecorder()
     private let queue = PasteQueue<String>()
-    private let log = Logger(subsystem: "dev.musli.Musli", category: "dictation")
+    private let log = Diagnostics("dictation")
     private var gesture = HotkeyGesture()
     private var command = CommandIntent()
     private var status = DictationStatus()
@@ -47,7 +46,10 @@ final class DictationController {
             )
         }
         let started = monitor?.start() ?? false
-        log.notice("hotkey tap started=\(started, privacy: .public) accessibility=\(Permissions.accessibilityTrusted, privacy: .public)")
+        let settings = state.settings
+        log.notice(
+            "sneltoets actief=\(started) toegankelijkheid=\(Permissions.accessibilityTrusted) · dicteren \(settings.dictationStt.providerId)/\(settings.dictationStt.model) · opkuis \(settings.llm.providerId)/\(settings.llm.model) · taal \(settings.language ?? "automatisch") · modus \(settings.mode)"
+        )
         return started
     }
 
@@ -57,7 +59,7 @@ final class DictationController {
     }
 
     private func handle(_ edge: KeyEdge, at time: TimeInterval) {
-        log.debug("hotkey \(String(describing: edge), privacy: .public)")
+        log.debug("hotkey \(String(describing: edge))")
         perform(gesture.handle(edge, at: time))
     }
 
@@ -99,7 +101,7 @@ final class DictationController {
             notify("Geen microfoon gevonden")
             return
         } catch {
-            log.error("recorder start failed: \(error.localizedDescription)")
+            log.error("opnemen starten mislukt: \(error.localizedDescription)")
             notify("Opnemen lukt niet")
             return
         }
@@ -142,7 +144,7 @@ final class DictationController {
             return
         }
         if SilenceWatch.isDigitalSilence(samples) {
-            log.error("microphone delivered only zeros")
+            log.error("microfoon leverde enkel stilte (exacte nullen) — invoerapparaat of voice processing")
             command.reset()
             status.recordingCancelled()
             notify("Microfoon geeft geen geluid — kies een ander invoerapparaat of herstart Musli")
@@ -194,13 +196,22 @@ final class DictationController {
     ) {
         let text: String?
         let notice: String?
+        let kind = isCommand ? "opdracht" : "dictaat"
+        let elapsed = released.duration(to: .now).formatted(.units(allowed: [.milliseconds]))
         switch outcome {
         case .success(let result):
             text = result.text
             notice = Self.notice(for: result.cleanup)
+            let line = "\(kind) klaar in \(elapsed): \(result.raw.count) → \(result.text.count) tekens, opkuis \(Self.describe(result.cleanup))"
+            if case .failed = result.cleanup { log.error(line) } else { log.notice(line) }
         case .failure(let error):
             text = nil
             notice = isCommand ? Self.commandNotice(for: error) : Self.notice(for: error)
+            if (error as? MusliError) == .NoSpeech {
+                log.notice("\(kind): geen spraak herkend (\(elapsed))")
+            } else {
+                log.error("\(kind) mislukt na \(elapsed): \(error)")
+            }
         }
         status.dictationFinished(notice: notice)
         if notice != nil { scheduleNoticeExpiry() }
@@ -240,9 +251,20 @@ final class DictationController {
         pill.show(status.pill)
     }
 
+    private static func describe(_ cleanup: CleanupStatus) -> String {
+        switch cleanup {
+        case .applied: "toegepast"
+        case .skipped: "overgeslagen (snelle modus)"
+        case .rejected: "afgewezen (model antwoordde in plaats van op te kuisen)"
+        case .failed(let message): "mislukt: \(message)"
+        }
+    }
+
     private static func notice(for cleanup: CleanupStatus) -> String? {
         switch cleanup {
-        case .failed: "Opkuisen mislukt — ruwe tekst geplakt"
+        case .failed(let message) where message.lowercased().contains("timed out") || message.lowercased().contains("timeout"):
+            "Opkuisen duurde te lang — ruwe tekst geplakt (zie logboek)"
+        case .failed: "Opkuisen mislukt — ruwe tekst geplakt (zie logboek)"
         case .rejected: "Model antwoordde i.p.v. op te kuisen — ruwe tekst geplakt"
         default: nil
         }

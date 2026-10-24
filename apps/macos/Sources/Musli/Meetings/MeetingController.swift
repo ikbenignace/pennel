@@ -3,7 +3,6 @@ import CoreAudio
 import Foundation
 @preconcurrency import MusliCore
 import Observation
-import os
 
 @MainActor
 @Observable
@@ -32,7 +31,7 @@ final class MeetingController {
 
     private let state: AppState
     private let recorder = MeetingRecorder()
-    private let log = Logger(subsystem: "dev.musli.Musli", category: "meeting")
+    private let log = Diagnostics("meeting")
     private var session: MeetingSession?
     private var defaultTitle = ""
     private var ticker: Timer?
@@ -71,7 +70,7 @@ final class MeetingController {
             startTicker()
             onLibraryChanged?()
         } catch {
-            log.error("meeting start failed: \(String(describing: error), privacy: .public)")
+            log.error("meeting start failed: \(String(describing: error))")
             self.error = error is NoInputDevice ? "Geen microfoon gevonden" : "Opnemen lukt niet: \(error)"
             recorder.stop()
             session = nil
@@ -98,7 +97,7 @@ final class MeetingController {
                 do {
                     _ = try Self.diarize(engine: engine, meetingId: id)
                 } catch {
-                    Logger(subsystem: "dev.musli.Musli", category: "meeting").error("diarization failed: \(String(describing: error), privacy: .public)")
+                    Diagnostics("meeting").error("sprekers herkennen mislukt: \(String(describing: error))")
                 }
             }
             let summary = Result { try engine.summarizeMeeting(id: id, templateId: template, keys: keys) }
@@ -125,6 +124,9 @@ final class MeetingController {
         phase = .finished
         if case .failure(let failure) = summary, (failure as? MusliError) != .NoSpeech {
             error = "Samenvatten mislukt: \(failure)"
+            log.error("samenvatten mislukt voor \(id): \(failure)")
+        } else {
+            log.notice("meeting \(id) afgerond")
         }
         onLibraryChanged?()
     }

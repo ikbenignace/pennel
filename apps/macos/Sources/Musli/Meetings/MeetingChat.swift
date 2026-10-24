@@ -37,7 +37,9 @@ final class MeetingChat {
             guard let index = exchanges.firstIndex(where: { $0.id == exchange.id }) else { return }
             switch result {
             case .success(let answer): exchanges[index].answer = answer
-            case .failure(let error): exchanges[index].error = Self.message(error)
+            case .failure(let error):
+                exchanges[index].error = Self.message(error)
+                Diagnostics("chat").error("vraag over \(scope ?? "alle meetings") mislukt: \(error)")
             }
         }
     }

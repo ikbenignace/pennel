@@ -66,6 +66,7 @@ final class MenuBarController: NSObject {
         menu.addItem(item("Open Musli", #selector(openLibrary), key: "o"))
         menu.addItem(item("Geschiedenis…", #selector(openHistory), key: ""))
         menu.addItem(item("Instellingen…", #selector(openSettings), key: ","))
+        menu.addItem(item("Logboek openen", #selector(openLog), key: ""))
         menu.addItem(.separator())
         menu.addItem(item("Stop Musli", #selector(quit), key: "q"))
     }
@@ -90,6 +91,10 @@ final class MenuBarController: NSObject {
             openMeeting()
         }
         updateIcon()
+    }
+
+    @objc private func openLog() {
+        Diagnostics.reveal()
     }
 
     @objc func openMeeting() {

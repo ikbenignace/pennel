@@ -1,7 +1,6 @@
 @preconcurrency import AVFoundation
 @preconcurrency import MusliCore
 import MusliKit
-import os
 
 /// Writes one track to an .m4a file and forwards ~1 s batches of 16 kHz samples to the session.
 private final class TrackWriter: @unchecked Sendable {
@@ -50,7 +49,7 @@ private final class TrackWriter: @unchecked Sendable {
 
 @MainActor
 final class MeetingRecorder {
-    private let log = Logger(subsystem: "dev.musli.Musli", category: "meeting")
+    private let log = Diagnostics("meeting")
     private let engine = AVAudioEngine()
     private let tap = SystemAudioTap()
     private var me: TrackWriter?
@@ -121,7 +120,7 @@ final class MeetingRecorder {
                 // Voice processing is a duplex unit: without a running output side the mic delivers only zeros.
                 engine.mainMixerNode.outputVolume = 0
             } catch {
-                log.error("voice processing unavailable: \(error.localizedDescription, privacy: .public)")
+                log.error("voice processing unavailable: \(error.localizedDescription)")
             }
         } else {
             disableVoiceProcessing()
@@ -150,7 +149,7 @@ final class MeetingRecorder {
         do {
             try engine.inputNode.setVoiceProcessingEnabled(false)
         } catch {
-            log.error("could not disable voice processing: \(error.localizedDescription, privacy: .public)")
+            log.error("could not disable voice processing: \(error.localizedDescription)")
         }
     }
 
@@ -168,7 +167,7 @@ final class MeetingRecorder {
         do {
             try startMicrophone()
         } catch {
-            log.error("microphone restart failed: \(String(describing: error), privacy: .public)")
+            log.error("microphone restart failed: \(String(describing: error))")
         }
     }
 
@@ -179,7 +178,7 @@ final class MeetingRecorder {
             try startMicrophone()
             log.notice("microphone restarted after configuration change")
         } catch {
-            log.error("microphone restart failed: \(String(describing: error), privacy: .public)")
+            log.error("microphone restart failed: \(String(describing: error))")
         }
     }
 
@@ -198,7 +197,7 @@ final class MeetingRecorder {
             }
             systemAudioAvailable = true
         } catch {
-            log.error("system audio tap failed: \(String(describing: error), privacy: .public)")
+            log.error("system audio tap failed: \(String(describing: error))")
             systemAudioAvailable = false
         }
     }
