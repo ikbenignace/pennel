@@ -7,6 +7,7 @@ import MusliKit
 final class HotkeyMonitor {
     private let onEdge: (KeyEdge, TimeInterval) -> Void
     private let onInterrupt: () -> Void
+    private let onShift: (Bool) -> Void
     private var trigger: HotkeyTrigger
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
@@ -15,11 +16,13 @@ final class HotkeyMonitor {
     init(
         trigger: HotkeyTrigger,
         onEdge: @escaping (KeyEdge, TimeInterval) -> Void,
-        onInterrupt: @escaping () -> Void
+        onInterrupt: @escaping () -> Void,
+        onShift: @escaping (Bool) -> Void
     ) {
         self.trigger = trigger
         self.onEdge = onEdge
         self.onInterrupt = onInterrupt
+        self.onShift = onShift
     }
 
     deinit { stop() }
@@ -62,6 +65,9 @@ final class HotkeyMonitor {
         source = nil
     }
 
+    private static let leftShift: Int64 = 56
+    private static let rightShift: Int64 = 60
+
     private func handle(type: CGEventType, event: CGEvent) {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
@@ -71,9 +77,13 @@ final class HotkeyMonitor {
             if isDown { onInterrupt() }
             return
         }
-        guard type == .flagsChanged,
-              event.getIntegerValueField(.keyboardEventKeycode) == trigger.keyCode
-        else { return }
+        guard type == .flagsChanged else { return }
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        if keyCode == Self.leftShift || keyCode == Self.rightShift {
+            onShift(event.flags.contains(.maskShift))
+            return
+        }
+        guard keyCode == trigger.keyCode else { return }
         let down = event.flags.rawValue & trigger.deviceMask != 0
         guard down != isDown else { return }
         isDown = down

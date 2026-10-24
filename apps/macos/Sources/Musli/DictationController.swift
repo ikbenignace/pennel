@@ -13,6 +13,7 @@ final class DictationController {
     private let queue = PasteQueue<String>()
     private let log = Logger(subsystem: "dev.musli.Musli", category: "dictation")
     private var gesture = HotkeyGesture()
+    private var command = CommandIntent()
     private var status = DictationStatus()
     private var monitor: HotkeyMonitor?
     private var ticker: Timer?
@@ -38,6 +39,9 @@ final class DictationController {
                 },
                 onInterrupt: { [weak self] in
                     MainActor.assumeIsolated { self?.interrupt() }
+                },
+                onShift: { [weak self] down in
+                    MainActor.assumeIsolated { self?.shift(down) }
                 }
             )
         }
@@ -58,6 +62,15 @@ final class DictationController {
 
     private func interrupt() {
         perform(gesture.interrupt())
+    }
+
+    private func shift(_ down: Bool) {
+        let wasCommand = command.isCommand
+        command.shift(down, keyHeld: isRecording)
+        if command.isCommand && !wasCommand {
+            status.markCommand()
+            render()
+        }
     }
 
     private func perform(_ actions: [GestureAction]) {
@@ -91,6 +104,9 @@ final class DictationController {
         isRecording = true
         meeting?.setDictating(true)
         status.recordingStarted(handsFree: gesture.isHandsFree)
+        command.reset()
+        command.shift(NSEvent.modifierFlags.contains(.shift), keyHeld: true)
+        if command.isCommand { status.markCommand() }
         render()
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -111,6 +127,7 @@ final class DictationController {
 
     private func cancelRecording() {
         _ = stopRecording()
+        command.reset()
         status.recordingCancelled()
         render()
     }
@@ -131,15 +148,32 @@ final class DictationController {
         )
         let engine = state.engine
         let released = ContinuousClock.now
+        let isCommand = command.isCommand
+        command.reset()
         status.recordingSubmitted()
         render()
+        if isCommand {
+            Task {
+                let selection = await SelectionReader.read()
+                let outcome = await Task.detached(priority: .userInitiated) {
+                    Result { try engine.command(request: request, selection: selection) }
+                }.value
+                self.finish(seq, outcome, released: released, isCommand: true)
+            }
+            return
+        }
         Task.detached(priority: .userInitiated) {
             let outcome = Result { try engine.dictate(request: request) }
             await MainActor.run { self.finish(seq, outcome, released: released) }
         }
     }
 
-    private func finish(_ seq: Int, _ outcome: Result<DictationResult, Error>, released: ContinuousClock.Instant) {
+    private func finish(
+        _ seq: Int,
+        _ outcome: Result<DictationResult, Error>,
+        released: ContinuousClock.Instant,
+        isCommand: Bool = false
+    ) {
         let text: String?
         let notice: String?
         switch outcome {
@@ -148,7 +182,7 @@ final class DictationController {
             notice = Self.notice(for: result.cleanup)
         case .failure(let error):
             text = nil
-            notice = Self.notice(for: error)
+            notice = isCommand ? Self.commandNotice(for: error) : Self.notice(for: error)
         }
         status.dictationFinished(notice: notice)
         if notice != nil { scheduleNoticeExpiry() }
@@ -193,6 +227,17 @@ final class DictationController {
         case .failed: "Opkuisen mislukt — ruwe tekst geplakt"
         case .rejected: "Model antwoordde i.p.v. op te kuisen — ruwe tekst geplakt"
         default: nil
+        }
+    }
+
+    /// Commands are not kept in history when they fail, so these notices don't promise a retry.
+    private static func commandNotice(for error: Error) -> String? {
+        switch error as? MusliError {
+        case .NoSpeech: nil
+        case .MissingApiKey: "Geen API-sleutel ingesteld"
+        case .InvalidResponse(let message) where message == "selection too long": "Selectie te lang voor een opdracht"
+        case .Network: "Geen verbinding"
+        default: "Opdracht mislukt"
         }
     }
 

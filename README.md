@@ -41,6 +41,8 @@ MUSLI_SIGN_IDENTITY="Musli Local Dev" make app
 
 Houd **fn** ingedrukt om te praten, laat los en de tekst verschijnt waar je cursor staat. Twee keer tikken = handenvrij.
 
+**Opdrachten:** druk tijdens het inspreken ook op **⇧ Shift**. Met tekst geselecteerd herschrijft Musli die selectie ("maak formeler", "vertaal naar Engels", "maak er een lijstje van"); zonder selectie schrijft het wat je vraagt ("schrijf een korte mail dat ik later ben") en plakt het waar je cursor staat.
+
 ## Lokale modellen
 
 Lokale spraakherkenning draait via [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) met Metal: Whisper, Parakeet, Canary, Cohere, Qwen3-ASR en meer. De lijst in **Providers → Lokaal** komt uit de meegebakken catalogus van [`@handy-computer/models`](https://github.com/handy-computer/models) (`core/src/catalog.json`), met per model snelheid, nauwkeurigheid per taal en ondersteunde talen. Bijwerken:
