@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""Build signed desktop candidates locally; never publish or alter tracked versions."""
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DESKTOP = ROOT / "apps" / "desktop"
+UPDATES_URL = "https://pennel.app/updates/latest.json"
+
+
+def release_config(version, platform, public_key, build_number=None, previous_build=None, signing_identity=None, sign_command=None, certificate_thumbprint=None):
+    if not re.fullmatch(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?", version):
+        raise ValueError("Version must be a semantic version such as 0.2.0 or 0.2.0-beta.1")
+    if not public_key or not public_key.strip():
+        raise ValueError("TAURI_UPDATER_PUBLIC_KEY is required; existing keys are never generated or replaced")
+    config = {
+        "version": version,
+        "bundle": {"createUpdaterArtifacts": True},
+        "plugins": {"updater": {"pubkey": public_key.strip(), "endpoints": [UPDATES_URL]}},
+    }
+    if platform == "darwin":
+        if not isinstance(build_number, int) or not isinstance(previous_build, int) or previous_build < 0 or build_number <= previous_build:
+            raise ValueError("Mac build number must be greater than the last distributed native or unified build number")
+        if not signing_identity or not signing_identity.startswith("Developer ID Application:"):
+            raise ValueError("APPLE_SIGNING_IDENTITY must name an existing Developer ID Application certificate")
+        config["bundle"]["macOS"] = {"bundleVersion": str(build_number), "signingIdentity": signing_identity}
+    elif platform == "win32":
+        if sign_command:
+            if "%1" not in sign_command:
+                raise ValueError("PENNEL_WINDOWS_SIGN_COMMAND must contain %1 for the file to sign")
+            config["bundle"]["windows"] = {"signCommand": sign_command}
+        elif certificate_thumbprint and re.fullmatch(r"[A-Fa-f0-9]{40}", certificate_thumbprint):
+            config["bundle"]["windows"] = {
+                "certificateThumbprint": certificate_thumbprint,
+                "digestAlgorithm": "sha256", "timestampUrl": "https://timestamp.digicert.com", "tsp": True,
+            }
+        else:
+            raise ValueError("Provide an existing PENNEL_WINDOWS_CERTIFICATE_THUMBPRINT or PENNEL_WINDOWS_SIGN_COMMAND")
+    elif platform == "linux":
+        pass
+    else:
+        raise ValueError("Candidates target macOS arm64, Windows x64 and Linux x64")
+    return config
+
+
+def run(*args, cwd=ROOT, env=None):
+    subprocess.run([str(arg) for arg in args], cwd=cwd, env=env, check=True)
+
+
+def portable_target(platform, target):
+    return platform in ("win32", "linux") and target.startswith("x86_64-")
+
+
+def portable_environment(platform, target, environment):
+    result = dict(environment)
+    if portable_target(platform, target):
+        flag = "-DTRANSCRIBE_X86_CONSERVATIVE=ON"
+        result["TRANSCRIBE_CMAKE_ARGS"] = (result.get("TRANSCRIBE_CMAKE_ARGS", "").rstrip() + " " + flag).lstrip()
+        # The dependency applies CMAKE_ARGS afterwards; preserve it while keeping the same floor last.
+        if result.get("CMAKE_ARGS", "").strip():
+            result["CMAKE_ARGS"] = result["CMAKE_ARGS"].rstrip() + " " + flag
+    return result
+
+
+def verify_portable_caches(target_dir, target):
+    caches = list((target_dir / target / "release" / "build").glob("transcribe-cpp-sys-*/out/**/CMakeCache.txt"))
+    if not caches:
+        raise ValueError("Cannot verify the distributable native CPU floor: transcribe CMake cache is missing")
+    for cache in caches:
+        values = {}
+        for line in cache.read_text(encoding="utf-8").splitlines():
+            entry, separator, value = line.partition("=")
+            if separator and not entry.startswith(("#", "//")):
+                values[entry.partition(":")[0]] = value.strip().upper()
+        if values.get("TRANSCRIBE_X86_CONSERVATIVE") not in ("ON", "TRUE", "1", "YES"):
+            raise ValueError("Native distribution build did not enable TRANSCRIBE_X86_CONSERVATIVE")
+        unsafe = [name for name, value in values.items()
+                  if re.fullmatch(r"GGML_(?:NATIVE|SSE.*|AVX.*|BMI.*|FMA.*|F16C|AMX.*)", name)
+                  and value not in ("OFF", "FALSE", "0", "NO")]
+        if "GGML_NATIVE" not in values or unsafe:
+            raise ValueError("Native distribution CPU floor is not portable; remove host/SIMD overrides: " + ", ".join(unsafe or ["GGML_NATIVE missing"]))
+    return {"conservative_x86_64": True, "cmake_caches_checked": len(caches)}
+
+
+def build_distributable(npx, target, bundles, config_path, environment, platform):
+    env = portable_environment(platform, target, environment)
+    target_dir = None
+    if portable_target(platform, target):
+        cargo = shutil.which("cargo", path=env.get("PATH"))
+        if not cargo:
+            raise ValueError("Cargo is required to prepare the portable native dependency build")
+        manifest = DESKTOP / "src-tauri" / "Cargo.toml"
+        metadata = json.loads(subprocess.check_output([
+            cargo, "metadata", "--manifest-path", str(manifest), "--format-version", "1", "--no-deps", "--locked",
+        ], cwd=DESKTOP, env=env, text=True))
+        target_dir = Path(metadata["target_directory"])
+        # The conservative option only defaults unset CMake flags, so restored host-tuned caches must not survive.
+        run(cargo, "clean", "--manifest-path", manifest, "--package", "transcribe-cpp-sys", "--release", "--target", target, cwd=DESKTOP, env=env)
+    arguments = [npx, "tauri", "build", "--target", target, "--bundles", bundles]
+    if config_path is not None:
+        arguments.extend(["--config", config_path])
+    run(*arguments, cwd=DESKTOP, env=env)
+    return verify_portable_caches(target_dir, target) if target_dir is not None else None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("version")
+    parser.add_argument("--build-number", type=int)
+    parser.add_argument("--previous-build-number", type=int)
+    parser.add_argument("--prepare-only", action="store_true", help="Validate inputs and write the generated release configuration only")
+    parser.add_argument("--legacy-sparkle", action="store_true", help="Also prepare the archive/appcast understood by existing native Mac installations")
+    args = parser.parse_args()
+    platform = sys.platform
+    try:
+        config = release_config(
+            args.version, platform, os.environ.get("TAURI_UPDATER_PUBLIC_KEY"),
+            args.build_number, args.previous_build_number,
+            os.environ.get("APPLE_SIGNING_IDENTITY") or os.environ.get("PENNEL_SIGN_IDENTITY"),
+            os.environ.get("PENNEL_WINDOWS_SIGN_COMMAND"),
+            os.environ.get("PENNEL_WINDOWS_CERTIFICATE_THUMBPRINT"),
+        )
+        target = {"darwin": "aarch64-apple-darwin", "win32": "x86_64-pc-windows-msvc", "linux": "x86_64-unknown-linux-gnu"}[platform]
+        output = ROOT / "build" / "desktop-release" / args.version / target
+        output.mkdir(parents=True, exist_ok=True)
+        config_path = output / "tauri.release.conf.json"
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+        if args.prepare_only:
+            print(f"Release configuration prepared at {config_path}; no build, signing, or publication performed")
+            return
+        if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip():
+            raise ValueError("Signed candidates require a clean checkout so the source revision identifies exactly what was built")
+        if not os.environ.get("TAURI_SIGNING_PRIVATE_KEY"):
+            raise ValueError("TAURI_SIGNING_PRIVATE_KEY must reference the existing updater signing key")
+        env = os.environ.copy()
+        if platform == "darwin":
+            env["APPLE_SIGNING_IDENTITY"] = config["bundle"]["macOS"]["signingIdentity"]
+            api_auth = all(env.get(key) for key in ("APPLE_API_ISSUER", "APPLE_API_KEY", "APPLE_API_KEY_PATH"))
+            id_auth = all(env.get(key) for key in ("APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"))
+            if not (api_auth or id_auth):
+                raise ValueError("Existing Apple notarization credentials are required (API key or Apple ID environment variables)")
+        npx = shutil.which("npx.cmd" if platform == "win32" else "npx")
+        if not npx:
+            raise ValueError("Node.js/npm must be available to run the Tauri CLI")
+        bundles = {"darwin": "app,dmg", "win32": "nsis,msi", "linux": "deb,appimage"}[platform]
+        native_baseline = build_distributable(npx, target, bundles, config_path, env, platform)
+        bundle_dir = DESKTOP / "src-tauri" / "target" / target / "release" / "bundle"
+        if platform == "darwin":
+            app = bundle_dir / "macos" / "Pennel.app"
+            run(sys.executable, ROOT / "scripts" / "verify-desktop-bundle.py", app, "--require-developer-id")
+            run("xcrun", "stapler", "validate", app)
+            if args.legacy_sparkle:
+                prepare_sparkle(app, args.version, output)
+        elif platform == "win32":
+            verify_windows_signature(DESKTOP / "src-tauri" / "target" / target / "release" / "pennel.exe")
+        else:
+            # Tauri creates the AppImage updater signature. Debian downloads use the same existing key.
+            for artifact in (bundle_dir / "deb").glob("*.deb"):
+                sign_detached(npx, artifact, args.version, env)
+        for extension in ("*.dmg", "*.exe", "*.msi", "*.app.tar.gz", "*.AppImage", "*.deb", "*.sig"):
+            for artifact in bundle_dir.rglob(extension):
+                if platform == "win32" and artifact.suffix in (".exe", ".msi"):
+                    verify_windows_signature(artifact)
+                shutil.copy2(artifact, output / artifact.name)
+        receipt = {
+            "version": args.version, "target": target,
+            "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+            "build_number": args.build_number if platform == "darwin" else None,
+            "signed_candidate": True,
+            "published": False,
+            "hardware_acceptance": "pending",
+        }
+        if native_baseline is not None:
+            receipt["native_cpu_baseline"] = native_baseline
+        updater_folder, updater_pattern = {
+            "darwin": ("macos", "*.app.tar.gz"), "win32": ("nsis", "*.exe"), "linux": ("appimage", "*.AppImage"),
+        }[platform]
+        updater_artifacts = list((bundle_dir / updater_folder).glob(updater_pattern))
+        if len(updater_artifacts) != 1 or not updater_artifacts[0].with_name(updater_artifacts[0].name + ".sig").is_file():
+            raise ValueError("Expected exactly one signed updater artifact for the candidate")
+        receipt["updater_artifact"] = updater_artifacts[0].name
+        receipt["sha256"] = hashlib.sha256(updater_artifacts[0].read_bytes()).hexdigest()
+        receipt["installer_artifacts"] = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in output.iterdir()
+            if path.suffix in (".dmg", ".exe", ".msi", ".AppImage", ".deb")
+        }
+        if platform == "linux":
+            receipt["signature_scheme"] = "minisign"
+            receipt["desktop_acceptance"] = {"x11": "pending", "wayland": "pending"}
+        (output / "candidate.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+        print(f"Signed candidate files: {output}. Hardware acceptance and publication remain separate steps.")
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        parser.exit(1, f"Desktop candidate failed: {error}\n")
+
+
+def verify_windows_signature(path):
+    env = os.environ.copy()
+    env["PENNEL_VERIFY_SIGN_FILE"] = str(path)
+    command = "$s=Get-AuthenticodeSignature -LiteralPath $env:PENNEL_VERIFY_SIGN_FILE; if ($s.Status -ne 'Valid') { Write-Error 'Invalid Authenticode signature'; exit 1 }"
+    run("powershell", "-NoProfile", "-NonInteractive", "-Command", command, env=env)
+
+
+def sign_detached(npx, artifact, version, env):
+    signing_env = env.copy()
+    key = signing_env.get("TAURI_SIGNING_PRIVATE_KEY", "")
+    try:
+        key_is_path = Path(key).is_file()
+    except OSError:
+        key_is_path = False
+    if key_is_path:
+        signing_env["TAURI_SIGNING_PRIVATE_KEY_PATH"] = key
+        signing_env.pop("TAURI_SIGNING_PRIVATE_KEY", None)
+    run(npx, "tauri", "signer", "sign", "--app-version", version, artifact, cwd=DESKTOP, env=signing_env)
+
+
+def prepare_sparkle(app, version, output):
+    generator = Path(os.environ.get("PENNEL_SPARKLE_BIN", str(ROOT / "apps" / "macos" / ".build" / "artifacts" / "sparkle" / "Sparkle" / "bin"))) / "generate_appcast"
+    if not generator.is_file():
+        raise ValueError("Sparkle generate_appcast is required for the legacy upgrade; resolve the native Swift package or set PENNEL_SPARKLE_BIN")
+    archive = output / f"Pennel-{version}.zip"
+    run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", app, archive)
+    updates = output / "legacy-sparkle"
+    updates.mkdir(exist_ok=True)
+    shutil.copy2(archive, updates / archive.name)
+    prefix = os.environ.get("PENNEL_RELEASE_DOWNLOAD_BASE", f"https://github.com/ikbenignace/pennel/releases/download/v{version}/")
+    if not prefix.startswith("https://"):
+        raise ValueError("PENNEL_RELEASE_DOWNLOAD_BASE must use HTTPS")
+    run(generator, "--account", "pennel", "--download-url-prefix", prefix.rstrip("/") + "/", "--link", "https://pennel.app", "-o", output / "appcast.xml", updates)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -55,6 +56,11 @@ pub struct MeetingSession {
     sender: Mutex<Option<Sender<Job>>>,
     worker: Mutex<Option<JoinHandle<()>>>,
     progress: Arc<Mutex<Progress>>,
+    ingestion: Mutex<()>,
+    stopping: AtomicBool,
+    finalized: AtomicBool,
+    stop_lock: Mutex<()>,
+    stop_result: Mutex<Option<Result<(), PennelError>>>,
 }
 
 fn index(speaker: Speaker) -> usize {
@@ -97,6 +103,11 @@ impl MeetingSession {
             sender: Mutex::new(Some(sender)),
             worker: Mutex::new(Some(worker)),
             progress,
+            ingestion: Mutex::new(()),
+            stopping: AtomicBool::new(false),
+            finalized: AtomicBool::new(false),
+            stop_lock: Mutex::new(()),
+            stop_result: Mutex::new(None),
         })
     }
 
@@ -111,6 +122,60 @@ impl MeetingSession {
                 self.progress.lock().unwrap().pending -= 1;
             }
         }
+    }
+
+    pub(crate) fn is_finalized(&self) -> bool {
+        self.finalized.load(Ordering::SeqCst)
+    }
+
+    fn ingest(
+        &self,
+        speaker: Speaker,
+        start_ms: Option<u64>,
+        samples: Vec<f32>,
+    ) -> Result<(), PennelError> {
+        let _ingestion = self.ingestion.lock().unwrap();
+        if self.stopping.load(Ordering::SeqCst) {
+            return Err(PennelError::Cancelled);
+        }
+        if samples.is_empty() {
+            return Ok(());
+        }
+        let mut counters = self.pushed_samples.lock().unwrap();
+        let count = &mut counters[index(speaker)];
+        let start = match start_ms {
+            Some(ms) => {
+                ms.checked_mul(u64::from(SAMPLE_RATE)).ok_or_else(|| {
+                    PennelError::InvalidResponse {
+                        message: "ongeldige audiotijd".into(),
+                    }
+                })? / 1000
+            }
+            None => *count,
+        };
+        let end = start.checked_add(samples.len() as u64).ok_or_else(|| {
+            PennelError::InvalidResponse {
+                message: "ongeldige audiolengte".into(),
+            }
+        })?;
+        if end <= *count {
+            return Ok(());
+        }
+        let overlap = count.saturating_sub(start) as usize;
+        let mut chunkers = self.chunkers.lock().unwrap();
+        let chunker = &mut chunkers[index(speaker)];
+        let mut chunks: Vec<Chunk> = chunker.skip_to(start).into_iter().collect();
+        let audio = &samples[overlap..];
+        if speaker == Speaker::Me && self.dictating.load(Ordering::SeqCst) {
+            chunks.extend(chunker.push(&vec![0.0; audio.len()]));
+        } else {
+            chunks.extend(chunker.push(audio));
+        }
+        *count = end;
+        drop(chunkers);
+        drop(counters);
+        self.enqueue(speaker, chunks);
+        Ok(())
     }
 }
 
@@ -170,15 +235,17 @@ impl MeetingSession {
 
     /// Accepts 16 kHz mono samples; transcription happens on a background thread.
     pub fn push_audio(&self, speaker: Speaker, samples: Vec<f32>) {
-        let samples =
-            if speaker == Speaker::Me && self.dictating.load(std::sync::atomic::Ordering::SeqCst) {
-                vec![0.0; samples.len()]
-            } else {
-                samples
-            };
-        self.pushed_samples.lock().unwrap()[index(speaker)] += samples.len() as u64;
-        let chunks = self.chunkers.lock().unwrap()[index(speaker)].push(&samples);
-        self.enqueue(speaker, chunks);
+        let _ = self.ingest(speaker, None, samples);
+    }
+
+    /// Audio already normalized to 16 kHz mono, timed from the shared meeting start.
+    pub fn push_audio_at(
+        &self,
+        speaker: Speaker,
+        start_ms: u64,
+        samples: Vec<f32>,
+    ) -> Result<(), PennelError> {
+        self.ingest(speaker, Some(start_ms), samples)
     }
 
     pub fn set_notes(&self, text: String) -> Result<(), PennelError> {
@@ -210,15 +277,23 @@ impl MeetingSession {
 
     /// Flushes the remaining audio, waits for every chunk to be transcribed and records the duration.
     pub fn stop(&self) -> Result<(), PennelError> {
-        for speaker in [Speaker::Me, Speaker::Others] {
-            let rest = self.chunkers.lock().unwrap()[index(speaker)].flush();
-            self.enqueue(speaker, rest.into_iter().collect());
+        let _stop = self.stop_lock.lock().unwrap();
+        if let Some(result) = self.stop_result.lock().unwrap().as_ref() {
+            return result.clone();
         }
-        self.sender.lock().unwrap().take();
+        {
+            let _ingestion = self.ingestion.lock().unwrap();
+            self.stopping.store(true, Ordering::SeqCst);
+            for speaker in [Speaker::Me, Speaker::Others] {
+                let rest = self.chunkers.lock().unwrap()[index(speaker)].flush();
+                self.enqueue(speaker, rest.into_iter().collect());
+            }
+            self.sender.lock().unwrap().take();
+        }
         if let Some(worker) = self.worker.lock().unwrap().take() {
             let _ = worker.join();
         }
-        self.store.write_transcript(&self.id, &self.transcript())?;
+        let result = self.store.write_transcript(&self.id, &self.transcript());
         let longest = *self
             .pushed_samples
             .lock()
@@ -227,7 +302,16 @@ impl MeetingSession {
             .max()
             .unwrap_or(&0);
         let minutes = longest.div_ceil(u64::from(SAMPLE_RATE) * 60) as u32;
-        self.store.set_duration(&self.id, minutes)
+        let result = result.and_then(|()| self.store.set_duration(&self.id, minutes));
+        *self.stop_result.lock().unwrap() = Some(result.clone());
+        self.finalized.store(true, Ordering::SeqCst);
+        result
+    }
+}
+
+impl Drop for MeetingSession {
+    fn drop(&mut self) {
+        let _ = self.stop();
     }
 }
 
@@ -449,5 +533,97 @@ mod tests {
         assert_eq!(engine.meetings()[0].id, session.id());
         assert_eq!(engine.search_meetings("notities".into()).len(), 1);
         session.stop().unwrap();
+    }
+
+    #[test]
+    fn timestamped_tracks_share_start_and_preserve_device_gaps() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        stt_ok(&mut server, "gesprek");
+        let session = engine
+            .clone()
+            .start_meeting("Tijdlijn".into(), keys())
+            .unwrap();
+        session.push_audio_at(Speaker::Me, 0, tone(3.0)).unwrap();
+        session
+            .push_audio_at(Speaker::Others, 60_000, tone(2.0))
+            .unwrap();
+        session
+            .push_audio_at(Speaker::Me, 3_600_000, tone(2.0))
+            .unwrap();
+        session.stop().unwrap();
+        let transcript = session.transcript();
+        assert_eq!(
+            transcript
+                .iter()
+                .map(|segment| segment.start_ms)
+                .collect::<Vec<_>>(),
+            [0, 60_000, 3_600_000]
+        );
+        assert_eq!(engine.meetings()[0].duration_min, 61);
+    }
+
+    #[test]
+    fn overlapping_audio_packets_are_trimmed_and_late_packets_ignored() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        stt_ok(&mut server, "gesprek");
+        let session = engine
+            .clone()
+            .start_meeting("Overlap".into(), keys())
+            .unwrap();
+        session.push_audio_at(Speaker::Me, 0, tone(3.0)).unwrap();
+        session
+            .push_audio_at(Speaker::Me, 2_000, tone(3.0))
+            .unwrap();
+        session
+            .push_audio_at(Speaker::Me, 1_000, tone(2.0))
+            .unwrap();
+        session.stop().unwrap();
+        assert_eq!(session.transcript()[0].end_ms, 5_000);
+        assert_eq!(
+            session.push_audio_at(Speaker::Me, 5_000, tone(1.0)),
+            Err(PennelError::Cancelled)
+        );
+        session.stop().unwrap();
+        assert_eq!(session.transcript().len(), 1);
+    }
+
+    #[test]
+    fn active_session_blocks_duplicate_start_library_move_rename_and_delete() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let session = engine
+            .clone()
+            .start_meeting("Actief".into(), keys())
+            .unwrap();
+        assert!(
+            engine
+                .clone()
+                .start_meeting("Dubbel".into(), keys())
+                .is_err()
+        );
+        assert!(
+            engine
+                .rename_meeting(session.id(), "Verplaatst".into())
+                .is_err()
+        );
+        assert!(engine.delete_meeting(session.id()).is_err());
+        let mut settings = engine.settings();
+        settings.meetings_dir = dir.path().join("other").to_string_lossy().into_owned();
+        assert!(engine.update_settings(settings.clone()).is_err());
+        session.stop().unwrap();
+        engine.update_settings(settings).unwrap();
+    }
+
+    #[test]
+    fn repeated_stop_preserves_a_finalization_failure() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let session = engine.start_meeting("Opslag weg".into(), keys()).unwrap();
+        std::fs::remove_dir_all(session.dir()).unwrap();
+        let first = session.stop();
+        assert!(first.is_err());
+        assert_eq!(session.stop(), first);
     }
 }

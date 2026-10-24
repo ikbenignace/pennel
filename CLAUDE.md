@@ -3,12 +3,13 @@
 Pennel ships one product on three platforms from one Rust core:
 
 - `core/` — `pennel-core`: all product logic (providers, cleanup, history, meetings, search, templates, export, local models, CLI agents). New behaviour goes here first.
-- `apps/macos/` — native Swift app (flagship).
-- `apps/desktop/` — Tauri app for Windows and Linux (also builds on macOS for UI review).
+- `apps/desktop/` — shared Tauri application for macOS, Windows and Linux.
+- `apps/macos-platform/` — embedded Swift library for macOS system integrations; no product UI or second Rust engine.
+- `apps/macos/` — native reference application, retained until the shared application passes packaged-app and real-device acceptance.
 
 ## UI parity (mandatory)
 
-The Mac app and the Tauri app must look and behave **near-identically**. Every UI change is made in **both** apps in the same change set; a change that touches only one UI is incomplete.
+The shared application must look and behave **near-identically** on every platform. During migration, use the native Mac application as the existing product baseline, complete missing shared surfaces, and keep the native application available until acceptance passes. Product additions unrelated to the migration are out of scope.
 
 - Same windows, tabs, sections, order, labels and empty/error states on every platform. Platform differences are limited to what the OS forces (window chrome, hotkey names: `fn` on Mac, Right Ctrl on Windows/Linux, system permission prompts).
 - Same visual system: palette, typography (Figtree + Instrument Serif), spacing, radii, component shapes, pill, icons. Values come from the brand guide `assets/brand/brand.md`; never hard-code a new colour or size in only one app.
@@ -34,7 +35,7 @@ CI (`.github/workflows/ci.yml`, `desktop.yml`) must stay green on macOS, Windows
 - Private by default: no telemetry, no account required, API keys only in the OS credential store, meetings are local Markdown files.
 - Never log or transmit dictated text or meeting content except to the provider the user chose; logs hold timings, lengths and errors only.
 - Untrusted text (transcripts, selections) must never be able to trigger actions: CLI agents run without tools in an empty folder; prompts wrap user text as data.
-- Keep it light: no Electron, no heavy dependencies without a clear reason. Mac app stays a native Swift app.
+- Keep it light: no Electron, no heavy dependencies without a clear reason. Retain native Swift services behind the shared Tauri interface rather than rewriting working Apple integrations.
 - Only claim what ships (README, website, release notes).
 
 ## Conventions

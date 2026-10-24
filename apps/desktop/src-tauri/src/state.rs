@@ -1,25 +1,66 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
-use pennel_core::{ApiKeys, PennelEngine, Settings};
+use pennel_core::{ApiKeys, PennelEngine, RecordingLifecycle, Settings};
 
 use crate::dictation::Msg;
 use crate::hotkey::Listener;
 use crate::meeting::MeetingRecorder;
+use crate::meeting_runtime::MeetingContext;
 use crate::secrets::Secrets;
 
 pub struct Shared {
     pub engine: Arc<PennelEngine>,
+    pub version: String,
+    pub preview: bool,
+    pub migration_warning: Option<String>,
     pub secrets: Secrets,
     pub data_dir: PathBuf,
     pub dictation: Sender<Msg>,
     pub hotkey: Mutex<Option<Listener>>,
     pub hotkey_error: Mutex<Option<String>>,
     pub meeting: Mutex<Option<MeetingRecorder>>,
+    pub recording: Mutex<RecordingLifecycle>,
+    pub meeting_context: Mutex<Option<MeetingContext>>,
+    pub recording_cancel: AtomicBool,
+    pub library_jobs: AtomicUsize,
+    pub updating: AtomicBool,
+    pub quitting: AtomicBool,
+    pub dictation_active: AtomicBool,
+    pub dictation_jobs: AtomicUsize,
+    pub paste_jobs: AtomicUsize,
 }
 
 impl Shared {
+    #[cfg(test)]
+    pub(crate) fn testing(data_dir: PathBuf) -> Arc<Self> {
+        let engine = PennelEngine::new_preview(data_dir.to_string_lossy().into_owned()).unwrap();
+        let (dictation, _) = std::sync::mpsc::channel();
+        Arc::new(Self {
+            engine,
+            version: "0.0.0-test".into(),
+            preview: true,
+            migration_warning: None,
+            data_dir,
+            dictation,
+            secrets: Secrets::default(),
+            hotkey: Mutex::new(None),
+            hotkey_error: Mutex::new(None),
+            meeting: Mutex::new(None),
+            recording: Mutex::new(RecordingLifecycle::default()),
+            meeting_context: Mutex::new(None),
+            recording_cancel: AtomicBool::new(false),
+            library_jobs: AtomicUsize::new(0),
+            updating: AtomicBool::new(false),
+            quitting: AtomicBool::new(false),
+            dictation_active: AtomicBool::new(false),
+            dictation_jobs: AtomicUsize::new(0),
+            paste_jobs: AtomicUsize::new(0),
+        })
+    }
+
     pub fn settings(&self) -> Settings {
         self.engine.settings()
     }

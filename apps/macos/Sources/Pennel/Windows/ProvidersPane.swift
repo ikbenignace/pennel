@@ -1,6 +1,8 @@
+import AppKit
 import Foundation
 @preconcurrency import PennelCore
 import PennelKit
+import Speech
 import SwiftUI
 
 extension ProviderKind {
@@ -22,7 +24,8 @@ extension ProviderKind {
         case .copilot: "GitHub Copilot"
         case .cursorAgent: "Cursor"
         case .geminiCli: "Gemini CLI"
-        case .appleSpeech: "Apple-dicteren (op deze Mac)"
+        case .appleSpeech: "Apple-dicteren"
+        case .appleIntelligence: "Apple Intelligence"
         }
     }
 
@@ -33,6 +36,15 @@ extension ProviderKind {
         case .codex, .openCode, .copilot, .cursorAgent, .geminiCli: "Leeg = het model dat in de CLI zelf ingesteld is"
         default: ""
         }
+    }
+
+    var isPlatformSupported: Bool {
+        if self == .appleIntelligence { return FoundationLanguageModel.availability().status != "unsupported" }
+        if self == .appleSpeech {
+            if #available(macOS 26, *) { return true }
+            return false
+        }
+        return true
     }
 }
 
@@ -50,6 +62,7 @@ struct ProvidersPane: View {
                 Menu("Provider toevoegen") {
                     ForEach(addableKinds, id: \.self) { kind in
                         Button(kind.label) { add(kind) }
+                            .disabled(unavailable(kind))
                     }
                 }
                 .padding(.top, 8)
@@ -86,18 +99,24 @@ struct ProvidersPane: View {
     }
 
     private var addableKinds: [ProviderKind] {
-        let present = Set(state.settings.providers.map(\.kind).filter { $0 == .local || $0 == .appleSpeech })
-        var kinds = ProviderKind.all
-        if #available(macOS 26, *) { kinds.append(.appleSpeech) }
+        let singletons: Set<ProviderKind> = [.local, .appleSpeech, .appleIntelligence]
+        var present = Set<ProviderKind>()
+        for account in state.settings.providers where singletons.contains(account.kind) { present.insert(account.kind) }
+        let kinds: [ProviderKind] = ProviderKind.all + [.appleSpeech, .appleIntelligence]
         return kinds.filter { !present.contains($0) }
+    }
+
+    private func unavailable(_ kind: ProviderKind) -> Bool {
+        !kind.isPlatformSupported
     }
 
     private func ready(_ account: ProviderAccount) -> Bool {
         if account.kind == .local { return !state.downloads.downloaded.isEmpty }
         if account.kind == .appleSpeech {
-            if #available(macOS 26, *) { return true }
+            if #available(macOS 26, *) { return SFSpeechRecognizer.authorizationStatus() == .authorized }
             return false
         }
+        if account.kind == .appleIntelligence { return FoundationLanguageModel.availability().status == "available" }
         if isCliAgent(kind: account.kind) { return FileManager.default.isExecutableFile(atPath: account.baseUrl) }
         return !requiresKey(kind: account.kind) || state.hasKey(account)
     }
@@ -147,6 +166,8 @@ private struct ProviderDetail: View {
     @State private var apiKey = ""
     @State private var testResult: String?
     @State private var testing = false
+    @State private var appleAvailability = FoundationLanguageModel.availability()
+    @State private var speechAuthorization = SFSpeechRecognizer.authorizationStatus()
 
     var body: some View {
         VStack(spacing: 14) {
@@ -157,10 +178,45 @@ private struct ProviderDetail: View {
                 if isCliAgent(kind: account.kind) {
                     CliAgentDetail(account: account)
                 } else if account.kind == .appleSpeech {
-                    Text("Het dicteermodel van macOS zelf. Gratis, volledig offline en zonder download: macOS beheert de taalbestanden. Werkt voor dicteren en meetings vanaf macOS 26.")
+                    if !account.kind.isPlatformSupported {
+                        Text("Apple-dicteren vereist macOS 26 of nieuwer.")
+                            .font(.figtree(12)).foregroundStyle(Theme.muted)
+                    } else if let reason = speechPermissionReason {
+                        Text(reason).font(.figtree(12)).foregroundStyle(Theme.muted)
+                    }
+                    Text("Het dicteermodel van macOS zelf. Gratis, volledig offline. macOS beheert de taalbestanden. Werkt voor dicteren en meetings vanaf macOS 26.")
                         .font(.figtree(12))
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
+                    if account.kind.isPlatformSupported, speechAuthorization == .notDetermined || speechAuthorization == .denied {
+                        Button(speechAuthorization == .denied ? "Open instellingen" : "Geef toegang", action: requestSpeechPermission)
+                    }
+                    Button("Gebruik voor dicteren en meetings") {
+                        let choice = ModelChoice(providerId: account.id, model: "dictation")
+                        state.settings.dictationStt = choice
+                        state.settings.meetingStt = choice
+                        state.save()
+                    }
+                    .disabled(speechAuthorization != .authorized || !account.kind.isPlatformSupported)
+                } else if account.kind == .appleIntelligence {
+                    if let reason = appleAvailability.reason {
+                        Text(reason).font(.figtree(12)).foregroundStyle(Theme.muted)
+                    }
+                    Text("Het ingebouwde taalmodel van Apple Intelligence. Gratis en volledig op deze Mac, zonder API-sleutel of aparte modeldownload. Voor opkuisen, opdrachten, samenvatten en vragen over meetings.")
+                        .font(.figtree(12))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Button("Gebruik voor tekstverwerking") {
+                            state.settings.llm = ModelChoice(providerId: account.id, model: "system")
+                            state.save()
+                        }
+                        .disabled(appleAvailability.status != "available")
+                        Button("Test model", action: testAppleModel)
+                            .disabled(testing || appleAvailability.status != "available")
+                        Button("Controleer beschikbaarheid") { appleAvailability = FoundationLanguageModel.availability() }
+                    }
+                    if let testResult { Text(testResult).font(.figtree(12)).foregroundStyle(Theme.muted) }
                 } else if account.kind != .local {
                     FieldRow(label: "Base URL") {
                         TextField("https://…", text: $account.baseUrl).textFieldStyle(.roundedBorder)
@@ -189,6 +245,31 @@ private struct ProviderDetail: View {
             }
         }
         .onAppear { apiKey = Keychain.get(account.id) ?? "" }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            appleAvailability = FoundationLanguageModel.availability()
+            speechAuthorization = SFSpeechRecognizer.authorizationStatus()
+        }
+    }
+
+    private var speechPermissionReason: String? {
+        switch speechAuthorization {
+        case .authorized: nil
+        case .denied: "Schakel Pennel in bij Systeeminstellingen → Privacy en beveiliging → Spraakherkenning."
+        case .restricted: "Spraakherkenning is beperkt door de instellingen of het beheer van deze Mac."
+        default: "Geef Pennel toegang tot spraakherkenning om Apple-dicteren te gebruiken."
+        }
+    }
+
+    private func requestSpeechPermission() {
+        let status = SFSpeechRecognizer.authorizationStatus()
+        if status == .restricted { return }
+        if status == .denied {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition") { NSWorkspace.shared.open(url) }
+        } else {
+            SFSpeechRecognizer.requestAuthorization { status in
+                Task { @MainActor in speechAuthorization = status }
+            }
+        }
     }
 
     private func test() {
@@ -198,6 +279,22 @@ private struct ProviderDetail: View {
         let key = apiKey
         Task {
             testResult = await ConnectionTest.run(url: url, apiKey: key)
+            testing = false
+        }
+    }
+
+    private func testAppleModel() {
+        testing = true
+        testResult = "Testen…"
+        Task {
+            do {
+                _ = try await FoundationLanguageModel.complete(messages: [
+                    .init(role: "system", content: "You clean dictated Dutch text. Return only the cleaned text."),
+                    .init(role: "user", content: "<dictation>euh de afspraak is morgen om tien uur</dictation>"),
+                ], timeoutSecs: 60)
+                testResult = "✓ Werkt volledig op deze Mac"
+            } catch { testResult = "Mislukt: \(error.localizedDescription)" }
+            appleAvailability = FoundationLanguageModel.availability()
             testing = false
         }
     }

@@ -36,6 +36,14 @@ impl HistoryStore {
         std::fs::create_dir_all(&audio_dir).map_err(PennelError::storage)?;
         let conn =
             Connection::open(data_dir.join("history.sqlite")).map_err(PennelError::storage)?;
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .map_err(PennelError::storage)?;
+        if version > 1 {
+            return Err(PennelError::Storage {
+                message: "de dicteergeschiedenis is gemaakt met een nieuwere Pennel-versie".into(),
+            });
+        }
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS dictations (
                 id TEXT PRIMARY KEY,
@@ -293,6 +301,19 @@ mod tests {
                 .join("failed-audio")
                 .join(format!("{id}.wav"))
                 .exists()
+        );
+    }
+
+    #[test]
+    fn newer_history_schema_is_not_downgraded() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = Connection::open(dir.path().join("history.sqlite")).unwrap();
+        conn.execute_batch("PRAGMA user_version = 99;").unwrap();
+        assert!(HistoryStore::open(dir.path()).is_err());
+        assert_eq!(
+            conn.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+                .unwrap(),
+            99
         );
     }
 }

@@ -1,7 +1,9 @@
 .superpowers/
+.playwright-mcp/
 core/target/
 build/
 apps/macos/.build/
+apps/macos-platform/.build/
 apps/macos/Sources/PennelCore/
 apps/macos/Frameworks/
 .DS_Store

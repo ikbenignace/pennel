@@ -42,6 +42,9 @@ pub fn chat_complete_within(
     timeout_secs: u64,
     reasoning: Reasoning,
 ) -> Result<String, PennelError> {
+    if provider.kind == ProviderKind::AppleIntelligence {
+        return Err(crate::system_llm::missing_model());
+    }
     if provider.kind.is_cli_agent() {
         return crate::cli_agent::complete(
             provider.kind,
@@ -140,6 +143,18 @@ mod tests {
     use crate::provider::ProviderKind;
     use mockito::Matcher;
 
+    #[test]
+    fn apple_intelligence_cannot_use_an_http_endpoint_without_the_host_adapter() {
+        let mut server = mockito::Server::new();
+        let no_http = server.mock("POST", "/chat/completions").expect(0).create();
+        let mut provider = provider(server.url());
+        provider.kind = ProviderKind::AppleIntelligence;
+        let error =
+            chat_complete_within(&provider, None, &messages(), 1, Reasoning::Off).unwrap_err();
+        assert!(error.to_string().contains("Apple Intelligence"));
+        no_http.assert();
+    }
+
     fn provider(base_url: String) -> ProviderConfig {
         ProviderConfig {
             kind: ProviderKind::Groq,
@@ -187,7 +202,7 @@ mod tests {
         server
             .mock("POST", "/chat/completions")
             .with_status(500)
-            .with_body("boom")
+            .with_body("Failed synthetic-api-key-not-real for synthetic private dictated content")
             .create();
         let err = chat_complete_within(
             &provider(server.url()),
@@ -201,7 +216,7 @@ mod tests {
             err,
             PennelError::Http {
                 status: 500,
-                message: "boom".into()
+                message: "provider server error".into()
             }
         );
     }

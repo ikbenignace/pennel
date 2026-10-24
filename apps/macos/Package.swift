@@ -26,7 +26,10 @@ let package = Package(
         .executableTarget(
             name: "Pennel",
             dependencies: ["PennelCore", "PennelKit", .product(name: "Sparkle", package: "Sparkle")],
-            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
+            linkerSettings: [.unsafeFlags([
+                "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks",
+                "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels",
+            ])]
         ),
         .testTarget(name: "PennelKitTests", dependencies: ["PennelKit"]),
         .testTarget(name: "PennelCoreSmokeTests", dependencies: ["PennelCore"]),

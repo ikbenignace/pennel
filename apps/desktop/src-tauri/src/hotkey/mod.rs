@@ -36,6 +36,7 @@ pub enum HotkeyEvent {
     Edge(KeyEdge, f64),
     Interrupt,
     Shift(bool),
+    MeetingShortcut,
 }
 
 #[derive(Debug, Default)]
@@ -140,25 +141,58 @@ fn publish(tracker: &TriggerTracker) {
 /// Synthetic Ctrl+V/Ctrl+C must not reach the gesture as user input.
 pub static INJECTING: AtomicBool = AtomicBool::new(false);
 
+#[derive(Clone)]
 pub struct Listener {
-    #[cfg(any(windows, target_os = "linux"))]
-    inner: PlatformListener,
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+    inner: std::sync::Arc<PlatformListener>,
 }
 
 #[cfg(windows)]
 type PlatformListener = windows::Hook;
 #[cfg(target_os = "linux")]
 type PlatformListener = linux::Hook;
+#[cfg(target_os = "macos")]
+type PlatformListener = crate::macos::Hotkey;
 
 impl Listener {
     /// Starts the platform hook on its own thread; events arrive on `sender`.
     pub fn start(trigger: HotkeyTrigger, sender: Sender<HotkeyEvent>) -> Result<Self, String> {
         epoch();
+        #[cfg(target_os = "macos")]
+        {
+            use crate::macos::NativeHotkeyEvent as Native;
+            let inner = PlatformListener::start(trigger, move |native| {
+                let event = match native {
+                    Native::Down => {
+                        HELD.store(true, Ordering::SeqCst);
+                        HotkeyEvent::Edge(KeyEdge::Down, now())
+                    }
+                    Native::Up => {
+                        HELD.store(false, Ordering::SeqCst);
+                        HotkeyEvent::Edge(KeyEdge::Up, now())
+                    }
+                    Native::Shift(down) => {
+                        SHIFT.store(down, Ordering::SeqCst);
+                        HotkeyEvent::Shift(down)
+                    }
+                    Native::Interrupt => HotkeyEvent::Interrupt,
+                    Native::MeetingShortcut => HotkeyEvent::MeetingShortcut,
+                };
+                let _ = sender.send(event);
+            })?;
+            HELD.store(inner.trigger_held(), Ordering::SeqCst);
+            SHIFT.store(inner.shift_held(), Ordering::SeqCst);
+            Ok(Self {
+                inner: std::sync::Arc::new(inner),
+            })
+        }
         #[cfg(any(windows, target_os = "linux"))]
         {
-            PlatformListener::start(trigger, sender).map(|inner| Self { inner })
+            PlatformListener::start(trigger, sender).map(|inner| Self {
+                inner: std::sync::Arc::new(inner),
+            })
         }
-        #[cfg(not(any(windows, target_os = "linux")))]
+        #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
         {
             let _ = (trigger, sender);
             Err("sneltoets wordt op dit platform niet ondersteund".into())
@@ -166,10 +200,20 @@ impl Listener {
     }
 
     pub fn set_trigger(&self, trigger: HotkeyTrigger) {
-        #[cfg(any(windows, target_os = "linux"))]
+        #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
         self.inner.set_trigger(trigger);
-        #[cfg(not(any(windows, target_os = "linux")))]
+        #[cfg(target_os = "macos")]
+        {
+            HELD.store(false, Ordering::SeqCst);
+            SHIFT.store(false, Ordering::SeqCst);
+        }
+        #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
         let _ = trigger;
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn set_record_shortcut_enabled(&self, enabled: bool) -> Result<(), String> {
+        self.inner.set_record_shortcut_enabled(enabled)
     }
 }
 

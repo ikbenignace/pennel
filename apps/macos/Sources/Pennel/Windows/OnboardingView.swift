@@ -43,7 +43,7 @@ struct OnboardingView: View {
             step(
                 ok: keyOK,
                 title: "Provider",
-                detail: "Plak een API-sleutel bij Instellingen → Providers, of download daar een lokaal model.",
+                detail: "Kies Apple-dicteren bij Instellingen → Providers, voeg een eigen provider toe of download daar een lokaal model.",
                 actionTitle: nil,
                 action: {}
             )

@@ -58,6 +58,11 @@ pub fn browser_apps() -> Vec<String> {
     BROWSERS.iter().map(|s| (*s).to_owned()).collect()
 }
 
+#[uniffi::export]
+pub fn consent_sentence() -> String {
+    "Ik neem notities met transcript via Pennel.".into()
+}
+
 /// Most specific rule wins: meeting title, then calendar, then app; otherwise ask.
 #[uniffi::export]
 pub fn decide_recording(
@@ -97,6 +102,14 @@ mod tests {
     use crate::settings::default_settings;
 
     const TEAMS: &str = "com.microsoft.teams2";
+
+    #[test]
+    fn consent_announcement_keeps_the_same_copy_on_every_platform() {
+        assert_eq!(
+            consent_sentence(),
+            "Ik neem notities met transcript via Pennel."
+        );
+    }
 
     #[test]
     fn default_is_ask() {

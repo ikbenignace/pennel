@@ -36,6 +36,7 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
     return llm ? kind?.llm : kind?.stt;
   });
   const account = settings.providers.find((p) => p.id === choice.provider_id);
+  const accountKind = kinds.find((kind) => kind.kind === account?.kind);
   const set = (change: (c: ModelChoice) => void) =>
     ctx.save((s: Settings) => {
       change(s[key]);
@@ -52,9 +53,17 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
       }),
   );
 
+  for (const option of provider.options) {
+    const candidate = eligible.find((item) => item.id === option.value);
+    option.disabled = kinds.find((kind) => kind.kind === candidate?.kind)?.availability.status === "unsupported";
+  }
+
   let model: HTMLElement;
+  let ready = accountKind?.availability.status === "available" && (!accountKind.requires_key || !!ctx.info.keys[choice.provider_id]);
+  if (accountKind?.is_cli_agent) ready = ready && !!account?.base_url;
   if (account?.kind === "local") {
     const downloaded = (await api.localModels(null, false)).filter((m) => m.state.kind === "downloaded");
+    ready = downloaded.some((item) => item.id === choice.model);
     model = downloaded.length
       ? select(
           downloaded.map((m) => [m.id, m.name] as [string, string]),
@@ -62,14 +71,19 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
           (id) => set((c) => (c.model = id)),
         )
       : h("span", { class: "muted" }, "Nog geen model gedownload — zie Lokale modellen.");
+  } else if (account?.kind === "apple_speech") {
+    model = h("span", { class: "help" }, accountKind?.availability.reason ?? "macOS beheert het dicteermodel en de taalbestanden.");
+  } else if (account?.kind === "apple_intelligence") {
+    model = h("span", { class: "help" }, "macOS beheert het ingebouwde taalmodel van Apple Intelligence.");
   } else {
     const listId = `models-${key}`;
-    const known = account ? await remoteModels(account.id) : [];
+    const known = account && !accountKind?.is_cli_agent && (!accountKind?.requires_key || ctx.info.keys[account.id])
+      ? await remoteModels(account.id) : [];
     const input = h("input", {
       type: "text",
       value: choice.model,
       list: listId,
-      placeholder: "modelnaam",
+      placeholder: accountKind?.is_cli_agent ? "Leeg = het model van de CLI" : "modelnaam",
       onchange: () => set((c) => (c.model = input.value.trim())),
     });
     model = h(
@@ -83,5 +97,8 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
       ),
     );
   }
-  return section(title, subtitle, field("Provider", provider), field("Model", model));
+  return section(title, subtitle, field("Provider", h("div", { class: "row" }, provider,
+    h("span", { class: `status-dot${ready ? " ready" : ""}`, "aria-label": ready ? "In orde" : "Nog instellen" }))), field("Model", model),
+    accountKind?.availability.status !== "available" && accountKind?.availability.reason
+      ? h("p", { class: "help" }, accountKind.availability.reason) : null);
 }

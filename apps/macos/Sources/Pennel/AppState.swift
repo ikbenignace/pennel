@@ -1,6 +1,7 @@
 import Foundation
 @preconcurrency import PennelCore
 import Observation
+import Speech
 
 @MainActor
 @Observable
@@ -17,6 +18,17 @@ final class AppState {
     /// Keychain is not observable; bumping this re-renders views that show key status.
     private var keyRevision = 0
 
+    #if DEBUG && PENNEL_REFERENCE_SNAPSHOT
+    init(snapshotDataDir: URL) throws {
+        engine = try PennelEngine.newPreview(dataDir: snapshotDataDir.path)
+        downloads = ModelDownloads(engine: engine)
+        settings = engine.settings()
+        downloads.onModelsChanged = { [weak self] in
+            guard let self else { return }
+            self.settings = self.engine.settings()
+        }
+    }
+    #else
     init() throws {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         LegacyMigration.moveDataFolder(in: support)
@@ -32,9 +44,11 @@ final class AppState {
         CliAgents.sync(into: self)
         if #available(macOS 26, *) {
             engine.setSystemTranscriber(transcriber: AppleSpeechTranscriber())
+            engine.setSystemLanguageModel(model: AppleIntelligenceModel())
             addAppleSpeechOnce()
         }
     }
+    #endif
 
     private(set) var templates: [MeetingTemplate] = []
 
@@ -102,6 +116,11 @@ final class AppState {
     func isReady(_ choice: ModelChoice) -> Bool {
         guard let account = account(choice.providerId) else { return false }
         if account.kind == .local { return downloads.states[choice.model] == .downloaded }
+        if account.kind == .appleIntelligence { return FoundationLanguageModel.availability().status == "available" }
+        if account.kind == .appleSpeech {
+            if #available(macOS 26, *) { return SFSpeechRecognizer.authorizationStatus() == .authorized }
+            return false
+        }
         return !requiresKey(kind: account.kind) || hasKey(account)
     }
 

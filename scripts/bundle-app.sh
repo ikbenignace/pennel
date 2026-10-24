@@ -23,7 +23,7 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/Fonts"
 cp "$bin" "$app/Contents/MacOS/Pennel"
 strip -x "$app/Contents/MacOS/Pennel"
 cp "$pkg/Resources/Info.plist" "$app/Contents/Info.plist"
-cp "$pkg/Resources/Fonts/"* "$app/Contents/Resources/Fonts/"
+cp "$root/assets/brand/fonts/"* "$app/Contents/Resources/Fonts/"
 cp "$pkg/Resources/Pennel.icns" "$pkg/Resources/MenubarTemplate.png" "$pkg/Resources/MenubarTemplate@2x.png" \
   "$pkg/Resources/Wordmark.png" "$pkg/Resources/Wordmark@2x.png" "$app/Contents/Resources/"
 

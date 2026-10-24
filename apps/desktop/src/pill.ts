@@ -1,10 +1,8 @@
 import "./fonts.css";
 import "./pill.css";
 import { listen } from "@tauri-apps/api/event";
+import { api, type PillState } from "./api";
 
-type PillState =
-  | { state: "hidden" | "listening" | "hands_free" | "command" | "working" }
-  | { state: "error"; message: string };
 
 const pill = document.getElementById("pill")!;
 const indicator = document.getElementById("indicator")!;
@@ -36,5 +34,12 @@ function render(next: PillState) {
   }
 }
 
-listen<PillState>("pill-state", (e) => render(e.payload));
-listen<number>("pill-level", (e) => setLevel(e.payload));
+async function boot() {
+  let eventReceived = false;
+  await listen<PillState>("pill-state", (event) => { eventReceived = true; render(event.payload); });
+  await listen<number>("pill-level", (event) => setLevel(event.payload));
+  const snapshot = await api.dictationState();
+  if (!eventReceived) render(snapshot);
+}
+
+void boot();

@@ -165,6 +165,25 @@ pub fn default_settings() -> Settings {
 }
 
 impl Settings {
+    /// Startup migrations must never rename a user's settings or reset their providers.
+    pub(crate) fn load_strict(path: &Path) -> Result<Settings, PennelError> {
+        let json = match std::fs::read_to_string(path) {
+            Ok(json) => json,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(default_settings());
+            }
+            Err(error) => return Err(PennelError::storage(error)),
+        };
+        let value: serde_json::Value = serde_json::from_str(&json).map_err(PennelError::storage)?;
+        if value.get("providers").is_some() {
+            serde_json::from_value(value).map_err(PennelError::storage)
+        } else {
+            serde_json::from_value::<LegacySettings>(value)
+                .map(LegacySettings::migrate)
+                .map_err(PennelError::storage)
+        }
+    }
+
     pub fn load(path: &Path) -> Result<Settings, PennelError> {
         let json = match std::fs::read_to_string(path) {
             Ok(json) => json,

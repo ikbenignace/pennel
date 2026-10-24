@@ -1,6 +1,6 @@
 use crate::meetings::{MeetingStore, speaker_label, timestamp};
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct MeetingExport {
     pub title: String,
     pub markdown: String,

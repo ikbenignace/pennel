@@ -1,5 +1,6 @@
 //! Synthetic Ctrl+V / Ctrl+C for pasting and reading the selection.
 
+#[cfg(not(target_os = "macos"))]
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -17,12 +18,21 @@ pub fn wait_for_release() {
 }
 
 #[derive(Clone, Copy)]
+#[cfg(not(target_os = "macos"))]
 pub enum Shortcut {
     Paste,
     Copy,
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn send(shortcut: Shortcut) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    if crate::linux_input::is_wayland() {
+        return Err(
+            "Wayland staat automatisch plakken of selectie lezen niet toe — plak zelf met Ctrl+V"
+                .into(),
+        );
+    }
     hotkey::INJECTING.store(true, Ordering::SeqCst);
     let result = platform::send(shortcut);
     // X11 delivers our own events to the listener asynchronously.
@@ -79,15 +89,12 @@ mod platform {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 mod platform {
     use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 
     use super::Shortcut;
 
-    #[cfg(target_os = "macos")]
-    const MODIFIER: Key = Key::Meta;
-    #[cfg(not(target_os = "macos"))]
     const MODIFIER: Key = Key::Control;
 
     pub fn send(shortcut: Shortcut) -> Result<(), String> {

@@ -3,6 +3,7 @@ pub const TARGET_RATE: u32 = 16_000;
 /// Streams interleaved frames of any rate and channel count into 16 kHz mono f32.
 /// Downsampling averages each output's input span (a box filter against aliasing);
 /// upsampling interpolates linearly.
+#[cfg(any(not(target_os = "macos"), test))]
 pub struct MonoResampler {
     channels: usize,
     step: f64,
@@ -10,6 +11,7 @@ pub struct MonoResampler {
     pending: Vec<f32>,
 }
 
+#[cfg(any(not(target_os = "macos"), test))]
 impl MonoResampler {
     pub fn new(input_rate: u32, channels: u16) -> Self {
         Self {

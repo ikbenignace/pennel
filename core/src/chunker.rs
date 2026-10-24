@@ -52,6 +52,17 @@ impl Chunker {
         self.take(len)
     }
 
+    /// Finish the current audio before a device interruption without allocating the missing silence.
+    pub fn skip_to(&mut self, sample_offset: u64) -> Option<Chunk> {
+        let end = self.buffer_start + self.buffer.len() as u64;
+        if sample_offset <= end {
+            return None;
+        }
+        let last = self.flush();
+        self.buffer_start = sample_offset;
+        last
+    }
+
     fn update_quiet(&mut self) {
         let frame = self.frame_len();
         while (self.quiet.len() + 1) * frame <= self.buffer.len() {
@@ -172,5 +183,16 @@ mod tests {
         for (a, e) in actual.iter().zip(&expected) {
             assert_eq!((a.start_ms, a.samples.len()), (e.start_ms, e.samples.len()));
         }
+    }
+
+    #[test]
+    fn interrupted_track_preserves_session_clock_without_materializing_silence() {
+        let mut chunker = Chunker::new(SR as u32);
+        chunker.push(&tone(3.0));
+        assert_eq!(chunker.skip_to(3_600 * SR as u64).unwrap().start_ms, 0);
+        chunker.push(&tone(2.0));
+        let resumed = chunker.flush().unwrap();
+        assert_eq!(resumed.start_ms, 3_600_000);
+        assert_eq!(resumed.samples.len(), 2 * SR);
     }
 }

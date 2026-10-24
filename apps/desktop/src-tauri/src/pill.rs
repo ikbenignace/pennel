@@ -9,9 +9,29 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWi
 use crate::status::PillState;
 
 pub const LABEL: &str = "pill";
+pub struct Snapshot(pub Mutex<PillState>);
+impl Default for Snapshot {
+    fn default() -> Self {
+        Self(Mutex::new(PillState::Hidden))
+    }
+}
+
+pub fn snapshot(app: &AppHandle) -> PillState {
+    app.try_state::<Snapshot>()
+        .map(|state| state.0.lock().unwrap().clone())
+        .unwrap_or(PillState::Hidden)
+}
 const WIDTH: f64 = 420.0;
 const HEIGHT: f64 = 72.0;
 const LEVEL_INTERVAL: Duration = Duration::from_millis(50);
+
+#[cfg(not(target_os = "macos"))]
+pub fn show_without_focus(window: &WebviewWindow) {
+    platform::show(window);
+}
+pub fn hide_without_focus(window: &WebviewWindow) {
+    platform::hide(window);
+}
 
 pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let window = tauri::WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("pill.html".into()))
@@ -29,6 +49,12 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .visible(false)
         .build()?;
     let _ = window.set_ignore_cursor_events(true);
+    #[cfg(target_os = "macos")]
+    if let Ok(pointer) = window.ns_window() {
+        unsafe {
+            crate::macos::configure_panel(pointer, false);
+        }
+    }
     Ok(window)
 }
 
@@ -58,7 +84,28 @@ impl Pill {
         }
         let was_hidden = *shown == PillState::Hidden;
         *shown = state.clone();
+        if let Some(snapshot) = self.app.try_state::<Snapshot>() {
+            *snapshot.0.lock().unwrap() = state.clone();
+        }
+        let _ = self.app.emit("dictation-state", &state);
         let Some(window) = self.window() else {
+            if state != PillState::Hidden {
+                let app = self.app.clone();
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    let window = handle
+                        .get_webview_window(LABEL)
+                        .or_else(|| create(&handle).ok());
+                    if let Some(window) = window {
+                        let state = snapshot(&handle);
+                        let _ = window.emit_to(LABEL, "pill-state", &state);
+                        if state != PillState::Hidden {
+                            Self::position(&handle, &window);
+                            platform::show(&window);
+                        }
+                    }
+                });
+            }
             return;
         };
         let _ = window.emit_to(LABEL, "pill-state", &state);
@@ -67,7 +114,7 @@ impl Pill {
             return;
         }
         if was_hidden {
-            self.position(&window);
+            Self::position(&self.app, &window);
             platform::show(&window);
         }
     }
@@ -82,9 +129,9 @@ impl Pill {
         let _ = self.app.emit_to(LABEL, "pill-level", level);
     }
 
-    fn position(&self, window: &WebviewWindow) {
-        let cursor = self.app.cursor_position().ok();
-        let monitors = self.app.available_monitors().unwrap_or_default();
+    fn position(app: &AppHandle, window: &WebviewWindow) {
+        let cursor = app.cursor_position().ok();
+        let monitors = app.available_monitors().unwrap_or_default();
         let monitor = cursor
             .and_then(|c| {
                 monitors.iter().find(|m| {
@@ -96,7 +143,7 @@ impl Pill {
                 })
             })
             .cloned()
-            .or_else(|| self.app.primary_monitor().ok().flatten());
+            .or_else(|| app.primary_monitor().ok().flatten());
         let Some(monitor) = monitor else {
             return;
         };
@@ -151,7 +198,26 @@ mod platform {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+mod platform {
+    use tauri::WebviewWindow;
+    pub fn show(window: &WebviewWindow) {
+        if let Ok(pointer) = window.ns_window() {
+            unsafe {
+                crate::macos::show_panel(pointer);
+            }
+        }
+    }
+    pub fn hide(window: &WebviewWindow) {
+        if let Ok(pointer) = window.ns_window() {
+            unsafe {
+                crate::macos::hide_panel(pointer);
+            }
+        }
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 mod platform {
     use tauri::WebviewWindow;
 

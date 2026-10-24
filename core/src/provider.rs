@@ -18,6 +18,7 @@ pub enum ProviderKind {
     CursorAgent,
     GeminiCli,
     AppleSpeech,
+    AppleIntelligence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -62,6 +63,7 @@ impl ProviderKind {
             ProviderKind::CursorAgent => "cursor",
             ProviderKind::GeminiCli => "gemini-cli",
             ProviderKind::AppleSpeech => "apple",
+            ProviderKind::AppleIntelligence => "apple-intelligence",
         }
     }
 
@@ -82,6 +84,7 @@ impl ProviderKind {
             ProviderKind::CursorAgent => "Cursor",
             ProviderKind::GeminiCli => "Gemini CLI",
             ProviderKind::AppleSpeech => "Apple-dicteren",
+            ProviderKind::AppleIntelligence => "Apple Intelligence",
         }
     }
 
@@ -112,7 +115,7 @@ pub fn requires_key(kind: ProviderKind) -> bool {
 
 #[uniffi::export]
 pub fn supports(kind: ProviderKind, task: ProviderTask) -> bool {
-    if kind.is_cli_agent() {
+    if kind.is_cli_agent() || kind == ProviderKind::AppleIntelligence {
         return task == ProviderTask::Llm;
     }
     if kind == ProviderKind::AppleSpeech {
@@ -135,7 +138,10 @@ pub fn default_base_url(kind: ProviderKind) -> String {
         ProviderKind::Mistral => "https://api.mistral.ai/v1",
         ProviderKind::Ollama => "http://localhost:11434/v1",
         ProviderKind::LmStudio => "http://localhost:1234/v1",
-        ProviderKind::Custom | ProviderKind::Local | ProviderKind::AppleSpeech => "",
+        ProviderKind::Custom
+        | ProviderKind::Local
+        | ProviderKind::AppleSpeech
+        | ProviderKind::AppleIntelligence => "",
         // The executable path, filled in by detection.
         ProviderKind::ClaudeCode
         | ProviderKind::Codex
@@ -162,6 +168,7 @@ pub fn default_model(kind: ProviderKind, task: ProviderTask) -> String {
         ProviderKind::LmStudio | ProviderKind::Custom => ("", ""),
         ProviderKind::Local => ("whisper-large-v3-turbo", ""),
         ProviderKind::AppleSpeech => ("dictation", ""),
+        ProviderKind::AppleIntelligence => ("", "system"),
         // Haiku answers a cleanup in ~3 s; the other CLIs use the model configured in the CLI itself.
         ProviderKind::ClaudeCode => ("", "haiku"),
         ProviderKind::Codex
@@ -191,6 +198,28 @@ pub fn new_account(kind: ProviderKind, existing: Vec<ProviderAccount>) -> Provid
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apple_intelligence_is_a_keyless_text_only_system_provider() {
+        let kind = ProviderKind::AppleIntelligence;
+        assert!(!requires_key(kind));
+        assert!(!kind.is_cli_agent());
+        assert!(supports(kind, ProviderTask::Llm));
+        assert!(!supports(kind, ProviderTask::DictationStt));
+        assert!(!supports(kind, ProviderTask::MeetingStt));
+        assert_eq!(default_base_url(kind), "");
+        assert_eq!(default_model(kind, ProviderTask::Llm), "system");
+        assert_eq!(default_model(kind, ProviderTask::DictationStt), "");
+        let account = new_account(kind, vec![]);
+        assert_eq!(account.id, "apple-intelligence");
+        assert_eq!(account.name, "Apple Intelligence");
+        let json = serde_json::to_value(&account).unwrap();
+        assert_eq!(json["kind"], "apple_intelligence");
+        assert_eq!(
+            serde_json::from_value::<ProviderAccount>(json).unwrap(),
+            account
+        );
+    }
 
     #[test]
     fn groq_defaults() {

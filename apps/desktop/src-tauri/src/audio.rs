@@ -1,27 +1,39 @@
 //! Audio capture as 16 kHz mono f32. cpal streams are not `Send` everywhere, so each capture
 //! owns a thread that builds, runs and drops its stream.
 
+#[cfg(not(target_os = "macos"))]
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
+#[cfg(not(target_os = "macos"))]
 use std::thread::JoinHandle;
+#[cfg(not(target_os = "macos"))]
+use std::time::Instant;
 
+#[cfg(not(target_os = "macos"))]
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+#[cfg(not(target_os = "macos"))]
 use cpal::{FromSample, SizedSample};
 
+#[cfg(not(target_os = "macos"))]
 use crate::diagnostics::Log;
-use crate::resample::{MonoResampler, rms};
+#[cfg(not(target_os = "macos"))]
+use crate::resample::MonoResampler;
+use crate::resample::rms;
 
+#[cfg(not(target_os = "macos"))]
 const LOG: Log = Log::new("audio");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
     Microphone,
     /// What the default output device plays (WASAPI loopback, PulseAudio/PipeWire monitor).
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     SystemOutput,
 }
 
 #[derive(Debug)]
 pub enum CaptureError {
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     NoDevice,
     Failed(String),
 }
@@ -36,8 +48,14 @@ impl std::fmt::Display for CaptureError {
 }
 
 pub struct Capture {
+    #[cfg(target_os = "macos")]
+    native: Option<crate::macos::Capture>,
+    #[cfg(not(target_os = "macos"))]
     stop: Sender<()>,
+    #[cfg(not(target_os = "macos"))]
     thread: Option<JoinHandle<()>>,
+    #[cfg(not(target_os = "macos"))]
+    error: Arc<Mutex<Option<String>>>,
 }
 
 impl Capture {
@@ -46,11 +64,39 @@ impl Capture {
         source: Source,
         sink: impl FnMut(&[f32]) + Send + 'static,
     ) -> Result<Self, CaptureError> {
+        #[cfg(target_os = "macos")]
+        {
+            let mut sink = sink;
+            let native = crate::macos::Capture::start(
+                if source == Source::Microphone { 0 } else { 1 },
+                move |samples, _offset_ms| sink(samples),
+            )
+            .map_err(CaptureError::Failed)?;
+            Ok(Self {
+                native: Some(native),
+            })
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let mut sink = sink;
+            Self::start_timed(source, move |samples, _at| sink(samples))
+        }
+    }
+
+    /// The timestamp refers to the first captured sample, mapped from CPAL's device clock to
+    /// the process monotonic clock. Callback delivery delay must not shift the meeting timeline.
+    #[cfg(not(target_os = "macos"))]
+    pub fn start_timed(
+        source: Source,
+        sink: impl FnMut(&[f32], Instant) + Send + 'static,
+    ) -> Result<Self, CaptureError> {
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
         let (ready_tx, ready_rx) = mpsc::channel::<Result<(), CaptureError>>();
+        let error = Arc::new(Mutex::new(None));
+        let capture_error = error.clone();
         let thread = std::thread::Builder::new()
             .name("pennel-audio".into())
-            .spawn(move || match open(source, sink) {
+            .spawn(move || match open(source, sink, capture_error) {
                 Ok(stream) => {
                     let _ = ready_tx.send(Ok(()));
                     let _ = stop_rx.recv();
@@ -61,13 +107,30 @@ impl Capture {
                 }
             })
             .map_err(|e| CaptureError::Failed(e.to_string()))?;
-        ready_rx
+        if let Err(error) = ready_rx
             .recv()
-            .map_err(|e| CaptureError::Failed(e.to_string()))??;
+            .map_err(|e| CaptureError::Failed(e.to_string()))
+            .and_then(|result| result)
+        {
+            let _ = thread.join();
+            return Err(error);
+        }
         Ok(Self {
             stop: stop_tx,
             thread: Some(thread),
+            error,
         })
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    pub fn error(&self) -> Option<String> {
+        self.error.lock().unwrap().clone()
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    pub fn stop_checked(mut self) -> Result<(), String> {
+        self.finish();
+        self.error().map_or(Ok(()), Err)
     }
 
     pub fn stop(mut self) {
@@ -75,9 +138,18 @@ impl Capture {
     }
 
     fn finish(&mut self) {
-        let _ = self.stop.send(());
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
+        #[cfg(target_os = "macos")]
+        if let Some(native) = self.native.take() {
+            native.stop();
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = self.stop.send(());
+            if let Some(thread) = self.thread.take()
+                && thread.join().is_err()
+            {
+                *self.error.lock().unwrap() = Some("Audio-opname is onverwacht gestopt".into());
+            }
         }
     }
 }
@@ -88,6 +160,7 @@ impl Drop for Capture {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn device(source: Source) -> Result<cpal::Device, CaptureError> {
     let host = cpal::default_host();
     match source {
@@ -120,9 +193,11 @@ fn linux_monitor(host: &cpal::Host) -> Option<cpal::Device> {
     matching.or(monitors.first()).cloned()
 }
 
+#[cfg(not(target_os = "macos"))]
 fn open(
     source: Source,
-    sink: impl FnMut(&[f32]) + Send + 'static,
+    sink: impl FnMut(&[f32], Instant) + Send + 'static,
+    error: Arc<Mutex<Option<String>>>,
 ) -> Result<cpal::Stream, CaptureError> {
     let device = device(source)?;
     let supported = match source {
@@ -143,12 +218,12 @@ fn open(
         supported.sample_format()
     ));
     let stream = match supported.sample_format() {
-        cpal::SampleFormat::F32 => build::<f32>(&device, config, sink),
-        cpal::SampleFormat::I16 => build::<i16>(&device, config, sink),
-        cpal::SampleFormat::U16 => build::<u16>(&device, config, sink),
-        cpal::SampleFormat::I32 => build::<i32>(&device, config, sink),
-        cpal::SampleFormat::F64 => build::<f64>(&device, config, sink),
-        cpal::SampleFormat::U8 => build::<u8>(&device, config, sink),
+        cpal::SampleFormat::F32 => build::<f32>(&device, config, sink, error),
+        cpal::SampleFormat::I16 => build::<i16>(&device, config, sink, error),
+        cpal::SampleFormat::U16 => build::<u16>(&device, config, sink, error),
+        cpal::SampleFormat::I32 => build::<i32>(&device, config, sink, error),
+        cpal::SampleFormat::F64 => build::<f64>(&device, config, sink, error),
+        cpal::SampleFormat::U8 => build::<u8>(&device, config, sink, error),
         other => return Err(CaptureError::Failed(format!("formaat {other:?}"))),
     }
     .map_err(|e| CaptureError::Failed(e.to_string()))?;
@@ -158,10 +233,12 @@ fn open(
     Ok(stream)
 }
 
+#[cfg(not(target_os = "macos"))]
 fn build<T>(
     device: &cpal::Device,
     config: cpal::StreamConfig,
-    mut sink: impl FnMut(&[f32]) + Send + 'static,
+    mut sink: impl FnMut(&[f32], Instant) + Send + 'static,
+    error: Arc<Mutex<Option<String>>>,
 ) -> Result<cpal::Stream, cpal::Error>
 where
     T: SizedSample,
@@ -171,15 +248,24 @@ where
     let mut floats = Vec::new();
     device.build_input_stream::<T, _, _>(
         config,
-        move |data: &[T], _| {
+        move |data: &[T], info| {
+            let now = Instant::now();
+            let timestamp = info.timestamp();
+            let captured_at = now
+                .checked_sub(timestamp.callback.duration_since(timestamp.capture))
+                .unwrap_or(now);
             floats.clear();
             floats.extend(data.iter().map(|s| s.to_sample::<f32>()));
             let mono = resampler.push(&floats);
             if !mono.is_empty() {
-                sink(&mono);
+                sink(&mono, captured_at);
             }
         },
-        |e| LOG.error(format!("audiostroom: {e}")),
+        move |e| {
+            let message = e.to_string();
+            *error.lock().unwrap() = Some(message.clone());
+            LOG.error(format!("audiostroom: {message}"));
+        },
         None,
     )
 }

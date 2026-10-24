@@ -210,7 +210,7 @@ final class DictationController {
             if (error as? PennelError) == .NoSpeech {
                 log.notice("\(kind): geen spraak herkend (\(elapsed))")
             } else {
-                log.error("\(kind) mislukt na \(elapsed): \(error)")
+                log.error("\(kind) mislukt na \(elapsed): \(type(of: error))")
             }
         }
         status.dictationFinished(notice: notice)
@@ -256,7 +256,7 @@ final class DictationController {
         case .applied: "toegepast"
         case .skipped: "overgeslagen (snelle modus)"
         case .rejected: "afgewezen (model antwoordde in plaats van op te kuisen)"
-        case .failed(let message): "mislukt: \(message)"
+        case .failed: "mislukt"
         }
     }
 

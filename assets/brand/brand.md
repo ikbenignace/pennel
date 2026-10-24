@@ -39,7 +39,7 @@ Rules
 - **Figtree**: interface, body, buttons, labels. Regular for body, Medium for UI labels, SemiBold for buttons and small headings.
 - Sentence case everywhere. Small tracked caps only for labels (11 px, +8% tracking, SemiBold, Muted text).
 - Headlines tight (line-height 1.0 to 1.1, tracking -1%); body 15 to 17 px at 1.5.
-- In artwork, text is outlined from `apps/macos/Resources/Fonts/` so SVGs render without the fonts.
+- Shared interface and artwork fonts live in `assets/brand/fonts/`; outline artwork text so SVGs render without installed fonts. The native reference keeps its required bundled resource copies.
 
 ## Writing the name
 

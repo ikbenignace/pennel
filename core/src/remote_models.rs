@@ -187,13 +187,16 @@ mod tests {
 
     #[test]
     fn http_error_maps() {
-        let server = serve(401, r#"{"error":{"message":"bad key"}}"#);
+        let server = serve(
+            401,
+            r#"{"error":{"message":"Rejected synthetic-api-key-not-real for synthetic private content"}}"#,
+        );
         let err = provider_models(server.url(), Some("k".into())).unwrap_err();
         assert_eq!(
             err,
             PennelError::Http {
                 status: 401,
-                message: "bad key".into()
+                message: "provider authentication failed".into()
             }
         );
     }

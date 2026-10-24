@@ -42,7 +42,7 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
           : null,
         failed
           ? null
-          : h("button", { class: "btn", onclick: () => navigator.clipboard.writeText(entry.text) }, "Kopiëren"),
+          : h("button", { class: "btn", onclick: () => api.copyText(entry.text) }, "Kopiëren"),
         h(
           "button",
           {
@@ -59,13 +59,9 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
   };
   return h(
     "div",
-    {},
+    { class: "history-view" },
     h("h1", {}, "Geschiedenis"),
     message ? h("p", { class: "error" }, message) : null,
-    section(
-      "Dictaten",
-      null,
-      entries.length ? entries.map(row) : h("p", { class: "muted" }, "Nog geen dictaten."),
-    ),
+    entries.length ? section("Dictaten", null, entries.map(row)) : h("div", { class: "empty-state muted" }, "Nog geen dictaten."),
   );
 }

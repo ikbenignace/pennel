@@ -22,7 +22,7 @@ final class MeetingController {
     private(set) var error: String?
     private(set) var detectedApp: String?
     private(set) var consentCopied = false
-    static let consentSentence = "Ik neem notities met transcript via Pennel."
+    static let consentSentence = PennelCore.consentSentence()
     var title = ""
     var notes = "" {
         didSet { scheduleNotesSave() }

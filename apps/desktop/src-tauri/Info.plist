@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Pennel gebruikt je microfoon om wat je dicteert om te zetten naar tekst.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Pennel neemt de audio van je call op om er een transcript van te maken.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Pennel gebruikt Apple-dicteren op je Mac om wat je zegt om te zetten naar tekst, als je die provider kiest.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Pennel gebruikt je agenda om meetings een titel en deelnemers te geven.</string>
+    <key>SUPublicEDKey</key>
+    <string>XtJnNiVQ8nHSoSiFhJAZEBOghHDB66z70YxGmyeOmAM=</string>
+</dict>
+</plist>

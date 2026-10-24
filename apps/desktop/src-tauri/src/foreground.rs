@@ -35,6 +35,9 @@ const KNOWN: &[(&str, &str)] = &[
 
 /// The id the core's style rules use for this executable: a known bundle id, else the executable name.
 pub fn style_id(executable: &str) -> String {
+    if executable.contains('.') && !executable.to_lowercase().ends_with(".exe") {
+        return executable.to_owned();
+    }
     let stem = executable
         .to_lowercase()
         .trim_end_matches(".exe")
@@ -82,10 +85,51 @@ pub fn current() -> Option<ForegroundApp> {
     }
 }
 
-/// Without a portable way to ask a Wayland compositor, Linux leaves style rules on Neutral.
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+pub fn current() -> Option<ForegroundApp> {
+    use crate::linux_input::{bounded_output, parse_active_window, parse_window_pid};
+    use std::time::Duration;
+
+    if crate::linux_input::is_wayland() || !crate::linux_input::has_x11_display() {
+        return None;
+    }
+    let active = bounded_output(
+        "xprop",
+        &["-root", "_NET_ACTIVE_WINDOW"],
+        Duration::from_millis(100),
+    )?;
+    if !active.status.success() {
+        return None;
+    }
+    let window = parse_active_window(std::str::from_utf8(&active.stdout).ok()?)?;
+    let properties = bounded_output(
+        "xprop",
+        &["-id", &window, "_NET_WM_PID"],
+        Duration::from_millis(100),
+    )?;
+    if !properties.status.success() {
+        return None;
+    }
+    let pid = parse_window_pid(std::str::from_utf8(&properties.stdout).ok()?)?;
+    let executable = std::fs::read_link(format!("/proc/{pid}/exe"))
+        .ok()?
+        .file_name()?
+        .to_str()?
+        .to_lowercase();
+    Some(ForegroundApp { pid, executable })
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 pub fn current() -> Option<ForegroundApp> {
     None
+}
+
+#[cfg(target_os = "macos")]
+pub fn current() -> Option<ForegroundApp> {
+    crate::macos::foreground().map(|app| ForegroundApp {
+        pid: app.pid,
+        executable: app.bundle_id,
+    })
 }
 
 #[cfg(test)]
@@ -102,5 +146,10 @@ mod tests {
     #[test]
     fn unknown_executables_keep_their_name() {
         assert_eq!(style_id("notepad.exe"), "notepad");
+    }
+
+    #[test]
+    fn mac_bundle_ids_keep_their_case() {
+        assert_eq!(style_id("com.microsoft.VSCode"), "com.microsoft.VSCode");
     }
 }

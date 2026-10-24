@@ -10,12 +10,29 @@ pub fn agent(timeout_secs: u64) -> ureq::Agent {
         .into()
 }
 
-pub fn map_status(status: u16, body: &str) -> PennelError {
-    let message = serde_json::from_str::<serde_json::Value>(body)
-        .ok()
-        .and_then(|v| v["error"]["message"].as_str().map(str::to_owned))
-        .unwrap_or_else(|| body.chars().take(200).collect());
-    PennelError::Http { status, message }
+pub fn map_status(status: u16, _body: &str) -> PennelError {
+    // Provider bodies can echo credentials or transcripts; these errors reach history and diagnostics.
+    let message = match status {
+        300..=399 => "provider redirected the request",
+        400 => "provider rejected the request",
+        401 => "provider authentication failed",
+        402 => "provider payment required",
+        403 => "provider denied access",
+        404 => "provider endpoint or model not found",
+        405 => "provider request method not allowed",
+        408 => "provider request timed out",
+        409 => "provider request conflicted",
+        413 => "provider request too large",
+        415 => "provider request format not supported",
+        422 => "provider could not process the request",
+        429 => "provider rate limit reached",
+        500..=599 => "provider server error",
+        _ => "provider request failed",
+    };
+    PennelError::Http {
+        status,
+        message: message.into(),
+    }
 }
 
 /// Sends a prepared request and returns the body of a 2xx response, mapping everything else to `PennelError`.
@@ -55,23 +72,75 @@ mod tests {
     use super::*;
 
     #[test]
-    fn map_status_uses_openai_error_message() {
+    fn json_errors_cannot_echo_credentials_or_dictation_into_stored_errors() {
+        let key = "synthetic-api-key-not-a-real-credential";
+        let transcript = "Synthetic private dictated sentence";
+        let body = serde_json::json!({
+            "error": {
+                "message": format!("Bearer {key}; request transcript: {transcript}"),
+                "code": format!("{key} {transcript}")
+            }
+        })
+        .to_string();
+        let error = map_status(401, &body);
         assert_eq!(
-            map_status(401, r#"{"error":{"message":"Invalid API key"}}"#),
+            error,
             PennelError::Http {
                 status: 401,
-                message: "Invalid API key".into()
+                message: "provider authentication failed".into()
             }
         );
+        let stored_error = error.to_string();
+        assert!(!stored_error.contains(key));
+        assert!(!stored_error.contains(transcript));
+        assert_eq!(stored_error, "http 401: provider authentication failed");
     }
 
     #[test]
-    fn map_status_falls_back_to_truncated_body() {
-        let body = "x".repeat(500);
-        let PennelError::Http { status, message } = map_status(502, &body) else {
+    fn text_errors_cannot_echo_a_body_prefix_into_stored_errors() {
+        let key = "synthetic-api-key-not-a-real-credential";
+        let transcript = "Synthetic private dictated sentence";
+        let body = format!("{key}: {transcript}; {}", "untrusted details ".repeat(40));
+        let error = map_status(502, &body);
+        let PennelError::Http {
+            status,
+            ref message,
+        } = error
+        else {
             panic!()
         };
         assert_eq!(status, 502);
-        assert_eq!(message.len(), 200);
+        assert_eq!(message, "provider server error");
+        assert!(!error.to_string().contains(key));
+        assert!(!error.to_string().contains(transcript));
+        assert!(!error.to_string().contains("untrusted details"));
+    }
+
+    #[test]
+    fn safe_error_categories_preserve_status_independently_of_response_content() {
+        for (status, expected) in [
+            (400, "provider rejected the request"),
+            (401, "provider authentication failed"),
+            (402, "provider payment required"),
+            (403, "provider denied access"),
+            (404, "provider endpoint or model not found"),
+            (408, "provider request timed out"),
+            (413, "provider request too large"),
+            (422, "provider could not process the request"),
+            (429, "provider rate limit reached"),
+            (503, "provider server error"),
+            (599, "provider server error"),
+            (600, "provider request failed"),
+        ] {
+            for body in ["", "not JSON", r#"{"error":{"message":"private content"}}"#] {
+                assert_eq!(
+                    map_status(status, body),
+                    PennelError::Http {
+                        status,
+                        message: expected.into()
+                    }
+                );
+            }
+        }
     }
 }

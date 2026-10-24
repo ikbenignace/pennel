@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::cleanup::{
@@ -16,12 +16,16 @@ use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
 use crate::meetings::SpeakerName;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::models::{CancelFlag, DownloadListener, LocalModel, ModelState, ModelStore};
-use crate::provider::{ProviderAccount, ProviderConfig, ProviderKind, requires_key};
+use crate::provider::{
+    ProviderAccount, ProviderConfig, ProviderKind, ProviderTask, requires_key, supports,
+};
 use crate::session::MeetingSession;
 use crate::settings::ModelChoice;
 use crate::settings::{DictationMode, Settings};
 use crate::speech::{has_speech, is_hallucination};
+use crate::storage::{DirectoryLease, StartupStorage};
 use crate::stt::transcribe;
+use crate::system_llm::{self, SystemLanguageModel};
 use crate::system_stt::SystemTranscriber;
 use crate::templates::{MeetingTemplate, TemplateStore};
 use crate::wav::{decode_wav, encode_wav};
@@ -76,6 +80,12 @@ pub struct PennelEngine {
     local: LocalEngine,
     index: Mutex<Option<MeetingIndex>>,
     system_stt: RwLock<Option<Arc<dyn SystemTranscriber>>>,
+    system_llm: RwLock<Option<Arc<dyn SystemLanguageModel>>>,
+    meeting_gate: Mutex<()>,
+    active_sessions: Mutex<Vec<Weak<MeetingSession>>>,
+    library_lease: Mutex<Option<(PathBuf, DirectoryLease)>>,
+    preview: bool,
+    _storage: StartupStorage,
 }
 
 struct Transcript {
@@ -115,23 +125,12 @@ fn endpoint(account: &ProviderAccount, model: String) -> ProviderConfig {
 impl PennelEngine {
     #[uniffi::constructor]
     pub fn new(data_dir: String) -> Result<Arc<Self>, PennelError> {
-        let dir = PathBuf::from(data_dir);
-        std::fs::create_dir_all(&dir).map_err(PennelError::storage)?;
-        let settings_path = dir.join("settings.json");
-        let models = ModelStore::new(&dir);
-        let settings = Settings::load(&settings_path)?.normalized_with(&models.downloaded());
-        let history = HistoryStore::open(&dir)?;
-        history.prune(settings.history_retention_days, now_ms())?;
-        Ok(Arc::new(Self {
-            settings_path,
-            settings: RwLock::new(settings),
-            history: Mutex::new(history),
-            models,
-            downloads: Mutex::new(HashMap::new()),
-            local: LocalEngine::default(),
-            index: Mutex::new(open_index(&dir.join("index.sqlite"))),
-            system_stt: RwLock::new(None),
-        }))
+        Self::open(data_dir, false)
+    }
+
+    #[uniffi::constructor]
+    pub fn new_preview(data_dir: String) -> Result<Arc<Self>, PennelError> {
+        Self::open(data_dir, true)
     }
 
     /// Lets the app plug in the OS's on-device recognizer (Apple's dictation model) as a provider.
@@ -139,14 +138,53 @@ impl PennelEngine {
         *self.system_stt.write().unwrap() = Some(transcriber);
     }
 
+    pub fn set_system_language_model(&self, model: Arc<dyn SystemLanguageModel>) {
+        *self.system_llm.write().unwrap() = Some(model);
+    }
+
     pub fn settings(&self) -> Settings {
         self.settings.read().unwrap().clone()
     }
 
-    pub fn update_settings(&self, settings: Settings) -> Result<(), PennelError> {
+    pub fn update_settings(&self, mut settings: Settings) -> Result<(), PennelError> {
+        let _gate = self.meeting_gate.lock().unwrap();
+        if self.preview {
+            enforce_preview_library(
+                self.settings_path.parent().expect("data directory"),
+                &mut settings,
+            )?;
+        }
+        let changing_library = settings.meetings_dir != self.settings.read().unwrap().meetings_dir;
+        if changing_library && self.has_active_session() {
+            return Err(PennelError::Storage {
+                message: "de meetingmap kan pas na het afronden van de opname worden gewijzigd"
+                    .into(),
+            });
+        }
+        let next_lease = if changing_library {
+            let root = library_root(&settings);
+            let canonical = root.canonicalize().unwrap_or_else(|_| root.clone());
+            if self
+                .library_lease
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|(held, _)| *held == canonical)
+            {
+                None
+            } else {
+                let lease = DirectoryLease::acquire_library(&root)?;
+                Some((root.canonicalize().map_err(PennelError::storage)?, lease))
+            }
+        } else {
+            None
+        };
         let settings = settings.normalized_with(&self.models.downloaded());
         settings.save(&self.settings_path)?;
         *self.settings.write().unwrap() = settings;
+        if let Some(lease) = next_lease {
+            *self.library_lease.lock().unwrap() = Some(lease);
+        }
         Ok(())
     }
 
@@ -226,7 +264,7 @@ impl PennelEngine {
         }
         let selection = selection.filter(|s| !s.trim().is_empty());
         let messages = command_messages(&instruction, selection.as_deref(), &settings.dictionary);
-        let output = crate::llm::chat_complete_within(
+        let output = self.complete_llm(
             &endpoint(&llm_account, llm_model),
             llm_key,
             &messages,
@@ -300,16 +338,63 @@ impl PennelEngine {
         self.start_meeting_with(title, Vec::new(), keys)
     }
 
+    /// Check configuration without contacting providers or creating a meeting folder.
+    pub fn validate_meeting_setup(&self, keys: ApiKeys) -> Result<(), PennelError> {
+        let settings = self.settings();
+        let (account, model) = settings
+            .resolve(&settings.meeting_stt)
+            .ok_or(PennelError::NotFound)?;
+        if model.trim().is_empty() || !supports(account.kind, ProviderTask::MeetingStt) {
+            return Err(PennelError::NotFound);
+        }
+        if requires_key(account.kind) && keys.get(&account).is_none() {
+            return Err(PennelError::MissingApiKey {
+                task: "meeting_stt".into(),
+            });
+        }
+        if account.kind == ProviderKind::Local {
+            if self.models.state(&model) != ModelState::Downloaded {
+                return Err(PennelError::ModelNotDownloaded);
+            }
+            if !self
+                .models
+                .local_models(None, false)
+                .iter()
+                .any(|entry| entry.id == model)
+            {
+                return Err(PennelError::NotFound);
+            }
+        }
+        if account.kind == ProviderKind::AppleSpeech && self.system_stt.read().unwrap().is_none() {
+            return Err(PennelError::InvalidResponse {
+                message: "Apple-dicteren is niet beschikbaar op deze computer".into(),
+            });
+        }
+        Ok(())
+    }
+
     pub fn start_meeting_with(
         self: Arc<Self>,
         title: String,
         attendees: Vec<String>,
         keys: ApiKeys,
     ) -> Result<Arc<MeetingSession>, PennelError> {
+        let _gate = self.meeting_gate.lock().unwrap();
+        if self.has_active_session() {
+            return Err(PennelError::Storage {
+                message: "er wordt al een meeting opgenomen of afgerond".into(),
+            });
+        }
+        self.claim_library()?;
         let store = self.meeting_store();
         let id = store.create(&title, chrono::Local::now())?;
         store.set_attendees(&id, &attendees)?;
-        Ok(MeetingSession::start(self.clone(), store, id, keys))
+        let session = MeetingSession::start(self.clone(), store, id, keys);
+        self.active_sessions
+            .lock()
+            .unwrap()
+            .push(Arc::downgrade(&session));
+        Ok(session)
     }
 
     pub fn meetings(&self) -> Vec<MeetingInfo> {
@@ -367,6 +452,13 @@ impl PennelEngine {
         self.meeting_store().read_notes(&id)
     }
 
+    pub fn set_meeting_notes(&self, id: String, text: String) -> Result<(), PennelError> {
+        self.claim_library()?;
+        let store = self.meeting_store();
+        store.info(&id).ok_or(PennelError::NotFound)?;
+        store.write_notes(&id, &text)
+    }
+
     pub fn meeting_markdown(&self, id: String) -> Option<String> {
         self.meeting_store().read_meeting(&id)
     }
@@ -383,14 +475,21 @@ impl PennelEngine {
     }
 
     pub fn rename_meeting(&self, id: String, title: String) -> Result<String, PennelError> {
+        self.claim_library()?;
+        self.ensure_meeting_inactive(&id)?;
         self.meeting_store().rename(&id, &title)
     }
 
     pub fn delete_meeting(&self, id: String) -> Result<(), PennelError> {
+        self.claim_library()?;
+        self.ensure_meeting_inactive(&id)?;
         self.meeting_store().delete(&id)
     }
 
     pub fn prune_meeting_audio(&self) -> u32 {
+        if self.claim_library().is_err() || self.has_active_session() {
+            return 0;
+        }
         let days = self.settings.read().unwrap().meeting_audio_retention_days;
         self.meeting_store()
             .prune_audio(days, std::time::SystemTime::now())
@@ -398,6 +497,8 @@ impl PennelEngine {
 
     /// Retries chunks whose transcription failed during the meeting; returns how many were recovered.
     pub fn retranscribe_failed(&self, id: String, keys: ApiKeys) -> Result<u32, PennelError> {
+        self.claim_library()?;
+        self.ensure_meeting_inactive(&id)?;
         let store = self.meeting_store();
         let settings = self.settings();
         let mut segments = store.read_transcript(&id);
@@ -437,6 +538,9 @@ impl PennelEngine {
         };
         const SUMMARY_TIMEOUT_SECS: u64 = 180;
 
+        self.claim_library()?;
+        self.ensure_meeting_inactive(&id)?;
+
         let store = self.meeting_store();
         let info = store.info(&id).ok_or(PennelError::NotFound)?;
         let notes = store.read_notes(&id);
@@ -453,26 +557,31 @@ impl PennelEngine {
             return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
         let provider = endpoint(&account, model);
-        let ask = |messages: Vec<crate::llm::ChatMessage>| {
-            crate::llm::chat_complete_within(
+        let ask = |messages: &[crate::llm::ChatMessage]| {
+            self.complete_llm(
                 &provider,
                 key,
-                &messages,
+                messages,
                 SUMMARY_TIMEOUT_SECS,
                 Reasoning::Low,
             )
         };
-        let source = if transcript.chars().count() > MAP_REDUCE_ABOVE {
-            blocks(&transcript, BLOCK_CHARS)
-                .iter()
-                .map(|part| ask(chunk_messages(part)))
-                .collect::<Result<Vec<_>, _>>()?
-                .join("\n\n")
-        } else {
-            transcript
-        };
         let spec = self.template_store().spec(&template_id);
-        let body = ask(summary_messages(&spec, &notes, &source))?;
+        let messages = if account.kind == ProviderKind::AppleIntelligence {
+            crate::summary::apple_summary_messages(&spec, &notes, &transcript, ask)?
+        } else {
+            let source = if transcript.chars().count() > MAP_REDUCE_ABOVE {
+                blocks(&transcript, BLOCK_CHARS)
+                    .iter()
+                    .map(|part| ask(&chunk_messages(part)))
+                    .collect::<Result<Vec<_>, _>>()?
+                    .join("\n\n")
+            } else {
+                transcript
+            };
+            summary_messages(&spec, &notes, &source)
+        };
+        let body = ask(&messages)?;
         store.write_meeting(&id, info.duration_min, &template_id, &body)?;
         Ok(body.trim().to_owned())
     }
@@ -502,15 +611,30 @@ impl PennelEngine {
             .with_index(&store, |index| {
                 if let Some(id) = scope {
                     let all = index.recent(&store, Some(id), u32::MAX)?;
-                    if all.iter().map(|p| p.text.len()).sum::<usize>() <= WHOLE_MEETING_CHARS {
+                    let whole_fits = if account.kind == ProviderKind::AppleIntelligence {
+                        system_llm::input_bytes(&chat_messages(&question, &history, &all))
+                            <= system_llm::APPLE_INPUT_BYTES
+                    } else {
+                        all.iter().map(|p| p.text.len()).sum::<usize>() <= WHOLE_MEETING_CHARS
+                    };
+                    if whole_fits {
                         return Ok(all);
+                    }
+                    let found = index.search_any(&store, &terms, Some(id), MEETING_PASSAGES)?;
+                    if account.kind == ProviderKind::AppleIntelligence {
+                        let mut picked = if found.is_empty() {
+                            index.recent(&store, Some(id), MEETING_PASSAGES)?
+                        } else {
+                            found
+                        };
+                        picked.extend(all.into_iter().filter(|p| p.kind == PassageKind::Summary));
+                        return Ok(picked);
                     }
                     let mut picked: Vec<Passage> = all
                         .iter()
                         .filter(|p| p.kind == PassageKind::Summary)
                         .cloned()
                         .collect();
-                    let found = index.search_any(&store, &terms, Some(id), MEETING_PASSAGES)?;
                     picked.extend(if found.is_empty() {
                         index.recent(&store, Some(id), MEETING_PASSAGES)?
                     } else {
@@ -528,10 +652,15 @@ impl PennelEngine {
             .ok_or(PennelError::Storage {
                 message: "zoekindex niet beschikbaar".into(),
             })?;
-        let answer = crate::llm::chat_complete_within(
+        let (messages, sources) = if account.kind == ProviderKind::AppleIntelligence {
+            apple_chat_messages(&question, &history, &sources)?
+        } else {
+            (chat_messages(&question, &history, &sources), sources)
+        };
+        let answer = self.complete_llm(
             &endpoint(&account, model),
             key,
-            &chat_messages(&question, &history, &sources),
+            &messages,
             ASK_TIMEOUT_SECS,
             Reasoning::Low,
         )?;
@@ -563,6 +692,8 @@ impl PennelEngine {
     /// Splits the meeting's "Anderen" segments into voices from the full others-track (16 kHz mono);
     /// returns how many voices were found.
     pub fn diarize_meeting(&self, id: String, samples: Vec<f32>) -> Result<u32, PennelError> {
+        self.claim_library()?;
+        self.ensure_meeting_inactive(&id)?;
         let path = self
             .models
             .path(crate::models::DIARIZER_ID)
@@ -587,11 +718,23 @@ impl PennelEngine {
         self.meeting_store().attendees(&id)
     }
 
+    pub fn set_meeting_attendees(
+        &self,
+        id: String,
+        attendees: Vec<String>,
+    ) -> Result<(), PennelError> {
+        self.claim_library()?;
+        let store = self.meeting_store();
+        store.info(&id).ok_or(PennelError::NotFound)?;
+        store.set_attendees(&id, &attendees)
+    }
+
     pub fn meeting_speakers(&self, id: String) -> Vec<SpeakerName> {
         self.meeting_store().speaker_names(&id)
     }
 
     pub fn rename_speaker(&self, id: String, voice: u32, name: String) -> Result<(), PennelError> {
+        self.claim_library()?;
         self.meeting_store().rename_speaker(&id, voice, &name)
     }
 
@@ -609,10 +752,12 @@ impl PennelEngine {
         name: String,
         body: String,
     ) -> Result<String, PennelError> {
+        self.claim_library()?;
         self.template_store().save(id.as_deref(), &name, &body)
     }
 
     pub fn delete_template(&self, id: String) -> Result<(), PennelError> {
+        self.claim_library()?;
         self.template_store().delete(&id)
     }
 
@@ -655,7 +800,7 @@ impl PennelEngine {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct LibrarySearch {
     pub meetings: Vec<MeetingInfo>,
     pub passages: Vec<Passage>,
@@ -668,6 +813,36 @@ fn home_dir() -> PathBuf {
         .unwrap_or_default()
 }
 
+fn library_root(settings: &Settings) -> PathBuf {
+    if settings.meetings_dir.is_empty() {
+        home_dir().join("Pennel")
+    } else {
+        PathBuf::from(&settings.meetings_dir)
+    }
+}
+
+fn enforce_preview_library(
+    data_dir: &std::path::Path,
+    settings: &mut Settings,
+) -> Result<(), PennelError> {
+    let expected = data_dir.join("Meetings");
+    if (!settings.meetings_dir.is_empty()
+        && std::path::Path::new(&settings.meetings_dir) != expected.as_path())
+        || expected
+            .symlink_metadata()
+            .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return Err(PennelError::Storage { message: "de preview gebruikt uitsluitend de eigen Meetings-map; externe meetingmappen zijn niet toegestaan".into() });
+    }
+    settings.meetings_dir = expected.to_string_lossy().into_owned();
+    Ok(())
+}
+
+fn engines() -> &'static Mutex<HashMap<PathBuf, Weak<PennelEngine>>> {
+    static ENGINES: OnceLock<Mutex<HashMap<PathBuf, Weak<PennelEngine>>>> = OnceLock::new();
+    ENGINES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
     MeetingIndex::open(path).ok().or_else(|| {
         let _ = std::fs::remove_file(path);
@@ -676,6 +851,103 @@ fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
 }
 
 impl PennelEngine {
+    fn open(data_dir: String, preview: bool) -> Result<Arc<Self>, PennelError> {
+        let dir = PathBuf::from(data_dir);
+        std::fs::create_dir_all(&dir).map_err(PennelError::storage)?;
+        let dir = dir.canonicalize().map_err(PennelError::storage)?;
+        let mut registry = engines().lock().unwrap();
+        if let Some(engine) = registry.get(&dir).and_then(Weak::upgrade) {
+            if engine.preview != preview {
+                return Err(PennelError::Storage {
+                    message: "deze gegevensmap is al met een ander Pennel-profiel geopend".into(),
+                });
+            }
+            return Ok(engine);
+        }
+        registry.retain(|_, engine| engine.strong_count() > 0);
+        let mut storage = StartupStorage::prepare(&dir)?;
+        let settings_path = dir.join("settings.json");
+        let models = ModelStore::new(&dir);
+        let mut settings =
+            Settings::load_strict(&settings_path)?.normalized_with(&models.downloaded());
+        if preview {
+            enforce_preview_library(&dir, &mut settings)?;
+        }
+        let root = library_root(&settings);
+        let library_lease = if (settings_path.exists() && root.exists()) || preview {
+            let lease = DirectoryLease::acquire_library(&root)?;
+            Some((root.canonicalize().map_err(PennelError::storage)?, lease))
+        } else {
+            None
+        };
+        let history = HistoryStore::open(&dir)?;
+        let index = open_index(&dir.join("index.sqlite"));
+        storage.finish()?;
+        history.prune(settings.history_retention_days, now_ms())?;
+        let engine = Arc::new(Self {
+            settings_path,
+            settings: RwLock::new(settings),
+            history: Mutex::new(history),
+            models,
+            downloads: Mutex::new(HashMap::new()),
+            local: LocalEngine::default(),
+            index: Mutex::new(index),
+            system_stt: RwLock::new(None),
+            system_llm: RwLock::new(None),
+            meeting_gate: Mutex::new(()),
+            active_sessions: Mutex::new(Vec::new()),
+            library_lease: Mutex::new(library_lease),
+            preview,
+            _storage: storage,
+        });
+        registry.insert(dir, Arc::downgrade(&engine));
+        Ok(engine)
+    }
+
+    fn has_active_session(&self) -> bool {
+        let mut sessions = self.active_sessions.lock().unwrap();
+        sessions.retain(|session| session.strong_count() > 0);
+        sessions
+            .iter()
+            .filter_map(Weak::upgrade)
+            .any(|session| !session.is_finalized())
+    }
+
+    fn ensure_meeting_inactive(&self, id: &str) -> Result<(), PennelError> {
+        if self
+            .active_sessions
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .any(|session| session.id() == id && !session.is_finalized())
+        {
+            return Err(PennelError::Storage {
+                message: "de meeting wordt nog opgenomen of afgerond".into(),
+            });
+        }
+        Ok(())
+    }
+
+    fn claim_library(&self) -> Result<(), PennelError> {
+        let mut settings = self.settings();
+        if self.preview {
+            enforce_preview_library(
+                self.settings_path.parent().expect("data directory"),
+                &mut settings,
+            )?;
+        }
+        let root = library_root(&settings);
+        let canonical = root.canonicalize().unwrap_or_else(|_| root.clone());
+        let mut held = self.library_lease.lock().unwrap();
+        if held.as_ref().is_some_and(|(path, _)| *path == canonical) {
+            return Ok(());
+        }
+        let lease = DirectoryLease::acquire_library(&root)?;
+        *held = Some((root.canonicalize().map_err(PennelError::storage)?, lease));
+        Ok(())
+    }
+
     /// Syncs the index with the meeting files first; `None` when the index is unavailable.
     pub(crate) fn with_index<T>(
         &self,
@@ -704,9 +976,29 @@ impl PennelEngine {
         }
         let (text, cleanup) = match settings.mode {
             DictationMode::Fast => (raw.clone(), CleanupStatus::Skipped),
-            DictationMode::Clean => clean(settings, &raw, app, keys),
+            DictationMode::Clean => clean(self, settings, &raw, app, keys),
         };
         Ok(Transcript { raw, text, cleanup })
+    }
+
+    fn complete_llm(
+        &self,
+        provider: &ProviderConfig,
+        key: Option<&str>,
+        messages: &[crate::llm::ChatMessage],
+        timeout_secs: u64,
+        reasoning: Reasoning,
+    ) -> Result<String, PennelError> {
+        if !supports(provider.kind, ProviderTask::Llm) {
+            return Err(PennelError::InvalidResponse {
+                message: "Deze provider ondersteunt geen tekstverwerking.".into(),
+            });
+        }
+        if provider.kind == ProviderKind::AppleIntelligence {
+            let model = self.system_llm.read().unwrap().clone();
+            return system_llm::complete(model.as_deref(), messages, timeout_secs);
+        }
+        crate::llm::chat_complete_within(provider, key, messages, timeout_secs, reasoning)
     }
 
     /// Speech-to-text for one WAV via the provider in `choice`, cloud or local.
@@ -785,6 +1077,7 @@ impl PennelEngine {
 }
 
 fn clean(
+    engine: &PennelEngine,
     settings: &Settings,
     raw: &str,
     app: Option<&str>,
@@ -809,7 +1102,7 @@ fn clean(
     }
     let style = resolve_style(app, &settings.style_rules);
     let messages = cleanup_messages(raw, style, &settings.dictionary);
-    match crate::llm::chat_complete_within(
+    match engine.complete_llm(
         &endpoint(&account, model),
         key,
         &messages,
@@ -1131,6 +1424,221 @@ mod tests {
     }
 
     #[test]
+    fn opening_a_data_directory_twice_reuses_its_engine() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let first = PennelEngine::new(path.clone()).unwrap();
+        let second = PennelEngine::new(path).unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+    }
+
+    #[test]
+    fn preview_meetings_stay_inside_the_preview_data_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = PennelEngine::new_preview(dir.path().to_string_lossy().into_owned()).unwrap();
+        assert_eq!(
+            PathBuf::from(engine.settings().meetings_dir),
+            dir.path().canonicalize().unwrap().join("Meetings")
+        );
+        let mut settings = engine.settings();
+        settings.meetings_dir.clear();
+        engine.update_settings(settings).unwrap();
+        assert_eq!(
+            PathBuf::from(engine.settings().meetings_dir),
+            dir.path().canonicalize().unwrap().join("Meetings")
+        );
+        assert!(PennelEngine::new(dir.path().to_string_lossy().into_owned()).is_err());
+    }
+
+    #[test]
+    fn preview_rejects_saved_external_library_before_touching_it() {
+        let data = tempfile::tempdir().unwrap();
+        let external = tempfile::tempdir().unwrap();
+        let marker = external.path().join("meeting.md");
+        std::fs::write(&marker, "bestaande echte meeting").unwrap();
+        let mut settings = crate::default_settings();
+        settings.meetings_dir = external.path().to_string_lossy().into_owned();
+        settings.save(&data.path().join("settings.json")).unwrap();
+        let before = std::fs::read(data.path().join("settings.json")).unwrap();
+        assert!(PennelEngine::new_preview(data.path().to_string_lossy().into_owned()).is_err());
+        assert_eq!(
+            std::fs::read(data.path().join("settings.json")).unwrap(),
+            before
+        );
+        assert_eq!(
+            std::fs::read_to_string(marker).unwrap(),
+            "bestaande echte meeting"
+        );
+        assert!(!external.path().join(".pennel-library.lock").exists());
+        assert!(!external.path().join("transcript.md").exists());
+    }
+
+    #[test]
+    fn preview_rejects_external_library_updates_without_creating_a_folder() {
+        let data = tempfile::tempdir().unwrap();
+        let external = tempfile::tempdir().unwrap();
+        let untouched = external.path().join("production-meetings");
+        let engine = PennelEngine::new_preview(data.path().to_string_lossy().into_owned()).unwrap();
+        let original = engine.settings();
+        let mut settings = original.clone();
+        settings.meetings_dir = untouched.to_string_lossy().into_owned();
+        assert!(engine.update_settings(settings).is_err());
+        assert_eq!(engine.settings(), original);
+        assert!(!untouched.exists());
+        assert!(!data.path().join("settings.json").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn preview_rejects_a_meetings_symlink_into_real_data() {
+        let data = tempfile::tempdir().unwrap();
+        let external = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(external.path(), data.path().join("Meetings")).unwrap();
+        assert!(PennelEngine::new_preview(data.path().to_string_lossy().into_owned()).is_err());
+        assert!(!external.path().join(".pennel-library.lock").exists());
+        assert_eq!(std::fs::read_dir(external.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn meeting_preflight_checks_cloud_key_without_network_or_meeting_files() {
+        let data = tempfile::tempdir().unwrap();
+        let engine = PennelEngine::new_preview(data.path().to_string_lossy().into_owned()).unwrap();
+        let mut settings = engine.settings();
+        settings.providers[0].base_url = "http://127.0.0.1:1".into();
+        engine.update_settings(settings).unwrap();
+        assert_eq!(
+            engine.validate_meeting_setup(ApiKeys {
+                by_provider: HashMap::new()
+            }),
+            Err(PennelError::MissingApiKey {
+                task: "meeting_stt".into()
+            })
+        );
+        assert_eq!(engine.validate_meeting_setup(keys()), Ok(()));
+        assert!(engine.meetings().is_empty());
+    }
+
+    #[test]
+    fn meeting_preflight_rejects_empty_models_and_llm_only_providers() {
+        let data = tempfile::tempdir().unwrap();
+        let engine = PennelEngine::new_preview(data.path().to_string_lossy().into_owned()).unwrap();
+        let mut settings = engine.settings();
+        settings.meeting_stt.model.clear();
+        engine.update_settings(settings.clone()).unwrap();
+        assert_eq!(
+            engine.validate_meeting_setup(keys()),
+            Err(PennelError::NotFound)
+        );
+        let agent = crate::new_account(ProviderKind::ClaudeCode, settings.providers.clone());
+        settings.meeting_stt = ModelChoice {
+            provider_id: agent.id.clone(),
+            model: "haiku".into(),
+        };
+        settings.providers.push(agent);
+        engine.update_settings(settings).unwrap();
+        assert_eq!(
+            engine.validate_meeting_setup(keys()),
+            Err(PennelError::NotFound)
+        );
+    }
+
+    #[test]
+    fn meeting_preflight_requires_a_downloaded_local_speech_model() {
+        let data = tempfile::tempdir().unwrap();
+        let engine = PennelEngine::new_preview(data.path().to_string_lossy().into_owned()).unwrap();
+        let mut settings = engine.settings();
+        settings.meeting_stt = ModelChoice {
+            provider_id: "local".into(),
+            model: "whisper-small-q5_1".into(),
+        };
+        engine.update_settings(settings).unwrap();
+        assert_eq!(
+            engine.validate_meeting_setup(keys()),
+            Err(PennelError::ModelNotDownloaded)
+        );
+        std::fs::create_dir_all(data.path().join("models")).unwrap();
+        std::fs::write(
+            data.path().join("models/whisper-small-q5_1.bin"),
+            b"fixture, never loaded",
+        )
+        .unwrap();
+        assert_eq!(
+            engine.validate_meeting_setup(ApiKeys {
+                by_provider: HashMap::new()
+            }),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn meeting_preflight_checks_system_provider_registration_without_transcribing() {
+        struct System(std::sync::atomic::AtomicBool);
+        impl SystemTranscriber for System {
+            fn transcribe(
+                &self,
+                _: Vec<f32>,
+                _: u32,
+                _: Option<String>,
+            ) -> Result<String, PennelError> {
+                self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(String::new())
+            }
+        }
+        let data = tempfile::tempdir().unwrap();
+        let engine = PennelEngine::new_preview(data.path().to_string_lossy().into_owned()).unwrap();
+        let mut settings = engine.settings();
+        let apple = crate::new_account(ProviderKind::AppleSpeech, settings.providers.clone());
+        settings.meeting_stt = ModelChoice {
+            provider_id: apple.id.clone(),
+            model: "dictation".into(),
+        };
+        settings.providers.push(apple);
+        engine.update_settings(settings).unwrap();
+        assert!(matches!(
+            engine.validate_meeting_setup(keys()),
+            Err(PennelError::InvalidResponse { .. })
+        ));
+        let transcriber = Arc::new(System(std::sync::atomic::AtomicBool::new(false)));
+        engine.set_system_transcriber(transcriber.clone());
+        assert_eq!(
+            engine.validate_meeting_setup(ApiKeys {
+                by_provider: HashMap::new()
+            }),
+            Ok(())
+        );
+        assert!(!transcriber.0.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn invalid_existing_settings_are_backed_up_without_resetting() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "{invalid settings").unwrap();
+        assert!(PennelEngine::new(dir.path().to_string_lossy().into_owned()).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{invalid settings");
+        assert!(!dir.path().join("settings.corrupt.json").exists());
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("migration-backup-v1/settings.json")).unwrap(),
+            "{invalid settings"
+        );
+    }
+
+    #[test]
+    fn startup_snapshot_precedes_retention_of_existing_history() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HistoryStore::open(dir.path()).unwrap();
+        let id = store
+            .insert_failed(None, b"retry audio", "offline", 0)
+            .unwrap();
+        drop(store);
+        let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        assert!(engine.history(10).unwrap().is_empty());
+        let backup = HistoryStore::open(&dir.path().join("migration-backup-v1")).unwrap();
+        assert_eq!(backup.list(10).unwrap().len(), 1);
+        assert_eq!(backup.failed_audio(&id).unwrap(), b"retry audio");
+    }
+
+    #[test]
     fn local_vocabulary_is_capped() {
         let terms: Vec<String> = (0..300).map(|i| format!("term{i:03}")).collect();
         let capped = capped_terms(&terms, MAX_PROMPT_CHARS);
@@ -1372,5 +1880,269 @@ mod tests {
         engine.set_system_transcriber(Arc::new(EchoLength));
         let result = engine.dictate(request(speech(), None)).unwrap();
         assert_eq!(result.text, "16000 samples at 16000 Hz in nl");
+    }
+
+    #[test]
+    fn apple_intelligence_cleanup_uses_only_the_registered_system_model() {
+        struct System;
+        impl crate::SystemLanguageModel for System {
+            fn complete(
+                &self,
+                messages: Vec<crate::LanguageModelMessage>,
+                timeout_secs: u64,
+            ) -> Result<String, PennelError> {
+                assert_eq!(messages[0].role, "system");
+                assert!(messages[1].content.contains("euh ik kom morgen"));
+                assert!(timeout_secs > 0);
+                Ok("Ik kom morgen.".into())
+            }
+        }
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        stt(&mut server, "euh ik kom morgen");
+        let no_http = llm(&mut server, "unwanted HTTP").expect(0);
+        let mut settings = engine.settings();
+        let mut apple =
+            crate::new_account(ProviderKind::AppleIntelligence, settings.providers.clone());
+        apple.base_url = server.url();
+        settings.llm = ModelChoice {
+            provider_id: apple.id.clone(),
+            model: "system".into(),
+        };
+        settings.providers.push(apple);
+        engine.update_settings(settings).unwrap();
+        let missing = engine.dictate(request(speech(), None)).unwrap();
+        assert_eq!(missing.text, "euh ik kom morgen");
+        assert!(matches!(missing.cleanup, CleanupStatus::Failed { .. }));
+        engine.set_system_language_model(Arc::new(System));
+        let result = engine.dictate(request(speech(), None)).unwrap();
+        assert_eq!(result.text, "Ik kom morgen.");
+        assert_eq!(result.cleanup, CleanupStatus::Applied);
+        no_http.assert();
+    }
+
+    struct SystemText {
+        output: String,
+        calls: Mutex<Vec<Vec<crate::LanguageModelMessage>>>,
+    }
+
+    impl crate::SystemLanguageModel for SystemText {
+        fn complete(
+            &self,
+            messages: Vec<crate::LanguageModelMessage>,
+            _: u64,
+        ) -> Result<String, PennelError> {
+            assert!(
+                messages
+                    .iter()
+                    .map(|message| message.content.len() + 64)
+                    .sum::<usize>()
+                    <= system_llm::APPLE_INPUT_BYTES
+            );
+            self.calls.lock().unwrap().push(messages);
+            Ok(self.output.clone())
+        }
+    }
+
+    fn use_apple_intelligence(engine: &PennelEngine, output: &str) -> Arc<SystemText> {
+        let mut settings = engine.settings();
+        let mut apple =
+            crate::new_account(ProviderKind::AppleIntelligence, settings.providers.clone());
+        // Even a populated URL must not turn a system provider into a network request.
+        apple.base_url = settings.providers[0].base_url.clone();
+        settings.llm = ModelChoice {
+            provider_id: apple.id.clone(),
+            model: "system".into(),
+        };
+        settings.providers.push(apple);
+        engine.update_settings(settings).unwrap();
+        let model = Arc::new(SystemText {
+            output: output.into(),
+            calls: Mutex::new(Vec::new()),
+        });
+        engine.set_system_language_model(model.clone());
+        model
+    }
+
+    #[test]
+    fn apple_intelligence_command_uses_the_system_model_without_http() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        let model = use_apple_intelligence(&engine, "Beste Jan, ik kom morgen.");
+        let no_http = llm(&mut server, "unwanted HTTP").expect(0);
+        stt(&mut server, "maak hier een mail van");
+        let result = engine
+            .command(request(speech(), None), Some("ik kom morgen".into()))
+            .unwrap();
+        assert_eq!(result.text, model.output);
+        let calls = model.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0][1].content.contains("ik kom morgen"));
+        no_http.assert();
+    }
+
+    #[test]
+    fn apple_intelligence_summary_and_cited_chat_use_the_system_model() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        let model = use_apple_intelligence(&engine, "Gent [1].");
+        let no_http = llm(&mut server, "unwanted HTTP").expect(0);
+        let id = add_meeting(&engine, "Sync", 9, "we verhuizen naar Gent");
+        let body = engine
+            .summarize_meeting(
+                id.clone(),
+                "algemeen".into(),
+                ApiKeys {
+                    by_provider: HashMap::new(),
+                },
+            )
+            .unwrap();
+        assert_eq!(body, "Gent [1].");
+        assert!(engine.meeting_info(id.clone()).unwrap().has_summary);
+        let answer = engine
+            .ask_meetings(
+                "Waar verhuizen we?".into(),
+                vec![],
+                Some(id),
+                ApiKeys {
+                    by_provider: HashMap::new(),
+                },
+            )
+            .unwrap();
+        assert_eq!(answer.text, "Gent [1].");
+        assert_eq!(answer.citations.len(), 1);
+        assert!(answer.citations[0].passage.text.contains("Gent"));
+        assert_eq!(model.calls.lock().unwrap().len(), 2);
+        no_http.assert();
+    }
+
+    #[test]
+    fn apple_intelligence_oversized_cleanup_preserves_the_entire_raw_dictation() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        let model = use_apple_intelligence(&engine, "must not be called");
+        let raw = "veel tekst ".repeat(1_000);
+        stt(&mut server, &raw);
+        let result = engine.dictate(request(speech(), None)).unwrap();
+        assert_eq!(result.text, raw.trim());
+        assert!(
+            matches!(result.cleanup, CleanupStatus::Failed { message } if message.contains("te lang voor Apple Intelligence"))
+        );
+        assert!(model.calls.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn apple_intelligence_errors_do_not_write_partial_summaries_or_reach_http() {
+        struct Unavailable;
+        impl crate::SystemLanguageModel for Unavailable {
+            fn complete(
+                &self,
+                _: Vec<crate::LanguageModelMessage>,
+                _: u64,
+            ) -> Result<String, PennelError> {
+                Err(PennelError::InvalidResponse {
+                    message: "Apple Intelligence wordt nog gedownload.".into(),
+                })
+            }
+        }
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        use_apple_intelligence(&engine, "unused");
+        engine.set_system_language_model(Arc::new(Unavailable));
+        let no_http = llm(&mut server, "unwanted HTTP").expect(0);
+        let id = add_meeting(&engine, "Sync", 9, "het budget is goedgekeurd");
+        let store = engine.meeting_store();
+        store
+            .write_meeting(&id, 30, "algemeen", "Bestaande samenvatting")
+            .unwrap();
+        let original = store.read_meeting(&id).unwrap();
+        let error = engine
+            .summarize_meeting(
+                id.clone(),
+                "algemeen".into(),
+                ApiKeys {
+                    by_provider: HashMap::new(),
+                },
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("nog gedownload"));
+        assert_eq!(store.read_meeting(&id).unwrap(), original);
+        no_http.assert();
+    }
+
+    #[test]
+    fn apple_intelligence_long_meetings_use_smaller_maps_and_retrieved_chat_sources() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        let model = use_apple_intelligence(&engine, &"Compacte samenvatting. ".repeat(50));
+        let no_http = llm(&mut server, "unwanted HTTP").expect(0);
+        let id = add_meeting(&engine, "Lang", 9, "placeholder");
+        let store = engine.meeting_store();
+        let segments = (0..100)
+            .map(|n| crate::Segment {
+                start_ms: n * 1_000,
+                end_ms: n * 1_000 + 500,
+                speaker: crate::Speaker::Others,
+                text: if n == 0 {
+                    "het sleutelbudget is twintig euro".into()
+                } else {
+                    "andere bespreking ".repeat(50)
+                },
+                failed: false,
+                voice: None,
+            })
+            .collect::<Vec<_>>();
+        store.write_transcript(&id, &segments).unwrap();
+        let keys = ApiKeys {
+            by_provider: HashMap::new(),
+        };
+        engine
+            .summarize_meeting(id.clone(), "algemeen".into(), keys.clone())
+            .unwrap();
+        let summary_calls = model.calls.lock().unwrap().len();
+        assert!(
+            summary_calls > 3,
+            "the Apple budget must force multiple map and reduction calls"
+        );
+        engine
+            .ask_meetings("Wat is het sleutelbudget?".into(), vec![], Some(id), keys)
+            .unwrap();
+        let calls = model.calls.lock().unwrap();
+        let question = calls.last().unwrap();
+        assert!(
+            question[1]
+                .content
+                .contains("sleutelbudget is twintig euro")
+        );
+        assert!(question[1].content.contains("[1]"));
+        assert_eq!(calls.len(), summary_calls + 1);
+        no_http.assert();
+    }
+
+    #[test]
+    fn apple_intelligence_model_registration_is_isolated_per_engine() {
+        let (a, b, server) = (
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+            mockito::Server::new(),
+        );
+        let first = meeting_engine(&a, &server);
+        let second = meeting_engine(&b, &server);
+        use_apple_intelligence(&first, "eerste");
+        use_apple_intelligence(&second, "tweede");
+        let id_a = add_meeting(&first, "Eerste", 9, "test");
+        let id_b = add_meeting(&second, "Tweede", 9, "test");
+        assert_eq!(
+            first
+                .summarize_meeting(id_a, "algemeen".into(), keys())
+                .unwrap(),
+            "eerste"
+        );
+        assert_eq!(
+            second
+                .summarize_meeting(id_b, "algemeen".into(), keys())
+                .unwrap(),
+            "tweede"
+        );
     }
 }

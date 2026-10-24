@@ -17,14 +17,14 @@ struct ModelsPane: View {
             TaskModelEditor(
                 state: state,
                 title: "Opkuisen en samenvatten",
-                subtitle: "Taalmodel dat je dictaten opkuist en later meetings samenvat.",
+                subtitle: "Taalmodel dat je dictaten opkuist en meetings samenvat.",
                 task: .llm,
                 choice: $state.settings.llm
             )
             TaskModelEditor(
                 state: state,
                 title: "Meetings",
-                subtitle: "Spraak naar tekst voor opgenomen meetings (komt in een volgende versie).",
+                subtitle: "Spraak naar tekst voor opgenomen meetings.",
                 task: .meetingStt,
                 choice: $state.settings.meetingStt
             )
@@ -44,7 +44,7 @@ private struct TaskModelEditor: View {
         PaneSection(title: title, subtitle: subtitle) {
             FieldRow(label: "Provider") {
                 Picker("", selection: providerBinding) {
-                    ForEach(candidates, id: \.id) { Text($0.name).tag($0.id) }
+                    ForEach(candidates, id: \.id) { Text($0.name).tag($0.id).disabled(!$0.kind.isPlatformSupported) }
                 }
                 .labelsHidden()
                 .frame(maxWidth: 240)
@@ -53,6 +53,12 @@ private struct TaskModelEditor: View {
             FieldRow(label: "Model") {
                 if account?.kind == .local {
                     localPicker
+                } else if account?.kind == .appleSpeech {
+                    Text("macOS beheert het dicteermodel en de taalbestanden.")
+                        .font(.figtree(12)).foregroundStyle(Theme.muted)
+                } else if account?.kind == .appleIntelligence {
+                    Text("macOS beheert het ingebouwde taalmodel van Apple Intelligence.")
+                        .font(.figtree(12)).foregroundStyle(Theme.muted)
                 } else {
                     TextField(account.map { defaultModel(kind: $0.kind, task: task) } ?? "model", text: $choice.model)
                         .textFieldStyle(.roundedBorder)
@@ -61,6 +67,9 @@ private struct TaskModelEditor: View {
                         RemoteModelPicker(models: available, task: task, selection: $choice.model)
                     }
                 }
+            }
+            if account?.kind == .appleIntelligence, let reason = FoundationLanguageModel.availability().reason {
+                Text(reason).font(.figtree(12)).foregroundStyle(Theme.muted)
             }
             if account?.kind != .local, isRouterModel(id: choice.model) {
                 Text("Kiest per aanvraag een willekeurig model — opkuisen wordt onbetrouwbaar.")

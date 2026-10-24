@@ -1,176 +1,136 @@
-# Pennel for Windows and Linux
+# Shared Pennel desktop app
 
-`apps/desktop/` is a Tauri v2 app: a Rust backend that links `pennel-core` directly and a small
-Vite + TypeScript webview (no framework, ~20 kB of JS). The Mac app stays the native Swift app; the
-desktop app reuses the same core for transcription, cleanup, commands, history, local models and
-meetings, and ports only the platform glue.
+`apps/desktop/` hosts one Tauri 2 application for Mac, Windows and Linux. Its TypeScript/Vite interface links through Rust commands to one `PennelEngine`. The native Mac presentation remains a comparison/recovery build during migration; it is not the shared application's host.
 
-## Architecture
+The interface includes library/search/chat, live and completed meetings, notes/transcript/questions, speaker naming/recognition, templates, exports, history, onboarding, recording prompt and the dictation pill. Settings retain this order and Dutch copy: **Providers, Modellen, Dicteren, Meetings, Opnemen, Woordenlijst, Stijlen**. Platform-specific features remain visible with capability/permission explanations.
 
+## Architecture and lifetime
+
+| Layer | Responsibility |
+| --- | --- |
+| `core/` | Providers, processing, gestures/paste ordering, call debounce/rules, recording lifecycle, timestamped ingestion, stores, models, search/chat/templates/diarization/export |
+| Tauri Rust host | One engine, application/background lifetime, command/event contracts, recording and dictation workers, native adapters, window/tray management and updates |
+| Shared TypeScript views | Render snapshots and send explicit actions; no microphone capture or credential persistence |
+| `apps/macos-platform/` | Swift/Core Audio/AVFoundation/Accessibility/EventKit/Apple Speech/Foundation Models behind an owned C ABI |
+| Windows adapters | Win32 keyboard/clipboard/window services, WASAPI/audio sessions, Media Foundation AAC and endpoint-dependent echo processing |
+| Linux adapters | X11 hooks/context, PulseAudio/PipeWire metadata and monitor capture, fixed GStreamer AAC pipelines, Wayland clipboard delivery |
+
+The runtime survives window closing/reopening. Secondary windows are created on demand. Audio passes directly from native capture into Rust as 16 kHz mono Float32, with one recording timeline and interruption gaps. JavaScript receives state, levels, progress and transcript updates. The Swift library has no SwiftUI or embedded Rust core; [its bridge documentation](../apps/macos-platform/README.md) describes ownership and main-queue requirements.
+
+Recording uses `idle → starting → recording → stopping → finalizing → idle/error`. The runtime rejects concurrent starts and meeting-folder changes while active, and session identifiers protect newer meetings from older completions. Automatic call detection samples activity every two seconds, requires a sustained five-second candidate, and ends after thirty seconds without microphone activity. It stops only recordings associated with that detected call. The recording prompt expires after sixty seconds.
+
+## Platform behavior
+
+| Capability | macOS | Windows | Linux X11 | Linux Wayland |
+| --- | --- | --- | --- | --- |
+| Dictation trigger | Fn/right modifiers, native event tap | Right Ctrl/Alt or Ctrl+Super hook | Same gestures through XRecord | Configured compositor shortcut invokes manual toggle |
+| Record shortcut | ⌘⇧R native tap | Ctrl+Shift+R registration | Ctrl+Shift+R registration | Configured shortcut invokes meeting toggle |
+| Selection/insertion | Accessibility, guarded copy fallback, ⌘V | Guarded copy, foreground PID checks, SendInput | Guarded copy/paste, X11 foreground context | Copy result and paste manually; selection reading unavailable |
+| Call observations | Core Audio process activity + browser titles | Audio sessions/process trees + browser titles | PulseAudio/PipeWire metadata + X11 browser titles | Native call-app metadata; browser classification unavailable |
+| Meeting audio | AVAudioEngine + Core Audio process tap | Microphone + WASAPI loopback | Microphone + PulseAudio/PipeWire monitor | Same audio-server capture, subject to device access |
+| Echo processing | Apple voice processing and existing fallbacks | Available endpoint effects; runtime probe | Unavailable; use headphones | Unavailable; use headphones |
+| Calendar / Apple Speech | EventKit / macOS 26+ speech | Visible but unavailable | Visible but unavailable | Visible but unavailable |
+| Apple Intelligence text model | On-device Foundation Models on eligible macOS 26+ Macs; live availability check | Visible but unavailable | Visible but unavailable | Visible but unavailable |
+| M4A archive/playback/diarization | AVFoundation | Media Foundation decode/encode, native output | GStreamer AAC plus native output | Same codec support, subject to installed helpers |
+
+This table describes implemented paths, not completed hardware certification. Call classification is heuristic. Safari/WebKit attribution, app helper variants, device routes and real meetings remain acceptance cases.
+
+### Built-in Apple models
+
+In **Providers → Provider toevoegen**, add **Apple-dicteren** for dictation/meeting transcription and **Apple Intelligence** for cleanup, commands, summaries and meeting questions. Neither account has an API key or server URL. The provider actions assign the relevant model slots; the **Modellen** tab shows macOS-managed models without an editable model name. Speech permission is requested explicitly from the Apple-dicteren card. macOS manages speech-language assets and may install them on first use.
+
+Apple Intelligence uses `FoundationModels.SystemLanguageModel.default` on the device, with a fresh session and no tools. Device eligibility, Apple Intelligence being disabled and models still preparing are reported in Dutch; **Controleer beschikbaarheid** rechecks that status. Pennel does not switch to a cloud provider when the model is unavailable. Windows and Linux keep the Apple choices visible but disabled with their macOS requirement. Foundation Models is weak-linked so the app retains its macOS 14.4 minimum; the model itself requires macOS 26 or newer.
+
+The shared core applies a smaller prompt budget for Apple Intelligence. Long transcripts use repeated map/reduce, while meeting questions select relevant sources and preserve the numbering of the sources actually supplied. Oversized notes, templates or dictation receive an explicit length error instead of losing text. Native generation checks the exact token count on macOS 26.4 and newer, reserves response space and applies the request timeout. Existing cleanup recovery retains the raw dictation when processing fails.
+
+### Hotkeys and clipboard
+
+Hold to talk, double-tap for hands-free, press again to submit, and use Shift for commands. Modifier use interrupts hold-to-talk. A command's foreground PID is checked before selection and before delivery; the paste queue preserves recording order.
+
+Mac snapshot/restore preserves pasteboard representations. Windows preserves native clipboard formats, excludes dictated text from clipboard history/cloud clipboard, and detects concurrent user copies. Elevated Windows applications can block synthetic input through UIPI. Linux X11 restores text or one image; rich export does not imply preservation of every prior clipboard format. Paste delivery errors are reported rather than silently treated as success.
+
+The pill and recording prompt use platform no-activation behavior; the pill is click-through. Mac uses an NSPanel without replacing the Tauri window's class. Full-screen, Spaces, mixed-DPI/multi-monitor placement and real foreground focus require packaged desktop tests.
+
+### Linux X11 and Wayland
+
+X11 uses XRecord for dictation gestures, XTest for synthetic keys and `xprop` for active-window/application context. It requires an accessible X11 session. Wayland deliberately disables those paths even when XWayland is also present.
+
+Configure desktop shortcuts for these commands:
+
+```sh
+pennel --toggle-dictation
+pennel --toggle-meeting
 ```
-apps/desktop/
-  index.html, pill.html, src/        webview: settings, history, meetings, the pill
-  src-tauri/src/
-    main.rs          setup, tray, windows, data folder
-    dictation.rs     controller (port of DictationController.swift) + paste worker
-    gesture.rs       hold-to-talk / double-tap hands-free (port of HotkeyGesture.swift)
-    status.rs        what the pill shows, Shift command intent (DictationStatus, CommandIntent)
-    paste_queue.rs   pastes in recording order (PasteQueue)
-    clipboard.rs     guarded paste + selection read (PasteboardGuard, SelectionReader)
-    clipboard_system.rs  Windows native clipboard / arboard on Linux
-    hotkey/          TriggerTracker + Windows hook + Linux X11 listener
-    keys.rs          synthetic Ctrl+V / Ctrl+C
-    audio.rs, resample.rs  cpal capture to 16 kHz mono f32
-    meeting.rs       mic + system audio into MeetingSession
-    secrets.rs       API keys via the keyring crate
-    diagnostics.rs   pennel.log
-    commands.rs      the webview API
+
+For dictation, press the shortcut once to start and again to finish. Pennel uses `wl-copy` to place the result on the Wayland clipboard; paste with Ctrl+V. Selection reading, synthetic paste and foreground-app styles are unavailable there. The meeting command starts/stops a manual recording. When using AppImage, use the AppImage's full executable path in the desktop shortcut.
+
+Native call applications can still be observed through PulseAudio/PipeWire on Wayland. Browser classification requires X11 window titles, so use manual browser-meeting recording on Wayland. Missing `pactl`, an unreachable audio server or missing codecs produce a reason in capability state. Codec availability is cached for the launch; restart after installing missing packages.
+
+Linux M4A services use fixed GStreamer pipelines and bounded subprocesses; audio is passed through file descriptors rather than command-line text. [Linux packaging](linux-packaging.md) lists build/runtime dependencies and explains external AppImage helpers. The supported configuration uses Base/Good/libav and does not require the Bad plug-in set.
+
+### Audio, errors and privacy
+
+Meetings retain `ik.m4a` and `anderen.m4a` and local Markdown. System-capture failure can leave microphone-only recording with a visible reason. Mac preserves voice-processing/device-change recovery and silent-capture fallbacks. A microphone/device failure, archive overflow/write failure or missing codec must not be interpreted as a successful complete recording.
+
+Dictation during a meeting suppresses the microphone's transcript input and marks the interval. This is **not raw-audio redaction**: archives can still contain the dictated audio. Diarization decodes are bounded to the existing three-hour limit and still need the selected local speaker model.
+
+Keys remain in Keychain, Windows Credential Manager or Secret Service. No API key is returned in an application snapshot. Logs contain timings, lengths and errors rather than dictated text, meeting content or browser titles. Chosen remote providers receive the audio/text needed for the selected task; local mode does not add a cloud account or telemetry.
+
+## Data, preview and upgrades
+
+| Build | Data directory | Credentials |
+| --- | --- | --- |
+| Canonical Mac | `~/Library/Application Support/Pennel` | `dev.pennel.Pennel` Keychain service |
+| Canonical Windows | `%LOCALAPPDATA%\Pennel` | Existing `app.pennel.desktop` service |
+| Canonical Linux | `$XDG_DATA_HOME/Pennel`, normally `~/.local/share/Pennel` | Existing `app.pennel.desktop` Secret Service entries |
+| Preview/debug | Corresponding `Pennel Preview` directory | Separate preview service |
+
+Canonical meetings use `~/Pennel` or the configured library. Previews pin their library to `<preview data>/Meetings`, reject external paths/symlink escapes, and do not migrate native credentials. `tauri.preview.conf.json` changes the bundle identity to `dev.pennel.Pennel.preview`; debug builds are also isolated.
+
+For permission-bearing Mac previews, use an existing development certificate consistently via `APPLE_SIGNING_IDENTITY` when building with Tauri. Updating an allowed preview with ad-hoc signing changes its designated requirement and can invalidate microphone, speech and Accessibility approvals. Preserve the preview's current signing identity on subsequent builds; do not generate or install a replacement certificate automatically. Debug/release bundles that share the preview identifier must not both remain registered with Launch Services when selecting the app in privacy settings.
+
+Core startup obtains an exclusive data lease, validates the migration journal and takes a consistent settings/SQLite/failed-audio snapshot before normalization or retention. Existing data snapshots live under `migration-backup-v1`; `migration.json` records startup migration. Library leases and active-session guards prevent conflicting writers and folder moves. These files support recovery and are not a substitute for user backups.
+
+Canonical Mac startup preserves the native bundle identity and Keychain service, rejects a concurrently running older Pennel/Musli app, and handles legacy Musli paths/keys without deleting source data. Failed credential migration is reported for recovery. Permission preservation still depends on actual signing identity and OS behavior; test upgrades using signed packages.
+
+Canonical Mac logs remain `~/Library/Logs/Pennel/pennel.log`; other builds keep `logs/pennel.log` inside their data directory. **Logboek openen** resolves the current build's file.
+
+## Build and test
+
+Use Rust stable, Node 22+ and CMake. Mac requires Xcode with the macOS 26 SDK or newer. Windows uses the MSVC toolchain and Windows SDK. Linux needs WebKitGTK/tray, X11/audio development libraries and the runtime helpers listed in [Linux packaging](linux-packaging.md).
+
+```sh
+make desktop-preview
+make desktop-test
+(cd apps/desktop && npm test)
 ```
 
-Threads: the hotkey hook posts events to the dictation controller thread; each dictation runs the
-core on its own thread; one paste worker owns the clipboard so pastes and selection reads never
-overlap. cpal streams live on their own threads because they are not `Send` everywhere.
+`make desktop-preview` installs locked frontend dependencies and builds isolated preview packages. `make desktop-test` builds the frontend and runs backend tests; run `npm test` as well for frontend regression coverage. `make desktop` builds canonical packages. Installer output is under `apps/desktop/src-tauri/target[/<target>]/release/bundle/` unless a debug build was requested.
 
-Data lives in the local (non-roaming) data folder: `%LOCALAPPDATA%\Pennel` on Windows,
-`~/.local/share/Pennel` on Linux (settings, history, models, `logs/pennel.log`). Meetings go to
-`~/Pennel` (Windows: `%USERPROFILE%\Pennel`) unless configured otherwise. A development build on a
-Mac uses `~/Library/Application Support/Pennel Desktop` so it never touches the Mac app's data.
-
-## Platform specifics
-
-### Hotkey
-
-Same gestures as the Mac: hold to talk, double-tap for hands-free (tap again to stop), another key
-while holding cancels (the key was used as a modifier), Shift while holding turns the dictation
-into a command on the selected text. Choices: **Right Ctrl** (default), **Right Alt**,
-**Ctrl + Windows/Super**. Settings store these as new `HotkeyTrigger` variants (`right_control`,
-`control_super`; Right Alt reuses `right_option`).
-
-- **Windows:** a `WH_KEYBOARD_LL` hook on its own message-loop thread. It is listen-only, needs no
-  admin rights, and ignores injected events (our own Ctrl+V). Keys typed into an elevated
-  (administrator) window are not delivered to a non-elevated hook, and pasting into such windows is
-  blocked by UIPI. For the Ctrl+Win chord Pennel taps the unassigned key `0xE8` while Win is down so
-  releasing Win does not open the Start menu. On layouts with AltGr, Right Alt also sends a fake
-  Left Ctrl; that is treated as a modifier and does not cancel.
-- **Linux (X11):** rdev listens through XRecord. Works on X11 sessions.
-- **Linux (Wayland):** there is no portable way for an app to see global key events. Through
-  XWayland rdev only sees keys while an X11 app has focus, so the hotkey effectively does not work
-  in native Wayland apps (GNOME, KDE). Workarounds: log in with an X11 session, or (future work) read
-  `/dev/input` via evdev for users in the `input` group, or the GlobalShortcuts portal (which only
-  reports press/release of a registered shortcut, enough for hold-to-talk but not for "other key
-  cancels"). Super-based chords may also open the GNOME overview on release.
-
-### Paste and command mode
-
-Port of `PasteboardGuard`: snapshot the clipboard, write the text, send Ctrl+V, wait 700 ms, and
-restore the snapshot unless something else was copied meanwhile. Before sending keys Pennel waits
-(max 1.5 s) until the hotkey and Shift are released, since a held Right Alt (AltGr) or Shift would
-turn Ctrl+V into another shortcut.
-
-- **Windows:** every clipboard format is copied byte for byte (text, RTF/HTML, files, DIB images;
-  GDI handle formats are re-synthesized by Windows). `GetClipboardSequenceNumber` detects a newer
-  copy. Dictated text is marked `ExcludeClipboardContentFromMonitorProcessing`,
-  `CanIncludeInClipboardHistory=0` and `CanUploadToCloudClipboard=0`, so it stays out of Win+V
-  history and cloud clipboard. Keys are sent with `SendInput`.
-- **Linux:** arboard (X11 or XWayland clipboard); only text or one image is restored. Change
-  detection compares the text. Dictated text carries the KDE password-manager hint so clipboard
-  managers skip it. Keys go through enigo (XTest). On Wayland, synthetic keys only reach XWayland
-  apps.
-
-Command mode reads the selection by putting a unique sentinel on the clipboard, sending Ctrl+C and
-waiting up to 300 ms for the clipboard to change; the user's clipboard is restored afterwards, and
-again if a slow app answers within 2 s. On Windows Pennel also checks that the same process still
-has focus before pasting the result, like the Mac app.
-
-Style per app: on Windows the foreground executable is mapped onto the Mac bundle ids used by the
-core's style rules (`slack.exe` → Slack's rule, `WindowsTerminal.exe` → Terminal, ...); unknown
-apps can be added by executable name. Linux does not detect the active app yet (everything is
-Neutral).
-
-### Audio
-
-cpal opens the default input; any rate and channel count is downmixed and resampled to 16 kHz mono
-(box-filtered decimation, linear interpolation when upsampling). Meetings:
-
-- **Windows:** WASAPI loopback of the default output device (cpal builds an input stream on the
-  output device).
-- **Linux:** cpal's PulseAudio host (pure Rust, also works with PipeWire's pulse server) records the
-  `<default sink>.monitor` source.
-- If system audio cannot be opened the meeting records the microphone only and says so.
-- No echo cancellation on the desktop yet: with speakers instead of a headset the microphone track
-  also picks up the other side. Dictation during a meeting silences the "Ik" track and marks the
-  period, as on the Mac.
-
-### The pill
-
-A second webview window: transparent, undecorated, always on top, not in the taskbar,
-`focusable(false)` and click-through. On Windows it is shown with `SW_SHOWNOACTIVATE` and
-`HWND_TOPMOST` so it never takes focus from the app you dictate into. It sits bottom-center on the
-work area of the monitor that holds the mouse. Wayland compositors decide window placement
-themselves, so there it may appear elsewhere; transparency needs a compositor on X11.
-
-### Keys and privacy
-
-API keys live in Windows Credential Manager or the Secret Service (GNOME Keyring, KWallet) under
-service `app.pennel.desktop`, read once per launch. The log records timings, lengths and errors,
-never dictated or meeting text. No telemetry.
-
-## Build and run
-
-Prerequisites everywhere: Rust (stable), Node 22+, CMake.
-
-- **Windows:** Visual Studio Build Tools (MSVC, "Desktop development with C++"); WebView2 ships with
-  Windows 10/11.
-- **Linux (Debian/Ubuntu):**
-  `sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libx11-dev libxtst-dev libxi-dev libdbus-1-dev patchelf cmake build-essential`
+For hot reload:
 
 ```sh
 cd apps/desktop
 npm ci
-npx tauri dev                    # run with hot reload
-npx tauri build                  # installers in src-tauri/target/release/bundle/
-cargo test --manifest-path src-tauri/Cargo.toml
+../../scripts/with-toolchain.sh npx tauri dev
 ```
 
-Local speech models run on the CPU. For a Vulkan GPU build: `npx tauri build -- --features vulkan`
-(needs the Vulkan SDK).
+The toolchain wrapper uses system tools or an existing ignored `build/toolchain/` installation; it installs nothing. Mac local models use Metal. Windows/Linux use CPU by default; an explicitly selected Vulkan build uses `npx tauri build -- --features vulkan` and requires the Vulkan SDK.
 
-`npx tauri dev` also works on a Mac for UI work: the window, pill, settings, history and meetings
-run, but there is no global hotkey there (use the native Mac app).
+Distributable Windows/Linux x64 builds in CI and the release helper append `-DTRANSCRIBE_X86_CONSERVATIVE=ON`, preserve existing CMake arguments, clear only the native dependency's selected release-target cache, and verify its generated native/SIMD CPU flags. See [portable candidate configuration](linux-packaging.md#candidate-and-update-artifacts). Direct development builds and earlier test binaries are not automatically certified portable across CPUs.
 
-CI (`.github/workflows/desktop.yml`) builds and tests `pennel-core` and the app on
-`windows-latest` and `ubuntu-22.04` and uploads unsigned NSIS/MSI and deb/AppImage installers as
-workflow artifacts.
+Keep the native comparison build working:
 
-## Verified vs. not verified
+```sh
+make core && make test && make app
+swift test --package-path apps/macos-platform
+make packaging-test
+```
 
-Verified:
-- `pennel-core` builds and its tests pass on Windows, Linux and macOS (CI); the Mac app still builds
-  and its tests pass.
-- The desktop crate compiles, passes clippy and its unit tests (gesture, trigger tracking, status,
-  paste queue, clipboard guard, resampler, notices, log rotation) on Windows and Linux in CI, and
-  produces installers there.
-- On macOS (development): the app starts, creates its tray icon and windows, and the settings UI
-  works.
+## Verification and release state
 
-Not verified on real hardware yet (needs a manual pass on a Windows 11 machine and an X11 + a Wayland
-Linux desktop):
-- the keyboard hook and gestures, the Ctrl+Win Start-menu suppression;
-- the pill never stealing focus, its position on multi-monitor / mixed-DPI setups;
-- paste and clipboard restore in Office, browsers, Electron apps, terminals;
-- command mode selection reads;
-- microphone capture on various devices, WASAPI loopback and the PulseAudio monitor;
-- Credential Manager / Secret Service storage;
-- installers (unsigned: SmartScreen will warn).
+Automated checks and local package inspection are recorded in [shared-app-migration.md](shared-app-migration.md). Linux's isolated codec round-trip and synthetic PulseAudio observations verify code paths; they are not real calls, installed-package tests or Wayland compositor acceptance. Cross-target Windows type checking does not establish Windows execution. CI configuration does not imply a workflow has run for this change.
 
-## Known gaps
+The standard CI matrix is configured to build Mac, Windows and Linux development artifacts without requiring release keys. The manual candidate workflow uses existing signing keys/certificates and performs no publication. The Tauri updater is enabled only when a public key is configured; previews without release configuration do not auto-update. Linux AppImages support in-app updates; Debian installations use a verified package or package manager.
 
-- Wayland: hotkey and paste only work with XWayland apps (see above).
-- Linux: no active-app detection for per-app styles; clipboard restore keeps text or one image only.
-- No echo cancellation, call detection or calendar integration for meetings; no diarization UI,
-  meeting chat or export on the desktop yet (the core APIs exist: `diarize_meeting`, `ask_meetings`,
-  `export_meeting`).
-- Meeting audio is not saved as files (the Mac app keeps `ik.m4a`/`anderen.m4a`), so diarization
-  cannot run afterwards.
-- No onboarding wizard (the app opens on Providers when dictation is not set up), no auto-start at
-  login, no auto-update, unsigned installers.
+Before replacing the native Mac app or switching website downloads, pass real Mac/Windows/X11/Wayland desktop, migration, signed-update and performance acceptance. The prepared legacy Sparkle archive/appcast provides the native-to-shared transition; the shared app uses the Tauri updater. Public release availability and distribution claims must follow those results.

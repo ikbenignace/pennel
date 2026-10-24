@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { api, type LocalModel } from "../api";
-import { field, formatBytes, h, section, select } from "../dom";
+import { confirmDialog, field, formatBytes, h, section, select } from "../dom";
 import type { Context } from "../main";
 
 const progress = new Map<string, { downloaded: number; total: number }>();
@@ -19,8 +19,6 @@ async function listenOnce() {
     if (bar) {
       bar.max = e.payload.total;
       bar.value = e.payload.downloaded;
-    } else {
-      refresh?.();
     }
   });
   await listen<{ id: string; error: string | null }>("download-done", (e) => {
@@ -39,9 +37,8 @@ function bar(label: string, value: number | null) {
   );
 }
 
-export async function localView(ctx: Context): Promise<HTMLElement> {
+export async function localView(ctx: Context, embedded = false): Promise<HTMLElement> {
   await listenOnce();
-  refresh = async () => ctx.update(await api.info());
   const models = await api.localModels(language, supportedOnly);
   const inUse = new Set(
     [ctx.info.settings.dictation_stt, ctx.info.settings.meeting_stt]
@@ -74,8 +71,8 @@ export async function localView(ctx: Context): Promise<HTMLElement> {
           {
             class: "btn danger",
             onclick: async () => {
-              if (inUse.has(model.id) && !confirm("Dit model is in gebruik. Verwijderen?")) return;
-              ctx.update(await api.deleteModel(model.id));
+              if (inUse.has(model.id) && !await confirmDialog("Dit model is in gebruik. Verwijderen?", "Dicteren schakelt over naar een ander gedownload model, of werkt niet meer tot je er een downloadt.")) return;
+              await ctx.mutate(() => api.deleteModel(model.id));
             },
           },
           "Verwijder",
@@ -92,7 +89,7 @@ export async function localView(ctx: Context): Promise<HTMLElement> {
         model.state.kind === "partial"
           ? [
               h("button", { class: "btn", onclick: start }, "Verder downloaden"),
-              h("button", { class: "btn danger", onclick: async () => ctx.update(await api.deleteModel(model.id)) }, "Verwijder"),
+              h("button", { class: "btn danger", onclick: async () => await ctx.mutate(() => api.deleteModel(model.id)) }, "Verwijder"),
             ]
           : [h("button", { class: "btn primary", onclick: start }, "Downloaden")];
     }
@@ -140,15 +137,17 @@ export async function localView(ctx: Context): Promise<HTMLElement> {
     },
   });
 
-  return h(
+  const root = h(
     "div",
     {},
-    h("h1", {}, "Lokale modellen"),
+    embedded ? null : h("h1", {}, "Lokale modellen"),
     section(
       "Modellen",
-      "Draaien volledig op je computer (CPU). Je audio verlaat je computer niet.",
+      `Draaien volledig op je computer (${ctx.info.capabilities.local_acceleration === "metal" ? "Metal" : ctx.info.capabilities.local_acceleration === "vulkan" ? "Vulkan" : "CPU"}). Je audio verlaat je computer niet.`,
+      h("p", { class: "help" }, "Snelheid is gebenchmarkt op Apple Silicon. De prestaties op deze computer kunnen verschillen."),
       h("div", { class: "row" }, field("Nauwkeurigheid voor", languagePicker), h("label", { class: "row" }, onlyThis, "Alleen deze taal")),
-      models.map(card),
+      models.filter((model) => model.recommended || model.state.kind === "downloaded").map(card),
+      h("details", {}, h("summary", {}, "Alle modellen"), models.filter((model) => !model.recommended && model.state.kind !== "downloaded").map(card)),
     ),
     section(
       "Geheugen",
@@ -168,4 +167,8 @@ export async function localView(ctx: Context): Promise<HTMLElement> {
       ),
     ),
   );
+  const onRefresh = () => { if (root.isConnected) void ctx.refresh().catch(ctx.report); };
+  refresh = onRefresh;
+  ctx.onDispose(() => { if (refresh === onRefresh) refresh = null; });
+  return root;
 }

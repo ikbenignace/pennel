@@ -8,10 +8,52 @@ export type ProviderKind =
   | "ollama"
   | "lm_studio"
   | "custom"
-  | "local";
+  | "local"
+  | "apple_speech"
+  | "apple_intelligence"
+  | "claude_code"
+  | "codex"
+  | "open_code"
+  | "copilot"
+  | "cursor_agent"
+  | "gemini_cli";
 
 export type HotkeyTrigger = "fn" | "right_option" | "right_command" | "right_control" | "control_super";
 export type Style = "casual" | "formal" | "literal" | "neutral";
+export type RecordAction = "ask" | "always" | "never";
+export type CapabilityStatus = "available" | "permission_required" | "unsupported" | "unavailable";
+export type PermissionKind = "microphone" | "accessibility" | "calendar" | "speech" | "system_audio";
+export type PermissionStatus = "granted" | "not_determined" | "denied" | "restricted" | "not_required" | "unsupported" | "unknown";
+export type AppWindow = "library" | "settings" | "history" | "live" | "onboarding";
+export type MeetingPhase = "idle" | "starting" | "recording" | "stopping" | "finalizing" | "error";
+export type Speaker = "me" | "others";
+
+export interface Capability {
+  status: CapabilityStatus;
+  reason: string | null;
+}
+
+export interface PermissionInfo {
+  kind: PermissionKind;
+  status: PermissionStatus;
+}
+
+export interface PlatformCapabilities {
+  global_hotkey: Capability;
+  record_shortcut: Capability;
+  microphone: Capability;
+  system_audio: Capability;
+  echo_cancellation: Capability;
+  call_detection: Capability;
+  calendar: Capability;
+  apple_speech: Capability;
+  apple_intelligence: Capability;
+  selection: Capability;
+  rich_clipboard: Capability;
+  audio_playback: Capability;
+  diarization: Capability;
+  local_acceleration: "metal" | "vulkan" | "cpu";
+}
 
 export interface ProviderAccount {
   id: string;
@@ -39,6 +81,16 @@ export interface Settings {
   local_unload_minutes: number;
   meetings_dir: string;
   default_template: string;
+  meeting_audio_retention_days: number;
+  app_rules: { bundle_id: string; action: RecordAction }[];
+  calendar_rules: { calendar_id: string; calendar_name: string; action: RecordAction }[];
+  event_rules: { title: string; action: RecordAction }[];
+  calendar_enabled: boolean;
+  echo_cancellation: boolean;
+  record_shortcut_enabled: boolean;
+  consent_enabled: boolean;
+  auto_detect: boolean;
+  diarization: boolean;
   [key: string]: unknown;
 }
 
@@ -51,6 +103,8 @@ export interface KindInfo {
   llm: boolean;
   default_stt_model: string;
   default_llm_model: string;
+  is_cli_agent: boolean;
+  availability: Capability;
 }
 
 export interface AppInfo {
@@ -62,6 +116,10 @@ export interface AppInfo {
   hotkey_error: string | null;
   log_path: string | null;
   data_dir: string;
+  capabilities: PlatformCapabilities;
+  diarizer_model_id: string;
+  preview: boolean;
+  migration_warning: string | null;
 }
 
 export interface RemoteModel {
@@ -109,7 +167,7 @@ export interface MeetingInfo {
 export interface Segment {
   start_ms: number;
   end_ms: number;
-  speaker: "me" | "others";
+  speaker: Speaker;
   text: string;
   failed: boolean;
   voice: number | null;
@@ -117,13 +175,27 @@ export interface Segment {
 
 export interface MeetingStatus {
   recording: boolean;
+  phase: MeetingPhase;
+  busy: boolean;
+  error: string | null;
+  notes: string;
+  session_id: string | null;
   id: string | null;
   title: string | null;
   elapsed_secs: number;
   system_audio: boolean;
   heard_system_audio: boolean;
+  audio_warning: string | null;
+  consent_copied?: boolean;
   pending: number;
   transcript: Segment[];
+}
+
+export interface MeetingFinished {
+  id: string | null;
+  session_id: string;
+  error: string | null;
+  flush_warning: string | null;
 }
 
 export interface MeetingDetail {
@@ -133,12 +205,80 @@ export interface MeetingDetail {
   transcript: Segment[];
   speakers: { voice: number; name: string }[];
   dir: string;
+  attendees: string[];
+  audio_tracks: { speaker: Speaker; available: boolean }[];
 }
 
 export interface MeetingTemplate {
   id: string;
   name: string;
   builtin: boolean;
+  customized: boolean;
+}
+
+export interface Passage {
+  meeting_id: string;
+  title: string;
+  start_iso: string;
+  kind: "notes" | "transcript" | "summary";
+  start_ms: number | null;
+  text: string;
+  snippet: string;
+}
+
+export interface LibrarySearch {
+  meetings: MeetingInfo[];
+  passages: Passage[];
+}
+
+export interface ChatTurn {
+  question: string;
+  answer: string;
+}
+
+export interface MeetingAnswer {
+  text: string;
+  citations: { number: number; passage: Passage }[];
+}
+
+export interface MeetingExport {
+  title: string;
+  markdown: string;
+  html: string;
+}
+
+export interface DetectedAgent {
+  kind: ProviderKind;
+  path: string;
+}
+
+export interface CalendarSnapshot {
+  has_access: boolean;
+  calendars: { id: string; name: string }[];
+  current_event: {
+    title: string;
+    calendar_id: string;
+    calendar_name: string;
+    attendees: string[];
+  } | null;
+}
+
+export interface RecordPrompt {
+  id: number;
+  app_id: string;
+  app_name: string;
+  title: string | null;
+  expires_at_ms: number;
+}
+
+export type PillState =
+  | { state: "hidden" | "listening" | "hands_free" | "command" | "working" }
+  | { state: "error"; message: string };
+
+export interface UpdateInfo {
+  available: boolean;
+  version: string | null;
+  body: string | null;
 }
 
 export const api = {
@@ -147,9 +287,35 @@ export const api = {
   addProvider: (kind: ProviderKind) => invoke<AppInfo>("add_provider", { kind }),
   removeProvider: (id: string) => invoke<AppInfo>("remove_provider", { id }),
   setKey: (account: string, key: string) => invoke<AppInfo>("set_key", { account, key }),
+  permissions: () => invoke<PermissionInfo[]>("get_permissions"),
+  requestPermission: (kind: PermissionKind) => invoke<PermissionInfo[]>("request_permission", { kind }),
+  testAppleIntelligence: () => invoke<void>("test_apple_intelligence"),
+  calendar: () => invoke<CalendarSnapshot>("calendar_snapshot"),
+  chooseMeetingsDir: () => invoke<string | null>("choose_meetings_dir"),
+  showWindow: (kind: AppWindow, tab: string | null = null) => invoke<void>("show_window", { kind, tab }),
+  copyText: (text: string, html: string | null = null) => invoke<void>("copy_text", { text, html }),
+  playMeetingAudio: (id: string, speaker: Speaker, startMs: number) =>
+    invoke<void>("play_meeting_audio", { id, speaker, startMs }),
+  stopAudio: () => invoke<void>("stop_audio"),
+  recordPrompt: () => invoke<RecordPrompt | null>("record_prompt"),
+  answerRecordPrompt: (answer: "yes" | "no" | "never", promptId: number) =>
+    invoke<void>("answer_record_prompt", { answer, promptId }),
+  toggleDictation: (copyOnly = true) => invoke<void>("toggle_dictation", { copyOnly }),
+  dictationState: () => invoke<PillState>("dictation_state"),
+  checkForUpdates: () => invoke<UpdateInfo>("check_for_updates"),
+  installUpdate: () => invoke<void>("install_update"),
+  frontendReady: () => invoke<void>("frontend_ready"),
+  frontendFlushed: (requestId: number, success: boolean, error: string | null = null) =>
+    invoke<void>("frontend_flushed", { requestId, success, error }),
+  shareMeeting: (id: string, includeTranscript: boolean, action: "mail" | "share") =>
+    invoke<void>("share_meeting", { id, includeTranscript, action }),
+  markLines: (enhanced: string, notes: string) => invoke<{ text: string; mine: boolean }[]>("mark_lines", { enhanced, notes }),
+  detectCliAgents: () => invoke<DetectedAgent[]>("detect_cli_agents"),
+  checkCliAgent: (id: string, model: string) => invoke<string>("check_cli_agent", { id, model }),
   providerModels: (id: string) => invoke<RemoteModel[]>("provider_models", { id }),
   localModels: (language: string | null, supportedOnly: boolean) =>
     invoke<LocalModel[]>("local_models", { language, supportedOnly }),
+  modelState: (id: string) => invoke<ModelState>("model_state", { id }),
   downloadModel: (id: string) => invoke<void>("download_model", { id }),
   cancelDownload: (id: string) => invoke<void>("cancel_download", { id }),
   deleteModel: (id: string) => invoke<AppInfo>("delete_model", { id }),
@@ -161,13 +327,27 @@ export const api = {
   meetingStatus: () => invoke<MeetingStatus>("meeting_status"),
   startMeeting: (title: string) => invoke<string>("start_meeting", { title }),
   stopMeeting: () => invoke<void>("stop_meeting"),
-  setMeetingNotes: (text: string) => invoke<void>("set_meeting_notes", { text }),
+  setMeetingNotes: (text: string, sessionId: string) => invoke<void>("set_meeting_notes", { text, sessionId }),
+  setMeetingTitle: (title: string, sessionId: string) => invoke<void>("set_meeting_title", { title, sessionId }),
   meetings: (query: string) => invoke<MeetingInfo[]>("meetings", { query }),
+  searchLibrary: (query: string) => invoke<LibrarySearch>("search_library", { query }),
+  askMeetings: (question: string, meetingId: string | null, history: ChatTurn[]) =>
+    invoke<MeetingAnswer>("ask_meetings", { question, meetingId, history }),
   meetingDetail: (id: string) => invoke<MeetingDetail>("meeting_detail", { id }),
   meetingTemplates: () => invoke<MeetingTemplate[]>("meeting_templates"),
+  templateSource: (id: string) => invoke<string | null>("template_source", { id }),
+  saveTemplate: (id: string | null, name: string, body: string) =>
+    invoke<string>("save_template", { id, name, body }),
+  deleteTemplate: (id: string) => invoke<void>("delete_template", { id }),
   summarizeMeeting: (id: string, templateId: string) =>
     invoke<string>("summarize_meeting", { id, templateId }),
   retranscribeMeeting: (id: string) => invoke<number>("retranscribe_meeting", { id }),
+  saveMeetingNotes: (id: string, text: string) => invoke<void>("save_meeting_notes", { id, text }),
+  setMeetingAttendees: (id: string, attendees: string[]) => invoke<void>("set_meeting_attendees", { id, attendees }),
+  renameSpeaker: (id: string, voice: number, name: string) => invoke<void>("rename_speaker", { id, voice, name }),
+  diarizeMeeting: (id: string) => invoke<number>("diarize_meeting", { id }),
+  exportMeeting: (id: string, includeTranscript: boolean) =>
+    invoke<MeetingExport>("export_meeting", { id, includeTranscript }),
   renameMeeting: (id: string, title: string) => invoke<string>("rename_meeting", { id, title }),
   deleteMeeting: (id: string) => invoke<void>("delete_meeting", { id }),
 };

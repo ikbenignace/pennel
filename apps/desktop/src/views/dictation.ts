@@ -1,12 +1,11 @@
-import type { HotkeyTrigger, Style } from "../api";
+import { api, type HotkeyTrigger, type Style } from "../api";
 import { h, section, select } from "../dom";
 import type { Context } from "../main";
 
-const hotkeys: [HotkeyTrigger, string][] = [
-  ["right_control", "Rechter Ctrl"],
-  ["right_option", "Rechter Alt"],
-  ["control_super", "Ctrl + Windows"],
-];
+function hotkeys(platform: string): [HotkeyTrigger, string][] {
+  return platform === "macos" ? [["fn", "fn"], ["right_option", "Rechter Option"], ["right_command", "Rechter Command"], ["right_control", "Rechter Ctrl"]]
+    : [["right_control", "Rechter Ctrl"], ["right_option", "Rechter Alt"], ["control_super", platform === "windows" ? "Ctrl + Windows" : "Ctrl + Super"]];
+}
 
 const styles: [Style, string][] = [
   ["neutral", "Neutraal"],
@@ -63,7 +62,7 @@ export function dictationView(ctx: Context): HTMLElement {
       h(
         "div",
         { class: "segmented" },
-        hotkeys.map(([value, label]) =>
+        hotkeys(ctx.info.platform).map(([value, label]) =>
           h(
             "button",
             { "aria-pressed": String(value === s.hotkey), onclick: () => ctx.save((n) => (n.hotkey = value)) },
@@ -80,6 +79,10 @@ export function dictationView(ctx: Context): HTMLElement {
         : null,
       ctx.info.hotkey_error ? h("p", { class: "error" }, ctx.info.hotkey_error) : null,
     ),
+    manualDictation(ctx),
+    section("Toegang", "Controleer microfoon en toegang om tekst in andere apps te plakken.",
+      h("button", { class: "btn", onclick: () => api.showWindow("onboarding") }, "Controleer toegang…"),
+      ctx.info.capabilities.selection.reason ? h("p", { class: "help" }, ctx.info.capabilities.selection.reason) : null),
     section(
       "Taal",
       null,
@@ -153,9 +156,9 @@ export function dictionaryView(ctx: Context): HTMLElement {
 
 export function stylesView(ctx: Context): HTMLElement {
   const rules = ctx.info.settings.style_rules;
-  const input = h("input", { type: "text", placeholder: "Programmanaam, bv. notepad", class: "grow" });
+  const input = h("input", { type: "text", placeholder: ctx.info.platform === "macos" ? "App-id, bv. com.apple.TextEdit" : "Programmanaam, bv. notepad", class: "grow" });
   const add = () => {
-    const id = input.value.trim().toLowerCase().replace(/\.exe$/, "");
+    const id = ctx.info.platform === "macos" ? input.value.trim() : input.value.trim().toLowerCase().replace(/\.exe$/, "");
     if (!id || rules.some((r) => r.bundle_id === id)) return;
     ctx.save((n) => n.style_rules.push({ bundle_id: id, style: "neutral" }));
   };
@@ -172,7 +175,7 @@ export function stylesView(ctx: Context): HTMLElement {
           { class: "row", style: "margin:6px 0" },
           h("span", { class: "grow" }, appNames[rule.bundle_id] ?? rule.bundle_id),
           select(styles, rule.style, (style) =>
-            ctx.save((n) => (n.style_rules.find((r) => r.bundle_id === rule.bundle_id)!.style = style)),
+            ctx.save((n) => { const item = n.style_rules.find((r) => r.bundle_id === rule.bundle_id); if (item) item.style = style; }),
           ),
           h(
             "button",
@@ -191,4 +194,35 @@ export function stylesView(ctx: Context): HTMLElement {
         : null,
     ),
   );
+}
+
+function manualDictation(ctx: Context): HTMLElement {
+  const status = h("p", { class: "help", role: "status" });
+  const button = h("button", { class: "btn primary" }, "Start dicteren");
+  let working = false;
+  const refresh = async () => {
+    const state = await api.dictationState();
+    const recording = ["listening", "hands_free", "command"].includes(state.state);
+    working = state.state === "working";
+    button.textContent = recording ? "Stop dicteren" : working ? "Tekst verwerken…" : "Start dicteren";
+    button.disabled = working;
+    status.textContent = state.state === "error" ? state.message : recording ? "Luistert…"
+      : working ? "Pennel verwerkt je dictaat." : `Na het dicteren staat je tekst op het klembord. Plak met ${ctx.info.platform === "macos" ? "⌘V" : "Ctrl+V"}.`;
+  };
+  button.addEventListener("click", async () => {
+    if (working) return;
+    button.disabled = true;
+    try { await api.toggleDictation(true); await refresh(); }
+    catch (error) { status.textContent = String(error); button.disabled = false; }
+  });
+  let busy = false;
+  const timer = window.setInterval(() => {
+    if (busy) return;
+    busy = true;
+    void refresh().catch((error: unknown) => { status.textContent = String(error); }).finally(() => { busy = false; });
+  }, 750);
+  ctx.onDispose(() => window.clearInterval(timer));
+  void refresh().catch((error: unknown) => { status.textContent = String(error); });
+  return section("Dicteren via een knop", "Je kunt ook dicteren zonder globale sneltoets. Dit werkt terwijl Pennel open is.",
+    h("div", { class: "row dictation-controls" }, button, h("button", { class: "btn", onclick: () => api.showWindow("history") }, "Geschiedenis…")), status);
 }

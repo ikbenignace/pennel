@@ -1,23 +1,40 @@
 //! API keys in the OS credential store: Windows Credential Manager, Secret Service on Linux,
-//! the Keychain on macOS. Each key is read at most once per launch.
+//! the Keychain on macOS. Normal lookups are cached for the launch.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 use pennel_core::{ApiKeys, ProviderAccount};
 
-const SERVICE: &str = "app.pennel.desktop";
-
-#[derive(Default)]
 pub struct Secrets {
+    service: &'static str,
     cache: Mutex<HashMap<String, Option<String>>>,
 }
 
-fn entry(account: &str) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(SERVICE, account).map_err(|e| e.to_string())
+impl Default for Secrets {
+    fn default() -> Self {
+        Self::new(true)
+    }
 }
 
 impl Secrets {
+    pub fn new(preview: bool) -> Self {
+        let service = match (cfg!(target_os = "macos"), preview) {
+            (true, false) => "dev.pennel.Pennel",
+            (true, true) => "dev.pennel.Pennel.preview",
+            (false, false) => "app.pennel.desktop",
+            (false, true) => "app.pennel.desktop.preview",
+        };
+        Self {
+            service,
+            cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn entry(&self, account: &str) -> Result<keyring::Entry, String> {
+        keyring::Entry::new(self.service, account).map_err(|error| error.to_string())
+    }
+
     pub fn get(&self, account: &str) -> Option<String> {
         if account.is_empty() {
             return None;
@@ -25,7 +42,8 @@ impl Secrets {
         if let Some(cached) = self.cache.lock().unwrap().get(account) {
             return cached.clone();
         }
-        let value = entry(account)
+        let value = self
+            .entry(account)
             .ok()
             .and_then(|e| e.get_password().ok())
             .filter(|v| !v.is_empty());
@@ -40,7 +58,7 @@ impl Secrets {
         if account.is_empty() {
             return Err("geen account".into());
         }
-        let entry = entry(account)?;
+        let entry = self.entry(account)?;
         let value = value.trim();
         if value.is_empty() {
             match entry.delete_credential() {
@@ -64,5 +82,20 @@ impl Secrets {
                 .filter_map(|p| self.get(&p.id).map(|key| (p.id.clone(), key)))
                 .collect(),
         }
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    pub fn migrate_legacy(&self, providers: &[ProviderAccount]) -> Result<(), String> {
+        if self.service.ends_with(".preview") {
+            return Err("De testversie neemt geen opgeslagen API-sleutels over.".into());
+        }
+        #[cfg(target_os = "macos")]
+        for provider in providers {
+            crate::macos::migrate_legacy_key(&provider.id)?;
+            self.cache.lock().unwrap().remove(&provider.id);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = providers;
+        Ok(())
     }
 }

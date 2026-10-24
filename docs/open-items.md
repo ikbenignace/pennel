@@ -1,6 +1,6 @@
 # Openstaande punten
 
-Stand: 2026-10-24, na fase 3a–3f (alles in `main`).
+Historische native Mac-baseline: 2026-10-24, na fase 3a–3f. De gedeelde Tauri-app voor Mac, Windows en Linux is daarnaast geïmplementeerd; zie [migratie en bewijs](shared-app-migration.md). Onderstaande toestelvragen blijven acceptatiepunten totdat ze met de kandidaatpakketten zijn uitgevoerd.
 
 ## 1. Te testen door Ignace (alleen jij kunt dit)
 
@@ -13,10 +13,15 @@ Stand: 2026-10-24, na fase 3a–3f (alles in `main`).
 | T5 | Commandomodus (fn + ⇧) met en zonder selectie, in Slack, Mail, browser, Terminal | Selectie lezen verschilt per app |
 | T6 | AirPods wisselen tijdens meeting, USB-headset, FaceTime, Safari-call | Hardware- en procesvarianten |
 | T7 | Lange dictaten opkuisen met je huidige model (`inception/mercury-3`) | Time-out is nu dynamisch (15 s + 1 s per 50 tekens, max 90 s) |
+| T8 | Windows 11: echte calls, klembord/plakken, sneltoetsen, echoverwerking en installatie | Cross-checks en unit tests bewijzen geen uitvoering op een Windows-toestel |
+| T9 | Linux X11 én Wayland: call-audio, codecs, compositor-sneltoets en klembordfallback | Codec- en synthetische audioservertests bewijzen geen desktop-/toestelgedrag |
+| T10 | Bestaande installatie upgraden/herstellen, ondertekende update en een opname van zestig minuten | Vervanging van de native app en publieke uitrol wachten op deze pakketacceptatie |
 
-Tip: menu → **Logboek openen** toont wat er misloopt (`~/Library/Logs/Pennel/pennel.log`).
+Tip: menu → **Logboek openen** toont het log van de actieve build. Canoniek Mac: `~/Library/Logs/Pennel/pennel.log`; preview/Windows/Linux: `logs/pennel.log` in de eigen gegevensmap.
 
 ## 2. Bekende beperkingen en open bugs
+
+Deze lijst beschrijft de native referentie en blijft bewaard als regressie-/acceptatielijst. De gedeelde implementatie heeft onder meer tijdgestuurde audio, opname-/mapvergrendeling, providercontrole en toestemmingsmeldingen met gerichte tests. Dat sluit de hieronder vermelde vragen over echte apparaten en apps niet automatisch af.
 
 **Meetings**
 - "Anderen"-blokken van 15–30 s krijgen één stem (meerderheid); per beurt hertranscriberen kan later.
@@ -51,12 +56,12 @@ Tip: menu → **Logboek openen** toont wat er misloopt (`~/Library/Logs/Pennel/p
 
 - **3g Microsoft 365-agenda** (Graph, device-code login) — vereist Azure app-registratie, mogelijk AE-admin-goedkeuring.
 - **Fase 4 – iPhone:** dicteertoetsenbord, Action Button/Shortcut, fysieke meetings opnemen, sync.
-- **Fase 5 – Windows en Linux** (Rust-kern is herbruikbaar; nieuwe shells).
+- **Gedeelde desktopapp – Mac, Windows en Linux:** één Tauri-interface en Rust-runtime met native services zijn geïmplementeerd; echte pakket-/toestelacceptatie en publieke uitrol staan nog open. Zie [desktopgedrag](desktop.md) en [Linux-pakketten](linux-packaging.md).
 - **Commercialisatie** (zie het businessplan in de private repo pennel-cloud): licentie, Pennel Cloud-backend, accounts/licenties, betalingen, website, onboarding zonder eigen API-sleutels.
 
 ## 4. Distributie
 
 - Apple Developer ID (€99/jaar): ondertekenen + notariseren, geen Gatekeeper-waarschuwing, geen sleutelhangervragen per build.
-- Automatische updates (Sparkle) en Homebrew cask.
+- Native referentie: Sparkle. Gedeelde app: Tauri-updater met een legacy-appcast voor de overgang; Linux-self-updates via AppImage, Debian via pakketbeheerder of geverifieerd pakket. Ondertekende installaties en updates moeten nog op kandidaatpakketten worden getest.
 - Publieke repo: licentie, README in het Engels, CONTRIBUTING, screenshots, CI (build + tests).
-- Branding: zie `branding/` (logo-varianten, kies er één).
+- Branding en gedeelde fonts: zie `assets/brand/brand.md` en `assets/brand/fonts/`.

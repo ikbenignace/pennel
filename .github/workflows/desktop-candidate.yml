@@ -1,0 +1,159 @@
+name: signed desktop candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Candidate semantic version (for example 0.2.0-beta.1)
+        required: true
+        type: string
+      mac_build_number:
+        description: Mac CFBundleVersion, greater than every previously distributed build
+        required: true
+        type: string
+      previous_mac_build_number:
+        description: Highest Mac CFBundleVersion already distributed
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-candidate-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    environment: desktop-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      TRANSCRIBE_CMAKE_ARGS: ${{ vars.TRANSCRIBE_CMAKE_ARGS }}
+      CMAKE_ARGS: ${{ vars.CMAKE_ARGS }}
+      TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      PENNEL_CANDIDATE_VERSION: ${{ inputs.version }}
+      PENNEL_MAC_BUILD: ${{ inputs.mac_build_number }}
+      PENNEL_PREVIOUS_MAC_BUILD: ${{ inputs.previous_mac_build_number }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        if: runner.os == 'macOS'
+        with:
+          xcode-version: latest-stable
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Linux build and runtime prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libasound2-dev libx11-dev libxtst-dev libxi-dev libdbus-1-dev patchelf cmake file \
+            gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
+            pulseaudio-utils x11-utils wl-clipboard
+      - name: Write existing Apple API credential to the temporary runner directory
+        if: runner.os == 'macOS'
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          content = os.environ.get("APPLE_API_KEY_CONTENT", "")
+          if not content:
+              raise SystemExit("APPLE_API_KEY_CONTENT must contain an existing notarization key")
+          path = Path(os.environ["RUNNER_TEMP"]) / "pennel-notarization.p8"
+          path.write_text(content, encoding="utf-8")
+          path.chmod(0o600)
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
+              output.write(f"APPLE_API_KEY_PATH={path}\n")
+      - name: Import existing Windows signing certificate on the temporary runner
+        if: runner.os == 'Windows'
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE_PFX_BASE64) { exit 0 }
+          $path = Join-Path $env:RUNNER_TEMP 'pennel-signing.pfx'
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX_BASE64))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $certificate = Import-PfxCertificate -FilePath $path -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          "PENNEL_WINDOWS_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" >> $env:GITHUB_ENV
+          Remove-Item -LiteralPath $path
+      - name: Install locked frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Build and verify signed Mac candidate, without publication
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        shell: python
+        run: |
+          import os
+          import subprocess
+          import sys
+          subprocess.run([
+              sys.executable, "scripts/desktop-release.py", os.environ["PENNEL_CANDIDATE_VERSION"],
+              "--build-number", os.environ["PENNEL_MAC_BUILD"],
+              "--previous-build-number", os.environ["PENNEL_PREVIOUS_MAC_BUILD"],
+          ], check=True)
+      - name: Build and verify signed Windows candidate, without publication
+        if: runner.os == 'Windows'
+        env:
+          PENNEL_WINDOWS_SIGN_COMMAND: ${{ secrets.PENNEL_WINDOWS_SIGN_COMMAND }}
+        shell: python
+        run: |
+          import os
+          import subprocess
+          import sys
+          subprocess.run([sys.executable, "scripts/desktop-release.py", os.environ["PENNEL_CANDIDATE_VERSION"]], check=True)
+      - name: Build Linux candidate with detached updater signatures, without publication
+        if: runner.os == 'Linux'
+        shell: python
+        run: |
+          import os
+          import subprocess
+          import sys
+          subprocess.run([sys.executable, "scripts/desktop-release.py", os.environ["PENNEL_CANDIDATE_VERSION"]], check=True)
+      - uses: actions/upload-artifact@v5
+        with:
+          name: pennel-${{ matrix.target }}-signed-candidate
+          if-no-files-found: error
+          path: |
+            build/desktop-release/**/*.dmg
+            build/desktop-release/**/*.exe
+            build/desktop-release/**/*.msi
+            build/desktop-release/**/*.app.tar.gz
+            build/desktop-release/**/*.AppImage
+            build/desktop-release/**/*.deb
+            build/desktop-release/**/*.sig
+            build/desktop-release/**/candidate.json

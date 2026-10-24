@@ -151,7 +151,7 @@ mod tests {
         server
             .mock("POST", "/audio/transcriptions")
             .with_status(401)
-            .with_body(r#"{"error":{"message":"Invalid API key"}}"#)
+            .with_body(r#"{"error":{"message":"Rejected synthetic-api-key-not-real for synthetic private dictated sentence"}}"#)
             .create();
         let err =
             transcribe(&provider(server.url()), Some("bad"), b"RIFF", None, None).unwrap_err();
@@ -159,7 +159,7 @@ mod tests {
             err,
             PennelError::Http {
                 status: 401,
-                message: "Invalid API key".into()
+                message: "provider authentication failed".into()
             }
         );
     }

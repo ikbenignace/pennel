@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlays",
+  "description": "Recording overlays receive state without general window privileges",
+  "windows": ["pill", "record-prompt"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

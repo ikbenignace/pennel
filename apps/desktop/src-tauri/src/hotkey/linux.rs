@@ -1,5 +1,4 @@
-//! X11 key listening through rdev (XRecord). Works on X11 sessions and, on Wayland, only while an
-//! XWayland window has focus; see docs/desktop.md.
+//! X11 key listening through rdev (XRecord). Wayland uses an explicit desktop-shortcut fallback.
 
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::Sender;
@@ -31,7 +30,10 @@ fn key_for(key: rdev::Key) -> Key {
 
 impl Hook {
     pub fn start(trigger: HotkeyTrigger, sender: Sender<HotkeyEvent>) -> Result<Self, String> {
-        if std::env::var_os("DISPLAY").is_none() {
+        if crate::linux_input::is_wayland() {
+            return Err(crate::linux_input::SHORTCUT_HELP.into());
+        }
+        if !crate::linux_input::has_x11_display() {
             return Err("geen X11-scherm (DISPLAY) gevonden".into());
         }
         let tracker = Arc::new(Mutex::new(TriggerTracker::new(trigger)));

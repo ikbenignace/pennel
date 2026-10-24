@@ -1,7 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main and pill windows",
-  "windows": ["main", "pill"],
-  "permissions": ["core:default"]
+  "description": "Pennel application windows",
+  "windows": [
+    "main",
+    "library",
+    "settings",
+    "history",
+    "meeting",
+    "onboarding",
+    "live"
+  ],
+  "permissions": [
+    "core:default"
+  ]
 }

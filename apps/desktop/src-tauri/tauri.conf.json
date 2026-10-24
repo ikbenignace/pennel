@@ -30,6 +30,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": false,
     "targets": "all",
     "category": "Productivity",
     "shortDescription": "Dicteren en meetingnotities",
@@ -49,7 +50,17 @@
     },
     "linux": {
       "deb": {
-        "depends": ["libayatana-appindicator3-1"]
+        "depends": [
+          "libayatana-appindicator3-1",
+          "libwebkit2gtk-4.1-0",
+          "gstreamer1.0-tools",
+          "gstreamer1.0-plugins-base",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-libav",
+          "pulseaudio-utils",
+          "x11-utils",
+          "wl-clipboard"
+        ]
       }
     }
   }

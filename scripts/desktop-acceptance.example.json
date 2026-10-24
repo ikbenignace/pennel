@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "revision": "REPLACE_WITH_THE_CANDIDATE_COMMIT",
+  "artifacts": {
+    "darwin-aarch64": "REPLACE_WITH_ACCEPTED_APP_TAR_GZ_SHA256",
+    "windows-x86_64": "REPLACE_WITH_ACCEPTED_NSIS_EXE_SHA256",
+    "linux-x86_64": "REPLACE_WITH_ACCEPTED_APPIMAGE_SHA256"
+  },
+  "macos": "pending",
+  "windows": "pending",
+  "linux_x11": "pending",
+  "linux_wayland": "pending",
+  "migration": "pending",
+  "ui_parity": "pending",
+  "performance": "pending",
+  "signed_update": "pending"
+}

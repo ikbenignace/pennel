@@ -1,24 +1,24 @@
 @font-face {
   font-family: "Figtree";
-  src: url("../../macos/Resources/Fonts/Figtree-Regular.ttf") format("truetype");
+  src: url("../../../assets/brand/fonts/Figtree-Regular.ttf") format("truetype");
   font-weight: 400;
 }
 
 @font-face {
   font-family: "Figtree";
-  src: url("../../macos/Resources/Fonts/Figtree-Medium.ttf") format("truetype");
+  src: url("../../../assets/brand/fonts/Figtree-Medium.ttf") format("truetype");
   font-weight: 500;
 }
 
 @font-face {
   font-family: "Figtree";
-  src: url("../../macos/Resources/Fonts/Figtree-SemiBold.ttf") format("truetype");
+  src: url("../../../assets/brand/fonts/Figtree-SemiBold.ttf") format("truetype");
   font-weight: 600;
 }
 
 @font-face {
   font-family: "Instrument Serif";
-  src: url("../../macos/Resources/Fonts/InstrumentSerif-Regular.ttf") format("truetype");
+  src: url("../../../assets/brand/fonts/InstrumentSerif-Regular.ttf") format("truetype");
   font-weight: 400;
 }
 

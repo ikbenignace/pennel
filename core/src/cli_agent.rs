@@ -22,7 +22,7 @@ const CLAUDE_BLOCKED_TOOLS: &str =
     "Bash,Edit,Write,Read,MultiEdit,NotebookEdit,WebFetch,WebSearch,Glob,Grep,Task,TodoWrite";
 const ERROR_TAIL_CHARS: usize = 300;
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct DetectedAgent {
     pub kind: ProviderKind,
     pub path: String,

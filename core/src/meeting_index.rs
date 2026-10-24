@@ -14,7 +14,8 @@ const FILES: [(&str, PassageKind); 3] = [
     ("meeting.md", PassageKind::Summary),
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PassageKind {
     Notes,
     Transcript,
@@ -30,7 +31,7 @@ impl PassageKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct Passage {
     pub meeting_id: String,
     pub title: String,

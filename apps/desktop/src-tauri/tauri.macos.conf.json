@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "dev.pennel.Pennel",
+  "bundle": {
+    "macOS": {
+      "minimumSystemVersion": "14.4",
+      "hardenedRuntime": true,
+      "entitlements": "Pennel.entitlements",
+      "infoPlist": "Info.plist"
+    }
+  }
+}

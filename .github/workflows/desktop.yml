@@ -35,26 +35,50 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            bundles: app,dmg
           - os: windows-latest
+            target: x86_64-pc-windows-msvc
             bundles: nsis,msi
           - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
             bundles: deb,appimage
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    env:
+      TRANSCRIBE_CMAKE_ARGS: ${{ vars.TRANSCRIBE_CMAKE_ARGS }}
+      CMAKE_ARGS: ${{ vars.CMAKE_ARGS }}
     defaults:
       run:
         working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        if: runner.os == 'macOS'
+        with:
+          xcode-version: latest-stable
       - name: Linux packages
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
-            libasound2-dev libx11-dev libxtst-dev libxi-dev libdbus-1-dev patchelf cmake
+            libasound2-dev libx11-dev libxtst-dev libxi-dev libdbus-1-dev patchelf cmake file \
+            gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
+            pulseaudio-utils x11-utils wl-clipboard
+      - name: Check Linux media and desktop integration prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          for element in fdsrc fdsink rawaudioparse audioconvert audioresample aacparse mp4mux qtdemux avenc_aac avdec_aac; do
+            gst-inspect-1.0 "$element" >/dev/null
+          done
+          command -v pactl
+          command -v xprop
+          command -v wl-copy
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
@@ -66,20 +90,51 @@ jobs:
       - run: npm ci
       - name: Frontend
         run: npm run build
+      - name: Frontend tests
+        run: npm test
       - name: Rust format
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - name: Rust lint
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
-      - name: Installers
-        run: npx tauri build --bundles ${{ matrix.bundles }}
+      - name: Installers with verified non-Mac x64 CPU baseline
+        env:
+          PENNEL_BUILD_TARGET: ${{ matrix.target }}
+          PENNEL_BUNDLE_FORMATS: ${{ matrix.bundles }}
+        shell: python
+        run: |
+          import importlib.util
+          import os
+          import shutil
+          import sys
+          from pathlib import Path
+          sys.dont_write_bytecode = True
+          spec = importlib.util.spec_from_file_location("desktop_release", Path("../../scripts/desktop-release.py").resolve())
+          release = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(release)
+          npx = shutil.which("npx.cmd" if sys.platform == "win32" else "npx")
+          if not npx:
+              raise SystemExit("Node.js/npm is required to build desktop installers")
+          release.build_distributable(npx, os.environ["PENNEL_BUILD_TARGET"], os.environ["PENNEL_BUNDLE_FORMATS"], None, os.environ, sys.platform)
+      - name: Inspect packaged Mac app without opening it
+        if: runner.os == 'macOS'
+        run: python3 ../../scripts/verify-desktop-bundle.py src-tauri/target/${{ matrix.target }}/release/bundle/macos/Pennel.app --output ../../build/mac-bundle-inspection.json
       - uses: actions/upload-artifact@v5
         with:
-          name: pennel-${{ runner.os }}
+          name: pennel-${{ matrix.target }}-development
           if-no-files-found: error
           path: |
-            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
-            apps/desktop/src-tauri/target/release/bundle/msi/*.msi
-            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
-            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            build/mac-bundle-inspection.json
+
+  packaging-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Release configuration, manifest gates and bundle metadata tests
+        run: make packaging-test
