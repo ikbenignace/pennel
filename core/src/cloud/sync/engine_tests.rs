@@ -263,3 +263,66 @@ fn status_reads_do_not_wait_for_a_running_pass() {
     assert!(answered.is_ok(), "status reads blocked on the running pass");
     assert_eq!(pass.join().unwrap().status, SyncStatus::Synced);
 }
+
+#[test]
+fn delete_meeting_does_not_wait_for_a_running_pass_and_still_bypasses_the_brake() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    a.engine.cloud_sync_enable().unwrap();
+    let ids: Vec<String> = (0..2)
+        .map(|n| store(&a).create(&format!("Bezig {n}"), start()).unwrap())
+        .collect();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    std::fs::write(a.root.join(&ids[0]).join("notes.md"), "upload\n").unwrap();
+    let (entered, entered_rx) = mpsc::channel();
+    let (release, release_rx) = mpsc::channel::<()>();
+    let release_rx = std::sync::Mutex::new(release_rx);
+    let mut fired = false;
+    api.on_put(move |_| {
+        if !fired {
+            fired = true;
+            let _ = entered.send(());
+            let _ = release_rx
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(10));
+        }
+    });
+    let engine = a.engine.clone();
+    let pass = std::thread::spawn(move || engine.cloud_sync_run(vec![]));
+    entered_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    let engine = a.engine.clone();
+    let doomed = ids.clone();
+    let (done, done_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        for id in doomed {
+            engine.delete_meeting(id).unwrap();
+        }
+        let _ = done.send(());
+    });
+    let answered = done_rx.recv_timeout(Duration::from_secs(2));
+    release.send(()).unwrap();
+    assert!(
+        answered.is_ok(),
+        "delete_meeting waited for the running pass"
+    );
+    pass.join().unwrap();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    assert_eq!(api.live_objects(), 0);
+}
+
+#[test]
+fn delete_meeting_without_sync_creates_no_sync_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = PennelEngine::new(dir.path().join("data").to_string_lossy().into_owned()).unwrap();
+    let mut settings = engine.settings();
+    settings.meetings_dir = dir.path().join("M").to_string_lossy().into_owned();
+    engine.update_settings(settings).unwrap();
+    let id = MeetingStore::new(&dir.path().join("M"))
+        .create("Lokaal", start())
+        .unwrap();
+    engine.delete_meeting(id).unwrap();
+    assert!(!dir.path().join("data").join("sync.sqlite").exists());
+}

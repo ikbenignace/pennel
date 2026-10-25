@@ -97,6 +97,7 @@ pub struct PennelEngine {
     sync_state: Mutex<Option<SyncState>>,
     sync_last: Mutex<Option<SyncReport>>,
     sync_items: Mutex<Vec<MeetingSyncState>>,
+    deleted_meetings: Mutex<Vec<String>>,
     #[cfg(test)]
     sync_api_override: Mutex<Option<Arc<dyn SyncApi>>>,
     preview: bool,
@@ -667,8 +668,12 @@ impl PennelEngine {
         let uid = store.uid_of(&id);
         store.delete(&id)?;
         // Deleted in Pennel itself: sync may push this deletion past the mass-delete brake.
-        if let Some(uid) = uid {
-            let _ = self.with_sync_state(|state| state.mark_deleted(&uid));
+        // Kept in memory until the next pass, so deleting never waits for a running one.
+        if let Some(uid) = uid
+            && self.settings().cloud_sync
+            && self.cloud_signed_in()
+        {
+            self.deleted_meetings.lock().unwrap().push(uid);
         }
         Ok(())
     }
@@ -1150,6 +1155,7 @@ impl PennelEngine {
     fn clear_sync_state(&self) {
         let _gate = self.sync_gate.lock().unwrap();
         let _ = self.with_sync_state(SyncState::clear);
+        self.deleted_meetings.lock().unwrap().clear();
         *self.sync_last.lock().unwrap() = None;
     }
 
@@ -1234,6 +1240,11 @@ impl PennelEngine {
         let root = library_root(&settings);
         let data_dir = self.data_dir();
         let outcome = self.with_sync_state(|state| {
+            let deleted = std::mem::take(&mut *self.deleted_meetings.lock().unwrap());
+            if let Err(error) = deleted.iter().try_for_each(|uid| state.mark_deleted(uid)) {
+                self.deleted_meetings.lock().unwrap().extend(deleted);
+                return Err(error);
+            }
             let device = state.device()?.unwrap_or_else(|| "Pennel".into());
             let mut report = sync::run(PassInput {
                 api: api.as_ref(),
@@ -1316,6 +1327,7 @@ impl PennelEngine {
             sync_state: Mutex::new(None),
             sync_last: Mutex::new(None),
             sync_items: Mutex::new(Vec::new()),
+            deleted_meetings: Mutex::new(Vec::new()),
             #[cfg(test)]
             sync_api_override: Mutex::new(None),
             preview,

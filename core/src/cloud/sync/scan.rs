@@ -163,21 +163,23 @@ pub fn meeting_folders(root: &Path) -> Result<Vec<MeetingFolder>, PennelError> {
 }
 
 /// The existing folder that `name` refers to: exact, then Unicode-equivalent, then differing in case only.
-pub fn find_dir(root: &Path, name: &str) -> Option<String> {
+pub fn find_dir(root: &Path, name: &str) -> Result<Option<String>, PennelError> {
+    std::fs::read_dir(root).map_err(|_| unreadable())?;
     let wanted = nfc(name);
-    let dirs: Vec<String> = utf8_entries(root)
+    let dirs: Vec<String> = strict_entries(root)?
         .into_iter()
         .filter(|(_, path)| path.is_dir())
         .map(|(n, _)| n)
         .collect();
-    dirs.iter()
+    Ok(dirs
+        .iter()
         .find(|n| *n == name)
         .or_else(|| dirs.iter().find(|n| nfc(n) == wanted))
         .or_else(|| {
             dirs.iter()
                 .find(|n| nfc(n).to_lowercase() == wanted.to_lowercase())
         })
-        .cloned()
+        .cloned())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

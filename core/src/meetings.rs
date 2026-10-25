@@ -245,7 +245,7 @@ impl MeetingStore {
         if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
             let _ = std::fs::remove_file(&tmp);
             return Err(PennelError::Storage {
-                message: "meeting.md changed while adding its id".into(),
+                message: UID_RACE.into(),
             });
         }
         std::fs::rename(&tmp, &path).map_err(PennelError::storage)
@@ -543,6 +543,7 @@ fn render_meeting(front: &Frontmatter, body: &str) -> String {
 }
 
 const UID_FIELD: &str = "pennel_id";
+pub(crate) const UID_RACE: &str = "meeting.md changed while adding its id";
 const KNOWN_FIELDS: &[&str] = &["title", "start", "duration_min", "template", UID_FIELD];
 
 /// Uids become part of sync keys (`meeting/<uid>/…`), so only plain id characters are accepted.

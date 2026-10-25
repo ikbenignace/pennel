@@ -79,9 +79,17 @@ const MISSING_ROOT: &str = "De meetingmap is niet gevonden.";
 const TOO_LARGE: &str = "Dit bestand is groter dan 5 MB.";
 const UNKNOWN_DEVICE: &str = "ander toestel";
 const UNEXPECTED_RESPONSE: &str = "Pennel Cloud gaf een onverwacht antwoord.";
+const CHANGED_DURING_SYNC: &str =
+    "Een meetingbestand werd tijdens de sync gewijzigd; Pennel probeert het straks opnieuw.";
 const MASS_DELETE: &str = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
 
 struct Stop(SyncStatus);
+
+#[cfg(test)]
+thread_local! {
+    /// Simulates the process dying while a downloaded file is being applied.
+    static CRASH_IN_APPLY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
 
 impl From<PennelError> for Stop {
     fn from(error: PennelError) -> Self {
@@ -102,8 +110,17 @@ pub(crate) fn status_for(error: PennelError) -> SyncStatus {
             SyncStatus::StorageFull { message }
         }
         PennelError::Cloud { code, .. } if code == "generation" => SyncStatus::VaultReset,
-        other => SyncStatus::Error {
-            message: other.to_string(),
+        PennelError::Cloud { message, .. } => SyncStatus::Error { message },
+        PennelError::Storage { message } if message == crate::meetings::UID_RACE => {
+            SyncStatus::Error {
+                message: CHANGED_DURING_SYNC.into(),
+            }
+        }
+        PennelError::Storage { .. } => SyncStatus::Error {
+            message: scan::UNREADABLE_LIBRARY.into(),
+        },
+        _ => SyncStatus::Error {
+            message: UNEXPECTED_RESPONSE.into(),
         },
     }
 }
@@ -130,6 +147,8 @@ struct Pass<'a> {
     counts: Counts,
     /// A problem that did not stop the pass, reported once it finishes.
     problem: Option<String>,
+    /// Objects deferred during this pass, which must stay deferred.
+    deferred_again: HashSet<String>,
 }
 
 pub fn run(input: PassInput<'_>) -> SyncReport {
@@ -146,6 +165,7 @@ pub fn run(input: PassInput<'_>) -> SyncReport {
         folders: HashMap::new(),
         counts: Counts::default(),
         problem: None,
+        deferred_again: HashSet::new(),
     };
     let status = match pass.execute() {
         Ok(()) => pass
@@ -317,6 +337,11 @@ impl Pass<'_> {
         Ok(())
     }
 
+    fn defer(&mut self, id: &str) -> Result<(), PennelError> {
+        self.deferred_again.insert(id.to_string());
+        self.state.defer(id)
+    }
+
     fn note_problem(&mut self, message: String) {
         self.problem.get_or_insert(message);
     }
@@ -325,9 +350,9 @@ impl Pass<'_> {
         for id in self.state.deferred()? {
             let entry = self.state.entry_by_object(&id)?;
             let before = entry.as_ref().map(|e| self.local_hash(&e.key));
-            // Until it is applied the item stays deferred; applying may defer it again.
+            // The item leaves the deferred list only once it is applied, so a crash keeps it.
             let fetched = self.api.get(&id)?;
-            self.state.undefer(&id)?;
+            self.deferred_again.remove(&id);
             let applied = match fetched {
                 Some((version, blob)) => self.apply_remote(&id, version, &blob, entry, before),
                 None => match entry {
@@ -338,10 +363,10 @@ impl Pass<'_> {
                     None => Ok(()),
                 },
             };
-            if applied.is_err() {
-                self.state.defer(&id)?;
-            }
             applied?;
+            if !self.deferred_again.contains(&id) {
+                self.state.undefer(&id)?;
+            }
         }
         let mut cursor = self.state.cursor()?;
         let mut full: Option<HashSet<String>> = None;
@@ -440,7 +465,7 @@ impl Pass<'_> {
             .unwrap_or_else(|| uid.to_string());
         let mut candidate = wanted.clone();
         for n in 2.. {
-            match find_dir(&self.root, &candidate) {
+            match find_dir(&self.root, &candidate)? {
                 None => {
                     std::fs::create_dir_all(self.root.join(&candidate))
                         .map_err(PennelError::storage)?;
@@ -472,7 +497,7 @@ impl Pass<'_> {
         }
         let mut candidate = wanted.to_string();
         for n in 2.. {
-            match find_dir(&self.root, &candidate) {
+            match find_dir(&self.root, &candidate).ok()? {
                 Some(existing) if existing != current => candidate = format!("{wanted} ({n})"),
                 _ => break,
             }
@@ -519,6 +544,10 @@ impl Pass<'_> {
         entry: Option<Entry>,
         before: Option<Option<String>>,
     ) -> Result<(), Stop> {
+        #[cfg(test)]
+        if CRASH_IN_APPLY.with(std::cell::Cell::get) {
+            panic!("simulated crash while applying");
+        }
         let payload = match crypto::open(self.key, id, self.generation, blob) {
             Ok(payload) => payload,
             Err(error) => {
@@ -539,7 +568,7 @@ impl Pass<'_> {
             Key::Meeting { uid, name } => {
                 let folder = self.folder_for(&uid, payload.folder.as_deref())?;
                 if self.is_recording(&folder) {
-                    self.state.defer(id)?;
+                    self.defer(id)?;
                     return Ok(());
                 }
                 (self.root.join(&folder), Some(folder), name, Some(uid))
@@ -626,7 +655,7 @@ impl Pass<'_> {
                 continue;
             };
             if folder.as_deref().is_some_and(|f| self.is_recording(f)) {
-                self.state.defer(&entry.object_id)?;
+                self.defer(&entry.object_id)?;
                 continue;
             }
             let uid = match parse_key(&entry.key) {
@@ -719,7 +748,7 @@ impl Pass<'_> {
         let mut single = Vec::new();
         let mut whole: HashMap<String, Vec<Entry>> = HashMap::new();
         for entry in entries {
-            if keys.contains(&entry.key) || !self.vanished(&entry) {
+            if keys.contains(&entry.key) || !self.vanished(&entry)? {
                 continue;
             }
             match parse_key(&entry.key) {
@@ -733,10 +762,13 @@ impl Pass<'_> {
             .keys()
             .filter(|uid| !on_purpose.contains(*uid))
             .count();
+        // Meetings deleted in Pennel do not count: what matters is how much of the rest vanished.
+        let kept = tracked.difference(&on_purpose).count();
         let confirmed = self.state.deletes_confirmed()?;
         let brake = !confirmed
-            && ((unexpected == tracked.len() && tracked.len() >= 2)
-                || (unexpected * 2 > tracked.len() && unexpected > 5));
+            && unexpected > 0
+            && ((unexpected == kept && tracked.len() >= 2)
+                || (unexpected * 2 > kept && unexpected > 5));
         for entry in single {
             self.push_delete(entry)?;
         }
@@ -849,11 +881,11 @@ impl Pass<'_> {
 
     /// Only a file whose meeting is still here, or a meeting folder that is gone entirely,
     /// counts as deleted. An unreadable `meeting.md` or a recording meeting never does.
-    fn vanished(&self, entry: &Entry) -> bool {
+    fn vanished(&self, entry: &Entry) -> Result<bool, PennelError> {
         let absent = |dir: &Path, name: &str| {
             scan::listable(dir) && !matches!(slot(dir, name), Slot::Existing(_))
         };
-        match parse_key(&entry.key) {
+        Ok(match parse_key(&entry.key) {
             Some(Key::Template { name }) => absent(&self.root.join(TEMPLATES_DIR), &name),
             Some(Key::Meeting { uid, name }) => match self.folders.get(&uid) {
                 // A folder renamed while this pass runs is found again next pass.
@@ -861,12 +893,15 @@ impl Pass<'_> {
                     let dir = self.root.join(folder);
                     !self.is_recording(folder) && dir.is_dir() && absent(&dir, &name)
                 }
-                None => entry.folder.as_deref().is_some_and(|folder| {
-                    !self.is_recording(folder) && find_dir(&self.root, folder).is_none()
-                }),
+                None => match entry.folder.as_deref() {
+                    Some(folder) if !self.is_recording(folder) => {
+                        find_dir(&self.root, folder)?.is_none()
+                    }
+                    _ => false,
+                },
             },
             None => false,
-        }
+        })
     }
 
     fn push_delete(&mut self, entry: Entry) -> Result<(), Stop> {
@@ -1790,6 +1825,100 @@ mod tests {
             }),
             SyncStatus::Error {
                 message: "Pennel Cloud gaf een onverwacht antwoord.".into()
+            }
+        );
+    }
+
+    #[test]
+    fn brake_compares_against_meetings_not_deleted_on_purpose() {
+        let (api, a, _) = setup();
+        let ids = meetings(&a, 2);
+        synced(&a.sync(&api));
+        let uid = a.store().uid_of(&ids[0]).unwrap();
+        a.state.mark_deleted(&uid).unwrap();
+        for id in &ids {
+            std::fs::remove_dir_all(a.path(id)).unwrap();
+        }
+        assert_eq!(
+            a.sync(&api).status,
+            SyncStatus::Error {
+                message: BRAKE_MESSAGE.into()
+            }
+        );
+        assert_eq!(api.live_objects(), 1);
+    }
+
+    #[test]
+    fn deferred_item_survives_a_crash_while_applying() {
+        let (api, a, b) = setup();
+        let id = shared_meeting(&api, &a, &b);
+        a.write(&format!("{id}/notes.md"), "tijdens opname\n");
+        synced(&a.sync(&api));
+        synced(&b.sync_recording(&api, std::slice::from_ref(&id)));
+        assert_eq!(b.state.deferred().unwrap().len(), 1);
+        CRASH_IN_APPLY.with(|crash| crash.set(true));
+        let crashed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| b.sync(&api)));
+        CRASH_IN_APPLY.with(|crash| crash.set(false));
+        assert!(crashed.is_err());
+        assert_eq!(b.state.deferred().unwrap().len(), 1);
+        synced(&b.sync(&api));
+        assert!(b.state.deferred().unwrap().is_empty());
+        assert_eq!(
+            b.read(&format!("{id}/notes.md")).as_deref(),
+            Some("tijdens opname\n")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn root_unreadable_during_push_deletes_nothing() {
+        use std::os::unix::fs::PermissionsExt;
+        let (api, a, _) = setup();
+        let ids = meetings(&a, 3);
+        synced(&a.sync(&api));
+        std::fs::remove_dir_all(a.path(&ids[0])).unwrap();
+        a.write(&format!("{}/notes.md", ids[1]), "bewerkt\n");
+        let root = a.root.clone();
+        let mut fired = false;
+        api.on_put(move |_| {
+            if !fired {
+                fired = true;
+                std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o000)).unwrap();
+            }
+        });
+        let report = a.sync(&api);
+        std::fs::set_permissions(&a.root, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            report.status,
+            SyncStatus::Error {
+                message: scan::UNREADABLE_LIBRARY.into()
+            }
+        );
+        assert_eq!(api.live_objects(), 4);
+    }
+
+    #[test]
+    fn storage_errors_map_to_dutch() {
+        assert_eq!(
+            status_for(PennelError::Storage {
+                message: crate::meetings::UID_RACE.into()
+            }),
+            SyncStatus::Error {
+                message: "Een meetingbestand werd tijdens de sync gewijzigd; Pennel probeert het straks opnieuw.".into()
+            }
+        );
+        assert_eq!(
+            status_for(PennelError::Storage {
+                message: "Permission denied (os error 13)".into()
+            }),
+            SyncStatus::Error {
+                message: scan::UNREADABLE_LIBRARY.into()
+            }
+        );
+        assert_eq!(
+            status_for(PennelError::NotFound),
+            SyncStatus::Error {
+                message: UNEXPECTED_RESPONSE.into()
             }
         );
     }
