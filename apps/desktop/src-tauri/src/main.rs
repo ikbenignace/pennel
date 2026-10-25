@@ -6,7 +6,7 @@ mod call_detection;
 mod capabilities;
 #[cfg(target_os = "macos")]
 mod capture;
-#[cfg(not(target_os = "macos"))]
+#[cfg(any(not(target_os = "macos"), test))]
 mod clipboard;
 #[cfg(not(target_os = "macos"))]
 mod clipboard_system;
@@ -455,7 +455,12 @@ pub struct FrontendFlush {
 pub fn flush_frontends(app: &AppHandle, event: &str) -> FrontendFlush {
     let state = app.state::<ExitState>();
     let _operation = state.flush_gate.lock().unwrap();
-    flush_frontend_requests(app, event, None)
+    let mut flush = flush_frontend_requests(app, event, None);
+    if flush.result.is_ok() && matches!(event, "prepare-exit" | "prepare-update") {
+        flush.result = app.state::<Arc<Shared>>().engine.retry_unsaved_history()
+            .map_err(|_| "Bewaar of verwijder eerst je niet-bewaarde dictaten in Geschiedenis. Pennel blijft open.".into());
+    }
+    flush
 }
 
 fn flush_frontend_requests(app: &AppHandle, event: &str, target: Option<&str>) -> FrontendFlush {
@@ -772,7 +777,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
     let (tx, rx) = mpsc::channel();
     let secrets = Arc::new(secrets::Secrets::new(preview));
-    engine.set_secret_store(secrets.clone());
+    engine.set_secret_store(secrets.clone())?;
     #[cfg(target_os = "macos")]
     let migration_warning = if preview {
         None
@@ -980,16 +985,21 @@ fn main() {
             commands::provider_models,
             commands::local_models,
             commands::download_model,
+            commands::join_model_download,
             commands::cancel_download,
             commands::delete_model,
             commands::history,
             commands::retry_history,
+            commands::save_history,
+            commands::copy_history,
+            commands::test_provider_task,
             commands::delete_history,
             commands::open_log,
             commands::open_path,
             commands::meeting_status,
             commands::start_meeting,
             commands::stop_meeting,
+            commands::retry_meeting_persistence,
             commands::set_meeting_notes,
             commands::set_meeting_title,
             commands::meetings,
@@ -1108,7 +1118,15 @@ fn main() {
                             .requested
                             .store(false, Ordering::SeqCst);
                         let _ = app.emit("exit-cancelled", flush.request_id);
-                        show_window(&app, "live", None);
+                        show_window(
+                            &app,
+                            if shared.engine.unsaved_history_count() > 0 {
+                                "history"
+                            } else {
+                                "live"
+                            },
+                            None,
+                        );
                         return;
                     }
                     let (prepared, captured) = mpsc::channel();
@@ -1118,6 +1136,21 @@ fn main() {
                         .is_ok()
                     {
                         let _ = captured.recv();
+                    }
+                    while shared.dictation_jobs.load(Ordering::SeqCst) != 0
+                        || shared.paste_jobs.load(Ordering::SeqCst) != 0
+                    {
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    if shared.engine.retry_unsaved_history().is_err() {
+                        shared.quitting.store(false, Ordering::SeqCst);
+                        app.state::<ExitState>()
+                            .requested
+                            .store(false, Ordering::SeqCst);
+                        let _ = app.emit("exit-cancelled", flush.request_id);
+                        let _ = app.emit("history-changed", ());
+                        show_window(&app, "history", None);
+                        return;
                     }
                     match meeting_runtime::stop_and_wait(&shared) {
                         Ok(_) => {

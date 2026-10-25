@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use pennel_core::{ApiKeys, ProviderAccount, SecretStore};
 
@@ -13,6 +14,7 @@ const LOG: Log = Log::new("secrets");
 pub struct Secrets {
     service: &'static str,
     cache: Mutex<HashMap<String, Option<String>>>,
+    revision: AtomicU64,
     #[cfg(test)]
     in_memory: bool,
     #[cfg(test)]
@@ -36,6 +38,7 @@ impl Secrets {
         Self {
             service,
             cache: Mutex::new(HashMap::new()),
+            revision: AtomicU64::new(0),
             #[cfg(test)]
             in_memory: false,
             #[cfg(test)]
@@ -92,6 +95,7 @@ impl Secrets {
                 account.to_owned(),
                 (!value.is_empty()).then(|| value.to_owned()),
             );
+            self.revision.fetch_add(1, Ordering::SeqCst);
             return Ok(());
         }
         let entry = self.entry(account)?;
@@ -107,7 +111,12 @@ impl Secrets {
             account.to_owned(),
             (!value.is_empty()).then(|| value.to_owned()),
         );
+        self.revision.fetch_add(1, Ordering::SeqCst);
         Ok(())
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.revision.load(Ordering::SeqCst)
     }
 
     pub fn keys(&self, providers: &[ProviderAccount]) -> ApiKeys {
@@ -151,6 +160,23 @@ impl SecretStore for Secrets {
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    #[test]
+    fn verification_revision_changes_only_after_successful_credential_writes() {
+        let secrets = Secrets::in_memory();
+        let initial = secrets.revision();
+        secrets.set("provider", "first synthetic key").unwrap();
+        let first = secrets.revision();
+        assert!(first > initial);
+        secrets
+            .set("provider", "replacement synthetic key")
+            .unwrap();
+        let replacement = secrets.revision();
+        assert!(replacement > first);
+        secrets.fail_writes.store(true, Ordering::SeqCst);
+        assert!(secrets.set("provider", "rejected synthetic key").is_err());
+        assert_eq!(secrets.revision(), replacement);
+    }
 
     #[test]
     fn secrets_impl_roundtrip() {

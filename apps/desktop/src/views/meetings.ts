@@ -6,6 +6,9 @@ import type { Context } from "../main";
 import { icon } from "../icons";
 import { languageModelConfigured } from "../presentation";
 import { VisibilityPoll } from "../window-lifecycle";
+import { sourceBlocks, sourceRange, transcriptSourceBlocks } from "../source-navigation";
+import { processingSummary } from "../processing-state";
+import { meetingProcessingSummary, processingLabel, retainedMeetingFailure } from "../recording-processing";
 
 const notesQueue = new SerialQueue();
 const drafts = new Map<string, MeetingDraft>();
@@ -16,7 +19,9 @@ let liveMeetingId: string | null = null;
 const sessionMeetingIds = new Map<string, string>();
 const detailState = new Map<string, { tab: "notes" | "transcript" | "ask"; template: string; working: boolean; message: string }>();
 interface Exchange { question: string; answer?: MeetingAnswer; error?: string }
-const conversations = new Map<string, { exchanges: Exchange[]; draft: string }>();
+const conversations = new Map<string, { exchanges: Exchange[]; draft: string; scrollTop: number | null }>();
+let answerReturn: { scope: string | null; sourceMeetingId: string } | null = null;
+let panelNumber = 0;
 
 function dateLabel(date: string) {
   const parsed = new Date(date);
@@ -93,6 +98,8 @@ function editNotes(ctx: Context, draft: MeetingDraft, id: string, rows = 8) {
     timer = window.setTimeout(() => { void saveDraft(draft, id).catch(ctx.report); }, 600);
   });
   const flush = () => { window.clearTimeout(timer); return saveDraft(draft, id); };
+  ctx.beforeLeave(flush);
+  ctx.onFlush(flush);
   input.addEventListener("blur", () => { void flush().catch(ctx.report); });
   ctx.onDispose(() => { void flush().catch(ctx.report); });
   return { input, flush };
@@ -102,7 +109,7 @@ function transcript(ctx: Context, segments: Segment[], detail?: MeetingDetail, i
   const result = h("div", { class: "transcript" });
   if (!segments.length) { result.append(h("p", { class: "muted" }, "Nog geen transcript.")); return result; }
   const play = ctx.info.capabilities.audio_playback;
-  for (const segment of segments) {
+  for (const [index, segment] of segments.entries()) {
     const available = !!detail?.audio_tracks.some((track) => track.speaker === segment.speaker && track.available);
     const stamp = h("button", { class: "transcript-stamp text-button", disabled: !id || !available || play.status !== "available",
       title: available ? play.reason ?? "Afspelen vanaf dit punt" : "Geen bewaarde audio beschikbaar." }, formatClock(segment.start_ms / 1000));
@@ -140,7 +147,7 @@ function transcript(ctx: Context, segments: Segment[], detail?: MeetingDetail, i
       } }, "Opnieuw proberen");
       body.append(retry);
     }
-    result.append(h("div", { class: "transcript-line", "data-start-ms": segment.start_ms }, stamp, speaker, body));
+    result.append(h("div", { class: "transcript-line", "data-start-ms": segment.start_ms, "data-transcript-index": index }, stamp, speaker, body));
   }
   return result;
 }
@@ -151,13 +158,51 @@ function citationLabel(passage: Passage) {
   return `${passage.title} · ${dateLabel(passage.start_iso)} · ${place}`;
 }
 
+function recoveryNotice(ctx: Context, status: MeetingStatus, latest = () => status, includeTranscription = true): HTMLElement | null {
+  const primary = status.persistence_error ?? status.terminal_error ?? status.error;
+  const warnings = [...new Set([primary, includeTranscription ? status.transcription_warning : null].filter((message): message is string => !!message))];
+  if (!warnings.length && !status.can_retry_persistence) return null;
+  const message = h("p", { class: "error", role: status.terminal_error ? "alert" : "status" }, warnings.join(" "));
+  const actions = h("div", { class: "row" });
+  if (status.can_retry_persistence && status.session_id) {
+    const retry = h("button", { class: "btn", onclick: async () => {
+      retry.disabled = true;
+      try { await flushMeetingDrafts(); await api.retryMeetingPersistence(status.session_id!); ctx.rerender(); }
+      catch (error) { message.textContent = errorText(error); retry.disabled = false; }
+    } }, "Opnieuw bewaren");
+    actions.append(retry);
+  }
+  if (status.transcript.some((segment) => !segment.failed && segment.text.trim())) {
+    const copied = h("span", { class: "help", role: "status" });
+    actions.append(h("button", { class: "btn", onclick: async () => {
+      try {
+        await api.copyText(latest().transcript.filter((segment) => !segment.failed).map((segment) => `${formatClock(segment.start_ms / 1000)} ${speakerLabel(segment)}: ${segment.text}`).join("\n"));
+        copied.textContent = "Transcript gekopieerd";
+      } catch (error) { message.textContent = errorText(error); }
+    } }, "Kopieer transcript"), copied);
+  }
+  return h("div", { class: "meeting-recovery-notice" }, message, actions);
+}
+
+function meetingProcessingNotice(ctx: Context, latest: () => MeetingStatus | undefined = () => undefined, active = false) {
+  const element = h("p", { class: "help processing-path" });
+  const refresh = () => {
+    const label = processingLabel(meetingProcessingSummary(processingSummary(ctx.info.settings, "meeting"), latest()?.recognition, active));
+    if (element.textContent !== label) element.textContent = label;
+  };
+  ctx.onInfoChange(refresh);
+  refresh();
+  return { element, refresh };
+}
+
 function chat(ctx: Context, meetingId: string | null) {
   const key = meetingId ?? "__all__";
   let conversation = conversations.get(key);
-  if (!conversation) { conversation = { exchanges: [], draft: "" }; conversations.set(key, conversation); }
+  if (!conversation) { conversation = { exchanges: [], draft: "", scrollTop: null }; conversations.set(key, conversation); }
   const state = conversation;
   const busy = state.exchanges.some((exchange) => !exchange.answer && !exchange.error);
   const history = h("div", { class: "chat-history", role: "log", "aria-live": "polite" });
+  history.addEventListener("scroll", () => { state.scrollTop = history.scrollTop; });
   if (!state.exchanges.length) history.append(h("div", { class: "chat-placeholder" },
     h("h1", {}, meetingId ? "Vraag het deze meeting" : "Vraag het je meetings"),
     h("p", { class: "muted" }, meetingId ? "Bijvoorbeeld: ‘Wat zijn de actiepunten voor mij?’" : "Bijvoorbeeld: ‘Wat hebben we beslist over het budget?’ of ‘Wanneer sprak ik laatst met Jan?’")));
@@ -165,7 +210,12 @@ function chat(ctx: Context, meetingId: string | null) {
     history.append(h("div", { class: "chat-exchange" }, h("p", { class: "chat-question" }, exchange.question),
       exchange.answer ? markdown(exchange.answer.text) : exchange.error ? h("p", { class: "error" }, exchange.error) : h("progress", { "aria-label": "Antwoord schrijven" }),
       exchange.answer ? h("div", { class: "citations" }, exchange.answer.citations.map((citation) => h("button", {
-        class: "text-button citation", onclick: () => ctx.navigate("meetings", citation.passage.meeting_id, citation.passage.kind === "transcript" ? citation.passage.start_ms ?? undefined : undefined),
+        class: "text-button citation", onclick: () => {
+          state.scrollTop = history.scrollTop;
+          answerReturn = { scope: meetingId, sourceMeetingId: citation.passage.meeting_id };
+          ctx.navigate("meetings", citation.passage.meeting_id, citation.passage.kind === "transcript" ? citation.passage.start_ms ?? undefined : undefined,
+            { kind: citation.passage.kind, start_ms: citation.passage.start_ms, text: citation.passage.text });
+        },
       }, `[${citation.number}] ${citationLabel(citation.passage)}`))) : null));
   }
   const input = h("input", { type: "text", class: "grow", value: state.draft, disabled: busy,
@@ -179,6 +229,7 @@ function chat(ctx: Context, meetingId: string | null) {
     const exchange: Exchange = { question };
     state.exchanges.push(exchange);
     state.draft = "";
+    state.scrollTop = null;
     ctx.rerender();
     try { exchange.answer = await api.askMeetings(question, meetingId, history); }
     catch (error) { exchange.error = errorText(error); }
@@ -187,7 +238,7 @@ function chat(ctx: Context, meetingId: string | null) {
   submit.addEventListener("click", () => { void ask(); });
   input.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); void ask(); } });
   const result = h("section", { class: "chat" }, history, h("div", { class: "chat-composer row" }, input, submit));
-  requestAnimationFrame(() => { history.scrollTop = history.scrollHeight; });
+  requestAnimationFrame(() => { history.scrollTop = state.scrollTop ?? history.scrollHeight; });
   return result;
 }
 
@@ -220,7 +271,8 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const audioReason = !audioAvailable ? "Geen bewaarde audio beschikbaar." : playback.status !== "available" ? playback.reason ?? "Audio afspelen is niet beschikbaar." : null;
   let speakerModelReady = false;
   try { speakerModelReady = (await api.modelState(ctx.info.diarizer_model_id)).kind === "downloaded"; } catch { /* The unavailable model remains actionable in Meetings settings. */ }
-  if (ctx.jumpMs !== undefined) current.tab = "transcript";
+  if (ctx.sourceTarget) current.tab = ctx.sourceTarget.kind === "transcript" ? "transcript" : "notes";
+  else if (ctx.jumpMs !== undefined) current.tab = "transcript";
   const templates = await api.meetingTemplates();
   if (!templates.some((template) => template.id === current.template)) current.template = templates[0]?.id ?? "algemeen";
   const notesDraft = draftFor(id, detail.notes);
@@ -228,16 +280,19 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   notes.input.disabled = active;
   if (active) notes.input.title = "Bewerk je notities in het opnamevenster tot de opname is afgerond.";
   const enhanced = h("div", { class: "enhanced-notes" });
+  const summaryBlocks: { text: string; element: HTMLElement }[] = [];
   if (detail.summary) {
     const lines = await api.markLines(detail.summary, detail.notes);
     for (const line of lines) {
       const rendered = markdown(line.text);
       rendered.classList.add(line.mine ? "own-line" : "generated-line");
       enhanced.append(rendered);
+      summaryBlocks.push({ text: line.text, element: rendered });
     }
   }
+  const panelId = `meeting-panel-${++panelNumber}`;
   const tabs = h("div", { class: "segmented detail-tabs", role: "tablist", "aria-label": "Meeting" });
-  const panel = h("section", { class: "meeting-panel", role: "tabpanel" });
+  const panel = h("section", { id: panelId, class: "meeting-panel", role: "tabpanel", tabindex: 0 });
   const draw = () => {
     footer.hidden = current.tab === "ask";
     diarize.hidden = current.tab !== "transcript";
@@ -246,6 +301,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
       button.setAttribute("aria-selected", String(button.dataset.tab === current.tab));
       button.tabIndex = button.dataset.tab === current.tab ? 0 : -1;
     });
+    panel.setAttribute("aria-labelledby", `${panelId}-${current.tab}`);
     if (current.tab === "ask") { panel.replaceChildren(chat(ctx, id)); return; }
     if (current.tab === "transcript") {
       panel.replaceChildren(h("div", { class: "transcript-tools" }, audioReason ? h("span", { class: "help" }, audioReason) : h("span", { class: "grow" }),
@@ -256,7 +312,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     panel.append(h("details", { class: "own-notes", open: !detail.summary }, h("summary", {}, "Je notities"), notes.input));
   };
   for (const [tab, label] of [["notes", "Notities"], ["transcript", "Transcript"], ["ask", "Vragen"]] as const) {
-    const button = h("button", { role: "tab", "data-tab": tab, onclick: () => { current.tab = tab; draw(); } }, label);
+    const button = h("button", { id: `${panelId}-${tab}`, role: "tab", "aria-controls": panelId, "data-tab": tab, onclick: () => { current.tab = tab; draw(); } }, label);
     button.addEventListener("keydown", (event) => {
       const order = ["notes", "transcript", "ask"] as const;
       const index = order.indexOf(current.tab);
@@ -331,11 +387,59 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
       ctx.rerender();
     } }, "Verwijderen")));
   const result = h("article", { class: "meeting-detail" },
+    answerReturn?.sourceMeetingId === id ? h("button", { class: "text-button source-back", onclick: () => {
+      const origin = answerReturn;
+      answerReturn = null;
+      if (!origin) return;
+      if (origin.scope) {
+        const state = detailState.get(origin.scope);
+        if (state) state.tab = "ask";
+        ctx.navigate("meetings", origin.scope);
+      } else ctx.navigate("chat");
+    } }, "Terug naar antwoord") : null,
     h("header", { class: "meeting-header" }, h("div", { class: "grow" }, h("h1", {}, detail.info.title),
       h("p", { class: "help" }, [dateLabel(detail.info.start_iso), detail.info.duration_min ? `${detail.info.duration_min} min` : "", detail.attendees.join(", ")].filter(Boolean).join(" · "))), tabs),
-    ...banners, summarySetup, message, panel, footer);
+    runtime.id === id && runtime.recognition ? meetingProcessingNotice(ctx, () => runtime, true).element : null,
+    ...banners, runtime.id === id ? recoveryNotice(ctx, runtime) : null, summarySetup, message, panel, footer);
   draw();
-  if (ctx.jumpMs !== undefined) {
+  if (ctx.sourceTarget) {
+    const source = ctx.sourceTarget;
+    requestAnimationFrame(() => {
+      if (!result.isConnected) return;
+      let matched = false;
+      const highlight = (elements: HTMLElement[]) => {
+        if (!elements.length) return;
+        elements.forEach((element) => element.classList.add("source-highlight"));
+        elements[0].tabIndex = -1;
+        elements[0].focus({ preventScroll: true });
+        elements[0].scrollIntoView({ block: "center" });
+        matched = true;
+      };
+      if (source.kind === "notes") {
+        const range = sourceRange(notes.input.value, source.text);
+        const disclosure = result.querySelector<HTMLDetailsElement>(".own-notes");
+        if (disclosure) disclosure.open = true;
+        if (range) {
+          notes.input.classList.add("source-highlight");
+          notes.input.focus({ preventScroll: true });
+          notes.input.setSelectionRange(range.start, range.end);
+          notes.input.scrollIntoView({ block: "center" });
+          matched = true;
+        }
+      } else if (source.kind === "summary") {
+        const range = sourceBlocks(summaryBlocks.map((block) => block.text), source.text);
+        if (range) highlight(summaryBlocks.slice(range.first, range.last + 1).map((block) => block.element));
+      } else {
+        const candidates = detail.transcript.map((segment, index) => ({ ...segment, index, text: `${speakerLabel(segment, detail)}: ${segment.text.trim()}` })).filter((segment) => !segment.failed);
+        const range = transcriptSourceBlocks(candidates, source);
+        if (range) highlight(candidates.slice(range.first, range.last + 1).flatMap((segment) => {
+          const element = result.querySelector<HTMLElement>(`[data-transcript-index="${segment.index}"]`);
+          return element ? [element] : [];
+        }));
+      }
+      if (!matched) message.textContent = "Deze bron is intussen gewijzigd of niet meer beschikbaar.";
+    });
+  } else if (ctx.jumpMs !== undefined) {
     const jump = ctx.jumpMs;
     requestAnimationFrame(() => {
       const target = detail.transcript.find((segment) => segment.start_ms <= jump && segment.end_ms > jump)
@@ -349,11 +453,26 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
 
 export async function meetingView(ctx: Context): Promise<HTMLElement> {
   const initial = await api.meetingStatus();
+  if (retainedMeetingFailure(initial)) {
+    return h("div", { class: "recording-view retained-recording" }, h("h1", {}, initial.title ?? "Opname bewaren"),
+      h("p", { class: "help" }, `Opname gestopt · ${formatClock(initial.elapsed_secs)}`),
+      h("p", { class: "muted" }, "Bewaar de resterende gegevens voordat je een nieuwe opname start."),
+      meetingProcessingNotice(ctx, () => initial, true).element, recoveryNotice(ctx, initial));
+  }
   if (!initial.busy && ctx.param) return meetingDetail(ctx, ctx.param);
   if (!initial.busy) {
     const title = h("input", { type: "text", placeholder: "Titel, bv. Weekly sync", class: "grow", "aria-label": "Titel van de meeting" });
     const status = h("p", { class: "error", role: "status" }, initial.error ?? "");
     const start = h("button", { class: "btn primary" }, "Start opname");
+    const retained = !!initial.recognition && !!(initial.persistence_error || initial.terminal_error);
+    const processing = meetingProcessingNotice(ctx, () => retained ? initial : undefined, retained);
+    const audioReason = h("p", { class: "help" });
+    const refreshAudioReason = () => {
+      audioReason.textContent = ctx.info.capabilities.system_audio.reason ?? "";
+      audioReason.hidden = !audioReason.textContent;
+    };
+    ctx.onInfoChange(refreshAudioReason);
+    refreshAudioReason();
     start.addEventListener("click", async () => {
       start.disabled = true;
       try { await api.startMeeting(title.value); ctx.rerender(); }
@@ -361,13 +480,12 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
     });
     return h("div", { class: "recording-view" }, h("h1", {}, "Nieuwe meeting"),
       h("p", { class: "muted" }, "Pennel neemt je microfoon op als ‘Ik’ en wat je computer afspeelt als ‘Anderen’."),
-      h("div", { class: "row" }, title, start), status,
-      ctx.info.capabilities.system_audio.reason ? h("p", { class: "help" }, ctx.info.capabilities.system_audio.reason) : null,
+      processing.element, h("div", { class: "row" }, title, start), status, recoveryNotice(ctx, initial), audioReason,
       h("button", { class: "text-button", onclick: () => api.showWindow("settings", "recording") }, "Opnemen instellen…"));
   }
   if (!initial.id) {
     schedule(ctx, 500, async () => { const status = await api.meetingStatus(); if (status.id || !status.busy) ctx.rerender(); });
-    return h("div", { class: "recording-view" }, h("h1", {}, "Opname starten…"), h("progress", { "aria-label": "Opname starten" }));
+    return h("div", { class: "recording-view" }, h("h1", {}, "Opname starten…"), meetingProcessingNotice(ctx, () => initial, true).element, h("progress", { "aria-label": "Opname starten" }));
   }
   if (liveDraft.dirty && liveMeetingId && liveDraft.sessionId !== initial.session_id) {
     const retained = new MeetingDraft();
@@ -388,11 +506,17 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
   ctx.onDispose(() => { void flushLiveTitle().catch(ctx.report); });
   const clock = h("span", { class: "live-clock" });
   const warning = h("p", { class: "help", role: "status" });
+  const recovery = h("div", { class: "meeting-recovery" });
+  let latestStatus = initial;
+  const processing = meetingProcessingNotice(ctx, () => latestStatus, true);
+  let recoveryKey = "";
   const consent = h("p", { class: "help", role: "status", hidden: true }, "Toestemmingszin gekopieerd — plak hem in de chat van je call.");
   const output = h("div", { class: "live-transcript" });
   const phase = h("span", { class: "help", role: "status" });
   const stop = h("button", { class: "btn", disabled: initial.phase !== "recording" }, "Stop opname");
   const update = (status: MeetingStatus) => {
+    latestStatus = status;
+    processing.refresh();
     if (document.activeElement !== title && !liveTitleDraft.dirty) {
       liveTitleDraft.sync(status.session_id, status.title ?? "Meeting");
       title.value = liveTitleDraft.value;
@@ -401,8 +525,16 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
     clock.textContent = `Opname loopt · ${formatClock(status.elapsed_secs)}`;
     phase.textContent = status.phase === "starting" ? "Opname starten…" : status.phase === "finalizing" || status.phase === "stopping"
       ? `Opname afronden…${status.pending ? ` ${status.pending} ${status.pending === 1 ? "stuk" : "stukken"} te transcriberen` : ""}` : "";
-    warning.textContent = status.audio_warning ?? (!status.system_audio ? "Systeemgeluid niet beschikbaar — alleen je microfoon wordt opgenomen."
+    const audioWarning = status.audio_warning ?? (!status.system_audio ? "Systeemgeluid niet beschikbaar — alleen je microfoon wordt opgenomen."
       : !status.heard_system_audio && status.elapsed_secs > 20 ? "Nog geen systeemgeluid gehoord." : "");
+    const warningText = [status.transcription_warning, audioWarning].filter(Boolean).join(" ");
+    if (warning.textContent !== warningText) warning.textContent = warningText;
+    const nextRecovery = JSON.stringify([status.terminal_error, status.persistence_error, status.can_retry_persistence, status.session_id]);
+    if (nextRecovery !== recoveryKey) {
+      recoveryKey = nextRecovery;
+      const notice = recoveryNotice(ctx, status, () => latestStatus, false);
+      recovery.replaceChildren(...(notice ? [notice] : []));
+    }
     stop.disabled = status.phase !== "recording";
     notes.input.disabled = status.phase !== "recording";
     consent.hidden = !(status.consent_copied ?? false);
@@ -420,6 +552,6 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
     update(status);
   });
   return h("div", { class: "recording-view live-recording" }, title,
-    h("div", { class: "row" }, h("span", { class: "status-dot" }), clock, h("span", { class: "grow" }), stop), consent, phase, warning, notes.input,
+    h("div", { class: "row" }, h("span", { class: "status-dot" }), clock, h("span", { class: "grow" }), stop), processing.element, consent, phase, warning, recovery, notes.input,
     h("details", { class: "live-transcript-disclosure" }, h("summary", {}, "Live transcript"), output));
 }

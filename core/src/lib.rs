@@ -24,6 +24,7 @@ mod meetings;
 mod models;
 mod paste_queue;
 mod provider;
+mod provider_test;
 mod recording;
 mod remote_models;
 mod rules;
@@ -65,13 +66,14 @@ pub use provider::{
     ProviderAccount, ProviderKind, ProviderTask, default_base_url, default_model, new_account,
     requires_key, supports,
 };
+pub use provider_test::{ProviderTaskTestResult, test_provider_task};
 pub use recording::{RecordingLifecycle, RecordingPhase, RecordingState};
 pub use remote_models::{RemoteModel, provider_models};
 pub use rules::{
     AppRule, CalendarRule, EventRule, RecordAction, browser_apps, consent_sentence,
     decide_recording, known_call_apps,
 };
-pub use session::MeetingSession;
+pub use session::{MeetingHealth, MeetingRecognition, MeetingSession};
 pub use settings::{
     AppearancePreference, DictationMode, HotkeyTrigger, ModelChoice, OnboardingProgress,
     OnboardingStatus, OnboardingStep, Settings, Style, StyleRule, default_settings,

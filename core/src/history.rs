@@ -11,6 +11,7 @@ const DAY_MS: i64 = 86_400_000;
 pub enum HistoryStatus {
     Done,
     Failed,
+    Unsaved,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
@@ -31,6 +32,11 @@ pub struct HistoryStore {
 }
 
 impl HistoryStore {
+    #[cfg(test)]
+    pub(crate) fn connection_for_testing(&self) -> &Connection {
+        &self.conn
+    }
+
     pub fn open(data_dir: &Path) -> Result<Self, PennelError> {
         let audio_dir = data_dir.join("failed-audio");
         std::fs::create_dir_all(&audio_dir).map_err(PennelError::storage)?;
@@ -65,6 +71,7 @@ impl HistoryStore {
         self.audio_dir.join(format!("{id}.wav"))
     }
 
+    #[cfg(test)]
     pub fn insert_done(
         &self,
         app: Option<&str>,
@@ -73,13 +80,39 @@ impl HistoryStore {
         now_ms: i64,
     ) -> Result<String, PennelError> {
         let id = uuid::Uuid::now_v7().to_string();
+        self.insert_done_with_id(&id, app, raw, text, now_ms)?;
+        Ok(id)
+    }
+
+    pub fn insert_done_with_id(
+        &self,
+        id: &str,
+        app: Option<&str>,
+        raw: &str,
+        text: &str,
+        now_ms: i64,
+    ) -> Result<(), PennelError> {
         self.conn
             .execute(
-                "INSERT INTO dictations VALUES (?1, ?2, ?3, ?4, ?5, 'done', NULL, 0)",
+                "INSERT INTO dictations VALUES (?1, ?2, ?3, ?4, ?5, 'done', NULL, 0)
+                 ON CONFLICT(id) DO UPDATE SET raw = excluded.raw, text = excluded.text,
+                 status = 'done', error = NULL, has_audio = 0",
                 params![id, now_ms, app, raw, text],
             )
             .map_err(PennelError::storage)?;
-        Ok(id)
+        // Persistence succeeded; a leftover WAV is housekeeping, not a lost transcript.
+        let _ = remove_if_exists(&self.audio_path(id));
+        Ok(())
+    }
+
+    pub fn is_done(&self, id: &str) -> Result<bool, PennelError> {
+        self.conn
+            .query_row("SELECT status FROM dictations WHERE id = ?1", [id], |row| {
+                row.get::<_, String>(0)
+            })
+            .optional()
+            .map(|status| status.as_deref() == Some("done"))
+            .map_err(PennelError::storage)
     }
 
     pub fn insert_failed(
@@ -100,6 +133,7 @@ impl HistoryStore {
         Ok(id)
     }
 
+    #[cfg(test)]
     pub fn mark_done(&self, id: &str, raw: &str, text: &str) -> Result<(), PennelError> {
         let changed = self
             .conn
@@ -111,7 +145,8 @@ impl HistoryStore {
         if changed == 0 {
             return Err(PennelError::NotFound);
         }
-        remove_if_exists(&self.audio_path(id))
+        let _ = remove_if_exists(&self.audio_path(id));
+        Ok(())
     }
 
     pub fn failed_audio(&self, id: &str) -> Result<Vec<u8>, PennelError> {
@@ -134,6 +169,31 @@ impl HistoryStore {
             .ok_or(PennelError::NotFound)
     }
 
+    pub fn created_at_ms(&self, id: &str) -> Result<i64, PennelError> {
+        self.conn
+            .query_row(
+                "SELECT created_at_ms FROM dictations WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(PennelError::storage)?
+            .ok_or(PennelError::NotFound)
+    }
+
+    pub fn entry(&self, id: &str) -> Result<HistoryEntry, PennelError> {
+        self.conn
+            .query_row(
+                "SELECT id, created_at_ms, app_bundle_id, raw, text, status, error, has_audio
+                 FROM dictations WHERE id = ?1",
+                [id],
+                read_entry,
+            )
+            .optional()
+            .map_err(PennelError::storage)?
+            .ok_or(PennelError::NotFound)
+    }
+
     pub fn list(&self, limit: u32) -> Result<Vec<HistoryEntry>, PennelError> {
         let mut stmt = self
             .conn
@@ -143,22 +203,7 @@ impl HistoryStore {
             )
             .map_err(PennelError::storage)?;
         let rows = stmt
-            .query_map([limit], |row| {
-                Ok(HistoryEntry {
-                    id: row.get(0)?,
-                    created_at_ms: row.get(1)?,
-                    app_bundle_id: row.get(2)?,
-                    raw: row.get(3)?,
-                    text: row.get(4)?,
-                    status: if row.get::<_, String>(5)? == "failed" {
-                        HistoryStatus::Failed
-                    } else {
-                        HistoryStatus::Done
-                    },
-                    error: row.get(6)?,
-                    has_audio: row.get(7)?,
-                })
-            })
+            .query_map([limit], read_entry)
             .map_err(PennelError::storage)?;
         rows.collect::<Result<_, _>>().map_err(PennelError::storage)
     }
@@ -190,6 +235,23 @@ impl HistoryStore {
             .map_err(PennelError::storage)?;
         remove_if_exists(&self.audio_path(id))
     }
+}
+
+fn read_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryEntry> {
+    Ok(HistoryEntry {
+        id: row.get(0)?,
+        created_at_ms: row.get(1)?,
+        app_bundle_id: row.get(2)?,
+        raw: row.get(3)?,
+        text: row.get(4)?,
+        status: if row.get::<_, String>(5)? == "failed" {
+            HistoryStatus::Failed
+        } else {
+            HistoryStatus::Done
+        },
+        error: row.get(6)?,
+        has_audio: row.get(7)?,
+    })
 }
 
 fn remove_if_exists(path: &Path) -> Result<(), PennelError> {

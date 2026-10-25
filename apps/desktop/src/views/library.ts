@@ -41,6 +41,7 @@ export class LibrarySidebar {
   private shown: MeetingInfo[] = [];
   private rendered = "";
   private menu: HTMLElement | null = null;
+  private menuAnchor: HTMLElement | null = null;
 
   constructor(private readonly host: LibraryHost) {
     this.search = h("input", { type: "search", placeholder: "Zoeken", "aria-label": "Zoeken in meetings", spellcheck: false });
@@ -54,8 +55,8 @@ export class LibrarySidebar {
     this.list = h("div", { class: "meeting-list", role: "list" });
     this.element = h("aside", { class: "library-sidebar", "aria-label": "Meetingbibliotheek" },
       h("div", { class: "library-search" }, this.search), this.ask, this.live, this.list);
-    document.addEventListener("pointerdown", (event) => { if (this.menu && !this.menu.contains(event.target as Node)) this.closeMenu(); });
-    document.addEventListener("keydown", (event) => { if (event.key === "Escape") this.closeMenu(); });
+    document.addEventListener("pointerdown", (event) => { if (this.menu && !this.menu.contains(event.target as Node)) this.closeMenu(false); });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && this.menu) { event.preventDefault(); this.closeMenu(); } });
     void api.onSyncChanged((report) => {
       void this.syncQueue.run(async () => {
         const wasOn = this.syncOn;
@@ -138,21 +139,35 @@ export class LibrarySidebar {
       if (day !== group) { group = day; this.list.append(h("h3", { class: "meeting-day" }, day)); }
       const state = this.syncStates.get(meeting.id);
       const badge = badgeFor(state, this.syncOn);
-      const open = h("button", { class: "meeting-select", onclick: () => this.host.go(workspaceRoute("meetings", null, meeting.id)) },
+      const hits = passages.filter((passage) => passage.meeting_id === meeting.id).slice(0, 2);
+      const source = hits[0];
+      const open = h("button", { class: "meeting-select", onclick: () => this.host.go(workspaceRoute("meetings", null, meeting.id, source?.start_ms ?? null,
+        source ? { kind: source.kind, start_ms: source.start_ms, text: source.text } : undefined)) },
         h("span", { class: "meeting-name" }, h("span", { class: "meeting-title" }, meeting.title),
           badge ? h("span", { class: `sync-badge ${state}`, title: badge.label, role: "img", "aria-label": badge.label }, icon(badge.icon)) : null),
         h("span", { class: "meeting-meta" }, `${meetingDate(meeting.start_iso)}${meeting.duration_min ? ` · ${meeting.duration_min} min` : ""}`),
-        passages.filter((passage) => passage.meeting_id === meeting.id).slice(0, 2).map((passage) => snippet(passage.snippet)));
-      const more = h("button", { class: "meeting-more button-icon", "aria-label": `Acties voor ${meeting.title}`, "aria-haspopup": "menu" }, icon("more"));
+        hits.map((passage) => snippet(passage.snippet)));
+      const more = h("button", { class: "meeting-more button-icon", "aria-label": `Acties voor ${meeting.title}`, "aria-haspopup": "menu", "aria-expanded": "false" }, icon("more"));
       const row = h("div", { class: "meeting-row", role: "listitem", "data-id": meeting.id }, open, more);
-      more.addEventListener("click", (event) => { event.stopPropagation(); this.openMenu(meeting, row, more.getBoundingClientRect()); });
-      row.addEventListener("contextmenu", (event) => { event.preventDefault(); this.openMenu(meeting, row, new DOMRect(event.clientX, event.clientY, 0, 0)); });
+      more.addEventListener("click", (event) => { event.stopPropagation(); this.openMenu(meeting, row, more.getBoundingClientRect(), more); });
+      more.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault(); this.openMenu(meeting, row, more.getBoundingClientRect(), more);
+          if (event.key === "ArrowUp") this.menu?.querySelectorAll<HTMLButtonElement>("button").item(2)?.focus();
+        }
+      });
+      row.addEventListener("contextmenu", (event) => { event.preventDefault(); this.openMenu(meeting, row, new DOMRect(event.clientX, event.clientY, 0, 0), more); });
+      open.addEventListener("keydown", (event) => {
+        if (event.key === "F10" && event.shiftKey) { event.preventDefault(); this.openMenu(meeting, row, more.getBoundingClientRect(), more); }
+      });
       this.list.append(row);
     }
   }
 
-  private openMenu(meeting: MeetingInfo, row: HTMLElement, anchor: DOMRect) {
-    this.closeMenu();
+  private openMenu(meeting: MeetingInfo, row: HTMLElement, anchor: DOMRect, invoker: HTMLElement) {
+    this.closeMenu(false);
+    this.menuAnchor = invoker;
+    invoker.setAttribute("aria-expanded", "true");
     const status = api.meetingStatus();
     const item = (label: string, action: () => Promise<void>, danger = false) => h("button", { role: "menuitem", class: danger ? "danger" : null, onclick: () => {
       this.closeMenu();
@@ -175,21 +190,35 @@ export class LibrarySidebar {
         await this.refresh();
         if (route.section === "meetings" && route.meeting_id === meeting.id) this.host.go(workspaceRoute("meetings"));
       }, true));
+    menu.addEventListener("keydown", (event) => {
+      const entries = [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+      const index = entries.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === "Tab") { this.closeMenu(); return; }
+      const next = event.key === "ArrowDown" ? (index + 1) % entries.length : event.key === "ArrowUp" ? (index - 1 + entries.length) % entries.length
+        : event.key === "Home" ? 0 : event.key === "End" ? entries.length - 1 : -1;
+      if (next >= 0) { event.preventDefault(); entries[next]?.focus(); }
+    });
     void status.then((current) => {
-      if (current.busy && current.id === meeting.id) menu.replaceChildren(h("p", { class: "help" }, "Opname loopt"));
+      if (current.busy && current.id === meeting.id) {
+        menu.replaceChildren(h("p", { class: "help", role: "status" }, "Opname loopt"));
+        if (this.menu === menu) { menu.tabIndex = -1; menu.focus(); }
+      }
     }).catch(() => undefined);
     row.classList.add("menu-open");
     document.body.append(menu);
     const bounds = menu.getBoundingClientRect();
-    menu.style.left = `${Math.min(anchor.left, innerWidth - bounds.width - 8)}px`;
-    menu.style.top = `${Math.min(anchor.bottom + 2, innerHeight - bounds.height - 8)}px`;
+    menu.style.left = `${Math.max(8, Math.min(anchor.left, innerWidth - bounds.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 2, innerHeight - bounds.height - 8))}px`;
     this.menu = menu;
     menu.querySelector("button")?.focus();
   }
 
-  private closeMenu() {
+  private closeMenu(restoreFocus = true) {
     this.menu?.remove();
     this.menu = null;
+    this.menuAnchor?.setAttribute("aria-expanded", "false");
+    if (restoreFocus && this.menuAnchor?.isConnected) this.menuAnchor.focus();
+    this.menuAnchor = null;
     this.list.querySelectorAll(".menu-open").forEach((row) => row.classList.remove("menu-open"));
   }
 }

@@ -137,14 +137,39 @@ pub enum WorkspaceSection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeetingSourceKind {
+    Notes,
+    Summary,
+    Transcript,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MeetingSourceTarget {
+    pub kind: MeetingSourceKind,
+    pub start_ms: Option<u64>,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceRoute {
     pub section: WorkspaceSection,
     pub tab: Option<String>,
     pub meeting_id: Option<String>,
     pub jump_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_target: Option<MeetingSourceTarget>,
 }
 
 impl WorkspaceRoute {
+    pub fn has_valid_source(&self) -> bool {
+        self.source_target.as_ref().is_none_or(|source| {
+            self.section == WorkspaceSection::Meetings
+                && self.meeting_id.as_deref().is_some_and(valid_meeting_id)
+                && !source.text.trim().is_empty()
+        })
+    }
+
     /// The window kind that shows this route.
     pub fn window_kind(&self) -> &'static str {
         match self.section {
@@ -161,6 +186,7 @@ impl WorkspaceRoute {
             tab: None,
             meeting_id: None,
             jump_ms: None,
+            source_target: None,
         }
     }
 }
@@ -449,6 +475,32 @@ pub fn requested(app: &AppHandle, label: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_navigation_is_additive_and_only_targets_a_meeting() {
+        let mut route = legacy_route("meetings", Some("2026-10-25 Projectoverleg")).unwrap();
+        let legacy_json = serde_json::to_string(&route).unwrap();
+        assert!(!legacy_json.contains("source_target"));
+        assert!(
+            serde_json::from_str::<WorkspaceRoute>(&legacy_json)
+                .unwrap()
+                .has_valid_source()
+        );
+        route.source_target = Some(MeetingSourceTarget {
+            kind: MeetingSourceKind::Notes,
+            start_ms: None,
+            text: "Besluit over de planning".into(),
+        });
+        assert!(route.has_valid_source());
+        let roundtrip: WorkspaceRoute =
+            serde_json::from_str(&serde_json::to_string(&route).unwrap()).unwrap();
+        assert_eq!(roundtrip, route);
+        route.section = WorkspaceSection::History;
+        assert!(!route.has_valid_source());
+        route.section = WorkspaceSection::Meetings;
+        route.source_target.as_mut().unwrap().text = " ".into();
+        assert!(!route.has_valid_source());
+    }
 
     #[test]
     fn mac_startup_only_presents_pending_onboarding() {

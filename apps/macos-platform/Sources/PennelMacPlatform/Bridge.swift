@@ -368,7 +368,7 @@ public func meetingStatus(_ handle: UnsafeMutableRawPointer?) -> UnsafeMutablePo
     guard let handle else { return bridgeString("null") }
     return onMain {
         let capture = Unmanaged<NativeMeetingRecorder>.fromOpaque(handle).takeUnretainedValue()
-        return bridgeJSON(["system_audio_available": capture.systemAudioAvailable, "heard_system_audio": capture.heardSystemAudio, "echo_cancellation": capture.isEchoCancellationEnabled])
+        return bridgeJSON(capture.healthSnapshot)
     }
 }
 

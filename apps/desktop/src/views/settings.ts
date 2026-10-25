@@ -19,7 +19,9 @@ function locked(capability: Capability): boolean {
 }
 
 function templateEditor(ctx: Context, target: { id: string | null; name: string; body: string }) {
-  const dialog = h("dialog", { class: "editor-dialog template-editor" });
+  const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const titleId = `template-editor-${crypto.randomUUID()}`;
+  const dialog = h("dialog", { class: "editor-dialog template-editor", "aria-labelledby": titleId });
   const name = h("input", { type: "text", value: target.name, placeholder: "Naam", "aria-label": "Naam" });
   const body = h("textarea", { rows: 12, "aria-label": "Inhoud van het sjabloon" });
   body.value = target.body;
@@ -31,9 +33,9 @@ function templateEditor(ctx: Context, target: { id: string | null; name: string;
   };
   body.addEventListener("input", update);
   update();
-  const close = () => { dialog.close(); dialog.remove(); };
+  const close = () => { dialog.close(); dialog.remove(); if (previousFocus?.isConnected) previousFocus.focus(); };
   const save = h("button", { class: "btn primary", type: "submit" }, "Bewaar");
-  const form = h("form", {}, h("h2", {}, target.id ? "Sjabloon bewerken" : "Nieuw sjabloon"), name, body,
+  const form = h("form", {}, h("h2", { id: titleId }, target.id ? "Sjabloon bewerken" : "Nieuw sjabloon"), name, body,
     h("p", { class: "help" }, "Schrijf wat de samenvatting moet doen. Elke regel die met ## begint wordt een vaste sectie."),
     sections, status, h("div", { class: "row dialog-actions" }, h("span", { class: "grow" }),
       h("button", { class: "btn", type: "button", onclick: close }, "Annuleren"), save));
@@ -45,6 +47,7 @@ function templateEditor(ctx: Context, target: { id: string | null; name: string;
     catch (error) { status.textContent = errorText(error); save.disabled = false; }
   });
   dialog.append(form);
+  dialog.addEventListener("cancel", (event) => { event.preventDefault(); close(); });
   document.body.append(dialog);
   dialog.showModal();
   name.focus();

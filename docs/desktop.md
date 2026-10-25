@@ -24,6 +24,18 @@ Closing a product window saves its drafts before hiding it, without changing the
 
 ## Dictation destinations and live text
 
+### Saving and recovery
+
+The shared app keeps completed dictation text available even when History cannot write to SQLite. **Nog niet bewaard** entries appear first in History, with **Kopiëren**, **Opnieuw bewaren** and explicit discard. Saving again never repeats recognition or pastes into another application. A failed save cancels automatic placement in the original destination; recovery notices refer to the exact dictation rather than whichever result finished last. Clipboard-write failures also stop placement instead of sending a paste command with stale clipboard contents.
+
+Temporary recovery entries live only in the running process. Pennel tries to save them before quitting or updating and stays open when saving still fails. Explicitly discarding an entry works even when SQLite is unavailable. New dictation is blocked at twenty retained/in-flight results or the five-MiB recovery budget; an unexpectedly oversized completed result is kept intact and blocks further capture until resolved. Closing a window does not discard temporary results. A process or computer crash cannot preserve memory-only text.
+
+Meeting audio chunks are durably written before recognition. Recognition queues file references rather than unbounded PCM; the capture ingress is bounded. Transcript replacement is atomic and recovery audio is removed only after its matching transcript is committed. Repeated storage failures stop capture with a persistent warning and retain the remaining material for **Opnieuw bewaren**, which does not rerun successful recognition. Pending WAVs are discovered after a restart. New recovery filenames and optional millisecond transcript timestamps prevent short chunks in the same second from overwriting one another; existing whole-second files remain readable, and ordinary timestamp display/export is unchanged.
+
+Two consecutive failed recognition chunks pause further recognition requests for that recording while audio continues to be saved. The recording screen explains the pause; failed chunks can be transcribed explicitly after recording. Fatal capture/storage errors stop recording, retain notes and title drafts, and prevent a new recording from replacing unsaved material.
+
+Speech provider, model, language, dictionary and credentials are frozen when a meeting starts. The live screen reports the frozen, nonsecret recognition configuration. Later settings edits apply to the next recording; summaries and questions use the model chosen when requested. Cloud account changes are blocked during an active meeting, while normal token refresh for the same account remains available.
+
 **Dicteren** opens the global workflow. Click a text field in another app, hold the configured shortcut and release to paste there. The main Pennel window does not need to be open. **Open dicteerpad** is an explicit secondary action; its existing local-draft and optional external-paste behavior remain separate from global dictation.
 
 Global dictation freezes an opaque external target when recording stops, before asynchronous transcription and cleanup. Provider, language, mode and dictionary are frozen at recording start; app-specific style context comes from the same stop target as delivery. A changed or unavailable target is never replaced with another recipient. The completed result remains in History with a recovery message. Mac additionally checks the captured Accessibility text-field identity; Windows/X11 currently guard the app, window and process-launch identity rather than exact field identity. Wayland retains its explicit copy-only behavior.

@@ -51,9 +51,13 @@ pub enum Msg {
     OwnedToggle(String),
     OwnedCancel(String),
     OwnedClosed(String),
-    OwnedDeliveryError(OwnedCapture, String),
+    OwnedDeliveryError {
+        capture: OwnedCapture,
+        history_id: String,
+    },
     RefreshOwned,
     DeliveryNotice(String),
+    DeliveryRecovery(RecoveryEvent),
     Preview {
         update: DictationPreviewUpdate,
         owned: Option<OwnedCapture>,
@@ -222,10 +226,50 @@ impl Drop for CaptureActivity {
     }
 }
 
+#[derive(Debug)]
 struct PasteText<T = ExternalTarget> {
+    history_id: String,
     text: String,
     released: Instant,
     destination: ExternalDestination<T>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct RecoveryEvent {
+    pub id: String,
+    pub unsaved: bool,
+    pub reason: String,
+}
+
+#[derive(Debug)]
+struct UndeliveredText {
+    text: String,
+    recovery: RecoveryEvent,
+}
+
+fn prepare_delivery<T>(
+    result: DictationResult,
+    released: Instant,
+    destination: ExternalDestination<T>,
+    cancel: impl FnOnce(&ExternalDestination<T>),
+) -> Result<PasteText<T>, UndeliveredText> {
+    if !result.history_saved {
+        cancel(&destination);
+        return Err(UndeliveredText {
+            text: result.text,
+            recovery: RecoveryEvent {
+                id: result.history_id,
+                unsaved: true,
+                reason: "Bewaren mislukt. Je tekst staat tijdelijk in Geschiedenis.".into(),
+            },
+        });
+    }
+    Ok(PasteText {
+        history_id: result.history_id,
+        text: result.text,
+        released,
+        destination,
+    })
 }
 
 struct Delivery {
@@ -385,7 +429,11 @@ impl DictationPreviewObserver for PreviewObserver {
 
 enum CompletedDelivery {
     External(PasteText),
-    Owned { capture: OwnedCapture, text: String },
+    Owned {
+        capture: OwnedCapture,
+        history_id: String,
+        text: String,
+    },
 }
 
 fn target_matches(target_pid: Option<u32>, current_pid: Option<u32>) -> bool {
@@ -414,21 +462,23 @@ fn copy_only_delivery(requested: bool) -> bool {
 fn delivery_notice(result: Result<(), String>) -> String {
     match result {
         Ok(()) => "Tekst gekopieerd — plak met Ctrl+V".into(),
-        Err(error) => {
-            LOG.error(format!("klembord schrijven mislukt: {error}"));
+        Err(_) => {
+            LOG.error("klembord schrijven mislukt");
             "Kopiëren mislukt — tekst staat in Geschiedenis".into()
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DeliveryFailure {
     Missing,
     Changed,
     Permission,
     Other,
+    Copy,
 }
 
-fn unavailable_destination(shared: &Shared, failure: DeliveryFailure) {
+fn recovery_for_failure(history_id: &str, failure: DeliveryFailure) -> RecoveryEvent {
     let notice = match failure {
         DeliveryFailure::Missing => "Geen actief tekstdoel — je tekst staat in Geschiedenis.",
         DeliveryFailure::Changed => {
@@ -438,8 +488,46 @@ fn unavailable_destination(shared: &Shared, failure: DeliveryFailure) {
             "Geen toegang om te plakken. Je tekst staat in Geschiedenis."
         }
         DeliveryFailure::Other => "Niet geplakt. Je tekst staat in Geschiedenis.",
+        DeliveryFailure::Copy => "Kopiëren mislukt. Je tekst staat in Geschiedenis.",
     };
-    let _ = shared.dictation.send(Msg::DeliveryNotice(notice.into()));
+    RecoveryEvent {
+        id: history_id.into(),
+        unsaved: false,
+        reason: notice.into(),
+    }
+}
+
+fn unavailable_destination(shared: &Shared, history_id: &str, failure: DeliveryFailure) {
+    let _ = shared
+        .dictation
+        .send(Msg::DeliveryRecovery(recovery_for_failure(
+            history_id, failure,
+        )));
+}
+
+fn finish_copy(notices: &Sender<Msg>, history_id: &str, result: Result<(), String>) {
+    let message = match result {
+        Ok(()) => Msg::DeliveryNotice(delivery_notice(Ok(()))),
+        Err(_) => {
+            LOG.error("klembord schrijven mislukt");
+            Msg::DeliveryRecovery(recovery_for_failure(history_id, DeliveryFailure::Copy))
+        }
+    };
+    let _ = notices.send(message);
+}
+
+#[cfg(any(not(target_os = "macos"), test))]
+fn paste_transaction<C: crate::clipboard::Clipboard>(
+    clipboard: &mut C,
+    text: &str,
+    paste: impl FnOnce() -> Result<(), String>,
+    wait: impl FnOnce(),
+) -> Result<(), String> {
+    let token = crate::clipboard::try_begin(clipboard, text)?;
+    let result = paste();
+    wait();
+    crate::clipboard::end(clipboard, token);
+    result
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -471,6 +559,7 @@ enum PasteJob {
     },
     Owned {
         capture: OwnedCapture,
+        history_id: String,
         text: String,
         pending: CountedWork<Arc<Shared>>,
     },
@@ -515,32 +604,43 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                 late = None;
                 if matches!(result.destination, ExternalDestination::CopyOnly) {
                     let copied = copy_persistent(&result.text, &mut persistent_clipboard);
-                    let notice = delivery_notice(copied);
-                    let _ = shared.dictation.send(Msg::DeliveryNotice(notice));
+                    finish_copy(&shared.dictation, &result.history_id, copied);
                     continue;
                 }
                 let ExternalDestination::Captured(target) = &result.destination else {
-                    unavailable_destination(&shared, DeliveryFailure::Missing);
+                    unavailable_destination(&shared, &result.history_id, DeliveryFailure::Missing);
                     continue;
                 };
                 keys::wait_for_release();
                 if !external_paste::availability().0 {
                     target.cancel();
-                    unavailable_destination(&shared, DeliveryFailure::Permission);
+                    unavailable_destination(
+                        &shared,
+                        &result.history_id,
+                        DeliveryFailure::Permission,
+                    );
                     continue;
                 }
                 if external_paste::prepare(target).is_err()
                     || !external_paste::still_selected(target)
                 {
                     target.cancel();
-                    unavailable_destination(&shared, DeliveryFailure::Changed);
+                    unavailable_destination(&shared, &result.history_id, DeliveryFailure::Changed);
                     continue;
                 }
-                let token = clipboard::begin(&mut clipboard, &result.text);
-                let pasted =
-                    external_paste::still_selected(target) && keys::send(Shortcut::Paste).is_ok();
-                std::thread::sleep(clipboard::RESTORE_DELAY);
-                clipboard::end(&mut clipboard, token);
+                let pasted = paste_transaction(
+                    &mut clipboard,
+                    &result.text,
+                    || {
+                        if external_paste::still_selected(target) {
+                            keys::send(Shortcut::Paste)
+                        } else {
+                            Err("Het tekstdoel is gewijzigd.".into())
+                        }
+                    },
+                    || std::thread::sleep(clipboard::RESTORE_DELAY),
+                )
+                .is_ok();
                 target.cancel();
                 if pasted {
                     LOG.info(format!(
@@ -548,7 +648,7 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                         result.released.elapsed().as_millis()
                     ));
                 } else {
-                    unavailable_destination(&shared, DeliveryFailure::Other);
+                    unavailable_destination(&shared, &result.history_id, DeliveryFailure::Other);
                 }
             }
             Some(PasteJob::ReadSelection {
@@ -586,6 +686,7 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
             }
             Some(PasteJob::Owned {
                 capture,
+                history_id,
                 text,
                 pending,
             }) => {
@@ -606,20 +707,26 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                             "Extern plakken is geannuleerd. Je tekst staat in Pennel.".into()
                         );
                     }
-                    let token = clipboard::begin(&mut clipboard, &text);
-                    let result = if crate::external_paste::still_selected(target) {
-                        keys::send(Shortcut::Paste)
-                    } else {
-                        Err("De doelapp is gewijzigd. Je tekst staat in Pennel.".into())
-                    };
-                    std::thread::sleep(clipboard::RESTORE_DELAY);
-                    clipboard::end(&mut clipboard, token);
-                    result
+                    paste_transaction(
+                        &mut clipboard,
+                        &text,
+                        || {
+                            if owned_dictation::external_allowed(&shared, &capture)
+                                && crate::external_paste::still_selected(target)
+                            {
+                                keys::send(Shortcut::Paste)
+                            } else {
+                                Err("De doelapp is gewijzigd. Je tekst staat in Pennel.".into())
+                            }
+                        },
+                        || std::thread::sleep(clipboard::RESTORE_DELAY),
+                    )
                 });
-                if let Err(error) = result {
-                    let _ = shared
-                        .dictation
-                        .send(Msg::OwnedDeliveryError(capture, error));
+                if result.is_err() {
+                    let _ = shared.dictation.send(Msg::OwnedDeliveryError {
+                        capture,
+                        history_id,
+                    });
                 }
             }
         }
@@ -634,22 +741,29 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
             PasteJob::Paste { result, pending } => {
                 let _pending = pending;
                 if matches!(result.destination, ExternalDestination::CopyOnly) {
-                    let notice = delivery_notice(crate::macos::copy_text(&result.text, None));
-                    let _ = shared.dictation.send(Msg::DeliveryNotice(notice));
+                    finish_copy(
+                        &shared.dictation,
+                        &result.history_id,
+                        crate::macos::copy_text(&result.text, None),
+                    );
                     continue;
                 }
                 let ExternalDestination::Captured(target) = &result.destination else {
-                    unavailable_destination(&shared, DeliveryFailure::Missing);
+                    unavailable_destination(&shared, &result.history_id, DeliveryFailure::Missing);
                     continue;
                 };
                 if !external_paste::availability().0 {
                     target.cancel();
-                    unavailable_destination(&shared, DeliveryFailure::Permission);
+                    unavailable_destination(
+                        &shared,
+                        &result.history_id,
+                        DeliveryFailure::Permission,
+                    );
                     continue;
                 }
                 if !external_paste::is_current(target) {
                     target.cancel();
-                    unavailable_destination(&shared, DeliveryFailure::Changed);
+                    unavailable_destination(&shared, &result.history_id, DeliveryFailure::Changed);
                     continue;
                 }
                 let pasted = external_paste::paste(&result.text, target).is_ok();
@@ -660,7 +774,7 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                         result.released.elapsed().as_millis()
                     ));
                 } else {
-                    unavailable_destination(&shared, DeliveryFailure::Other);
+                    unavailable_destination(&shared, &result.history_id, DeliveryFailure::Other);
                 }
             }
             PasteJob::ReadSelection {
@@ -687,6 +801,7 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
             }
             PasteJob::Owned {
                 capture,
+                history_id,
                 text,
                 pending,
             } => {
@@ -697,10 +812,11 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                 let Some(target) = &capture.external else {
                     continue;
                 };
-                if let Err(error) = crate::external_paste::paste(&text, target) {
-                    let _ = shared
-                        .dictation
-                        .send(Msg::OwnedDeliveryError(capture, error));
+                if crate::external_paste::paste(&text, target).is_err() {
+                    let _ = shared.dictation.send(Msg::OwnedDeliveryError {
+                        capture,
+                        history_id,
+                    });
                 }
             }
         }
@@ -842,6 +958,10 @@ impl Controller {
                     self.clear_owned_preview(&id);
                 }
                 Some(Msg::DeliveryNotice(notice)) => self.notify(&notice),
+                Some(Msg::DeliveryRecovery(recovery)) => {
+                    let _ = self.app.emit("dictation-recovery", &recovery);
+                    self.notify(&recovery.reason);
+                }
                 Some(Msg::Preview { update, owned }) => {
                     let owner_valid = owned.as_ref().is_none_or(OwnedCapture::valid);
                     if self.preview_cursor.accept(&update, owner_valid) {
@@ -850,8 +970,20 @@ impl Controller {
                         self.clear_preview(&update.session_id);
                     }
                 }
-                Some(Msg::OwnedDeliveryError(capture, error)) => {
-                    owned_dictation::delivery_error(&self.app, &capture, error)
+                Some(Msg::OwnedDeliveryError {
+                    capture,
+                    history_id,
+                }) => {
+                    if capture.valid() {
+                        owned_dictation::delivery_error(
+                            &self.app,
+                            &capture,
+                            "Extern plakken is mislukt. Je tekst staat in Pennel.".into(),
+                        );
+                        let recovery = recovery_for_failure(&history_id, DeliveryFailure::Other);
+                        let _ = self.app.emit("dictation-recovery", &recovery);
+                        self.notify(&recovery.reason);
+                    }
                 }
                 Some(Msg::RefreshOwned) => {
                     owned_dictation::refresh_idle_pads(&self.app, &self.shared)
@@ -979,6 +1111,10 @@ impl Controller {
             owned_dictation::own_app_foreground(&self.app),
             self.requested_owned.take(),
         );
+        if let Err(error) = self.shared.engine.ensure_history_capacity() {
+            self.gesture = HotkeyGesture::default();
+            return self.notify(&error.to_string());
+        }
         let allows_command = route.allows_command();
         if route == owned_dictation::CaptureRoute::Unavailable {
             self.gesture = HotkeyGesture::default();
@@ -1340,31 +1476,49 @@ impl Controller {
                     result.text.chars().count(),
                     describe(&result.cleanup)
                 );
-                if matches!(result.cleanup, CleanupStatus::Failed { .. }) {
+                if !result.history_saved || matches!(result.cleanup, CleanupStatus::Failed { .. }) {
                     LOG.error(line);
                 } else {
                     LOG.info(line);
                 }
-                (
-                    Some(match &owned {
-                        Some(capture) => CompletedDelivery::Owned {
-                            capture: capture.clone(),
-                            text: result.text,
-                        },
-                        None => CompletedDelivery::External(PasteText {
-                            text: result.text,
-                            released,
-                            destination,
+                let notice = notice_for_cleanup(&result.cleanup).map(|notice| {
+                    if copy_only || owned.is_some() {
+                        notice.replace("geplakt", "beschikbaar")
+                    } else {
+                        notice
+                    }
+                });
+                match prepare_delivery(result, released, destination, cancel_destination) {
+                    Ok(result) => (
+                        Some(match &owned {
+                            Some(capture) => CompletedDelivery::Owned {
+                                capture: capture.clone(),
+                                history_id: result.history_id,
+                                text: result.text,
+                            },
+                            None => CompletedDelivery::External(result),
                         }),
-                    }),
-                    notice_for_cleanup(&result.cleanup).map(|notice| {
-                        if copy_only || owned.is_some() {
-                            notice.replace("geplakt", "beschikbaar")
-                        } else {
-                            notice
+                        notice,
+                    ),
+                    Err(retained) => {
+                        let active = owned.as_ref().is_none_or(OwnedCapture::valid);
+                        if let Some(capture) = &owned {
+                            if let Some(target) = &capture.external {
+                                target.cancel();
+                            }
+                            owned_dictation::complete(
+                                &self.app,
+                                &self.shared,
+                                capture,
+                                retained.text,
+                            );
                         }
-                    }),
-                )
+                        if active {
+                            let _ = self.app.emit("dictation-recovery", &retained.recovery);
+                        }
+                        (None, active.then_some(retained.recovery.reason))
+                    }
+                }
             }
             Err(failure) => {
                 cancel_destination(&destination);
@@ -1412,12 +1566,17 @@ impl Controller {
                         pending: paste_pending(&self.shared),
                     });
                 }
-                CompletedDelivery::Owned { capture, text } => {
+                CompletedDelivery::Owned {
+                    capture,
+                    history_id,
+                    text,
+                } => {
                     if owned_dictation::complete(&self.app, &self.shared, &capture, text.clone())
                         && owned_dictation::external_allowed(&self.shared, &capture)
                     {
                         let _ = self.paster.send(PasteJob::Owned {
                             capture,
+                            history_id,
                             text,
                             pending: paste_pending(&self.shared),
                         });
@@ -1790,6 +1949,7 @@ mod tests {
                 .fulfill(
                     second,
                     Some(PasteText {
+                        history_id: "second-history".into(),
                         text: "second".into(),
                         released,
                         destination: ExternalDestination::Captured(42),
@@ -1800,6 +1960,7 @@ mod tests {
         let ready = queue.fulfill(
             first,
             Some(PasteText {
+                history_id: "first-history".into(),
                 text: "first".into(),
                 released: released - Duration::from_secs(1),
                 destination: ExternalDestination::Captured(24),
@@ -1810,6 +1971,197 @@ mod tests {
         assert_eq!(ready[1].destination, ExternalDestination::Captured(42));
         assert_eq!(ready[1].released, released);
         assert_eq!(ready[0].released, released - Duration::from_secs(1));
+    }
+
+    fn completed_result(id: &str, history_saved: bool) -> DictationResult {
+        DictationResult {
+            history_id: id.into(),
+            history_saved,
+            text: "synthetic-private-finished-text".into(),
+            raw: "synthetic-private-raw-text".into(),
+            cleanup: CleanupStatus::Skipped,
+        }
+    }
+
+    #[test]
+    fn unsaved_results_cancel_the_frozen_target_and_release_the_next_queued_result() {
+        let mut queue = PasteQueue::default();
+        let first = queue.reserve();
+        let second = queue.reserve();
+        let released = Instant::now();
+        let later = prepare_delivery(
+            completed_result("saved-second", true),
+            released,
+            ExternalDestination::Captured(99u32),
+            |_| panic!("a saved result must retain its original destination"),
+        )
+        .unwrap();
+        assert!(queue.fulfill(second, Some(later)).is_empty());
+
+        let cancelled = std::cell::Cell::new(false);
+        let unsaved = prepare_delivery(
+            completed_result("unsaved-first", false),
+            released,
+            ExternalDestination::Captured(42u32),
+            |destination| {
+                assert_eq!(destination, &ExternalDestination::Captured(42));
+                cancelled.set(true);
+            },
+        )
+        .unwrap_err();
+        assert!(cancelled.get());
+        assert_eq!(unsaved.text, "synthetic-private-finished-text");
+        assert_eq!(unsaved.recovery.id, "unsaved-first");
+        assert!(unsaved.recovery.unsaved);
+        let ready = queue.fulfill(first, None);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].history_id, "saved-second");
+        assert_eq!(ready[0].destination, ExternalDestination::Captured(99));
+
+        let serialized = serde_json::to_string(&unsaved.recovery).unwrap();
+        assert!(!serialized.contains("synthetic-private-finished-text"));
+        assert!(!serialized.contains("synthetic-private-raw-text"));
+    }
+
+    #[test]
+    fn delivery_failures_retain_each_queued_results_own_recovery_identity() {
+        let mut queue = PasteQueue::default();
+        let first = queue.reserve();
+        let second = queue.reserve();
+        let released = Instant::now();
+        let later = prepare_delivery(
+            completed_result("later-result", true),
+            released,
+            ExternalDestination::Captured(20u32),
+            |_| panic!("saved result was cancelled"),
+        )
+        .unwrap();
+        assert!(queue.fulfill(second, Some(later)).is_empty());
+        let earlier = prepare_delivery(
+            completed_result("earlier-result", true),
+            released,
+            ExternalDestination::Captured(10u32),
+            |_| panic!("saved result was cancelled"),
+        )
+        .unwrap();
+        let ready = queue.fulfill(first, Some(earlier));
+        for (result, expected_id) in ready.iter().zip(["earlier-result", "later-result"]) {
+            let recovery = recovery_for_failure(&result.history_id, DeliveryFailure::Changed);
+            assert_eq!(recovery.id, expected_id);
+            assert!(!recovery.unsaved);
+            assert!(recovery.reason.contains("tekstdoel is gewijzigd"));
+        }
+    }
+
+    #[test]
+    fn copy_failure_recovery_has_a_saved_identity_and_no_dictation_content() {
+        let (notices, received) = mpsc::channel();
+        finish_copy(
+            &notices,
+            "clipboard-result",
+            Err("synthetic-private-finished-text".into()),
+        );
+        let Msg::DeliveryRecovery(recovery) = received.try_recv().unwrap() else {
+            panic!("failed clipboard write must report recoverable text");
+        };
+        assert_eq!(
+            serde_json::to_value(recovery).unwrap(),
+            serde_json::json!({
+                "id": "clipboard-result",
+                "unsaved": false,
+                "reason": "Kopiëren mislukt. Je tekst staat in Geschiedenis."
+            })
+        );
+    }
+
+    struct PasteClipboard {
+        state: std::rc::Rc<std::cell::RefCell<(String, u64)>>,
+        fail_writes: bool,
+    }
+
+    impl crate::clipboard::Clipboard for PasteClipboard {
+        type Snapshot = String;
+
+        fn fingerprint(&mut self) -> u64 {
+            self.state.borrow().1
+        }
+        fn snapshot(&mut self) -> String {
+            self.state.borrow().0.clone()
+        }
+        fn restore(&mut self, text: &String) {
+            let mut state = self.state.borrow_mut();
+            state.0 = text.clone();
+            state.1 += 1;
+        }
+        fn try_set_transient_text(&mut self, text: &str, _: bool) -> Result<(), String> {
+            if self.fail_writes {
+                return Err("synthetic clipboard error".into());
+            }
+            let mut state = self.state.borrow_mut();
+            state.0 = text.into();
+            state.1 += 1;
+            Ok(())
+        }
+        fn text(&mut self) -> Option<String> {
+            Some(self.state.borrow().0.clone())
+        }
+    }
+
+    #[test]
+    fn a_failed_clipboard_write_cannot_paste_stale_user_content() {
+        let state = std::rc::Rc::new(std::cell::RefCell::new(("earlier user copy".into(), 1)));
+        let mut clipboard = PasteClipboard {
+            state: state.clone(),
+            fail_writes: true,
+        };
+        let sent = std::cell::Cell::new(false);
+        let result = paste_transaction(
+            &mut clipboard,
+            "synthetic dictation",
+            || {
+                sent.set(true);
+                Ok(())
+            },
+            || panic!("failed writes must not wait for paste delivery"),
+        );
+        assert_eq!(result, Err(crate::clipboard::COPY_FAILED.into()));
+        assert!(!sent.get());
+        assert_eq!(state.borrow().0, "earlier user copy");
+    }
+
+    #[test]
+    fn paste_errors_restore_the_prior_clipboard_without_replacing_a_new_user_copy() {
+        for user_copies in [false, true] {
+            let state = std::rc::Rc::new(std::cell::RefCell::new(("earlier user copy".into(), 1)));
+            let mut clipboard = PasteClipboard {
+                state: state.clone(),
+                fail_writes: false,
+            };
+            let result = paste_transaction(
+                &mut clipboard,
+                "synthetic dictation",
+                || {
+                    assert_eq!(state.borrow().0, "synthetic dictation");
+                    Err("synthetic paste failure".into())
+                },
+                || {
+                    if user_copies {
+                        let mut state = state.borrow_mut();
+                        state.0 = "new user copy".into();
+                        state.1 += 1;
+                    }
+                },
+            );
+            assert!(result.is_err());
+            assert_eq!(
+                state.borrow().0,
+                if user_copies {
+                    "new user copy"
+                } else {
+                    "earlier user copy"
+                }
+            );
+        }
     }
 
     #[test]

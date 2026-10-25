@@ -174,10 +174,11 @@ pub fn show_workspace(
     app: AppHandle,
     window: tauri::WebviewWindow,
 ) -> Result<(), String> {
-    if route
-        .meeting_id
-        .as_deref()
-        .is_some_and(|id| !crate::workspace::valid_meeting_id(id))
+    if !route.has_valid_source()
+        || route
+            .meeting_id
+            .as_deref()
+            .is_some_and(|id| !crate::workspace::valid_meeting_id(id))
     {
         return Err("Ongeldige meeting".into());
     }

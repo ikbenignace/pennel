@@ -60,7 +60,7 @@ pub fn set_title(shared: &Shared, title: String, session_id: &str) -> Result<(),
     let lifecycle = shared.recording.lock().unwrap();
     let state = lifecycle.snapshot();
     match state.phase {
-        RecordingPhase::Recording | RecordingPhase::Stopping => {}
+        RecordingPhase::Recording | RecordingPhase::Stopping | RecordingPhase::Error => {}
         RecordingPhase::Starting => {
             return Err("Wacht tot de opname is gestart om de titel te wijzigen.".into());
         }
@@ -70,7 +70,7 @@ pub fn set_title(shared: &Shared, title: String, session_id: &str) -> Result<(),
                     .into(),
             );
         }
-        RecordingPhase::Idle | RecordingPhase::Error => {
+        RecordingPhase::Idle => {
             return Err("Er is geen actieve opname waarvan je de titel kunt wijzigen.".into());
         }
     }
@@ -114,6 +114,52 @@ fn copy_consent(
     Ok(true)
 }
 
+fn begin_recording(shared: &Shared, detected_app: Option<String>) -> Result<String, String> {
+    let finalized_error = {
+        let lifecycle = shared.recording.lock().unwrap();
+        if shared.quitting.load(Ordering::SeqCst) {
+            return Err("Pennel wordt afgesloten. Open de app opnieuw om verder te gaan.".into());
+        }
+        if shared.updating.load(Ordering::SeqCst) {
+            return Err("Pennel wordt bijgewerkt. Wacht tot de app opnieuw is gestart.".into());
+        }
+        (lifecycle.snapshot().phase == RecordingPhase::Error)
+            .then(|| {
+                shared
+                    .meeting_context
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .filter(|context| context.session.is_finalized())
+                    .map(|context| context.token.clone())
+            })
+            .flatten()
+    };
+    if let Some(token) = finalized_error {
+        retry_saved_session(shared, &token)?;
+    }
+    let mut lifecycle = shared.recording.lock().unwrap();
+    if shared.quitting.load(Ordering::SeqCst) {
+        return Err("Pennel wordt afgesloten. Open de app opnieuw om verder te gaan.".into());
+    }
+    if shared.updating.load(Ordering::SeqCst) {
+        return Err("Pennel wordt bijgewerkt. Wacht tot de app opnieuw is gestart.".into());
+    }
+    let mut context = shared.meeting_context.lock().unwrap();
+    if context
+        .as_ref()
+        .is_some_and(|context| !context.session.is_finalized())
+    {
+        return Err("De vorige opname is nog niet volledig bewaard. Open de opname en probeer opnieuw te bewaren.".into());
+    }
+    let token = lifecycle
+        .begin(detected_app)
+        .map_err(|error| error.to_string())?;
+    shared.recording_cancel.store(false, Ordering::SeqCst);
+    context.take();
+    Ok(token)
+}
+
 /// Runs on a worker: native capture initialization may need the application's main queue.
 pub fn start(
     shared: &Arc<Shared>,
@@ -121,21 +167,7 @@ pub fn start(
     detected_app: Option<String>,
     attendees: Vec<String>,
 ) -> Result<String, String> {
-    let token = {
-        let mut lifecycle = shared.recording.lock().unwrap();
-        if shared.quitting.load(Ordering::SeqCst) {
-            return Err("Pennel wordt afgesloten. Open de app opnieuw om verder te gaan.".into());
-        }
-        if shared.updating.load(Ordering::SeqCst) {
-            return Err("Pennel wordt bijgewerkt. Wacht tot de app opnieuw is gestart.".into());
-        }
-        let token = lifecycle
-            .begin(detected_app.clone())
-            .map_err(|error| error.to_string())?;
-        shared.recording_cancel.store(false, Ordering::SeqCst);
-        shared.meeting_context.lock().unwrap().take();
-        token
-    };
+    let token = begin_recording(shared, detected_app.clone())?;
     #[cfg(target_os = "macos")]
     let _tray_update = crate::macos_tray::UpdateOnDrop;
     #[cfg(target_os = "macos")]
@@ -197,14 +229,15 @@ pub fn start(
     ) {
         Ok(recorder) => recorder,
         Err(error) => {
-            let _ = session.stop();
-            let _ = shared.engine.delete_meeting(id);
-            shared.meeting_context.lock().unwrap().take();
+            if session.stop().is_ok() {
+                let _ = shared.engine.delete_meeting(id);
+                shared.meeting_context.lock().unwrap().take();
+            }
             fail(shared, &token, &error);
             return Err(error);
         }
     };
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     LOG.info(format!(
         "echo-onderdrukking actief={}",
         recorder.echo_cancellation_active()
@@ -232,6 +265,7 @@ pub fn start(
         .unwrap()
         .recording(&token)
         .map_err(|error| error.to_string())?;
+    monitor_health(shared.clone(), token);
     if shared.recording_cancel.load(Ordering::SeqCst) {
         stop_and_wait(shared)?;
     }
@@ -242,11 +276,22 @@ fn take_recorder(
     shared: &Shared,
     expected_call: Option<&str>,
 ) -> Result<Option<(String, MeetingRecorder)>, String> {
+    take_recorder_matching(shared, expected_call, None)
+}
+
+fn take_recorder_matching(
+    shared: &Shared,
+    expected_call: Option<&str>,
+    expected_session: Option<&str>,
+) -> Result<Option<(String, MeetingRecorder)>, String> {
     let mut lifecycle = shared.recording.lock().unwrap();
     if expected_call.is_some_and(|app| !lifecycle.owns_call(app)) {
         return Ok(None);
     }
     let state = lifecycle.snapshot();
+    if expected_session.is_some_and(|id| state.session_id.as_deref() != Some(id)) {
+        return Ok(None);
+    }
     match state.phase {
         RecordingPhase::Starting => {
             shared.recording_cancel.store(true, Ordering::SeqCst);
@@ -273,6 +318,41 @@ fn take_recorder(
     Ok(Some((token, recorder)))
 }
 
+fn monitor_health(shared: Arc<Shared>, token: String) {
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(Duration::from_secs(1));
+            let state = shared.recording.lock().unwrap().snapshot();
+            if state.session_id.as_deref() != Some(&token)
+                || state.phase != RecordingPhase::Recording
+            {
+                return;
+            }
+            let terminal = shared
+                .meeting
+                .lock()
+                .unwrap()
+                .as_ref()
+                .and_then(|recorder| {
+                    recorder
+                        .session
+                        .health()
+                        .terminal_error
+                        .or_else(|| recorder.terminal_error())
+                });
+            if terminal.is_some() {
+                if let Ok(Some((token, recorder))) =
+                    take_recorder_matching(&shared, None, Some(&token))
+                {
+                    LOG.error("De opname wordt gestopt na een audio- of opslagfout.");
+                    let _ = finish(&shared, &token, recorder);
+                }
+                return;
+            }
+        }
+    });
+}
+
 fn finish(shared: &Shared, token: &str, recorder: MeetingRecorder) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     let _tray_update = crate::macos_tray::UpdateOnDrop;
@@ -280,6 +360,9 @@ fn finish(shared: &Shared, token: &str, recorder: MeetingRecorder) -> Result<Str
     let system_audio = recorder.has_system_audio();
     let heard_system_audio = recorder.heard_system_audio();
     let audio_warning = recorder.audio_warning();
+    let terminal_error = recorder
+        .terminal_error()
+        .or_else(|| recorder.session.health().terminal_error);
     let mut desired_title = original_title.clone();
     if let Some(context) = shared
         .meeting_context
@@ -290,7 +373,7 @@ fn finish(shared: &Shared, token: &str, recorder: MeetingRecorder) -> Result<Str
     {
         context.system_audio = system_audio;
         context.heard_system_audio = heard_system_audio;
-        context.audio_warning = audio_warning;
+        context.audio_warning = audio_warning.or_else(|| terminal_error.clone());
         context.duration_secs = Some(context.started.elapsed().as_secs());
         desired_title = context.title.clone();
     }
@@ -302,9 +385,38 @@ fn finish(shared: &Shared, token: &str, recorder: MeetingRecorder) -> Result<Str
         .map_err(|error| error.to_string())?;
     #[cfg(target_os = "macos")]
     crate::macos_tray::changed();
-    let result = recorder
-        .stop()
-        .and_then(|id| rename_after_recording(&shared.engine, id, &original_title, &desired_title));
+    finish_after_capture(
+        shared,
+        token,
+        recorder.stop(),
+        terminal_error,
+        &original_title,
+        &desired_title,
+    )
+}
+
+fn finish_after_capture(
+    shared: &Shared,
+    token: &str,
+    captured: Result<String, String>,
+    terminal_error: Option<String>,
+    original_title: &str,
+    desired_title: &str,
+) -> Result<String, String> {
+    let result = captured.and_then(|id| {
+        if let Some(error) = terminal_error {
+            return Err(error);
+        }
+        rename_after_recording(&shared.engine, id, original_title, desired_title)
+    });
+    finish_context(shared, token, result)
+}
+
+fn finish_context(
+    shared: &Shared,
+    token: &str,
+    result: Result<String, String>,
+) -> Result<String, String> {
     match result {
         Ok(id) => {
             let mut lifecycle = shared.recording.lock().unwrap();
@@ -319,6 +431,69 @@ fn finish(shared: &Shared, token: &str, recorder: MeetingRecorder) -> Result<Str
             Err(error)
         }
     }
+}
+
+fn retry_saved_session(shared: &Shared, session_id: &str) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    let _tray_update = crate::macos_tray::UpdateOnDrop;
+    let (session, desired_title) = {
+        let mut lifecycle = shared.recording.lock().unwrap();
+        let state = lifecycle.snapshot();
+        if state.phase != RecordingPhase::Error || state.session_id.as_deref() != Some(session_id) {
+            return Err("Deze opname wacht niet meer op herstel.".into());
+        }
+        if shared.meeting.lock().unwrap().is_some() {
+            return Err("Rond eerst de audio-opname af voordat je opnieuw bewaart.".into());
+        }
+        let context = shared.meeting_context.lock().unwrap();
+        let context = context
+            .as_ref()
+            .filter(|context| context.token == session_id)
+            .ok_or("Deze opnamesessie is niet meer beschikbaar.")?;
+        lifecycle
+            .retry_finalizing(session_id)
+            .map_err(|error| error.to_string())?;
+        (context.session.clone(), context.title.clone())
+    };
+    let id = session.id();
+    let original_title = shared
+        .engine
+        .meeting_info(id.clone())
+        .map_or_else(|| desired_title.clone(), |info| info.title);
+    let saved = if session.is_finalized() {
+        Ok(())
+    } else {
+        session.retry_persistence()
+    };
+    let result = saved
+        .map_err(|error| error.to_string())
+        .and_then(|()| rename_after_recording(&shared.engine, id, &original_title, &desired_title));
+    finish_context(shared, session_id, result)
+}
+
+/// Saves the retained failed session only; successful speech recognition is never repeated here.
+pub fn retry_persistence(
+    app: &AppHandle,
+    shared: &Arc<Shared>,
+    session_id: &str,
+) -> Result<(), String> {
+    let _job = LibraryJob::new(shared)?;
+    let result = retry_saved_session(shared, session_id);
+    let _ = app.emit(
+        "meeting-finished",
+        MeetingFinished {
+            id: result.clone().ok(),
+            session_id: session_id.to_owned(),
+            error: result.as_ref().err().cloned(),
+            flush_warning: None,
+        },
+    );
+    if let Ok(id) = &result {
+        let _ = app.emit("meeting-stopped", Some(id));
+        let _ = app.emit("meeting-updated", id);
+        crate::cloud::poke(app);
+    }
+    result.map(|_| ())
 }
 
 #[derive(Clone, Serialize)]
@@ -485,6 +660,15 @@ pub fn stop_and_wait(shared: &Arc<Shared>) -> Result<Option<String>, String> {
             }
             RecordingPhase::Error => {
                 if shared.meeting.lock().unwrap().is_none() {
+                    let token = shared
+                        .meeting_context
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map(|context| context.token.clone());
+                    if let Some(token) = token {
+                        return retry_saved_session(shared, &token).map(Some);
+                    }
                     return Ok(None);
                 }
                 let message = shared
@@ -507,6 +691,199 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, AtomicUsize};
+
+    #[test]
+    fn an_unsaved_failed_meeting_blocks_a_new_recording_and_keeps_its_context() {
+        let (_root, shared, session, token) = failed_persistence();
+        assert!(start(&shared, "Nieuwe meeting".into(), None, Vec::new()).is_err());
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().session_id,
+            Some(token.clone())
+        );
+        assert_eq!(
+            shared
+                .meeting_context
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .session
+                .id(),
+            session.id()
+        );
+        assert!(!session.is_finalized());
+    }
+
+    #[test]
+    fn quitting_retries_storage_but_cannot_drop_an_unsaved_failed_meeting() {
+        let (_root, shared, session, token) = failed_persistence();
+        assert!(stop_and_wait(&shared).is_err());
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().phase,
+            RecordingPhase::Error
+        );
+        assert_eq!(
+            shared
+                .meeting_context
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .token,
+            token
+        );
+        assert!(!session.is_finalized());
+        std::fs::remove_dir(std::path::PathBuf::from(session.dir()).join("transcript.md")).unwrap();
+        assert_eq!(stop_and_wait(&shared).unwrap(), Some(session.id()));
+        assert!(session.is_finalized());
+        assert!(shared.meeting_context.lock().unwrap().is_none());
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().phase,
+            RecordingPhase::Idle
+        );
+    }
+
+    #[test]
+    fn save_retry_rejects_a_stale_token_before_changing_the_failed_session() {
+        let (_root, shared, session, token) = failed_persistence();
+        assert!(retry_saved_session(&shared, "vorige-sessie").is_err());
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().session_id,
+            Some(token)
+        );
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().phase,
+            RecordingPhase::Error
+        );
+        assert!(!session.is_finalized());
+    }
+
+    #[test]
+    fn save_retry_finishes_the_same_session_and_preserves_its_title_and_notes() {
+        let (_root, shared, session, token) = failed_persistence();
+        shared
+            .meeting_context
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .title = "Herstelde titel".into();
+        std::fs::remove_dir(std::path::PathBuf::from(session.dir()).join("transcript.md")).unwrap();
+        let id = retry_saved_session(&shared, &token).unwrap();
+        assert_ne!(id, session.id());
+        assert_eq!(
+            shared.engine.meeting_info(id.clone()).unwrap().title,
+            "Herstelde titel"
+        );
+        assert_eq!(shared.engine.meeting_notes(id), "Een bewaarde afspraak.");
+        assert!(session.is_finalized());
+        assert!(shared.meeting_context.lock().unwrap().is_none());
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().phase,
+            RecordingPhase::Idle
+        );
+    }
+
+    #[test]
+    fn a_stale_health_watcher_cannot_stop_a_newer_recording() {
+        let (_root, shared, session, token) = recording();
+        assert!(
+            take_recorder_matching(&shared, None, Some("vorige-sessie"))
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().session_id,
+            Some(token)
+        );
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().phase,
+            RecordingPhase::Recording
+        );
+        session.stop().unwrap();
+    }
+
+    #[test]
+    fn a_durable_capture_failure_can_be_acknowledged_by_starting_again() {
+        let (_root, shared, session, token) = recording();
+        session.stop().unwrap();
+        shared.recording.lock().unwrap().stopping(&token).unwrap();
+        shared.recording.lock().unwrap().finalizing(&token).unwrap();
+        assert_eq!(
+            finish_after_capture(
+                &shared,
+                &token,
+                Ok(session.id()),
+                Some("Microfoon onderbroken".into()),
+                "Originele titel",
+                "Originele titel"
+            ),
+            Err("Microfoon onderbroken".into())
+        );
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().phase,
+            RecordingPhase::Error
+        );
+        assert!(shared.meeting_context.lock().unwrap().is_some());
+        let next = begin_recording(&shared, None).unwrap();
+        assert_ne!(next, token);
+        assert!(shared.meeting_context.lock().unwrap().is_none());
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().phase,
+            RecordingPhase::Starting
+        );
+    }
+
+    #[test]
+    fn late_title_drafts_after_capture_failure_are_saved_before_quitting() {
+        let (_root, shared, session, token) = recording();
+        session.stop().unwrap();
+        shared
+            .recording
+            .lock()
+            .unwrap()
+            .fail(&token, "Microfoon onderbroken".into())
+            .unwrap();
+        set_title(&shared, "Laatste titel".into(), &token).unwrap();
+        let id = stop_and_wait(&shared).unwrap().unwrap();
+        assert_eq!(
+            shared.engine.meeting_info(id.clone()).unwrap().title,
+            "Laatste titel"
+        );
+        assert_eq!(shared.engine.meeting_notes(id), "Een bewaarde afspraak.");
+        assert!(shared.meeting_context.lock().unwrap().is_none());
+        assert_eq!(
+            shared.recording.lock().unwrap().snapshot().phase,
+            RecordingPhase::Idle
+        );
+    }
+
+    #[test]
+    fn starting_again_saves_the_finalized_failed_context_before_replacing_it() {
+        let (_root, shared, session, token) = recording();
+        session.stop().unwrap();
+        shared
+            .recording
+            .lock()
+            .unwrap()
+            .fail(&token, "Microfoon onderbroken".into())
+            .unwrap();
+        set_title(&shared, "Titel na onderbreking".into(), &token).unwrap();
+        let next = begin_recording(&shared, None).unwrap();
+        assert_ne!(next, token);
+        assert_eq!(shared.engine.meetings()[0].title, "Titel na onderbreking");
+        assert!(shared.meeting_context.lock().unwrap().is_none());
+    }
+
+    fn failed_persistence() -> (tempfile::TempDir, Arc<Shared>, Arc<MeetingSession>, String) {
+        let (root, shared, session, token) = recording();
+        shared.recording.lock().unwrap().stopping(&token).unwrap();
+        shared.recording.lock().unwrap().finalizing(&token).unwrap();
+        std::fs::create_dir(std::path::PathBuf::from(session.dir()).join("transcript.md")).unwrap();
+        let error = session.stop().unwrap_err().to_string();
+        fail(&shared, &token, &error);
+        (root, shared, session, token)
+    }
 
     #[test]
     fn fresh_local_fast_meeting_finishes_without_a_missing_llm_failure() {

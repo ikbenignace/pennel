@@ -7,6 +7,8 @@ import { icon } from "../icons";
 import type { Context } from "../main";
 import { hotkeyLabel } from "../presentation";
 import { shortcutAccessHint } from "../pad-shortcut-state";
+import { processingSummary } from "../processing-state";
+import { processingLabel } from "../recording-processing";
 
 const draft = new PadDraftState();
 const saves = new SerialQueue();
@@ -36,6 +38,9 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   const shortcutHelp = h("div", { class: "pad-setup pad-shortcut-help", hidden: true, role: "status", "aria-live": "polite" }, icon("warning"), shortcutText, shortcutRecovery);
   const shortcutKey = h("kbd", {}, hotkeyLabel(ctx.info.settings.hotkey, ctx.info.platform));
   const shortcutInstruction = h("span", {}, "Hou in om te spreken. Twee keer tikken voor handsfree.");
+  const processing = h("p", { class: "help processing-path" });
+  const refreshProcessing = () => { processing.textContent = `Volgend dictaat: ${processingLabel(processingSummary(ctx.info.settings, "dictation"))}`; };
+  refreshProcessing();
 
   const flush = async () => {
     window.clearTimeout(saving);
@@ -100,7 +105,7 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   ctx.onFlush(flush);
   ctx.beforeLeave(async () => { await flush(); await session.close(); });
   ctx.onDispose(() => { mounted = false; window.clearTimeout(saving); void flush().catch(ctx.report); void session.close().catch(ctx.report); });
-  ctx.onInfoChange(() => { void refreshReadiness(); if (session.state.snapshot) apply(session.state.snapshot); });
+  ctx.onInfoChange(() => { refreshProcessing(); void refreshReadiness(); if (session.state.snapshot) apply(session.state.snapshot); });
   const restoreSession = async () => {
     if (!mounted || !ctx.visible) return;
     try { await session.open(); await session.refresh(); }
@@ -114,7 +119,7 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   ctx.onVisibilityChange((visible) => { if (visible) void restoreSession().catch(showError); });
   const root = h("div", { class: "pad-workspace" }, back, setup,
     h("div", { class: "page-heading" }, h("div", {}, h("h1", {}, "Dicteerpad"), h("p", { class: "muted" }, "Spreek, lees na en werk je tekst bij.")), start),
-    h("div", { class: "shortcut-instruction" }, shortcutKey, shortcutInstruction), shortcutHelp,
+    h("div", { class: "shortcut-instruction" }, shortcutKey, shortcutInstruction), shortcutHelp, processing,
     textarea, h("div", { class: "row pad-actions" }, copy, cancel, h("span", { class: "grow" }),
       h("button", { class: "text-button", onclick: () => ctx.navigate("dictation") }, icon("settings"), "Dicteren instellen")), status, target);
   try { if (ctx.visible) await session.open(); } catch (error) { showError(error); }
@@ -126,11 +131,12 @@ function dictationHome(ctx: Context): HTMLElement {
   const key = h("kbd", {}, hotkeyLabel(ctx.info.settings.hotkey, ctx.info.platform));
   const detail = h("p", { class: "help", hidden: true });
   const repair = h("button", { class: "btn dictation-home-repair", hidden: true, onclick: () => api.showWindow("onboarding", "resume") }, "Maak het klaar");
+  const processing = h("p", { class: "help processing-path" });
   const root = h("div", { class: "pad-workspace dictation-home" },
     h("h1", {}, "Dicteren waar je typt."),
     h("p", { class: "dictation-home-intro muted" }, "Klik in een tekstveld in een andere app. Houd je sneltoets ingedrukt en spreek. Laat los om je tekst daar te plakken."),
     h("div", { class: "dictation-home-shortcut" }, key, h("span", { class: "muted" }, "Houd in om te spreken. Laat los om te plakken.")),
-    detail, repair,
+    detail, repair, processing,
     h("button", { class: "btn dictation-home-settings", onclick: () => ctx.navigate("dictation") }, "Dicteren instellen"),
     h("div", { class: "dictation-pad-option" }, h("button", { class: "text-button", onclick: () => ctx.navigate("dictation-pad") }, "Open dicteerpad"),
       h("p", { class: "help" }, "Alleen als je tekst eerst in Pennel wilt bewaren of bewerken.")));
@@ -140,6 +146,7 @@ function dictationHome(ctx: Context): HTMLElement {
   const refresh = async () => {
     const mine = ++revision;
     key.textContent = hotkeyLabel(ctx.info.settings.hotkey, ctx.info.platform);
+    processing.textContent = `Volgend dictaat: ${processingLabel(processingSummary(ctx.info.settings, "dictation"))}`;
     try {
       const ready = await api.onboardingReadiness("dictation_pad");
       if (disposed || mine !== revision) return;

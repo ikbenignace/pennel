@@ -13,17 +13,19 @@ final class TrackWriter: @unchecked Sendable {
     private var pending: [Float] = []
     private var sent: UInt64 = 0
     private var pendingStart: UInt64 = 0
-    private(set) var error: String?
+    private var archiveFailure: String?
+    private let writeOverride: ((AVAudioPCMBuffer) throws -> Void)?
     private let healthLock = NSLock()
     private let enqueueLock = NSLock()
     private var accepting = true
     private var heard = false
 
-    init(track: UInt32, sink: @escaping AudioSink, context: UnsafeMutableRawPointer?, started: TimeInterval, url: URL) throws {
+    init(track: UInt32, sink: @escaping AudioSink, context: UnsafeMutableRawPointer?, started: TimeInterval, url: URL, write: ((AVAudioPCMBuffer) throws -> Void)? = nil) throws {
         self.track = track
         self.sink = sink
         self.context = context
         self.started = started
+        self.writeOverride = write
         self.queue = DispatchQueue(label: "dev.pennel.native-track.\(track)")
         file = try AVAudioFile(forWriting: url, settings: [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
@@ -34,6 +36,7 @@ final class TrackWriter: @unchecked Sendable {
     }
 
     var heardSound: Bool { healthLock.withLock { heard } }
+    var archiveError: String? { healthLock.withLock { archiveFailure } }
 
     func append(_ buffer: AVAudioPCMBuffer) {
         let offset = max(0, ProcessInfo.processInfo.systemUptime - started - Double(buffer.frameLength) / 16_000)
@@ -70,7 +73,14 @@ final class TrackWriter: @unchecked Sendable {
             samples.withUnsafeBufferPointer { source in
                 if let base = source.baseAddress { data[0].update(from: base, count: samples.count) }
             }
-            do { try file?.write(from: buffer) } catch { self.error = error.localizedDescription }
+            do {
+                if let writeOverride { try writeOverride(buffer) }
+                else { try file?.write(from: buffer) }
+            } catch {
+                healthLock.withLock { archiveFailure = "De audio-opname kon niet worden bewaard. Controleer de vrije schijfruimte." }
+            }
+        } else {
+            healthLock.withLock { archiveFailure = "Een audioblok kon niet voor de opname worden voorbereid." }
         }
         if pending.isEmpty { pendingStart = sent }
         pending.append(contentsOf: samples)
@@ -93,8 +103,54 @@ final class TrackWriter: @unchecked Sendable {
         return queue.sync {
             flush()
             file = nil
-            return error
+            return archiveError
         }
+    }
+}
+
+struct MeetingCaptureHealth {
+    let echoRequested: Bool
+    private(set) var microphoneActive = false
+    private(set) var microphoneError: String?
+    private(set) var systemAudioAvailable = false
+    private(set) var systemAudioError: String?
+    private(set) var echoActive = false
+
+    var echoWarning: String? {
+        echoRequested && microphoneActive && !echoActive
+            ? "Echo-onderdrukking is niet actief. Gebruik een koptelefoon."
+            : nil
+    }
+
+    mutating func microphoneStarting() { microphoneActive = false; echoActive = false }
+    mutating func microphoneStarted(echoActive: Bool) {
+        microphoneActive = true
+        microphoneError = nil
+        self.echoActive = echoActive
+    }
+    mutating func microphoneFailed() {
+        microphoneStarting()
+        microphoneError = "De microfoonopname is onderbroken. Controleer je microfoon."
+    }
+    mutating func systemAudioStarting() { systemAudioAvailable = false }
+    mutating func systemAudioStarted() { systemAudioAvailable = true; systemAudioError = nil }
+    mutating func systemAudioFailed() {
+        systemAudioAvailable = false
+        systemAudioError = "Systeemgeluid is niet beschikbaar. Alleen de microfoon wordt opgenomen."
+    }
+
+    func bridgeObject(heardSystemAudio: Bool, archiveError: String?) -> [String: Any] {
+        [
+            "microphone_active": microphoneActive,
+            "microphone_error": microphoneError as Any? ?? NSNull(),
+            "system_audio_available": systemAudioAvailable,
+            "system_audio_error": systemAudioError as Any? ?? NSNull(),
+            "heard_system_audio": heardSystemAudio,
+            "echo_cancellation": echoActive,
+            "archive_error": archiveError as Any? ?? NSNull(),
+            "capture_warning": echoWarning as Any? ?? NSNull(),
+            "terminal_error": (archiveError ?? microphoneError) as Any? ?? NSNull(),
+        ]
     }
 }
 
@@ -109,12 +165,16 @@ final class NativeMeetingRecorder {
     private var outputListener: AudioObjectPropertyListenerBlock?
     private let silence = SilenceProbe()
     private let micSilence = SilenceProbe(threshold: 5)
-    private(set) var systemAudioAvailable = true
+    private var health = MeetingCaptureHealth(echoRequested: true)
     private var tapProcesses: (() -> [AudioObjectID])?
     var onSystemAudioSilent: (() -> Void)?
 
     var heardSystemAudio: Bool { others?.heardSound ?? false }
-    var isEchoCancellationEnabled: Bool { echoCancellation }
+    var systemAudioAvailable: Bool { health.systemAudioAvailable }
+    var isEchoCancellationEnabled: Bool { health.echoActive }
+    var healthSnapshot: [String: Any] {
+        health.bridgeObject(heardSystemAudio: heardSystemAudio, archiveError: me?.archiveError ?? others?.archiveError)
+    }
 
     var elapsed: TimeInterval { startedAt.map { Date().timeIntervalSince($0) } ?? 0 }
 
@@ -127,6 +187,7 @@ final class NativeMeetingRecorder {
     func start(directory: URL, sink: @escaping AudioSink, context: UnsafeMutableRawPointer?, tapProcesses: (() -> [AudioObjectID])? = nil, echoCancellation: Bool = true) throws {
         self.tapProcesses = tapProcesses
         self.echoCancellation = echoCancellation
+        health = MeetingCaptureHealth(echoRequested: echoCancellation)
         let started = ProcessInfo.processInfo.systemUptime
         me = try TrackWriter(track: 0, sink: sink, context: context, started: started, url: directory.appendingPathComponent("ik.m4a"))
         others = try TrackWriter(track: 1, sink: sink, context: context, started: started, url: directory.appendingPathComponent("anderen.m4a"))
@@ -164,6 +225,7 @@ final class NativeMeetingRecorder {
 
     private func startMicrophone() throws {
         guard let me else { return }
+        health.microphoneStarting()
         let input = engine.inputNode
         if echoCancellation {
             // Apple's echo canceller removes what the speakers play from the mic; keep other audio at full volume.
@@ -196,6 +258,8 @@ final class NativeMeetingRecorder {
         }
         engine.prepare()
         try engine.start()
+        guard engine.isRunning else { throw NoInputDevice() }
+        health.microphoneStarted(echoActive: input.isVoiceProcessingEnabled)
     }
 
     private func disableVoiceProcessing() {
@@ -212,6 +276,7 @@ final class NativeMeetingRecorder {
     private func microphoneSilent() {
         guard echoCancellation, startedAt != nil else {
             log.error("microphone delivers only silence")
+            if startedAt != nil { health.microphoneFailed() }
             return
         }
         log.error("microphone silent with voice processing; restarting without echo cancellation")
@@ -221,6 +286,7 @@ final class NativeMeetingRecorder {
         do {
             try startMicrophone()
         } catch {
+            health.microphoneFailed()
             log.error("microphone restart failed: \(String(describing: error))")
         }
     }
@@ -232,12 +298,14 @@ final class NativeMeetingRecorder {
             try startMicrophone()
             log.notice("microphone restarted after configuration change")
         } catch {
+            health.microphoneFailed()
             log.error("microphone restart failed: \(String(describing: error))")
         }
     }
 
     private func startSystemAudio() {
         guard let others else { return }
+        health.systemAudioStarting()
         silence.reset()
         do {
             let resampler = MonoResampler(from: try tap.prepare(processes: tapProcesses?()))
@@ -249,10 +317,10 @@ final class NativeMeetingRecorder {
                     Task { @MainActor in self?.systemAudioSilent() }
                 }
             }
-            systemAudioAvailable = true
+            health.systemAudioStarted()
         } catch {
             log.error("system audio tap failed: \(String(describing: error))")
-            systemAudioAvailable = false
+            health.systemAudioFailed()
         }
     }
 

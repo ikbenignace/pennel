@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
+use std::sync::{Arc, Condvar, Mutex, OnceLock, RwLock, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::cleanup::{
@@ -15,7 +15,7 @@ use crate::cloud::{SecretStore, VAULT_KEY_ACCOUNT};
 use crate::dictation_pad::DictationPad;
 use crate::error::PennelError;
 use crate::export::MeetingExport;
-use crate::history::{HistoryEntry, HistoryStore};
+use crate::history::{HistoryEntry, HistoryStatus, HistoryStore};
 use crate::live_dictation::{DictationPreviewObserver, LiveDictationSession};
 use crate::llm::Reasoning;
 use crate::local_engine::LocalEngine;
@@ -73,6 +73,7 @@ pub enum CleanupStatus {
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct DictationResult {
     pub history_id: String,
+    pub history_saved: bool,
     pub text: String,
     pub raw: String,
     pub cleanup: CleanupStatus,
@@ -83,9 +84,10 @@ pub struct PennelEngine {
     settings_path: PathBuf,
     settings: RwLock<Settings>,
     history: Mutex<HistoryStore>,
+    unsaved_history: Mutex<RecoveryState>,
     dictation_pad: Mutex<DictationPad>,
     models: ModelStore,
-    downloads: Mutex<HashMap<String, CancelFlag>>,
+    downloads: Mutex<HashMap<String, Arc<DownloadTask>>>,
     local: LocalEngine,
     index: Mutex<Option<MeetingIndex>>,
     system_stt: RwLock<Option<Arc<dyn SystemTranscriber>>>,
@@ -114,6 +116,126 @@ struct Transcript {
     raw: String,
     text: String,
     cleanup: CleanupStatus,
+}
+
+const RECOVERY_ENTRIES: usize = 20;
+const RECOVERY_BYTES: usize = 5 * 1024 * 1024;
+
+#[derive(Clone)]
+struct UnsavedDictation {
+    entry: HistoryEntry,
+    cleanup: CleanupStatus,
+}
+
+#[derive(Default)]
+struct RecoveryState {
+    entries: HashMap<String, UnsavedDictation>,
+    reserved: usize,
+}
+
+impl RecoveryState {
+    fn ensure_capacity(&self) -> Result<(), PennelError> {
+        let bytes: usize = self
+            .entries
+            .values()
+            .map(|result| {
+                result
+                    .entry
+                    .raw
+                    .len()
+                    .saturating_add(result.entry.text.len())
+            })
+            .sum();
+        if self.entries.len() + self.reserved >= RECOVERY_ENTRIES || bytes >= RECOVERY_BYTES {
+            return Err(PennelError::Storage {
+                message: "Bewaar of verwijder eerst je tijdelijke dictaten in Geschiedenis.".into(),
+            });
+        }
+        Ok(())
+    }
+}
+
+struct RecoverySlot<'a>(&'a Mutex<RecoveryState>);
+
+impl Drop for RecoverySlot<'_> {
+    fn drop(&mut self) {
+        self.0.lock().unwrap().reserved -= 1;
+    }
+}
+
+#[derive(Default)]
+struct DownloadState {
+    listeners: Vec<Arc<DownloadObserver>>,
+    progress: Option<(u64, u64)>,
+    result: Option<Result<(), PennelError>>,
+}
+
+#[derive(Default)]
+struct DownloadTask {
+    cancel: CancelFlag,
+    state: Mutex<DownloadState>,
+    finished: Condvar,
+}
+
+struct DownloadObserver {
+    listener: Arc<dyn DownloadListener>,
+    progress: Mutex<Option<(u64, u64)>>,
+}
+
+impl DownloadObserver {
+    fn publish(&self, downloaded: u64, total: u64) {
+        let mut previous = self.progress.lock().unwrap();
+        if previous.is_some_and(|(last, _)| downloaded < last) {
+            return;
+        }
+        *previous = Some((downloaded, total));
+        self.listener.on_progress(downloaded, total);
+    }
+}
+
+impl DownloadTask {
+    fn subscribe(&self, listener: Arc<dyn DownloadListener>) {
+        let observer = Arc::new(DownloadObserver {
+            listener,
+            progress: Mutex::new(None),
+        });
+        let progress = {
+            let mut state = self.state.lock().unwrap();
+            state.listeners.push(observer.clone());
+            state.progress
+        };
+        if let Some((downloaded, total)) = progress {
+            observer.publish(downloaded, total);
+        }
+    }
+
+    fn wait(&self) -> Result<(), PennelError> {
+        let mut state = self.state.lock().unwrap();
+        loop {
+            if let Some(result) = &state.result {
+                return result.clone();
+            }
+            state = self.finished.wait(state).unwrap();
+        }
+    }
+
+    fn finish(&self, result: Result<(), PennelError>) {
+        self.state.lock().unwrap().result = Some(result);
+        self.finished.notify_all();
+    }
+}
+
+impl DownloadListener for DownloadTask {
+    fn on_progress(&self, downloaded: u64, total: u64) {
+        let listeners = {
+            let mut state = self.state.lock().unwrap();
+            state.progress = Some((downloaded, total));
+            state.listeners.clone()
+        };
+        for listener in listeners {
+            listener.publish(downloaded, total);
+        }
+    }
 }
 
 /// Leading dictionary terms whose comma-joined length fits in `max_chars`.
@@ -152,9 +274,12 @@ impl PennelEngine {
         *self.system_stt.write().unwrap() = Some(transcriber);
     }
 
-    pub fn set_secret_store(&self, store: Arc<dyn SecretStore>) {
+    pub fn set_secret_store(&self, store: Arc<dyn SecretStore>) -> Result<(), PennelError> {
+        let _gate = self.meeting_gate.lock().unwrap();
+        self.ensure_cloud_identity_mutable()?;
         *self.secrets.write().unwrap() = Some(store);
         *self.cloud_session.lock().unwrap() = None;
+        Ok(())
     }
 
     pub fn cloud_login_start(
@@ -162,12 +287,16 @@ impl PennelEngine {
         device_name: String,
         platform: String,
     ) -> Result<CloudLoginStart, PennelError> {
+        let _gate = self.meeting_gate.lock().unwrap();
+        self.ensure_cloud_identity_mutable()?;
         let started = self.cloud_session()?.login_start(&device_name, &platform)?;
         self.remember_device_name(&device_name);
         Ok(started)
     }
 
     pub fn cloud_login_poll(&self, device_code: String) -> Result<CloudLoginPoll, PennelError> {
+        let _gate = self.meeting_gate.lock().unwrap();
+        self.ensure_cloud_identity_mutable()?;
         self.cloud_session()?.login_poll(&device_code)
     }
 
@@ -177,11 +306,17 @@ impl PennelEngine {
     }
 
     /// Meeting files stay; only what this device knew about the cloud is forgotten.
-    pub fn cloud_logout(&self) {
+    pub fn cloud_logout(&self) -> Result<(), PennelError> {
+        self.ensure_cloud_identity_mutable()?;
+        // Sync settings take these locks in this order too. Do not invert them during logout.
+        let _sync = self.sync_gate.lock().unwrap();
+        let _meeting = self.meeting_gate.lock().unwrap();
+        self.ensure_cloud_identity_mutable()?;
         if let Ok(session) = self.cloud_session() {
             session.logout();
         }
-        self.clear_sync_state();
+        self.clear_sync_state_locked();
+        Ok(())
     }
 
     pub fn cloud_account(&self) -> Result<CloudAccount, PennelError> {
@@ -201,8 +336,12 @@ impl PennelEngine {
     }
 
     pub fn cloud_delete_account(&self) -> Result<(), PennelError> {
+        self.ensure_cloud_identity_mutable()?;
+        let _sync = self.sync_gate.lock().unwrap();
+        let _meeting = self.meeting_gate.lock().unwrap();
+        self.ensure_cloud_identity_mutable()?;
         self.cloud_session()?.delete_account()?;
-        self.clear_sync_state();
+        self.clear_sync_state_locked();
         Ok(())
     }
 
@@ -439,33 +578,139 @@ impl PennelEngine {
     }
 
     pub fn retry(&self, history_id: String, keys: ApiKeys) -> Result<DictationResult, PennelError> {
+        let retained = self
+            .unsaved_history
+            .lock()
+            .unwrap()
+            .entries
+            .get(&history_id)
+            .cloned();
+        if let Some(retained) = retained {
+            self.save_history(history_id.clone())?;
+            return Ok(DictationResult {
+                history_id,
+                history_saved: true,
+                text: retained.entry.text,
+                raw: retained.entry.raw,
+                cleanup: retained.cleanup,
+            });
+        }
+        let _slot = self.reserve_history()?;
         let settings = self.settings();
-        let (wav, app) = {
+        let (wav, app, created_at_ms) = {
             let history = self.history.lock().unwrap();
             (
                 history.failed_audio(&history_id)?,
                 history.app_bundle_id(&history_id)?,
+                history.created_at_ms(&history_id)?,
             )
         };
         let transcript = self.process(&settings, &wav, app.as_deref(), &keys)?;
-        self.history
-            .lock()
-            .unwrap()
-            .mark_done(&history_id, &transcript.raw, &transcript.text)?;
-        Ok(DictationResult {
-            history_id,
-            text: transcript.text,
-            raw: transcript.raw,
-            cleanup: transcript.cleanup,
-        })
+        self.persist_transcript(
+            HistoryEntry {
+                id: history_id,
+                created_at_ms,
+                app_bundle_id: app,
+                raw: transcript.raw,
+                text: transcript.text,
+                status: HistoryStatus::Done,
+                error: None,
+                has_audio: true,
+            },
+            transcript.cleanup,
+            None,
+        )
     }
 
     pub fn history(&self, limit: u32) -> Result<Vec<HistoryEntry>, PennelError> {
-        self.history.lock().unwrap().list(limit)
+        let stored = self.history.lock().unwrap().list(limit);
+        let recovery = self.unsaved_history.lock().unwrap();
+        let mut entries = match stored {
+            Ok(entries) => entries,
+            Err(error) if recovery.entries.is_empty() => return Err(error),
+            Err(_) => Vec::new(),
+        };
+        entries.retain(|entry| !recovery.entries.contains_key(&entry.id));
+        let mut temporary: Vec<_> = recovery
+            .entries
+            .values()
+            .map(|result| result.entry.clone())
+            .collect();
+        temporary.sort_by(|a, b| b.created_at_ms.cmp(&a.created_at_ms).then(b.id.cmp(&a.id)));
+        temporary.extend(entries);
+        temporary.truncate(limit as usize);
+        Ok(temporary)
+    }
+
+    pub fn history_entry(&self, id: String) -> Result<HistoryEntry, PennelError> {
+        if let Some(result) = self.unsaved_history.lock().unwrap().entries.get(&id) {
+            return Ok(result.entry.clone());
+        }
+        self.history.lock().unwrap().entry(&id)
     }
 
     pub fn delete_history(&self, id: String) -> Result<(), PennelError> {
+        if self
+            .unsaved_history
+            .lock()
+            .unwrap()
+            .entries
+            .remove(&id)
+            .is_some()
+        {
+            // Explicitly discarding a temporary result must also work while SQLite is unavailable.
+            let _ = self.history.lock().unwrap().delete(&id);
+            return Ok(());
+        }
         self.history.lock().unwrap().delete(&id)
+    }
+
+    pub fn ensure_history_capacity(&self) -> Result<(), PennelError> {
+        self.unsaved_history.lock().unwrap().ensure_capacity()
+    }
+
+    pub fn unsaved_history_count(&self) -> u32 {
+        self.unsaved_history.lock().unwrap().entries.len() as u32
+    }
+
+    /// Saves retained text without recognition, cleanup, or external delivery.
+    pub fn save_history(&self, id: String) -> Result<(), PennelError> {
+        let mut recovery = self.unsaved_history.lock().unwrap();
+        let Some(result) = recovery.entries.get(&id) else {
+            return if self.history.lock().unwrap().is_done(&id)? {
+                Ok(())
+            } else {
+                Err(PennelError::NotFound)
+            };
+        };
+        let entry = &result.entry;
+        self.history.lock().unwrap().insert_done_with_id(
+            &entry.id,
+            entry.app_bundle_id.as_deref(),
+            &entry.raw,
+            &entry.text,
+            entry.created_at_ms,
+        )?;
+        recovery.entries.remove(&id);
+        Ok(())
+    }
+
+    pub fn retry_unsaved_history(&self) -> Result<(), PennelError> {
+        let ids: Vec<String> = self
+            .unsaved_history
+            .lock()
+            .unwrap()
+            .entries
+            .keys()
+            .cloned()
+            .collect();
+        let mut first_error = None;
+        for id in ids {
+            if let Err(error) = self.save_history(id) {
+                first_error.get_or_insert(error);
+            }
+        }
+        first_error.map_or(Ok(()), Err)
     }
 
     /// Called periodically by the app so an idle local model does not stay in memory.
@@ -674,12 +919,12 @@ impl PennelEngine {
                     text
                 };
                 segment.failed = false;
-                let _ = std::fs::remove_file(&path);
                 recovered += 1;
             }
         }
-        segments.retain(|s| s.failed || !s.text.is_empty());
         store.write_transcript(&id, &segments)?;
+        store.restore_recovery_duration(&id)?;
+        let _ = store.cleanup_committed_audio(&id);
         Ok(recovered)
     }
 
@@ -928,31 +1173,74 @@ impl PennelEngine {
         self.models.state(&id)
     }
 
+    pub fn active_model_downloads(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.downloads.lock().unwrap().keys().cloned().collect();
+        ids.sort();
+        ids
+    }
+
+    /// Attaches to an existing worker only; a stale UI snapshot cannot restart a download.
+    pub fn join_model_download(
+        &self,
+        id: String,
+        listener: Arc<dyn DownloadListener>,
+    ) -> Result<bool, PennelError> {
+        let task = self.downloads.lock().unwrap().get(&id).cloned();
+        let Some(task) = task else {
+            return Ok(false);
+        };
+        task.subscribe(listener);
+        task.wait().map(|()| true)
+    }
+
     /// Blocks until the download finishes, fails or is cancelled via `cancel_download`.
     pub fn download_model(
         &self,
         id: String,
         listener: Arc<dyn DownloadListener>,
     ) -> Result<(), PennelError> {
-        let cancel = CancelFlag::default();
-        self.downloads
-            .lock()
-            .unwrap()
-            .insert(id.clone(), cancel.clone());
-        let result = self.models.download(&id, listener.as_ref(), &cancel);
-        self.downloads.lock().unwrap().remove(&id);
+        let (task, owner) = {
+            let mut downloads = self.downloads.lock().unwrap();
+            match downloads.entry(id.clone()) {
+                std::collections::hash_map::Entry::Occupied(entry) => (entry.get().clone(), false),
+                std::collections::hash_map::Entry::Vacant(entry) => (
+                    entry.insert(Arc::new(DownloadTask::default())).clone(),
+                    true,
+                ),
+            }
+        };
+        task.subscribe(listener);
+        if !owner {
+            return task.wait();
+        }
+        let result = self.models.download(&id, task.as_ref(), &task.cancel);
+        task.finish(result.clone());
+        let mut downloads = self.downloads.lock().unwrap();
+        if downloads
+            .get(&id)
+            .is_some_and(|current| Arc::ptr_eq(current, &task))
+        {
+            downloads.remove(&id);
+        }
         result
     }
 
     pub fn cancel_download(&self, id: String) {
-        if let Some(flag) = self.downloads.lock().unwrap().get(&id) {
-            flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Some(task) = self.downloads.lock().unwrap().get(&id) {
+            task.cancel.store(true, std::sync::atomic::Ordering::SeqCst);
         }
     }
 
     /// Also moves dictation off the deleted model when another local model is available.
     pub fn delete_model(&self, id: String) -> Result<(), PennelError> {
+        let downloads = self.downloads.lock().unwrap();
+        if downloads.contains_key(&id) {
+            return Err(PennelError::Storage {
+                message: "Wacht tot de modeldownload is afgerond of geannuleerd.".into(),
+            });
+        }
         self.models.delete(&id)?;
+        drop(downloads);
         let settings = self.settings();
         self.update_settings(settings)
     }
@@ -1118,8 +1406,8 @@ impl PennelEngine {
         Some(query(slot.as_ref().expect("opened above")))
     }
 
-    fn clear_sync_state(&self) {
-        let _gate = self.sync_gate.lock().unwrap();
+    /// The caller holds `sync_gate` while changing the account and forgetting its sync state.
+    fn clear_sync_state_locked(&self) {
         let _ = self.with_sync_state(SyncState::clear);
         self.deleted_meetings.lock().unwrap().clear();
         *self.pending_device.lock().unwrap() = None;
@@ -1259,6 +1547,74 @@ impl PennelEngine {
 }
 
 impl PennelEngine {
+    fn ensure_cloud_identity_mutable(&self) -> Result<(), PennelError> {
+        if self.has_active_session() {
+            return Err(PennelError::Storage {
+                message: "Rond eerst de opname af voordat je het Pennel Cloud-account wijzigt."
+                    .into(),
+            });
+        }
+        Ok(())
+    }
+
+    fn reserve_history(&self) -> Result<RecoverySlot<'_>, PennelError> {
+        let mut recovery = self.unsaved_history.lock().unwrap();
+        recovery.ensure_capacity()?;
+        recovery.reserved += 1;
+        Ok(RecoverySlot(&self.unsaved_history))
+    }
+
+    fn persist_transcript(
+        &self,
+        mut entry: HistoryEntry,
+        cleanup: CleanupStatus,
+        progress: Option<&LiveDictationSession>,
+    ) -> Result<DictationResult, PennelError> {
+        let mut insert = || {
+            let saved = self
+                .history
+                .lock()
+                .unwrap()
+                .insert_done_with_id(
+                    &entry.id,
+                    entry.app_bundle_id.as_deref(),
+                    &entry.raw,
+                    &entry.text,
+                    entry.created_at_ms,
+                )
+                .is_ok();
+            if !saved {
+                entry.status = HistoryStatus::Unsaved;
+                entry.error = Some(
+                    "Nog niet bewaard. Deze tekst blijft tijdelijk beschikbaar tot Pennel stopt."
+                        .into(),
+                );
+                // A provider can return an unexpectedly large result. Retain it intact, then block
+                // subsequent capture at the soft byte budget instead of truncating user text.
+                self.unsaved_history.lock().unwrap().entries.insert(
+                    entry.id.clone(),
+                    UnsavedDictation {
+                        entry: entry.clone(),
+                        cleanup: cleanup.clone(),
+                    },
+                );
+            }
+            Ok(saved)
+        };
+        let history_saved = if let Some(progress) = progress {
+            progress.with_active(insert)?
+        } else {
+            insert()?
+        };
+        Ok(DictationResult {
+            history_id: entry.id,
+            history_saved,
+            text: entry.text,
+            raw: entry.raw,
+            cleanup,
+        })
+    }
+
     pub(crate) fn command_with_settings_observed(
         &self,
         request: DictationRequest,
@@ -1274,6 +1630,7 @@ impl PennelEngine {
         if !has_speech(&request.samples, request.sample_rate) {
             return Err(PennelError::NoSpeech);
         }
+        let _slot = self.reserve_history()?;
         if selection
             .as_ref()
             .is_some_and(|s| s.chars().count() > MAX_SELECTION_CHARS)
@@ -1312,24 +1669,20 @@ impl PennelEngine {
                 message: "empty command result".into(),
             });
         }
-        let app = request.app_bundle_id.as_deref();
-        let insert = || {
-            self.history
-                .lock()
-                .unwrap()
-                .insert_done(app, &instruction, &text, now_ms())
-        };
-        let history_id = if let Some(progress) = progress {
-            progress.with_active(insert)?
-        } else {
-            insert()?
-        };
-        Ok(DictationResult {
-            history_id,
-            text,
-            raw: instruction,
-            cleanup: CleanupStatus::Applied,
-        })
+        self.persist_transcript(
+            HistoryEntry {
+                id: uuid::Uuid::now_v7().to_string(),
+                created_at_ms: now_ms(),
+                app_bundle_id: request.app_bundle_id,
+                raw: instruction,
+                text,
+                status: HistoryStatus::Done,
+                error: None,
+                has_audio: false,
+            },
+            CleanupStatus::Applied,
+            progress,
+        )
     }
 
     fn dictate_with_settings(
@@ -1352,6 +1705,7 @@ impl PennelEngine {
         if !has_speech(&request.samples, request.sample_rate) {
             return Err(PennelError::NoSpeech);
         }
+        let _slot = self.reserve_history()?;
         let (account, _) = settings
             .resolve(&settings.dictation_stt)
             .ok_or(PennelError::NotFound)?;
@@ -1388,25 +1742,20 @@ impl PennelEngine {
             }
             other => other?,
         };
-        let insert = || {
-            self.history.lock().unwrap().insert_done(
-                app,
-                &transcript.raw,
-                &transcript.text,
-                now_ms(),
-            )
-        };
-        let history_id = if let Some(progress) = progress {
-            progress.with_active(insert)?
-        } else {
-            insert()?
-        };
-        Ok(DictationResult {
-            history_id,
-            text: transcript.text,
-            raw: transcript.raw,
-            cleanup: transcript.cleanup,
-        })
+        self.persist_transcript(
+            HistoryEntry {
+                id: uuid::Uuid::now_v7().to_string(),
+                created_at_ms: now_ms(),
+                app_bundle_id: request.app_bundle_id,
+                raw: transcript.raw,
+                text: transcript.text,
+                status: HistoryStatus::Done,
+                error: None,
+                has_audio: false,
+            },
+            transcript.cleanup,
+            progress,
+        )
     }
 
     fn open(data_dir: String, preview: bool) -> Result<Arc<Self>, PennelError> {
@@ -1447,6 +1796,7 @@ impl PennelEngine {
             settings_path,
             settings: RwLock::new(settings),
             history: Mutex::new(history),
+            unsaved_history: Mutex::new(RecoveryState::default()),
             dictation_pad: Mutex::new(dictation_pad),
             models,
             downloads: Mutex::new(HashMap::new()),
@@ -1566,7 +1916,7 @@ impl PennelEngine {
         Ok(Transcript { raw, text, cleanup })
     }
 
-    fn complete_llm(
+    pub(crate) fn complete_llm(
         &self,
         provider: &ProviderConfig,
         key: Option<&str>,
@@ -1819,7 +2169,7 @@ mod tests {
         if signed_in {
             secrets.set(REFRESH_ACCOUNT.into(), Some("refresh-1".into()));
         }
-        engine.set_secret_store(secrets.clone());
+        engine.set_secret_store(secrets.clone()).unwrap();
         engine.use_cloud_session(Session::new(server.url(), secrets));
         let mut settings = engine.settings();
         let mut account = crate::provider::new_account(ProviderKind::PennelCloud, vec![]);
@@ -1858,6 +2208,50 @@ mod tests {
         let result = engine.dictate(request(speech(), None)).unwrap();
         assert_eq!(result.text, "hallo wereld");
         stt.assert();
+    }
+
+    #[test]
+    fn a_meeting_blocks_cloud_identity_changes_but_allows_same_account_token_refresh() {
+        use crate::cloud::tests::MemorySecrets;
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = cloud_engine(&dir, &server, true, "");
+        let mut settings = engine.settings();
+        settings.meeting_stt = settings.dictation_stt.clone();
+        settings.meetings_dir = dir.path().join("meetings").to_string_lossy().into_owned();
+        engine.update_settings(settings).unwrap();
+        let refresh = refresh_mock(&mut server).expect(1);
+        let device_login = server.mock("POST", "/v1/auth/device").expect(0).create();
+        let poll_login = server.mock("POST", "/v1/auth/token").expect(0).create();
+        let delete = server.mock("DELETE", "/v1/account").expect(0).create();
+        let original = engine.cloud_session().unwrap();
+        let secrets = engine.secret_store().unwrap();
+        let session = engine
+            .clone()
+            .start_meeting("Zelfde account".into(), keys())
+            .unwrap();
+        assert!(
+            engine
+                .cloud_login_start("Mac".into(), "macos".into())
+                .is_err()
+        );
+        assert!(engine.cloud_login_poll("ander-account".into()).is_err());
+        assert!(engine.cloud_logout().is_err());
+        assert!(engine.cloud_delete_account().is_err());
+        assert!(
+            engine
+                .set_secret_store(Arc::new(MemorySecrets::default()))
+                .is_err()
+        );
+        assert!(Arc::ptr_eq(&original, &engine.cloud_session().unwrap()));
+        assert!(Arc::ptr_eq(&secrets, &engine.secret_store().unwrap()));
+        assert_eq!(original.access_token().unwrap(), "access-1");
+        session.stop().unwrap();
+        engine.cloud_logout().unwrap();
+        assert!(!engine.cloud_signed_in());
+        device_login.assert();
+        poll_login.assert();
+        delete.assert();
+        refresh.assert();
     }
 
     #[test]
@@ -1917,6 +2311,203 @@ mod tests {
         assert_eq!(result.text, "euh hallo");
         assert_eq!(result.cleanup, CleanupStatus::Skipped);
         llm_mock.assert();
+    }
+
+    fn history_writable(engine: &PennelEngine, writable: bool) {
+        engine
+            .history
+            .lock()
+            .unwrap()
+            .connection_for_testing()
+            .pragma_update(None, "query_only", !writable)
+            .unwrap();
+    }
+
+    #[test]
+    fn completed_text_survives_a_history_write_failure_and_save_does_not_recognize_again() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let recognition = stt(&mut server, "Bewaar deze tekst.").expect(1);
+        history_writable(&engine, false);
+        let result = engine
+            .dictate(request(speech(), Some("test.editor")))
+            .unwrap();
+        assert!(!result.history_saved);
+        assert_eq!(result.text, "Bewaar deze tekst.");
+        assert_eq!(engine.unsaved_history_count(), 1);
+        let entries = engine.history(10).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].id, result.history_id);
+        assert_eq!(entries[0].status, HistoryStatus::Unsaved);
+        assert_eq!(entries[0].text, result.text);
+        assert_eq!(
+            engine.history_entry(result.history_id.clone()).unwrap(),
+            entries[0]
+        );
+        assert!(engine.save_history(result.history_id.clone()).is_err());
+        assert_eq!(engine.unsaved_history_count(), 1);
+
+        history_writable(&engine, true);
+        engine.save_history(result.history_id.clone()).unwrap();
+        engine.save_history(result.history_id.clone()).unwrap();
+        assert_eq!(engine.unsaved_history_count(), 0);
+        let entries = engine.history(10).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].id, result.history_id);
+        assert_eq!(entries[0].status, HistoryStatus::Done);
+        assert_eq!(
+            engine.history_entry(result.history_id.clone()).unwrap(),
+            entries[0]
+        );
+        assert_eq!(
+            engine.history_entry("missing".into()),
+            Err(PennelError::NotFound)
+        );
+        recognition.assert();
+    }
+
+    #[test]
+    fn unsaved_history_remains_accessible_when_reading_sqlite_also_fails() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        stt(&mut server, "Tijdelijke tekst.");
+        history_writable(&engine, false);
+        let result = engine.dictate(request(speech(), None)).unwrap();
+        history_writable(&engine, true);
+        engine
+            .history
+            .lock()
+            .unwrap()
+            .connection_for_testing()
+            .execute_batch("DROP TABLE dictations")
+            .unwrap();
+        assert_eq!(engine.history(10).unwrap()[0].id, result.history_id);
+        engine.delete_history(result.history_id).unwrap();
+        assert_eq!(engine.unsaved_history_count(), 0);
+    }
+
+    #[test]
+    fn command_text_survives_a_history_write_failure() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        stt(&mut server, "Schrijf het korter.");
+        llm(&mut server, "Kort antwoord.");
+        history_writable(&engine, false);
+        let result = engine
+            .command(request(speech(), None), Some("Een lang antwoord.".into()))
+            .unwrap();
+        assert!(!result.history_saved);
+        assert_eq!(result.text, "Kort antwoord.");
+        assert_eq!(
+            engine.history(10).unwrap()[0].status,
+            HistoryStatus::Unsaved
+        );
+    }
+
+    #[test]
+    fn retry_keeps_completed_text_and_original_audio_until_its_history_commit_succeeds() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let failing = server
+            .mock("POST", "/audio/transcriptions")
+            .with_status(503)
+            .create();
+        assert!(engine.dictate(request(speech(), None)).is_err());
+        let id = engine.history(1).unwrap()[0].id.clone();
+        failing.remove();
+        let recognition = stt(&mut server, "Herstelde tekst.").expect(1);
+        history_writable(&engine, false);
+        let recovered = engine.retry(id.clone(), keys()).unwrap();
+        assert!(!recovered.history_saved);
+        assert_eq!(recovered.history_id, id);
+        assert_eq!(engine.history(10).unwrap().len(), 1);
+        assert_eq!(engine.history(1).unwrap()[0].status, HistoryStatus::Unsaved);
+        assert!(engine.history.lock().unwrap().failed_audio(&id).is_ok());
+        history_writable(&engine, true);
+        let saved = engine.retry(id.clone(), keys()).unwrap();
+        assert!(saved.history_saved);
+        assert_eq!(saved.text, "Herstelde tekst.");
+        assert_eq!(
+            engine.history.lock().unwrap().failed_audio(&id),
+            Err(PennelError::NotFound)
+        );
+        recognition.assert();
+    }
+
+    #[test]
+    fn retrying_all_temporary_history_preserves_failures_and_saves_each_result_once() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let recognition = stt(&mut server, "Nog niet bewaard.").expect(2);
+        history_writable(&engine, false);
+        engine.dictate(request(speech(), None)).unwrap();
+        engine.dictate(request(speech(), None)).unwrap();
+        assert!(engine.retry_unsaved_history().is_err());
+        assert_eq!(engine.unsaved_history_count(), 2);
+        history_writable(&engine, true);
+        engine.retry_unsaved_history().unwrap();
+        engine.retry_unsaved_history().unwrap();
+        assert_eq!(engine.unsaved_history_count(), 0);
+        assert_eq!(engine.history(10).unwrap().len(), 2);
+        recognition.assert();
+    }
+
+    #[test]
+    fn temporary_history_is_not_hidden_by_a_page_of_newer_saved_entries() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        stt(&mut server, "Een ouder tijdelijk dictaat.");
+        history_writable(&engine, false);
+        let result = engine.dictate(request(speech(), None)).unwrap();
+        history_writable(&engine, true);
+        let history = engine.history.lock().unwrap();
+        for offset in 1..=250 {
+            history
+                .insert_done(None, "nieuwer", "Nieuwer.", now_ms() + offset)
+                .unwrap();
+        }
+        drop(history);
+        let page = engine.history(200).unwrap();
+        assert_eq!(page.len(), 200);
+        assert_eq!(page[0].id, result.history_id);
+        assert_eq!(page[0].status, HistoryStatus::Unsaved);
+    }
+
+    #[test]
+    fn recovery_capacity_blocks_before_recognition_and_explicit_discard_releases_it() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let recognition = stt(&mut server, "Bewaren lukt nog niet.").expect(20);
+        history_writable(&engine, false);
+        for _ in 0..20 {
+            assert!(
+                !engine
+                    .dictate(request(speech(), None))
+                    .unwrap()
+                    .history_saved
+            );
+        }
+        assert!(engine.ensure_history_capacity().is_err());
+        assert!(engine.dictate(request(speech(), None)).is_err());
+        assert_eq!(engine.unsaved_history_count(), 20);
+        let discarded = engine.history(1).unwrap()[0].id.clone();
+        engine.delete_history(discarded).unwrap();
+        assert!(engine.ensure_history_capacity().is_ok());
+        recognition.assert();
+    }
+
+    #[test]
+    fn oversized_completed_text_is_never_truncated_and_blocks_the_next_capture() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let text = format!("{}Einde.", "Een groot resultaat. ".repeat(140_000));
+        let recognition = stt(&mut server, &text).expect(1);
+        history_writable(&engine, false);
+        let result = engine.dictate(request(speech(), None)).unwrap();
+        assert_eq!(result.text, text);
+        assert_eq!(engine.history(1).unwrap()[0].text, text);
+        assert!(engine.ensure_history_capacity().is_err());
+        recognition.assert();
     }
 
     #[test]
@@ -2120,6 +2711,157 @@ mod tests {
     struct Silent;
     impl crate::models::DownloadListener for Silent {
         fn on_progress(&self, _: u64, _: u64) {}
+    }
+
+    struct DownloadGate {
+        entered: std::sync::Barrier,
+        release: std::sync::Barrier,
+        first: std::sync::atomic::AtomicBool,
+    }
+
+    impl DownloadGate {
+        fn new() -> Self {
+            Self {
+                entered: std::sync::Barrier::new(2),
+                release: std::sync::Barrier::new(2),
+                first: std::sync::atomic::AtomicBool::new(true),
+            }
+        }
+    }
+
+    impl DownloadListener for DownloadGate {
+        fn on_progress(&self, _: u64, _: u64) {
+            if self.first.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                self.entered.wait();
+                self.release.wait();
+            }
+        }
+    }
+
+    struct JoinedProgress {
+        joined: std::sync::mpsc::Sender<()>,
+        progress: Mutex<Vec<(u64, u64)>>,
+    }
+
+    impl DownloadListener for JoinedProgress {
+        fn on_progress(&self, downloaded: u64, total: u64) {
+            self.progress.lock().unwrap().push((downloaded, total));
+            let _ = self.joined.send(());
+        }
+    }
+
+    fn download_engine(dir: &tempfile::TempDir, url: String, bytes: &[u8]) -> Arc<PennelEngine> {
+        use sha2::Digest;
+        let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        let mut engine = Arc::try_unwrap(engine).ok().unwrap();
+        engine.models = ModelStore::with_catalog(
+            dir.path(),
+            vec![crate::models::ModelEntry {
+                id: "tiny".into(),
+                name: "Tiny".into(),
+                description: "test".into(),
+                size_bytes: bytes.len() as u64,
+                sha256: crate::models::hex(&sha2::Sha256::digest(bytes)),
+                url,
+                scores: None,
+                legacy: false,
+                kind: crate::models::ModelKind::Speech,
+            }],
+        );
+        Arc::new(engine)
+    }
+
+    fn shared_download(cancel: bool, join_only: bool) {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let bytes = vec![b'm'; 3 * 1024 * 1024];
+        let request = server
+            .mock("GET", "/model.bin")
+            .with_body(&bytes)
+            .expect(1)
+            .create();
+        let engine = download_engine(&dir, format!("{}/model.bin", server.url()), &bytes);
+        let gate = Arc::new(DownloadGate::new());
+        let owner = {
+            let engine = engine.clone();
+            let gate = gate.clone();
+            std::thread::spawn(move || engine.download_model("tiny".into(), gate))
+        };
+        gate.entered.wait();
+        assert!(engine.delete_model("tiny".into()).is_err());
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let listener = Arc::new(JoinedProgress {
+            joined: sender,
+            progress: Mutex::new(Vec::new()),
+        });
+        let joined = {
+            let engine = engine.clone();
+            let listener = listener.clone();
+            std::thread::spawn(move || {
+                if join_only {
+                    engine
+                        .join_model_download("tiny".into(), listener)
+                        .map(|joined| assert!(joined))
+                } else {
+                    engine.download_model("tiny".into(), listener)
+                }
+            })
+        };
+        receiver
+            .recv_timeout(std::time::Duration::from_secs(3))
+            .unwrap();
+        if cancel {
+            engine.cancel_download("tiny".into());
+        }
+        gate.release.wait();
+        let (first, second) = (owner.join().unwrap(), joined.join().unwrap());
+        assert_eq!(first, second);
+        if cancel {
+            assert_eq!(first, Err(PennelError::Cancelled));
+            assert!(matches!(
+                engine.model_state("tiny".into()),
+                ModelState::Partial { .. }
+            ));
+        } else {
+            assert_eq!(first, Ok(()));
+            let total = bytes.len() as u64;
+            assert_eq!(
+                listener.progress.lock().unwrap().last(),
+                Some(&(total, total))
+            );
+            assert_eq!(engine.model_state("tiny".into()), ModelState::Downloaded);
+        }
+        assert!(engine.downloads.lock().unwrap().is_empty());
+        request.assert();
+    }
+
+    #[test]
+    fn concurrent_model_downloads_share_one_writer_and_progress() {
+        shared_download(false, false);
+    }
+
+    #[test]
+    fn joining_an_active_download_waits_for_its_existing_worker() {
+        shared_download(false, true);
+    }
+
+    #[test]
+    fn cancelling_a_shared_download_releases_waiters_and_keeps_partial_model() {
+        shared_download(true, true);
+    }
+
+    #[test]
+    fn joining_an_absent_download_does_not_start_network_or_create_a_partial() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let bytes = b"model";
+        let request = server.mock("GET", "/model.bin").expect(0).create();
+        let engine = download_engine(&dir, format!("{}/model.bin", server.url()), bytes);
+        assert_eq!(
+            engine.join_model_download("tiny".into(), Arc::new(Silent)),
+            Ok(false)
+        );
+        assert_eq!(engine.model_state("tiny".into()), ModelState::NotDownloaded);
+        assert!(engine.active_model_downloads().is_empty());
+        request.assert();
     }
 
     #[test]
@@ -2449,6 +3191,53 @@ mod tests {
         };
         store.write_transcript(&id, &[segment]).unwrap();
         id
+    }
+
+    #[test]
+    fn meeting_retry_never_removes_audio_before_the_transcript_commit() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        let id = add_meeting(&engine, "Herstel", 9, "tijdelijk");
+        let store = engine.meeting_store();
+        let mut segment = store.read_transcript(&id).remove(0);
+        segment.failed = true;
+        store.write_transcript(&id, &[segment.clone()]).unwrap();
+        let path =
+            crate::session::failed_path(&store.dir_of(&id), segment.speaker, segment.start_ms);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, encode_wav(&speech(), 16_000)).unwrap();
+        let transcript = store.dir_of(&id).join("transcript.md");
+        std::fs::remove_file(&transcript).unwrap();
+        std::fs::create_dir(&transcript).unwrap();
+        let recognition = stt(&mut server, "De herstelde zin.").expect(2);
+        assert!(engine.retranscribe_failed(id.clone(), keys()).is_err());
+        assert!(path.exists());
+        std::fs::remove_dir(&transcript).unwrap();
+        assert_eq!(engine.retranscribe_failed(id.clone(), keys()).unwrap(), 1);
+        assert!(!path.exists());
+        assert_eq!(store.read_transcript(&id)[0].text, "De herstelde zin.");
+        recognition.assert();
+    }
+
+    #[test]
+    fn meeting_retry_cleans_already_committed_recovery_audio_without_recognition() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = meeting_engine(&dir, &server);
+        let id = add_meeting(&engine, "Al bewaard", 9, "Deze zin is al bewaard.");
+        let store = engine.meeting_store();
+        let segment = store.read_transcript(&id).remove(0);
+        let path =
+            crate::session::failed_path(&store.dir_of(&id), segment.speaker, segment.start_ms);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, encode_wav(&speech(), 16_000)).unwrap();
+        let recognition = stt(&mut server, "Geen nieuwe aanvraag.").expect(0);
+        assert_eq!(engine.retranscribe_failed(id.clone(), keys()).unwrap(), 0);
+        assert!(!path.exists());
+        assert_eq!(
+            store.read_transcript(&id)[0].text,
+            "Deze zin is al bewaard."
+        );
+        recognition.assert();
     }
 
     #[test]

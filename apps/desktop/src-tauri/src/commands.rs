@@ -95,6 +95,9 @@ fn provider_kinds(apple_speech: &Capability, apple_intelligence: &Capability) ->
 pub struct AppInfo {
     settings: Settings,
     keys: HashMap<String, bool>,
+    provider_revisions: HashMap<String, u64>,
+    active_model_downloads: Vec<String>,
+    unsaved_history_count: u32,
     kinds: Vec<KindInfo>,
     platform: &'static str,
     version: String,
@@ -119,6 +122,13 @@ pub(crate) fn info(shared: &Shared) -> AppInfo {
     let capabilities = capabilities::snapshot(hotkey_error.as_deref());
     AppInfo {
         keys,
+        provider_revisions: settings
+            .providers
+            .iter()
+            .map(|provider| (provider.id.clone(), shared.secrets.revision()))
+            .collect(),
+        active_model_downloads: shared.engine.active_model_downloads(),
+        unsaved_history_count: shared.engine.unsaved_history_count(),
         settings,
         kinds: provider_kinds(&capabilities.apple_speech, &capabilities.apple_intelligence),
         platform: std::env::consts::OS,
@@ -227,8 +237,14 @@ pub fn remove_provider(id: String, shared: State<'_, Arc<Shared>>) -> Result<App
 }
 
 #[tauri::command]
-pub fn set_key(account: String, key: String, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
+pub fn set_key(
+    account: String,
+    key: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<AppInfo> {
     shared.secrets.set(&account, &key)?;
+    let _ = app.emit("settings-changed", ());
     Ok(info(&shared))
 }
 
@@ -337,7 +353,9 @@ pub fn download_model(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>
         let listener = Arc::new(DownloadEvents {
             app: app.clone(),
             id: id.clone(),
-            last: std::sync::Mutex::new(std::time::Instant::now()),
+            last: std::sync::Mutex::new(
+                std::time::Instant::now() - std::time::Duration::from_secs(1),
+            ),
         });
         let result = shared.engine.download_model(id.clone(), listener);
         if let Err(e) = &result {
@@ -362,6 +380,34 @@ pub fn cancel_download(id: String, shared: State<'_, Arc<Shared>>) {
 }
 
 #[tauri::command]
+pub async fn join_model_download(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<bool> {
+    let shared = shared.inner().clone();
+    blocking(move || {
+        let listener = Arc::new(DownloadEvents {
+            app: app.clone(),
+            id: id.clone(),
+            last: std::sync::Mutex::new(
+                std::time::Instant::now() - std::time::Duration::from_secs(1),
+            ),
+        });
+        let result = shared.engine.join_model_download(id.clone(), listener);
+        let _ = app.emit(
+            "download-done",
+            DownloadDone {
+                id,
+                error: result.as_ref().err().map(ToString::to_string),
+            },
+        );
+        result.map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
 pub fn delete_model(id: String, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
     shared.engine.delete_model(id).map_err(err)?;
     Ok(info(&shared))
@@ -370,6 +416,45 @@ pub fn delete_model(id: String, shared: State<'_, Arc<Shared>>) -> Result<AppInf
 #[tauri::command]
 pub fn history(limit: u32, shared: State<'_, Arc<Shared>>) -> Result<Vec<HistoryEntry>> {
     shared.engine.history(limit).map_err(err)
+}
+
+#[tauri::command]
+pub async fn save_history(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
+    let shared = shared.inner().clone();
+    blocking(move || shared.engine.save_history(id).map_err(err)).await?;
+    let _ = app.emit("history-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn copy_history(id: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    let entry = shared.engine.history_entry(id).map_err(err)?;
+    if entry.text.is_empty() {
+        return Err("Dit dictaat heeft nog geen tekst om te kopiëren.".into());
+    }
+    crate::platform_clipboard::copy(&entry.text, None)
+}
+
+#[tauri::command]
+pub async fn test_provider_task(
+    slot: String,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<pennel_core::ProviderTaskTestResult> {
+    let task = match slot.as_str() {
+        "dictation_stt" => ProviderTask::DictationStt,
+        "meeting_stt" => ProviderTask::MeetingStt,
+        "llm" => ProviderTask::Llm,
+        _ => return Err("Onbekende modeltaak.".into()),
+    };
+    let shared = shared.inner().clone();
+    blocking(move || {
+        pennel_core::test_provider_task(shared.engine.clone(), task, shared.keys()).map_err(err)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -383,8 +468,10 @@ pub async fn retry_history(id: String, shared: State<'_, Arc<Shared>>) -> Result
 }
 
 #[tauri::command]
-pub fn delete_history(id: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
-    shared.engine.delete_history(id).map_err(err)
+pub fn delete_history(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    shared.engine.delete_history(id).map_err(err)?;
+    let _ = app.emit("history-changed", ());
+    Ok(())
 }
 
 #[tauri::command]
@@ -464,6 +551,7 @@ fn require_inactive_meeting(shared: &Shared, id: &str) -> Result<()> {
 
 #[derive(Serialize)]
 pub struct MeetingStatus {
+    recognition: Option<pennel_core::MeetingRecognition>,
     recording: bool,
     busy: bool,
     phase: pennel_core::RecordingPhase,
@@ -474,7 +562,12 @@ pub struct MeetingStatus {
     elapsed_secs: u64,
     system_audio: bool,
     heard_system_audio: bool,
+    echo_cancellation_active: bool,
     audio_warning: Option<String>,
+    persistence_error: Option<String>,
+    transcription_warning: Option<String>,
+    terminal_error: Option<String>,
+    can_retry_persistence: bool,
     consent_copied: bool,
     pending: u32,
     transcript: Vec<Segment>,
@@ -527,13 +620,20 @@ fn status(shared: &Shared) -> MeetingStatus {
                 .is_some_and(|(session, ..)| session.id() == meeting.session.id())
         })
         .map(|meeting| {
+            #[cfg(any(target_os = "macos", windows))]
+            let echo = meeting.echo_cancellation_active();
+            #[cfg(not(any(target_os = "macos", windows)))]
+            let echo = false;
             (
                 meeting.has_system_audio(),
                 meeting.heard_system_audio(),
                 meeting.audio_warning(),
+                meeting.terminal_error(),
+                echo,
             )
         });
     let mut result = MeetingStatus {
+        recognition: None,
         recording,
         busy,
         phase: state.phase,
@@ -544,7 +644,12 @@ fn status(shared: &Shared) -> MeetingStatus {
         elapsed_secs: 0,
         system_audio: false,
         heard_system_audio: false,
+        echo_cancellation_active: false,
         audio_warning: None,
+        persistence_error: None,
+        transcription_warning: None,
+        terminal_error: None,
+        can_retry_persistence: false,
         consent_copied: false,
         pending: 0,
         transcript: Vec::new(),
@@ -566,13 +671,31 @@ fn status(shared: &Shared) -> MeetingStatus {
         result.title = Some(title);
         result.elapsed_secs = elapsed_secs;
         result.consent_copied = consent_copied;
-        (
-            result.system_audio,
-            result.heard_system_audio,
-            result.audio_warning,
-        ) = live_system.unwrap_or((system_audio, heard_system_audio, audio_warning));
+        result.system_audio = system_audio;
+        result.heard_system_audio = heard_system_audio;
+        result.audio_warning = audio_warning;
+        if let Some((system_audio, heard, warning, terminal, echo)) = live_system {
+            result.system_audio = system_audio;
+            result.heard_system_audio = heard;
+            result.audio_warning = warning;
+            result.terminal_error = terminal;
+            result.echo_cancellation_active = echo;
+            if recording && shared.settings().echo_cancellation && !echo {
+                let explanation = "Echo-onderdrukking is niet actief. Gebruik een koptelefoon om dubbel geluid te vermijden.";
+                result.audio_warning = Some(match result.audio_warning {
+                    Some(warning) => format!("{warning} {explanation}"),
+                    None => explanation.into(),
+                });
+            }
+        }
         result.pending = session.pending();
+        result.recognition = Some(session.recognition_config());
         result.transcript = session.transcript();
+        let health = session.health();
+        result.persistence_error = health.persistence_error;
+        result.transcription_warning = health.transcription_warning;
+        result.terminal_error = health.terminal_error.or(result.terminal_error);
+        result.can_retry_persistence = health.can_retry_persistence;
     }
     result
 }
@@ -589,6 +712,16 @@ pub fn stop_meeting(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()
 }
 
 #[tauri::command]
+pub async fn retry_meeting_persistence(
+    session_id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
+    let shared = shared.inner().clone();
+    blocking(move || meeting_runtime::retry_persistence(&app, &shared, &session_id)).await
+}
+
+#[tauri::command]
 pub fn set_meeting_notes(
     text: String,
     session_id: String,
@@ -598,7 +731,9 @@ pub fn set_meeting_notes(
     let state = lifecycle.snapshot();
     if !matches!(
         state.phase,
-        pennel_core::RecordingPhase::Recording | pennel_core::RecordingPhase::Stopping
+        pennel_core::RecordingPhase::Recording
+            | pennel_core::RecordingPhase::Stopping
+            | pennel_core::RecordingPhase::Error
     ) || state.session_id.as_deref() != Some(session_id.as_str())
     {
         return Err("Deze opnamesessie is niet meer beschikbaar om notities te wijzigen.".into());

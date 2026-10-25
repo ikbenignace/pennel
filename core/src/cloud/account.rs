@@ -585,7 +585,7 @@ mod tests {
         let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
         let secrets = Arc::new(MemorySecrets::default());
         secrets.set(REFRESH_ACCOUNT.into(), Some("old".into()));
-        engine.set_secret_store(secrets.clone());
+        engine.set_secret_store(secrets.clone()).unwrap();
         engine.use_cloud_session(Session::new(server.url(), secrets.clone()));
         let meeting = dir.path().join("Meetings").join("2026-01-01 Test");
         std::fs::create_dir_all(&meeting).unwrap();

@@ -1,23 +1,80 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 use crate::chunker::{Chunk, Chunker};
 use crate::engine::{ApiKeys, PennelEngine};
 use crate::error::PennelError;
 use crate::meetings::{MeetingStore, Segment, Speaker};
+use crate::provider::ProviderKind;
+use crate::settings::Settings;
 use crate::speech::is_hallucination;
 use crate::transcript_filter::filter_segments;
 use crate::wav::encode_wav;
 
 const SAMPLE_RATE: u32 = 16_000;
 const ATTEMPTS: usize = 2;
+const STORAGE_ATTEMPTS: usize = 3;
+const INGRESS_CAPACITY: usize = 4;
+const MAX_PACKET_SAMPLES: usize = SAMPLE_RATE as usize * 90;
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
+pub struct MeetingHealth {
+    pub persistence_error: Option<String>,
+    pub terminal_error: Option<String>,
+    pub transcription_warning: Option<String>,
+    pub can_retry_persistence: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
+pub struct MeetingRecognition {
+    pub provider_kind: Option<ProviderKind>,
+    pub provider_name: String,
+    pub model: String,
+    pub language: Option<String>,
+}
+
+impl MeetingRecognition {
+    fn from_settings(settings: &Settings) -> Self {
+        let resolved = settings.resolve(&settings.meeting_stt);
+        Self {
+            provider_kind: resolved.as_ref().map(|(account, _)| account.kind),
+            provider_name: resolved.as_ref().map_or_else(
+                || "Niet ingesteld".into(),
+                |(account, _)| account.name.clone(),
+            ),
+            model: resolved.map_or_else(|| settings.meeting_stt.model.clone(), |(_, model)| model),
+            language: settings.language.clone(),
+        }
+    }
+}
 
 struct Job {
     speaker: Speaker,
     chunk: Chunk,
+}
+
+struct StoredJob {
+    speaker: Speaker,
+    start_ms: u64,
+    end_ms: u64,
+    path: PathBuf,
+}
+
+impl StoredJob {
+    fn failed(&self) -> Segment {
+        Segment {
+            start_ms: self.start_ms,
+            end_ms: self.end_ms,
+            speaker: self.speaker,
+            text: String::new(),
+            failed: true,
+            voice: None,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -25,17 +82,49 @@ struct Progress {
     segments: Vec<Segment>,
     dictations: Vec<(u64, u64)>,
     pending: u32,
+    unpersisted: Vec<Job>,
+    cleanup: Vec<PathBuf>,
+    dirty: bool,
+    revision: u64,
+    persistence_error: Option<String>,
+    terminal_error: Option<String>,
+    transcription_warning: Option<String>,
 }
 
 impl Progress {
     fn visible(&self) -> Vec<Segment> {
         filter_segments(&self.segments, &self.dictations)
+            .into_iter()
+            .filter(|segment| segment.failed || !segment.text.trim().is_empty())
+            .collect()
+    }
+
+    fn persisted(&self) -> Vec<Segment> {
+        let visible = self.visible();
+        self.segments
+            .iter()
+            .map(|segment| {
+                let mut segment = segment.clone();
+                if !segment.failed
+                    && !visible.iter().any(|shown| {
+                        shown.speaker == segment.speaker && shown.start_ms == segment.start_ms
+                    })
+                {
+                    segment.text.clear();
+                }
+                segment
+            })
+            .collect()
+    }
+
+    fn changed(&mut self) {
+        self.dirty = true;
+        self.revision = self.revision.wrapping_add(1);
     }
 }
 
-/// Keyed by whole seconds because transcript.md only keeps `[mm:ss]`, so a reread start must find the file.
+/// New chunks retain milliseconds; old whole-second file names remain valid.
 pub(crate) fn failed_path(meeting_dir: &Path, speaker: Speaker, start_ms: u64) -> PathBuf {
-    let start_ms = start_ms / 1000 * 1000;
     let who = match speaker {
         Speaker::Me => "me",
         Speaker::Others => "others",
@@ -45,17 +134,83 @@ pub(crate) fn failed_path(meeting_dir: &Path, speaker: Speaker, start_ms: u64) -
         .join(format!("{who}-{start_ms}.wav"))
 }
 
-/// A recording in progress: audio goes in per speaker, transcript segments come out in the background.
+fn retry_storage<T>(mut work: impl FnMut() -> Result<T, PennelError>) -> Result<T, PennelError> {
+    let mut result = work();
+    for attempt in 1..STORAGE_ATTEMPTS {
+        if result.is_ok() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20 * attempt as u64));
+        result = work();
+    }
+    result
+}
+
+fn storage_failure(progress: &Mutex<Progress>, terminal: &AtomicBool, error: &PennelError) {
+    terminal.store(true, Ordering::SeqCst);
+    let mut progress = progress.lock().unwrap();
+    progress.persistence_error = Some(format!("Bewaren mislukt: {error}"));
+    progress.terminal_error.get_or_insert_with(|| {
+        "De opname is gestopt omdat audio of tekst niet kon worden bewaard. Probeer opnieuw te bewaren.".into()
+    });
+}
+
+fn persist_job(store: &MeetingStore, id: &str, job: &Job) -> Result<StoredJob, PennelError> {
+    let wav = encode_wav(&job.chunk.samples, SAMPLE_RATE);
+    let path = retry_storage(|| store.write_recovery(id, job.speaker, job.chunk.start_ms, &wav))?;
+    Ok(StoredJob {
+        speaker: job.speaker,
+        start_ms: job.chunk.start_ms,
+        end_ms: job.chunk.start_ms + job.chunk.samples.len() as u64 * 1000 / u64::from(SAMPLE_RATE),
+        path,
+    })
+}
+
+fn commit_progress(
+    store: &MeetingStore,
+    id: &str,
+    progress: &Mutex<Progress>,
+) -> Result<(), PennelError> {
+    let (segments, cleanup, revision) = {
+        let progress = progress.lock().unwrap();
+        (
+            progress.persisted(),
+            progress.cleanup.clone(),
+            progress.revision,
+        )
+    };
+    retry_storage(|| store.write_transcript(id, &segments))?;
+    if let Err(error) = retry_storage(|| store.cleanup_committed_audio(id)) {
+        progress.lock().unwrap().persistence_error = Some(format!(
+            "De tekst is bewaard, maar de herstelaudio kon niet worden opgeruimd: {error}"
+        ));
+    }
+    let removed: Vec<_> = cleanup
+        .into_iter()
+        .filter(|path| path.try_exists().is_ok_and(|exists| !exists))
+        .collect();
+    let mut progress = progress.lock().unwrap();
+    progress.cleanup.retain(|path| !removed.contains(path));
+    if progress.revision == revision {
+        progress.dirty = false;
+    }
+    Ok(())
+}
+
+/// A recording in progress: PCM is bounded in memory; recognition waits on durable local WAV files.
 #[derive(uniffi::Object)]
 pub struct MeetingSession {
     id: String,
     store: MeetingStore,
+    recognition: MeetingRecognition,
     chunkers: Mutex<[Chunker; 2]>,
     pushed_samples: Mutex<[u64; 2]>,
-    dictating: std::sync::atomic::AtomicBool,
-    sender: Mutex<Option<Sender<Job>>>,
+    dictating: AtomicBool,
+    sender: Mutex<Option<SyncSender<Job>>>,
+    spool_worker: Mutex<Option<JoinHandle<()>>>,
     worker: Mutex<Option<JoinHandle<()>>>,
     progress: Arc<Mutex<Progress>>,
+    terminal: Arc<AtomicBool>,
     ingestion: Mutex<()>,
     stopping: AtomicBool,
     finalized: AtomicBool,
@@ -77,32 +232,101 @@ impl MeetingSession {
         id: String,
         keys: ApiKeys,
     ) -> Arc<Self> {
-        let (sender, receiver) = mpsc::channel::<Job>();
+        let settings = engine.settings();
+        let recognition = MeetingRecognition::from_settings(&settings);
+        let (sender, receiver) = mpsc::sync_channel::<Job>(INGRESS_CAPACITY);
+        let (stored_sender, stored_receiver) = mpsc::channel::<StoredJob>();
         let progress = Arc::new(Mutex::new(Progress::default()));
+        let terminal = Arc::new(AtomicBool::new(false));
+        let root = store.root();
+        let spool_progress = progress.clone();
+        let spool_terminal = terminal.clone();
+        let spool_store = MeetingStore::new(&root);
+        let spool_id = id.clone();
+        let spool_worker = std::thread::spawn(move || {
+            let mut failed = false;
+            for job in receiver {
+                if failed {
+                    spool_progress.lock().unwrap().unpersisted.push(job);
+                    continue;
+                }
+                match persist_job(&spool_store, &spool_id, &job) {
+                    Ok(stored) => {
+                        if stored_sender.send(stored).is_err() {
+                            let error = PennelError::Storage {
+                                message: "de transcriptiewerker is gestopt; audio blijft lokaal beschikbaar".into(),
+                            };
+                            storage_failure(&spool_progress, &spool_terminal, &error);
+                            failed = true;
+                        }
+                    }
+                    Err(error) => {
+                        storage_failure(&spool_progress, &spool_terminal, &error);
+                        spool_progress.lock().unwrap().unpersisted.push(job);
+                        failed = true;
+                    }
+                }
+            }
+        });
         let worker_progress = progress.clone();
-        let worker_store = MeetingStore::new(store.dir_of(&id).parent().unwrap_or(Path::new(".")));
+        let worker_terminal = terminal.clone();
+        let worker_store = MeetingStore::new(&root);
         let worker_id = id.clone();
         let worker = std::thread::spawn(move || {
-            for job in receiver {
-                let segment = transcribe_job(&engine, &worker_store, &worker_id, &keys, job);
-                let mut progress = worker_progress.lock().unwrap();
-                if let Some(segment) = segment {
+            let mut failed_chunks = 0;
+            let mut paused = false;
+            for job in stored_receiver {
+                let attempted = !paused && !worker_terminal.load(Ordering::SeqCst);
+                let segment = match if attempted {
+                    transcribe_job(&engine, &settings, &keys, &job, &worker_terminal)
+                } else {
+                    Ok(job.failed())
+                } {
+                    Ok(segment) => {
+                        if attempted {
+                            failed_chunks = if segment.failed { failed_chunks + 1 } else { 0 };
+                            if failed_chunks >= 2 {
+                                paused = true;
+                                worker_progress.lock().unwrap().transcription_warning = Some(
+                                    "Transcriptie is gepauzeerd. Je audio wordt bewaard; probeer na de opname opnieuw.".into()
+                                );
+                            }
+                        }
+                        segment
+                    }
+                    Err(error) => {
+                        storage_failure(&worker_progress, &worker_terminal, &error);
+                        job.failed()
+                    }
+                };
+                {
+                    let mut progress = worker_progress.lock().unwrap();
+                    if !segment.failed {
+                        progress.cleanup.push(job.path);
+                    }
                     progress.segments.push(segment);
-                    progress.segments.sort_by_key(|s| s.start_ms);
-                    let _ = worker_store.write_transcript(&worker_id, &progress.visible());
+                    progress.segments.sort_by_key(|segment| segment.start_ms);
+                    progress.changed();
                 }
-                progress.pending -= 1;
+                if let Err(error) = commit_progress(&worker_store, &worker_id, &worker_progress) {
+                    storage_failure(&worker_progress, &worker_terminal, &error);
+                }
+                let mut progress = worker_progress.lock().unwrap();
+                progress.pending = progress.pending.saturating_sub(1);
             }
         });
         Arc::new(Self {
             id,
             store,
+            recognition,
             chunkers: Mutex::new([Chunker::new(SAMPLE_RATE), Chunker::new(SAMPLE_RATE)]),
             pushed_samples: Mutex::new([0, 0]),
-            dictating: std::sync::atomic::AtomicBool::new(false),
+            dictating: AtomicBool::new(false),
             sender: Mutex::new(Some(sender)),
+            spool_worker: Mutex::new(Some(spool_worker)),
             worker: Mutex::new(Some(worker)),
             progress,
+            terminal,
             ingestion: Mutex::new(()),
             stopping: AtomicBool::new(false),
             finalized: AtomicBool::new(false),
@@ -111,21 +335,39 @@ impl MeetingSession {
         })
     }
 
-    fn enqueue(&self, speaker: Speaker, chunks: Vec<Chunk>) {
+    fn enqueue(&self, speaker: Speaker, chunks: Vec<Chunk>) -> Result<(), PennelError> {
         let sender = self.sender.lock().unwrap();
-        let Some(sender) = sender.as_ref() else {
-            return;
-        };
+        let mut failure = false;
         for chunk in chunks {
+            let job = Job { speaker, chunk };
             self.progress.lock().unwrap().pending += 1;
-            if sender.send(Job { speaker, chunk }).is_err() {
-                self.progress.lock().unwrap().pending -= 1;
+            let result = if failure {
+                Err(TrySendError::Full(job))
+            } else if let Some(sender) = sender.as_ref() {
+                sender.try_send(job)
+            } else {
+                Err(TrySendError::Disconnected(job))
+            };
+            if let Err(error) = result {
+                let job = match error {
+                    TrySendError::Full(job) | TrySendError::Disconnected(job) => job,
+                };
+                let mut progress = self.progress.lock().unwrap();
+                progress.unpersisted.push(job);
+                progress.terminal_error.get_or_insert_with(|| {
+                    "De opname is gestopt omdat de opslag niet kon volgen. Bewaar de resterende audio opnieuw.".into()
+                });
+                self.terminal.store(true, Ordering::SeqCst);
+                failure = true;
             }
         }
-    }
-
-    pub(crate) fn is_finalized(&self) -> bool {
-        self.finalized.load(Ordering::SeqCst)
+        if failure {
+            Err(PennelError::Storage {
+                message: "de audio-opslag kon niet volgen".into(),
+            })
+        } else {
+            Ok(())
+        }
     }
 
     fn ingest(
@@ -138,8 +380,20 @@ impl MeetingSession {
         if self.stopping.load(Ordering::SeqCst) {
             return Err(PennelError::Cancelled);
         }
+        if self.terminal.load(Ordering::SeqCst) {
+            return Err(PennelError::Storage {
+                message: "de opname wacht op herstel van de opslag".into(),
+            });
+        }
         if samples.is_empty() {
             return Ok(());
+        }
+        if samples.len() > MAX_PACKET_SAMPLES {
+            let error = PennelError::Storage {
+                message: "het audioblok is te groot om veilig te verwerken".into(),
+            };
+            storage_failure(&self.progress, &self.terminal, &error);
+            return Err(error);
         }
         let mut counters = self.pushed_samples.lock().unwrap();
         let count = &mut counters[index(speaker)];
@@ -174,71 +428,81 @@ impl MeetingSession {
         *count = end;
         drop(chunkers);
         drop(counters);
-        self.enqueue(speaker, chunks);
-        Ok(())
+        self.enqueue(speaker, chunks)
+    }
+
+    fn persist_final(&self) -> Result<(), PennelError> {
+        commit_progress(&self.store, &self.id, &self.progress)?;
+        if !self.progress.lock().unwrap().unpersisted.is_empty() {
+            return Err(PennelError::Storage {
+                message: "een deel van de audio is nog niet bewaard; probeer opnieuw te bewaren"
+                    .into(),
+            });
+        }
+        let longest = *self
+            .pushed_samples
+            .lock()
+            .unwrap()
+            .iter()
+            .max()
+            .unwrap_or(&0);
+        let minutes = longest.div_ceil(u64::from(SAMPLE_RATE) * 60) as u32;
+        retry_storage(|| self.store.set_duration(&self.id, minutes))
     }
 }
 
 fn transcribe_job(
     engine: &PennelEngine,
-    store: &MeetingStore,
-    id: &str,
+    settings: &Settings,
     keys: &ApiKeys,
-    job: Job,
-) -> Option<Segment> {
-    let settings = engine.settings();
-    let wav = encode_wav(&job.chunk.samples, SAMPLE_RATE);
-    let start_ms = job.chunk.start_ms;
-    let end_ms = start_ms + job.chunk.samples.len() as u64 * 1000 / u64::from(SAMPLE_RATE);
+    job: &StoredJob,
+    terminal: &AtomicBool,
+) -> Result<Segment, PennelError> {
+    let wav = std::fs::read(&job.path).map_err(PennelError::storage)?;
     let mut result = Err(PennelError::NotFound);
     for _ in 0..ATTEMPTS {
-        result = engine.stt(&settings, &settings.meeting_stt, &wav, keys);
+        if terminal.load(Ordering::SeqCst) {
+            break;
+        }
+        result = engine.stt(settings, &settings.meeting_stt, &wav, keys);
         if result.is_ok() {
             break;
         }
     }
-    match result {
-        Ok(text) if is_hallucination(&text) => None,
-        Ok(text) => Some(Segment {
-            start_ms,
-            end_ms,
-            speaker: job.speaker,
-            text,
-            failed: false,
-            voice: None,
-        }),
-        Err(_) => {
-            let path = failed_path(&store.dir_of(id), job.speaker, start_ms);
-            let _ = std::fs::create_dir_all(path.parent().expect("failed dir"));
-            let _ = std::fs::write(&path, &wav);
-            Some(Segment {
-                start_ms,
-                end_ms,
-                speaker: job.speaker,
-                text: String::new(),
-                failed: true,
-                voice: None,
-            })
-        }
+    let mut segment = job.failed();
+    if let Ok(text) = result {
+        segment.failed = false;
+        segment.text = if is_hallucination(&text) {
+            String::new()
+        } else {
+            text
+        };
     }
+    Ok(segment)
 }
 
 #[uniffi::export]
 impl MeetingSession {
+    pub fn recognition_config(&self) -> MeetingRecognition {
+        self.recognition.clone()
+    }
+
+    pub fn is_finalized(&self) -> bool {
+        self.finalized.load(Ordering::SeqCst)
+    }
+
     pub fn id(&self) -> String {
         self.id.clone()
     }
-
     pub fn dir(&self) -> String {
         self.store.dir_of(&self.id).to_string_lossy().into_owned()
     }
 
-    /// Accepts 16 kHz mono samples; transcription happens on a background thread.
+    /// Accepts 16 kHz mono samples; failure is available through the session health snapshot.
     pub fn push_audio(&self, speaker: Speaker, samples: Vec<f32>) {
         let _ = self.ingest(speaker, None, samples);
     }
 
-    /// Audio already normalized to 16 kHz mono, timed from the shared meeting start.
     pub fn push_audio_at(
         &self,
         speaker: Speaker,
@@ -251,31 +515,37 @@ impl MeetingSession {
     pub fn set_notes(&self, text: String) -> Result<(), PennelError> {
         self.store.write_notes(&self.id, &text)
     }
-
     pub fn transcript(&self) -> Vec<Segment> {
         self.progress.lock().unwrap().visible()
     }
-
-    /// While true, the user's microphone is replaced by silence: they are dictating into another app.
     pub fn set_dictating(&self, dictating: bool) {
-        self.dictating
-            .store(dictating, std::sync::atomic::Ordering::SeqCst);
+        self.dictating.store(dictating, Ordering::SeqCst);
     }
 
-    /// Marks a period (meeting timeline, ms) in which the user dictated into another app.
     pub fn mark_dictation(&self, start_ms: u64, end_ms: u64) {
-        self.progress
-            .lock()
-            .unwrap()
-            .dictations
-            .push((start_ms, end_ms));
+        let mut progress = self.progress.lock().unwrap();
+        progress.dictations.push((start_ms, end_ms));
+        progress.changed();
     }
 
     pub fn pending(&self) -> u32 {
         self.progress.lock().unwrap().pending
     }
 
-    /// Flushes the remaining audio, waits for every chunk to be transcribed and records the duration.
+    pub fn health(&self) -> MeetingHealth {
+        let progress = self.progress.lock().unwrap();
+        MeetingHealth {
+            persistence_error: progress.persistence_error.clone(),
+            terminal_error: progress.terminal_error.clone(),
+            transcription_warning: progress.transcription_warning.clone(),
+            can_retry_persistence: progress.dirty
+                || !progress.unpersisted.is_empty()
+                || !progress.cleanup.is_empty()
+                || (self.stopping.load(Ordering::SeqCst) && !self.finalized.load(Ordering::SeqCst)),
+        }
+    }
+
+    /// Flushes capture, joins persistence/recognition workers, then commits the final transcript.
     pub fn stop(&self) -> Result<(), PennelError> {
         let _stop = self.stop_lock.lock().unwrap();
         if let Some(result) = self.stop_result.lock().unwrap().as_ref() {
@@ -286,25 +556,91 @@ impl MeetingSession {
             self.stopping.store(true, Ordering::SeqCst);
             for speaker in [Speaker::Me, Speaker::Others] {
                 let rest = self.chunkers.lock().unwrap()[index(speaker)].flush();
-                self.enqueue(speaker, rest.into_iter().collect());
+                let _ = self.enqueue(speaker, rest.into_iter().collect());
             }
             self.sender.lock().unwrap().take();
         }
-        if let Some(worker) = self.worker.lock().unwrap().take() {
-            let _ = worker.join();
+        let mut worker_error = None;
+        for handle in [
+            self.spool_worker.lock().unwrap().take(),
+            self.worker.lock().unwrap().take(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if handle.join().is_err() {
+                worker_error = Some(PennelError::Storage {
+                    message:
+                        "een opnamewerker is onverwacht gestopt; bewaarde audio blijft beschikbaar"
+                            .into(),
+                });
+            }
         }
-        let result = self.store.write_transcript(&self.id, &self.transcript());
-        let longest = *self
-            .pushed_samples
-            .lock()
-            .unwrap()
-            .iter()
-            .max()
-            .unwrap_or(&0);
-        let minutes = longest.div_ceil(u64::from(SAMPLE_RATE) * 60) as u32;
-        let result = result.and_then(|()| self.store.set_duration(&self.id, minutes));
+        let result = worker_error.map_or_else(|| self.persist_final(), Err);
+        if let Err(error) = &result {
+            storage_failure(&self.progress, &self.terminal, error);
+        }
+        self.finalized.store(result.is_ok(), Ordering::SeqCst);
         *self.stop_result.lock().unwrap() = Some(result.clone());
-        self.finalized.store(true, Ordering::SeqCst);
+        result
+    }
+
+    /// Saves retained material without recording again or repeating successful recognition.
+    pub fn retry_persistence(&self) -> Result<(), PennelError> {
+        let _stop = self.stop_lock.lock().unwrap();
+        if !self.stopping.load(Ordering::SeqCst) {
+            return Err(PennelError::Storage {
+                message: "rond eerst de opname af".into(),
+            });
+        }
+        let retained = std::mem::take(&mut self.progress.lock().unwrap().unpersisted);
+        let mut retained = retained.into_iter();
+        while let Some(job) = retained.next() {
+            match persist_job(&self.store, &self.id, &job) {
+                Ok(stored) => {
+                    let mut progress = self.progress.lock().unwrap();
+                    progress.segments.push(stored.failed());
+                    progress.pending = progress.pending.saturating_sub(1);
+                    progress.changed();
+                }
+                Err(error) => {
+                    let mut progress = self.progress.lock().unwrap();
+                    progress.unpersisted.push(job);
+                    progress.unpersisted.extend(retained);
+                    drop(progress);
+                    storage_failure(&self.progress, &self.terminal, &error);
+                    return Err(error);
+                }
+            }
+        }
+        // A crashed worker may have queued durable files without publishing their segment yet.
+        let recovered = self.store.read_transcript(&self.id);
+        {
+            let mut progress = self.progress.lock().unwrap();
+            for segment in recovered {
+                if !progress.segments.iter().any(|existing| {
+                    existing.speaker == segment.speaker && existing.start_ms == segment.start_ms
+                }) {
+                    progress.segments.push(segment);
+                    progress.changed();
+                }
+            }
+            progress.pending = 0;
+        }
+        let result = self.persist_final();
+        match &result {
+            Ok(()) => {
+                let mut progress = self.progress.lock().unwrap();
+                if progress.cleanup.is_empty() {
+                    progress.persistence_error = None;
+                }
+                progress.terminal_error = None;
+                self.terminal.store(false, Ordering::SeqCst);
+            }
+            Err(error) => storage_failure(&self.progress, &self.terminal, error),
+        }
+        self.finalized.store(result.is_ok(), Ordering::SeqCst);
+        *self.stop_result.lock().unwrap() = Some(result.clone());
         result
     }
 }
@@ -626,5 +962,415 @@ mod tests {
         let first = session.stop();
         assert!(first.is_err());
         assert_eq!(session.stop(), first);
+    }
+
+    #[test]
+    fn recognition_configuration_is_frozen_when_the_meeting_starts() {
+        let (dir, mut original) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let mut replacement = mockito::Server::new();
+        let engine = engine(&dir, &original);
+        let mut settings = engine.settings();
+        settings.language = Some("nl".into());
+        settings.meeting_stt.model = "original-model".into();
+        engine.update_settings(settings).unwrap();
+        let original_request = original
+            .mock("POST", "/audio/transcriptions")
+            .match_body(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::Regex("name=\"language\"\r\n\r\nnl".into()),
+                mockito::Matcher::Regex("name=\"model\"\r\n\r\noriginal-model".into()),
+            ]))
+            .with_body(r#"{"text":"gesprek"}"#)
+            .expect(1)
+            .create();
+        let replacement_request = replacement
+            .mock("POST", "/audio/transcriptions")
+            .expect(0)
+            .create();
+        let session = engine.clone().start_meeting("Vast".into(), keys()).unwrap();
+        let mut settings = engine.settings();
+        settings.providers[0].base_url = replacement.url();
+        settings.language = Some("en".into());
+        settings.meeting_stt.model = "replacement-model".into();
+        engine.update_settings(settings).unwrap();
+        let frozen = session.recognition_config();
+        assert_eq!(frozen.provider_kind, Some(ProviderKind::Groq));
+        assert_eq!(frozen.model, "original-model");
+        assert_eq!(frozen.language.as_deref(), Some("nl"));
+        assert_eq!(
+            serde_json::to_value(&frozen)
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .len(),
+            4
+        );
+        session.push_audio(Speaker::Me, tone(3.0));
+        session.stop().unwrap();
+        assert_eq!(session.recognition_config(), frozen);
+        original_request.assert();
+        replacement_request.assert();
+        assert_eq!(session.transcript()[0].text, "gesprek");
+    }
+
+    #[test]
+    fn failed_transcript_commit_retains_audio_and_retries_without_recognition() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let request = stt_ok(&mut server, "tekst blijft beschikbaar").expect(1);
+        let session = engine.start_meeting("Opslag".into(), keys()).unwrap();
+        let transcript = PathBuf::from(session.dir()).join("transcript.md");
+        std::fs::create_dir(&transcript).unwrap();
+        session.push_audio(Speaker::Me, tone(3.0));
+        assert!(session.stop().is_err());
+        assert_eq!(session.transcript()[0].text, "tekst blijft beschikbaar");
+        assert!(failed_path(Path::new(&session.dir()), Speaker::Me, 0).exists());
+        assert!(session.health().can_retry_persistence);
+        assert!(!session.is_finalized());
+        std::fs::remove_dir(&transcript).unwrap();
+        session.retry_persistence().unwrap();
+        request.assert();
+        assert!(session.is_finalized());
+        assert!(!session.health().can_retry_persistence);
+        assert!(!failed_path(Path::new(&session.dir()), Speaker::Me, 0).exists());
+        assert!(
+            std::fs::read_to_string(transcript)
+                .unwrap()
+                .contains("tekst blijft beschikbaar")
+        );
+        session.stop().unwrap();
+    }
+
+    #[test]
+    fn recovery_audio_is_durable_before_the_provider_receives_it() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let session = engine
+            .start_meeting("Eerst bewaren".into(), keys())
+            .unwrap();
+        let path = failed_path(Path::new(&session.dir()), Speaker::Me, 0);
+        let provider_path = path.clone();
+        let request = server
+            .mock("POST", "/audio/transcriptions")
+            .with_body_from_request(move |_| {
+                let audio =
+                    std::fs::read(&provider_path).expect("audio must be saved before upload");
+                assert!(crate::wav::decode_wav(&audio).is_some());
+                r#"{"text":"bewaard"}"#.as_bytes().to_vec()
+            })
+            .expect(1)
+            .create();
+        session.push_audio(Speaker::Me, tone(3.0));
+        session.stop().unwrap();
+        request.assert();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn failed_audio_storage_stops_ingestion_and_retains_chunks_until_save_retry() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let request = stt_ok(&mut server, "mag niet worden opgevraagd").expect(0);
+        let session = engine.start_meeting("Schijf vol".into(), keys()).unwrap();
+        let recovery = PathBuf::from(session.dir()).join("failed");
+        std::fs::write(&recovery, b"blocked").unwrap();
+        session.push_audio_at(Speaker::Me, 0, tone(31.0)).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while session.health().terminal_error.is_none() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(session.health().terminal_error.is_some());
+        assert!(session.transcript().is_empty());
+        assert!(
+            session
+                .push_audio_at(Speaker::Me, 31_000, tone(1.0))
+                .is_err()
+        );
+        assert!(session.stop().is_err());
+        assert!(!session.is_finalized());
+        std::fs::remove_file(&recovery).unwrap();
+        session.retry_persistence().unwrap();
+        request.assert();
+        assert!(session.is_finalized());
+        assert_eq!(session.transcript().len(), 2);
+        assert!(session.transcript().iter().all(|segment| segment.failed));
+        assert_eq!(std::fs::read_dir(recovery).unwrap().count(), 2);
+        assert!(session.health().terminal_error.is_none());
+        assert!(!session.health().can_retry_persistence);
+    }
+
+    #[test]
+    fn slow_recognition_backlogs_file_references_while_capture_keeps_persisting() {
+        use std::sync::Condvar;
+
+        struct Release(Arc<(Mutex<bool>, Condvar)>);
+        impl Drop for Release {
+            fn drop(&mut self) {
+                *self.0.0.lock().unwrap() = true;
+                self.0.1.notify_all();
+            }
+        }
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let session = engine
+            .start_meeting("Trage herkenning".into(), keys())
+            .unwrap();
+        let latch = Arc::new((Mutex::new(false), Condvar::new()));
+        let release = Release(latch.clone());
+        let request = server
+            .mock("POST", "/audio/transcriptions")
+            .with_body_from_request(move |_| {
+                let (lock, ready) = &*latch;
+                let mut released = lock.lock().unwrap();
+                while !*released {
+                    released = ready.wait(released).unwrap();
+                }
+                r#"{"text":"gesprek"}"#.as_bytes().to_vec()
+            })
+            .expect(8)
+            .create();
+        for number in 0..8 {
+            session
+                .push_audio_at(Speaker::Me, number * 30_000, tone(30.0))
+                .unwrap();
+            let path = failed_path(Path::new(&session.dir()), Speaker::Me, number * 30_000);
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while !path.exists() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert!(
+                path.exists(),
+                "each chunk must persist independently of the provider"
+            );
+        }
+        assert_eq!(session.pending(), 8);
+        assert!(session.health().terminal_error.is_none());
+        assert!(session.progress.lock().unwrap().unpersisted.is_empty());
+        drop(release);
+        session.stop().unwrap();
+        request.assert();
+        assert_eq!(session.transcript().len(), 8);
+    }
+
+    #[test]
+    fn a_full_pcm_queue_retains_overflow_without_blocking_the_capture_caller() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store
+            .create("Volle wachtrij", chrono::Local::now())
+            .unwrap();
+        let (sender, _receiver) = mpsc::sync_channel(INGRESS_CAPACITY);
+        let session = MeetingSession {
+            id,
+            store,
+            recognition: MeetingRecognition {
+                provider_kind: None,
+                provider_name: "Niet ingesteld".into(),
+                model: String::new(),
+                language: None,
+            },
+            chunkers: Mutex::new([Chunker::new(SAMPLE_RATE), Chunker::new(SAMPLE_RATE)]),
+            pushed_samples: Mutex::new([0, 0]),
+            dictating: AtomicBool::new(false),
+            sender: Mutex::new(Some(sender)),
+            spool_worker: Mutex::new(None),
+            worker: Mutex::new(None),
+            progress: Arc::new(Mutex::new(Progress::default())),
+            terminal: Arc::new(AtomicBool::new(false)),
+            ingestion: Mutex::new(()),
+            stopping: AtomicBool::new(false),
+            finalized: AtomicBool::new(false),
+            stop_lock: Mutex::new(()),
+            stop_result: Mutex::new(None),
+        };
+        for number in 0..INGRESS_CAPACITY {
+            session
+                .enqueue(
+                    Speaker::Me,
+                    vec![Chunk {
+                        start_ms: number as u64 * 1_000,
+                        samples: vec![0.25; 16_000],
+                    }],
+                )
+                .unwrap();
+        }
+        let started = Instant::now();
+        assert!(
+            session
+                .enqueue(
+                    Speaker::Others,
+                    vec![Chunk {
+                        start_ms: 0,
+                        samples: vec![0.25; 16_000]
+                    }]
+                )
+                .is_err()
+        );
+        assert!(started.elapsed() < Duration::from_millis(100));
+        assert_eq!(session.progress.lock().unwrap().unpersisted.len(), 1);
+        assert!(session.health().terminal_error.is_some());
+        assert!(
+            session
+                .push_audio_at(Speaker::Me, 4_000, tone(1.0))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn repeated_provider_failures_pause_transcription_without_stopping_audio_capture() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let request = server
+            .mock("POST", "/audio/transcriptions")
+            .with_status(503)
+            .expect(4)
+            .create();
+        let session = engine.start_meeting("Offline".into(), keys()).unwrap();
+        for number in 0..8 {
+            session
+                .push_audio_at(Speaker::Me, number * 30_000, tone(30.0))
+                .unwrap();
+            let path = failed_path(Path::new(&session.dir()), Speaker::Me, number * 30_000);
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while !path.exists() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert!(path.exists());
+        }
+        let stopped = Instant::now();
+        session.stop().unwrap();
+        assert!(stopped.elapsed() < Duration::from_secs(3));
+        request.assert();
+        assert_eq!(session.transcript().len(), 8);
+        assert!(session.transcript().iter().all(|segment| segment.failed));
+        assert!(session.health().transcription_warning.is_some());
+        assert!(session.health().terminal_error.is_none());
+        assert_eq!(
+            std::fs::read_dir(PathBuf::from(session.dir()).join("failed"))
+                .unwrap()
+                .count(),
+            8
+        );
+    }
+
+    #[test]
+    fn interruptions_in_the_same_second_keep_distinct_recovery_audio() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let request = server
+            .mock("POST", "/audio/transcriptions")
+            .with_status(503)
+            .expect(4)
+            .create();
+        let session = engine
+            .clone()
+            .start_meeting("Korte onderbreking".into(), keys())
+            .unwrap();
+        session.push_audio_at(Speaker::Me, 0, tone(0.35)).unwrap();
+        session.push_audio_at(Speaker::Me, 400, tone(0.35)).unwrap();
+        session.stop().unwrap();
+        request.assert();
+        let transcript = engine.meeting_transcript(session.id());
+        assert_eq!(transcript.len(), 2);
+        assert_eq!((transcript[0].start_ms, transcript[1].start_ms), (0, 400));
+        assert!(failed_path(Path::new(&session.dir()), Speaker::Me, 0).exists());
+        assert!(failed_path(Path::new(&session.dir()), Speaker::Me, 400).exists());
+        request.remove();
+        let successful = stt_ok(&mut server, "hersteld").expect(2);
+        assert_eq!(engine.retranscribe_failed(session.id(), keys()).unwrap(), 2);
+        successful.assert();
+        assert!(
+            engine
+                .meeting_transcript(session.id())
+                .iter()
+                .all(|segment| !segment.failed)
+        );
+    }
+
+    #[test]
+    fn terminal_storage_failure_skips_provider_calls_for_queued_durable_audio() {
+        use std::sync::Condvar;
+        struct Release(Arc<(Mutex<bool>, Condvar)>);
+        impl Drop for Release {
+            fn drop(&mut self) {
+                *self.0.0.lock().unwrap() = true;
+                self.0.1.notify_all();
+            }
+        }
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let session = engine.start_meeting("Opslag stop".into(), keys()).unwrap();
+        let latch = Arc::new((Mutex::new(false), Condvar::new()));
+        let release = Release(latch.clone());
+        let request = server
+            .mock("POST", "/audio/transcriptions")
+            .with_body_from_request(move |_| {
+                let (lock, ready) = &*latch;
+                let mut released = lock.lock().unwrap();
+                while !*released {
+                    released = ready.wait(released).unwrap();
+                }
+                r#"{"text":"eerste tekst"}"#.as_bytes().to_vec()
+            })
+            .expect(1)
+            .create();
+        let transcript_path = PathBuf::from(session.dir()).join("transcript.md");
+        std::fs::create_dir(&transcript_path).unwrap();
+        for number in 0..8 {
+            session
+                .push_audio_at(Speaker::Me, number * 30_000, tone(30.0))
+                .unwrap();
+            let path = failed_path(Path::new(&session.dir()), Speaker::Me, number * 30_000);
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while !path.exists() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert!(path.exists());
+        }
+        drop(release);
+        let stopped = Instant::now();
+        assert!(session.stop().is_err());
+        assert!(stopped.elapsed() < Duration::from_secs(3));
+        request.assert();
+        assert_eq!(session.transcript()[0].text, "eerste tekst");
+        assert_eq!(
+            session
+                .transcript()
+                .iter()
+                .filter(|segment| segment.failed)
+                .count(),
+            7
+        );
+        std::fs::remove_dir(transcript_path).unwrap();
+        session.retry_persistence().unwrap();
+        request.assert();
+        assert!(session.is_finalized());
+        assert_eq!(
+            std::fs::read_dir(PathBuf::from(session.dir()).join("failed"))
+                .unwrap()
+                .count(),
+            7
+        );
+    }
+
+    #[test]
+    fn restart_recovery_restores_duration_before_removing_saved_audio() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let store = MeetingStore::new(Path::new(&engine.settings().meetings_dir));
+        let id = store.create("Herstart", chrono::Local::now()).unwrap();
+        store
+            .write_recovery(
+                &id,
+                Speaker::Others,
+                60_400,
+                &encode_wav(&tone(2.0), SAMPLE_RATE),
+            )
+            .unwrap();
+        assert_eq!(engine.meeting_info(id.clone()).unwrap().duration_min, 0);
+        let request = stt_ok(&mut server, "herstelde tekst").expect(1);
+        assert_eq!(engine.retranscribe_failed(id.clone(), keys()).unwrap(), 1);
+        request.assert();
+        assert_eq!(engine.meeting_info(id.clone()).unwrap().duration_min, 2);
+        assert!(!failed_path(&store.dir_of(&id), Speaker::Others, 60_400).exists());
     }
 }

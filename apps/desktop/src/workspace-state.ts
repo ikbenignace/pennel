@@ -1,9 +1,15 @@
 export type WorkspaceSection = "dictation" | "meetings" | "history" | "settings" | "recording";
+export interface MeetingSourceTarget {
+  kind: "notes" | "summary" | "transcript";
+  start_ms: number | null;
+  text: string;
+}
 export interface WorkspaceRoute {
   section: WorkspaceSection;
   tab: string | null;
   meeting_id: string | null;
   jump_ms: number | null;
+  source_target?: MeetingSourceTarget;
 }
 
 /** The original Pennel windows: the meeting library is the main window; the rest open in their own window. */
@@ -27,8 +33,8 @@ export function validMeetingId(value: unknown): value is string {
     && !reserved.has(value) && !/[\u0000-\u001f\u007f-\u009f/\\:]/u.test(value);
 }
 
-export function workspaceRoute(section: WorkspaceSection, tab: string | null = null, meetingId: string | null = null, jumpMs: number | null = null): WorkspaceRoute {
-  return { section, tab, meeting_id: meetingId, jump_ms: jumpMs };
+export function workspaceRoute(section: WorkspaceSection, tab: string | null = null, meetingId: string | null = null, jumpMs: number | null = null, sourceTarget?: MeetingSourceTarget): WorkspaceRoute {
+  return { section, tab, meeting_id: meetingId, jump_ms: jumpMs, ...(sourceTarget ? { source_target: { ...sourceTarget } } : {}) };
 }
 
 export function parseWorkspaceRoute(value: unknown): WorkspaceRoute | null {
@@ -42,7 +48,15 @@ export function parseWorkspaceRoute(value: unknown): WorkspaceRoute | null {
   if (input.meeting_id != null && !validMeetingId(input.meeting_id)) return null;
   const id = validMeetingId(input.meeting_id) ? input.meeting_id : null;
   const jump = typeof input.jump_ms === "number" && Number.isFinite(input.jump_ms) && input.jump_ms >= 0 ? input.jump_ms : null;
-  return workspaceRoute(section, section === "settings" && tab === "meetings" ? "meeting-settings" : tab, id, jump);
+  let source: MeetingSourceTarget | undefined;
+  if (input.source_target != null) {
+    if (section !== "meetings" || !id || typeof input.source_target !== "object") return null;
+    const candidate = input.source_target as Record<string, unknown>;
+    if (!["notes", "summary", "transcript"].includes(String(candidate.kind)) || typeof candidate.text !== "string" || !candidate.text.trim()) return null;
+    if (candidate.start_ms !== null && !(typeof candidate.start_ms === "number" && Number.isFinite(candidate.start_ms) && candidate.start_ms >= 0)) return null;
+    source = { kind: candidate.kind as MeetingSourceTarget["kind"], start_ms: candidate.start_ms as number | null, text: candidate.text };
+  }
+  return workspaceRoute(section, section === "settings" && tab === "meetings" ? "meeting-settings" : tab, id, jump, source);
 }
 
 export function legacyWorkspaceRoute(kind: string, route?: string | null): WorkspaceRoute | null {
@@ -64,7 +78,7 @@ export function legacyWorkspaceRoute(kind: string, route?: string | null): Works
 }
 
 export function routeKey(route: WorkspaceRoute): string {
-  return JSON.stringify([route.section, route.tab, route.meeting_id, route.jump_ms]);
+  return JSON.stringify([route.section, route.tab, route.meeting_id, route.jump_ms, route.source_target ?? null]);
 }
 
 export function samePadRoute(current: WorkspaceRoute, next: WorkspaceRoute): boolean {
@@ -78,7 +92,11 @@ export class WorkspaceNavigation {
 
   set(route: WorkspaceRoute): void {
     this.current = { ...route };
-    if (route.section !== "recording") this.remembered.set(route.section, { ...route, jump_ms: null });
+    if (route.section !== "recording") {
+      const remembered = { ...route, jump_ms: null };
+      delete remembered.source_target;
+      this.remembered.set(route.section, remembered);
+    }
   }
 
   select(section: WorkspaceSection): WorkspaceRoute {

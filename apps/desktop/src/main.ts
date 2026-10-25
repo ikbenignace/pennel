@@ -7,7 +7,7 @@ import { dictationView, dictionaryView, stylesView } from "./views/dictation";
 import { historyView } from "./views/history";
 import { displayedMeetingSession, finishMeetingDrafts, flushMeetingDrafts, meetingView, meetingsView } from "./views/meetings";
 import { FrontendBarrier, canShowFinished, type FrontendBarrierKind } from "./session-events";
-import { legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, windowForSection, windowMode, windowTitles, workspaceRoute, type WorkspaceRoute } from "./workspace-state";
+import { legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, windowForSection, windowMode, windowTitles, workspaceRoute, type WorkspaceRoute, type MeetingSourceTarget } from "./workspace-state";
 import { LibrarySidebar } from "./views/library";
 import { modelsView } from "./views/models";
 import { accountView } from "./views/account";
@@ -26,7 +26,7 @@ export interface Context {
   update: (info: AppInfo) => void;
   refresh: () => Promise<void>;
   rerender: () => void;
-  navigate: (tab: string, param?: string, jumpMs?: number) => void;
+  navigate: (tab: string, param?: string, jumpMs?: number, sourceTarget?: MeetingSourceTarget) => void;
   report: (error: unknown) => void;
   onDispose: (cleanup: () => void) => void;
   beforeLeave: (flush: () => Promise<void>) => void;
@@ -37,6 +37,7 @@ export interface Context {
   onVisibilityChange: (listener: (visible: boolean) => void) => void;
   param?: string;
   jumpMs?: number;
+  sourceTarget?: MeetingSourceTarget;
 }
 
 type View = (ctx: Context) => HTMLElement | Promise<HTMLElement>;
@@ -83,7 +84,28 @@ const finishedRequests = new LatestRequest();
 const app = document.getElementById("app")!;
 const content = h("main", { id: "content" });
 const banner = h("div", { class: "notice-banner", role: "status", hidden: true });
+const recoveryBanner = h("div", { class: "notice-banner row", "data-recovery-banner": true, role: "status", "aria-live": "polite", hidden: true });
+type RecoveryNotice = { id: string; unsaved: boolean; reason: string };
+let recoveryNotice: RecoveryNotice | null = null;
 let library: LibrarySidebar | null = null;
+
+function showRecovery() {
+  const unsaved = (info?.unsaved_history_count ?? 0) > 0;
+  if (!unsaved && recoveryNotice?.unsaved) recoveryNotice = null;
+  recoveryBanner.hidden = !unsaved && !recoveryNotice;
+  if (recoveryBanner.hidden) return;
+  const notice = recoveryNotice;
+  recoveryBanner.replaceChildren(
+    h("span", { class: "grow" }, notice?.reason ?? "Je hebt dictaten die nog niet bewaard zijn. Ze blijven beschikbaar zolang Pennel open is."),
+    ...(notice ? [h("button", { class: "text-button", onclick: async () => {
+      try {
+        await api.copyHistory(notice.id);
+        if (!notice.unsaved) { recoveryNotice = null; showRecovery(); }
+      } catch (error) { report(error); }
+    } }, "Kopiëren")] : []),
+    h("button", { class: "text-button", onclick: () => { void api.showWindow("history").catch(report); } }, "Open geschiedenis"),
+  );
+}
 
 function report(error: unknown) {
   banner.textContent = errorText(error);
@@ -102,6 +124,7 @@ function applyAppearance() {
 }
 
 function notifyInfo() {
+  showRecovery();
   applyAppearance();
   mounted?.info.forEach((listener) => listener(visibleInfo()));
 }
@@ -140,10 +163,10 @@ async function refresh(allowed: () => boolean = () => true, preserveSameContent 
   await render(allowed);
 }
 
-function navigate(tab: string, param?: string, jumpMs?: number) {
+function navigate(tab: string, param?: string, jumpMs?: number, sourceTarget?: MeetingSourceTarget) {
   if (tab === "onboarding") { void api.showWindow("onboarding").catch(report); return; }
   if (tab === "meetings" || tab === "library" || tab === "chat") {
-    void go(workspaceRoute("meetings", tab === "chat" ? "chat" : null, param ?? null, jumpMs ?? null)); return;
+    void go(workspaceRoute("meetings", tab === "chat" ? "chat" : null, param ?? null, jumpMs ?? null, sourceTarget)); return;
   }
   if (tab === "meeting" || tab === "live") { void go(workspaceRoute("recording", null, param ?? null)); return; }
   if (tab === "history") { void go(workspaceRoute("history")); return; }
@@ -203,6 +226,7 @@ function contextFor(target: Mounted): Context {
     onVisibilityChange: (listener) => target.visibility.push(listener),
     param: route.section === "dictation" && route.tab === "pad" ? "__pad__" : route.section === "settings" && route.tab === "local" ? "__local__" : route.tab === "chat" ? "__chat__" : route.meeting_id ?? undefined,
     jumpMs: route.jump_ms ?? undefined,
+    sourceTarget: route.source_target ?? undefined,
   };
 }
 
@@ -258,6 +282,7 @@ async function render(allowed: () => boolean = () => true) {
     content.scrollTop = scroll;
     if (paneScroll !== undefined) { const pane = content.querySelector<HTMLElement>(".settings-pane"); if (pane) pane.scrollTop = paneScroll; }
     if (ctx.jumpMs === route.jump_ms) navigation.current.jump_ms = null;
+    if (ctx.sourceTarget === route.source_target) delete navigation.current.source_target;
     needsRefresh = false;
     updateNavigation();
   } catch (error) {
@@ -277,7 +302,7 @@ function titlebarDragRegion(): HTMLElement {
 
 function workspaceShell() {
   library = new LibrarySidebar({ info: visibleInfo, current: () => navigation.current, go: (route) => { void go(route); }, report });
-  app.replaceChildren(titlebarDragRegion(), h("div", { class: "workspace-shell" }, library.element, h("div", { class: "workspace-body" }, banner, content)));
+  app.replaceChildren(titlebarDragRegion(), h("div", { class: "workspace-shell" }, library.element, h("div", { class: "workspace-body" }, recoveryBanner, banner, content)));
 }
 
 async function refreshSidebar() {
@@ -381,7 +406,8 @@ async function boot() {
   info = await api.info(); applyAppearance();
   document.documentElement.dataset.platform = info.platform;
   windowVisible = !!fixtureClient() || info.platform !== "macos" || mode === "prompt";
-  if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "prompt" ? [] : [titlebarDragRegion()]), banner, content);
+  if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "prompt" ? [] : [titlebarDragRegion(), recoveryBanner]), banner, content);
+  if (mode !== "prompt") showRecovery();
   if (mode !== "prompt") windowShortcuts();
   await listen("capabilities-changed", () => { if (!booted) capabilitiesDirty = true; else void refresh().catch(report); });
   await listen<unknown>("workspace-navigate", (event) => { const route = parseWorkspaceRoute(event.payload); if (route) void go(route); });
@@ -396,7 +422,12 @@ async function boot() {
     if (presentationVisible()) void refresh(() => presentationVisible(), true).catch(report);
   });
   await listen<string>("window-hide-error", (event) => report(event.payload));
-  await listen("history-changed", () => { if (navigation.current.section === "history") void refresh().catch(report); });
+  await listen<RecoveryNotice>("dictation-recovery", (event) => {
+    recoveryNotice = event.payload;
+    if (event.payload.unsaved) info.unsaved_history_count = Math.max(1, info.unsaved_history_count ?? 0);
+    showRecovery();
+  });
+  await listen("history-changed", () => { void refresh(() => true, true).catch(report); });
   await listen("meeting-updated", () => {
     void refreshSidebar().catch(report);
     if (navigation.current.section === "meetings") { if (editing()) needsRefresh = true; else void render(); }
