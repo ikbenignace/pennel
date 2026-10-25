@@ -26,6 +26,7 @@ extension ProviderKind {
         case .geminiCli: "Gemini CLI"
         case .appleSpeech: "Apple-dicteren"
         case .appleIntelligence: "Apple Intelligence"
+        case .pennelCloud: "Pennel Cloud"
         }
     }
 
@@ -217,6 +218,11 @@ private struct ProviderDetail: View {
                         Button("Controleer beschikbaarheid") { appleAvailability = FoundationLanguageModel.availability() }
                     }
                     if let testResult { Text(testResult).font(.figtree(12)).foregroundStyle(Theme.muted) }
+                } else if account.kind == .pennelCloud {
+                    Text("Beschikbaar in de nieuwe Pennel-app")
+                        .font(.figtree(12))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else if account.kind != .local {
                     FieldRow(label: "Base URL") {
                         TextField("https://…", text: $account.baseUrl).textFieldStyle(.roundedBorder)

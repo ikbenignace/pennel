@@ -62,7 +62,8 @@ pub fn chat_complete_within(
     let request = http::agent(timeout_secs)
         .post(&url)
         .header("Content-Type", "application/json");
-    let response = http::send(
+    let response = http::send_for(
+        provider.kind,
         http::with_auth(request, api_key),
         body.to_string().as_bytes(),
     )?;

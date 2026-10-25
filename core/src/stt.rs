@@ -34,7 +34,7 @@ pub fn transcribe(
         "Content-Type",
         format!("multipart/form-data; boundary={boundary}"),
     );
-    let response = http::send(http::with_auth(request, api_key), &body)?;
+    let response = http::send_for(provider.kind, http::with_auth(request, api_key), &body)?;
 
     let parsed: serde_json::Value =
         serde_json::from_str(&response).map_err(|e| PennelError::InvalidResponse {

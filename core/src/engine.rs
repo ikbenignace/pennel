@@ -117,14 +117,6 @@ fn now_ms() -> i64 {
         .map_or(0, |d| d.as_millis() as i64)
 }
 
-fn endpoint(account: &ProviderAccount, model: String) -> ProviderConfig {
-    ProviderConfig {
-        kind: account.kind,
-        base_url: account.base_url.clone(),
-        model,
-    }
-}
-
 #[uniffi::export]
 impl PennelEngine {
     #[uniffi::constructor]
@@ -258,6 +250,8 @@ impl PennelEngine {
                 e @ (PennelError::Http { .. }
                 | PennelError::Network { .. }
                 | PennelError::InvalidResponse { .. }
+                | PennelError::Cloud { .. }
+                | PennelError::NotSignedIn
                 | PennelError::ModelNotDownloaded),
             ) => {
                 self.history
@@ -305,7 +299,7 @@ impl PennelEngine {
         let (llm_account, llm_model) = settings
             .resolve(&settings.llm)
             .ok_or(PennelError::NotFound)?;
-        let llm_key = request.keys.get(&llm_account);
+        let llm_key = self.credential(&llm_account, &request.keys)?;
         if requires_key(llm_account.kind) && llm_key.is_none() {
             return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
@@ -317,8 +311,8 @@ impl PennelEngine {
         let selection = selection.filter(|s| !s.trim().is_empty());
         let messages = command_messages(&instruction, selection.as_deref(), &settings.dictionary);
         let output = self.complete_llm(
-            &endpoint(&llm_account, llm_model),
-            llm_key,
+            &self.endpoint(&llm_account, llm_model),
+            llm_key.as_deref(),
             &messages,
             COMMAND_TIMEOUT_SECS,
             Reasoning::Off,
@@ -604,15 +598,15 @@ impl PennelEngine {
         let (account, model) = settings
             .resolve(&settings.llm)
             .ok_or(PennelError::NotFound)?;
-        let key = keys.get(&account);
+        let key = self.credential(&account, &keys)?;
         if requires_key(account.kind) && key.is_none() {
             return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
-        let provider = endpoint(&account, model);
+        let provider = self.endpoint(&account, model);
         let ask = |messages: &[crate::llm::ChatMessage]| {
             self.complete_llm(
                 &provider,
-                key,
+                key.as_deref(),
                 messages,
                 SUMMARY_TIMEOUT_SECS,
                 Reasoning::Low,
@@ -652,7 +646,7 @@ impl PennelEngine {
         let (account, model) = settings
             .resolve(&settings.llm)
             .ok_or(PennelError::NotFound)?;
-        let key = keys.get(&account);
+        let key = self.credential(&account, &keys)?;
         if requires_key(account.kind) && key.is_none() {
             return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
@@ -710,8 +704,8 @@ impl PennelEngine {
             (chat_messages(&question, &history, &sources), sources)
         };
         let answer = self.complete_llm(
-            &endpoint(&account, model),
-            key,
+            &self.endpoint(&account, model),
+            key.as_deref(),
             &messages,
             ASK_TIMEOUT_SECS,
             Reasoning::Low,
@@ -923,6 +917,34 @@ impl PennelEngine {
         *self.cloud_session.lock().unwrap() = Some(Arc::new(session));
     }
 
+    pub(crate) fn endpoint(&self, account: &ProviderAccount, model: String) -> ProviderConfig {
+        let base_url = if account.kind == ProviderKind::PennelCloud {
+            let base = self
+                .cloud_session()
+                .map_or_else(|_| self.cloud_base_url(), |s| s.base_url().to_string());
+            format!("{base}/v1")
+        } else {
+            account.base_url.clone()
+        };
+        ProviderConfig {
+            kind: account.kind,
+            base_url,
+            model,
+        }
+    }
+
+    /// The bearer for a request: the user's key, or a fresh Pennel Cloud access token.
+    pub(crate) fn credential(
+        &self,
+        account: &ProviderAccount,
+        keys: &ApiKeys,
+    ) -> Result<Option<String>, PennelError> {
+        if account.kind == ProviderKind::PennelCloud {
+            return self.cloud_session()?.access_token().map(Some);
+        }
+        Ok(keys.get(account).map(str::to_owned))
+    }
+
     pub(crate) fn cloud_base_url(&self) -> String {
         crate::cloud::base_url(self.preview)
     }
@@ -1128,13 +1150,13 @@ impl PennelEngine {
                 &vocabulary,
             );
         }
-        let key = keys.get(&account);
+        let key = self.credential(&account, keys)?;
         if requires_key(account.kind) && key.is_none() {
             return Err(PennelError::MissingApiKey { task: "stt".into() });
         }
         transcribe(
-            &endpoint(&account, model),
-            key,
+            &self.endpoint(&account, model),
+            key.as_deref(),
             wav,
             prompt.as_deref(),
             settings.language.as_deref(),
@@ -1171,7 +1193,17 @@ fn clean(
             },
         );
     };
-    let key = keys.get(&account);
+    let key = match engine.credential(&account, keys) {
+        Ok(key) => key,
+        Err(e) => {
+            return (
+                raw.to_owned(),
+                CleanupStatus::Failed {
+                    message: e.to_string(),
+                },
+            );
+        }
+    };
     if requires_key(account.kind) && key.is_none() {
         return (
             raw.to_owned(),
@@ -1183,8 +1215,8 @@ fn clean(
     let style = resolve_style(app, &settings.style_rules);
     let messages = cleanup_messages(raw, style, &settings.dictionary);
     match engine.complete_llm(
-        &endpoint(&account, model),
-        key,
+        &engine.endpoint(&account, model),
+        key.as_deref(),
         &messages,
         cleanup_timeout_secs(raw),
         Reasoning::Off,
@@ -1260,6 +1292,108 @@ mod tests {
                 serde_json::json!({ "choices": [{ "message": { "content": text } }] }).to_string(),
             )
             .create()
+    }
+
+    fn cloud_engine(
+        dir: &tempfile::TempDir,
+        server: &mockito::Server,
+        signed_in: bool,
+        stored_base_url: &str,
+    ) -> Arc<PennelEngine> {
+        use crate::cloud::REFRESH_ACCOUNT;
+        use crate::cloud::account::Session;
+        use crate::cloud::tests::MemorySecrets;
+        let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        let secrets = Arc::new(MemorySecrets::default());
+        if signed_in {
+            secrets.set(REFRESH_ACCOUNT.into(), Some("refresh-1".into()));
+        }
+        engine.set_secret_store(secrets.clone());
+        engine.use_cloud_session(Session::new(server.url(), secrets));
+        let mut settings = engine.settings();
+        let mut account = crate::provider::new_account(ProviderKind::PennelCloud, vec![]);
+        account.base_url = stored_base_url.into();
+        let choice = ModelChoice {
+            provider_id: account.id.clone(),
+            model: "pennel-auto".into(),
+        };
+        settings.providers.push(account);
+        settings.dictation_stt = choice;
+        settings.mode = DictationMode::Fast;
+        engine.update_settings(settings).unwrap();
+        engine
+    }
+
+    fn refresh_mock(server: &mut mockito::Server) -> mockito::Mock {
+        server
+            .mock("POST", "/v1/auth/refresh")
+            .with_body(
+                r#"{"access_token":"access-1","refresh_token":"refresh-2","expires_in":900}"#,
+            )
+            .create()
+    }
+
+    #[test]
+    fn pennel_cloud_dictation_uses_access_token() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = cloud_engine(&dir, &server, true, "");
+        let _refresh = refresh_mock(&mut server);
+        let stt = server
+            .mock("POST", "/v1/audio/transcriptions")
+            .match_header("authorization", "Bearer access-1")
+            .match_body(Matcher::Regex("name=\"model\"\r\n\r\npennel-auto".into()))
+            .with_body(r#"{"text":"hallo wereld"}"#)
+            .create();
+        let result = engine.dictate(request(speech(), None)).unwrap();
+        assert_eq!(result.text, "hallo wereld");
+        stt.assert();
+    }
+
+    #[test]
+    fn pennel_cloud_without_login_is_not_signed_in() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = cloud_engine(&dir, &server, false, "");
+        let stt = server
+            .mock("POST", "/v1/audio/transcriptions")
+            .expect(0)
+            .create();
+        assert_eq!(
+            engine.dictate(request(speech(), None)).unwrap_err(),
+            PennelError::NotSignedIn
+        );
+        stt.assert();
+    }
+
+    #[test]
+    fn pennel_cloud_quota_error_shows_server_message() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = cloud_engine(&dir, &server, true, "");
+        let _refresh = refresh_mock(&mut server);
+        server
+            .mock("POST", "/v1/audio/transcriptions")
+            .with_status(429)
+            .with_body(r#"{"error":"quota","message":"Je tegoed voor deze maand is op."}"#)
+            .create();
+        assert_eq!(
+            engine.dictate(request(speech(), None)).unwrap_err(),
+            PennelError::Cloud {
+                code: "quota".into(),
+                message: "Je tegoed voor deze maand is op.".into()
+            }
+        );
+    }
+
+    #[test]
+    fn stored_base_url_ignored_for_pennel_cloud() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = cloud_engine(&dir, &server, true, "http://127.0.0.1:1/v1");
+        let _refresh = refresh_mock(&mut server);
+        let stt = server
+            .mock("POST", "/v1/audio/transcriptions")
+            .with_body(r#"{"text":"hoi"}"#)
+            .create();
+        assert_eq!(engine.dictate(request(speech(), None)).unwrap().text, "hoi");
+        stt.assert();
     }
 
     #[test]

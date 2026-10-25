@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::error::PennelError;
+use crate::provider::ProviderKind;
 
 pub fn agent(timeout_secs: u64) -> ureq::Agent {
     ureq::Agent::config_builder()
@@ -40,6 +41,30 @@ pub fn send(
     request: ureq::RequestBuilder<ureq::typestate::WithBody>,
     body: &[u8],
 ) -> Result<String, PennelError> {
+    send_mapped(request, body, map_status)
+}
+
+/// Pennel Cloud errors carry a safe, user-facing JSON body that the generic mapping would hide.
+pub fn send_for(
+    kind: ProviderKind,
+    request: ureq::RequestBuilder<ureq::typestate::WithBody>,
+    body: &[u8],
+) -> Result<String, PennelError> {
+    if kind == ProviderKind::PennelCloud {
+        send_mapped(request, body, |status, text| {
+            let parsed = serde_json::from_str(text).unwrap_or(serde_json::Value::Null);
+            crate::cloud::http::error_from(status, &parsed)
+        })
+    } else {
+        send(request, body)
+    }
+}
+
+fn send_mapped(
+    request: ureq::RequestBuilder<ureq::typestate::WithBody>,
+    body: &[u8],
+    map_error: impl FnOnce(u16, &str) -> PennelError,
+) -> Result<String, PennelError> {
     let mut response = request.send(body).map_err(|e| PennelError::Network {
         message: e.to_string(),
     })?;
@@ -53,7 +78,7 @@ pub fn send(
     if (200..300).contains(&status) {
         Ok(text)
     } else {
-        Err(map_status(status, &text))
+        Err(map_error(status, &text))
     }
 }
 

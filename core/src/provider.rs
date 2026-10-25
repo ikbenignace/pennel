@@ -19,6 +19,7 @@ pub enum ProviderKind {
     GeminiCli,
     AppleSpeech,
     AppleIntelligence,
+    PennelCloud,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -64,6 +65,7 @@ impl ProviderKind {
             ProviderKind::GeminiCli => "gemini-cli",
             ProviderKind::AppleSpeech => "apple",
             ProviderKind::AppleIntelligence => "apple-intelligence",
+            ProviderKind::PennelCloud => "pennel-cloud",
         }
     }
 
@@ -85,6 +87,7 @@ impl ProviderKind {
             ProviderKind::GeminiCli => "Gemini CLI",
             ProviderKind::AppleSpeech => "Apple-dicteren",
             ProviderKind::AppleIntelligence => "Apple Intelligence",
+            ProviderKind::PennelCloud => "Pennel Cloud",
         }
     }
 
@@ -132,6 +135,7 @@ pub fn is_cli_agent(kind: ProviderKind) -> bool {
 #[uniffi::export]
 pub fn default_base_url(kind: ProviderKind) -> String {
     match kind {
+        ProviderKind::PennelCloud => return format!("{}/v1", crate::cloud::base_url(false)),
         ProviderKind::OpenAi => "https://api.openai.com/v1",
         ProviderKind::OpenRouter => "https://openrouter.ai/api/v1",
         ProviderKind::Groq => "https://api.groq.com/openai/v1",
@@ -169,6 +173,7 @@ pub fn default_model(kind: ProviderKind, task: ProviderTask) -> String {
         ProviderKind::Local => ("whisper-large-v3-turbo", ""),
         ProviderKind::AppleSpeech => ("dictation", ""),
         ProviderKind::AppleIntelligence => ("", "system"),
+        ProviderKind::PennelCloud => ("pennel-auto", "pennel-auto"),
         // Haiku answers a cleanup in ~3 s; the other CLIs use the model configured in the CLI itself.
         ProviderKind::ClaudeCode => ("", "haiku"),
         ProviderKind::Codex
