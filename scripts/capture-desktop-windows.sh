@@ -91,7 +91,7 @@ save_settings() {
   launch
   wait_for "Welkom bij Pennel" || wait_for "Pennel"
   settle 2
-  run --capture-eval onboarding "(async()=>{const i=window.__TAURI_INTERNALS__;const s=(await i.invoke('app_info')).settings;$1;await i.invoke('save_settings',{settings:s});})()"
+  run --capture-eval main "(async()=>{const i=window.__TAURI_INTERNALS__;const s=(await i.invoke('app_info')).settings;$1;await i.invoke('save_settings',{settings:s});})()"
   settle 2
   stop
 }
