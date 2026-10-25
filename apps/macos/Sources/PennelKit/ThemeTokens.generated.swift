@@ -16,24 +16,26 @@ public enum ThemeTokens {
         }
     }
 
-    public static let surface = ColorPair(light: 0xFFFFFF, dark: 0x202022)
-    public static let chrome = ColorPair(light: 0xF6F6F8, dark: 0x27272A)
-    public static let sidebar = ColorPair(light: 0xF1F1F3, dark: 0x252527)
-    public static let foreground = ColorPair(light: 0x1D1D1F, dark: 0xF3F3F5)
-    public static let muted = ColorPair(light: 0x64646A, dark: 0xA6A6AE)
-    public static let border = ColorPair(light: 0xE3E3E8, dark: 0x3B3B40)
-    public static let subtle = ColorPair(light: 0xF7F7F9, dark: 0x29292D)
-    public static let hover = ColorPair(light: 0xEFEFF2, dark: 0x333337)
-    public static let field = ColorPair(light: 0xFFFFFF, dark: 0x2B2B2F)
-    public static let selection = ColorPair(light: 0xE3E3E8, dark: 0x3B3B40)
-    public static let button = ColorPair(light: 0x252527, dark: 0xEAEAEC)
-    public static let buttonText = ColorPair(light: 0xFFFFFF, dark: 0x202022)
+    public static let surface = ColorPair(light: 0xFCFBF8, dark: 0x1E1C1A)
+    public static let chrome = ColorPair(light: 0xFCFBF8, dark: 0x1E1C1A)
+    public static let sidebar = ColorPair(light: 0xF7F4EE, dark: 0x252320)
+    public static let foreground = ColorPair(light: 0x2A2723, dark: 0xF3F0EA)
+    public static let muted = ColorPair(light: 0x6F675D, dark: 0xABA398)
+    public static let border = ColorPair(light: 0xECE7DE, dark: 0x3A3632)
+    public static let subtle = ColorPair(light: 0xF7F4EE, dark: 0x282522)
+    public static let hover = ColorPair(light: 0xF1EDE6, dark: 0x312E2A)
+    public static let field = ColorPair(light: 0xFFFFFF, dark: 0x2C2926)
+    public static let selection = ColorPair(light: 0xECE7DE, dark: 0x3A3632)
+    public static let button = ColorPair(light: 0x2A2723, dark: 0xF3F0EA)
+    public static let buttonText = ColorPair(light: 0xFCFBF8, dark: 0x1E1C1A)
     public static let accent = ColorPair(light: 0xC2410C, dark: 0xF2B48E)
     public static let focusRing = ColorPair(light: 0xC2410C, dark: 0xF2B48E)
-    public static let disabled = ColorPair(light: 0xF0F0F3, dark: 0x2C2C30)
-    public static let disabledText = ColorPair(light: 0x68686E, dark: 0xA6A6AE)
-    public static let shadow = ColorPair(light: 0x000000, dark: 0x000000, lightAlpha: 0.10196078, darkAlpha: 0.33333333)
-    public static let keyShadow = ColorPair(light: 0xD5D5DB, dark: 0x101012)
+    public static let systemAccent = ColorPair(light: 0x007AFF, dark: 0x0A84FF)
+    public static let controlEdge = ColorPair(light: 0x2A2723, dark: 0xFFFFFF, lightAlpha: 0.18039216, darkAlpha: 0.12156863)
+    public static let disabled = ColorPair(light: 0xF1EDE6, dark: 0x2C2926)
+    public static let disabledText = ColorPair(light: 0x6F675D, dark: 0xABA398)
+    public static let shadow = ColorPair(light: 0x2A2723, dark: 0x000000, lightAlpha: 0.10196078, darkAlpha: 0.33333333)
+    public static let keyShadow = ColorPair(light: 0xE2DCD1, dark: 0x0F0E0D)
     public static let pillBackground = ColorPair(light: 0x2A2723, dark: 0x2A2723)
     public static let pillText = ColorPair(light: 0xFCFBF8, dark: 0xFCFBF8)
     public static let pillAccent = ColorPair(light: 0xF2B48E, dark: 0xF2B48E)
@@ -100,6 +102,7 @@ public enum ThemePill {
 public enum ThemeTypography {
     public static let ui = "Figtree"
     public static let display = "Instrument Serif"
+    public static let usesSystemInterface = true
     public static let caption: CGFloat = 11
     public static let label: CGFloat = 12
     public static let body: CGFloat = 13
@@ -109,4 +112,6 @@ public enum ThemeTypography {
     public static let onboarding: CGFloat = 26
     public static let welcome: CGFloat = 28
     public static let wordmark: CGFloat = 29
+    public static let pageTitle: CGFloat = 28
+    public static let displayTitle: CGFloat = 30
 }
