@@ -1,9 +1,11 @@
+import type { IconName } from "./icons";
+
 export type SyncItemState = "synced" | "pending" | "conflict";
 
-const badges: Record<SyncItemState, { icon: string; label: string }> = {
-  synced: { icon: "✓", label: "Gesynchroniseerd" },
-  pending: { icon: "↻", label: "Wacht op sync" },
-  conflict: { icon: "!", label: "Conflictversie" },
+const badges: Record<SyncItemState, { icon: IconName; label: string }> = {
+  synced: { icon: "check", label: "Gesynchroniseerd" },
+  pending: { icon: "rotate", label: "Wacht op sync" },
+  conflict: { icon: "warning", label: "Conflictversie" },
 };
 
 export function badgeFor(state: SyncItemState | undefined, syncOn: boolean) {

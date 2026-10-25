@@ -238,7 +238,7 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
       const selectMeeting = h("button", { class: "meeting-select", "aria-current": ctx.param === meeting.id ? "true" : null,
         onclick: () => ctx.navigate("meetings", meeting.id) },
         h("span", { class: "meeting-name" }, meeting.title,
-          badge ? h("span", { class: `sync-badge ${syncStates.get(meeting.id)}`, title: badge.label, role: "img", "aria-label": badge.label }, badge.icon) : null),
+          badge ? h("span", { class: `sync-badge ${syncStates.get(meeting.id)}`, title: badge.label, role: "img", "aria-label": badge.label }, icon(badge.icon)) : null),
         h("span", { class: "help" }, `${dateLabel(meeting.start_iso)}${meeting.duration_min ? ` · ${meeting.duration_min} min` : ""}`),
         result.passages.filter((passage) => passage.meeting_id === meeting.id).slice(0, 2).map((passage) => snippet(passage.snippet)));
       const rename = async () => {
@@ -422,8 +422,8 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? "Toon in Finder" : "Open map")), diarizeReason);
   const summarySetup = !detail.summary && !canSummarize ? h("div", { class: "meeting-summary-setup help" }, "Kies een taalmodel om een samenvatting te maken.", h("button", { class: "text-button", onclick: () => ctx.navigate("models") }, "Modellen instellen")) : null;
   const conflicts = ctx.info.settings.cloud_sync === true ? await orFallback(() => api.meetingConflictFiles(id), [], ctx.report) : [];
-  const banners = conflicts.map((name) => h("div", { class: "conflict-banner row", role: "status" },
-    h("span", { class: "grow" }, "Er is een conflictversie van dit bestand."),
+  const banners = conflicts.map((name) => h("div", { class: "conflict-banner", role: "status" }, icon("warning"),
+    h("span", {}, "Er is een conflictversie van dit bestand."),
     h("button", { class: "btn", onclick: () => { void api.openPath(detail.dir).catch(ctx.report); } }, "Bekijken"),
     h("button", { class: "btn danger", onclick: async () => {
       if (!await confirmDialog("Conflictversie verwijderen?", `${name} wordt verwijderd.`, "Verwijderen")) return;

@@ -210,18 +210,21 @@ body[data-window="settings"] main { padding-top: 0; }
 
 .live-recording .live-title { background: transparent; border: 0; padding: 0; font: 30px/1.1 var(--serif); letter-spacing: -.01em; width: 100%; flex-shrink: 0; }
 .live-recording .live-title:disabled { opacity: 1; }
-.login-code { font: 30px/1.1 var(--serif); letter-spacing: .08em; margin: 10px 0 14px; user-select: all; }
-.recovery-code { display: flex; flex-wrap: wrap; gap: 6px 14px; font-weight: 600; font-size: 15px; letter-spacing: .08em; margin: 10px 0 14px; user-select: all; }
-.device-row { padding: 4px 0; }
+.login-code { font: var(--font-welcome)/1.1 var(--serif); letter-spacing: .08em; margin: var(--space-3) 0 var(--space-4); user-select: all; }
+.recovery-code { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-weight: 600; font-size: var(--font-content); letter-spacing: .08em; margin: var(--space-3) 0 var(--space-4); user-select: all; }
+.device-row { padding: var(--space-1) 0; }
 #print-sheet { display: none; }
 @media print {
   body.printing-sheet #app { display: none; }
-  body.printing-sheet #print-sheet { display: block; color: var(--ink); background: var(--paper); padding: 24px; }
-  body.printing-sheet .print-code { font-size: 15px; font-weight: 600; letter-spacing: .08em; }
+  body.printing-sheet #print-sheet { display: block; color: var(--foreground); background: var(--surface); padding: var(--space-6); }
+  body.printing-sheet .print-code { font-size: var(--font-content); font-weight: 600; letter-spacing: .08em; }
 }
-.sync-badge { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.sync-badge { display: inline-flex; vertical-align: middle; margin-left: var(--space-2); color: var(--muted); }
+.sync-badge .ui-icon { width: 13px; height: 13px; }
 .sync-badge.conflict { color: var(--accent); }
-.conflict-banner { margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--background); }
+.conflict-banner { display: flex; align-items: center; gap: 10px; margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--subtle); color: var(--muted); font-size: var(--font-label); }
+.conflict-banner > .ui-icon { color: var(--accent); }
+.conflict-banner > span { flex: 1; }
 
 html, body { background: var(--surface); color: var(--foreground); font-size: var(--font-body); }
 h1 { font: 600 var(--font-title)/1.2 var(--ui); letter-spacing: -.015em; }
