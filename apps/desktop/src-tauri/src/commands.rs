@@ -911,7 +911,9 @@ pub fn hide_window(window: tauri::Window) {
         }
         return;
     }
+    crate::workspace::cancel_presentation(window.app_handle(), window.label());
     let _ = window.hide();
+    crate::notify_visibility(window.app_handle(), window.label(), false);
 }
 
 #[cfg(test)]

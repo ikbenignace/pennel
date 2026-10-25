@@ -5,6 +5,7 @@ import { MeetingDraft } from "../meeting-draft";
 import type { Context } from "../main";
 import { icon } from "../icons";
 import { languageModelConfigured } from "../presentation";
+import { VisibilityPoll } from "../window-lifecycle";
 
 let query = "";
 const notesQueue = new SerialQueue();
@@ -38,13 +39,10 @@ function speakerLabel(segment: Segment, detail?: MeetingDetail): string {
 }
 
 function schedule(ctx: Context, interval: number, work: () => Promise<void>) {
-  let running = false;
-  const timer = window.setInterval(() => {
-    if (running) return;
-    running = true;
-    void work().catch(ctx.report).finally(() => { running = false; });
-  }, interval);
-  ctx.onDispose(() => window.clearInterval(timer));
+  const poll = new VisibilityPoll(interval, work, ctx.report);
+  poll.setVisible(ctx.visible, false);
+  ctx.onVisibilityChange((visible) => poll.setVisible(visible));
+  ctx.onDispose(() => poll.dispose());
 }
 
 function draftFor(id: string, notes: string) {

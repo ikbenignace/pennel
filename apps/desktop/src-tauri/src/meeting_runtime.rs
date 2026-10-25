@@ -83,6 +83,8 @@ pub fn set_title(shared: &Shared, title: String, session_id: &str) -> Result<(),
         .filter(|context| context.token == session_id)
         .ok_or("Deze opnamesessie is niet meer actief.")?;
     context.title = title;
+    #[cfg(target_os = "macos")]
+    crate::macos_tray::changed();
     Ok(())
 }
 
@@ -134,6 +136,10 @@ pub fn start(
         shared.meeting_context.lock().unwrap().take();
         token
     };
+    #[cfg(target_os = "macos")]
+    let _tray_update = crate::macos_tray::UpdateOnDrop;
+    #[cfg(target_os = "macos")]
+    crate::macos_tray::changed();
     let title = if title.trim().is_empty() {
         "Meeting".to_owned()
     } else {
@@ -268,6 +274,8 @@ fn take_recorder(
 }
 
 fn finish(shared: &Shared, token: &str, recorder: MeetingRecorder) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    let _tray_update = crate::macos_tray::UpdateOnDrop;
     let original_title = recorder.title.clone();
     let system_audio = recorder.has_system_audio();
     let heard_system_audio = recorder.heard_system_audio();
@@ -292,6 +300,8 @@ fn finish(shared: &Shared, token: &str, recorder: MeetingRecorder) -> Result<Str
         .unwrap()
         .finalizing(token)
         .map_err(|error| error.to_string())?;
+    #[cfg(target_os = "macos")]
+    crate::macos_tray::changed();
     let result = recorder
         .stop()
         .and_then(|id| rename_after_recording(&shared.engine, id, &original_title, &desired_title));
@@ -328,6 +338,8 @@ pub fn stop(
     let Some((token, recorder)) = take_recorder(&shared, expected_call)? else {
         return Ok(());
     };
+    #[cfg(target_os = "macos")]
+    crate::macos_tray::changed();
     std::thread::spawn(move || {
         let library_job = LibraryJob::new(&shared).ok();
         let flush = crate::flush_frontends(&app, "prepare-recording-stop");

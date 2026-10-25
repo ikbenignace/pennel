@@ -23,6 +23,8 @@ mod linux_input;
 mod linux_meetings;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "macos")]
+mod macos_tray;
 mod meeting;
 mod meeting_runtime;
 mod owned_dictation;
@@ -48,7 +50,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use pennel_core::PennelEngine;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::MenuItem;
+#[cfg(not(target_os = "macos"))]
+use tauri::menu::{Menu, PredefinedMenuItem};
+#[cfg(not(target_os = "macos"))]
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
@@ -84,6 +89,43 @@ pub fn show_main(app: &AppHandle, tab: Option<&str>) {
     show_window(app, kind, tab);
 }
 
+pub fn open_default(app: &AppHandle) {
+    receive_launch(app, Vec::new());
+}
+
+fn receive_launch(app: &AppHandle, arguments: Vec<String>) {
+    if let Err(arguments) = workspace::queue_launch(app, arguments) {
+        dispatch_launch(app, &arguments);
+    }
+}
+
+fn dispatch_launch(app: &AppHandle, arguments: &[String]) {
+    if dispatch_cli(app, arguments) {
+        return;
+    }
+    let status = app.state::<Arc<Shared>>().settings().onboarding.status;
+    present(
+        app,
+        workspace::explicit_presentation(cfg!(target_os = "macos"), status),
+    );
+}
+
+fn present(app: &AppHandle, presentation: workspace::Presentation) {
+    match presentation {
+        workspace::Presentation::Onboarding => show_window(app, "onboarding", None),
+        workspace::Presentation::Workspace => show_main(app, None),
+        workspace::Presentation::Background => {}
+    }
+}
+
+pub fn notify_visibility(app: &AppHandle, label: &str, visible: bool) {
+    let _ = app.emit_to(
+        label,
+        "workspace-visibility-changed",
+        serde_json::json!({ "visible": visible }),
+    );
+}
+
 pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
     let (label, mode, width, height) = match kind {
         "onboarding" => ("onboarding", "onboarding", 850.0, 690.0),
@@ -97,6 +139,9 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
     let app = app.clone();
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
+        if !workspace::requested(&handle, label) {
+            return;
+        }
         let window = handle.get_webview_window(label).or_else(|| {
             let minimum = if mode == "onboarding" {
                 (520.0, 520.0)
@@ -181,6 +226,7 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     }
                     let _ = window.show();
                     let _ = window.set_focus();
+                    notify_visibility(&handle, label, true);
                 }
             }
         }
@@ -325,6 +371,18 @@ pub struct ExitState {
     changed: std::sync::Condvar,
 }
 
+#[cfg(any(target_os = "macos", test))]
+impl ExitState {
+    fn permits_hide(&self, updating: &AtomicBool) -> bool {
+        !self.requested.load(Ordering::SeqCst) && !updating.load(Ordering::SeqCst)
+    }
+
+    fn serialize_hide<T>(&self, updating: &AtomicBool, operation: impl FnOnce() -> T) -> Option<T> {
+        let _flush = self.flush_gate.lock().unwrap();
+        self.permits_hide(updating).then(operation)
+    }
+}
+
 pub fn frontend_ready(app: &AppHandle, label: &str) {
     app.state::<ExitState>()
         .sync
@@ -344,7 +402,10 @@ pub fn frontend_ready(app: &AppHandle, label: &str) {
             fit_window_to_work_area(app, &window);
             let _ = window.show();
             let _ = window.set_focus();
+            notify_visibility(app, label, true);
         }
+    } else {
+        notify_visibility(app, label, false);
     }
 }
 
@@ -365,6 +426,11 @@ pub struct FrontendFlush {
 pub fn flush_frontends(app: &AppHandle, event: &str) -> FrontendFlush {
     let state = app.state::<ExitState>();
     let _operation = state.flush_gate.lock().unwrap();
+    flush_frontend_requests(app, event, None)
+}
+
+fn flush_frontend_requests(app: &AppHandle, event: &str, target: Option<&str>) -> FrontendFlush {
+    let state = app.state::<ExitState>();
     let windows = app.webview_windows();
     let (sequence, labels) = {
         let mut sync = state.sync.lock().unwrap();
@@ -373,7 +439,9 @@ pub fn flush_frontends(app: &AppHandle, event: &str) -> FrontendFlush {
         sync.pending = sync
             .ready
             .iter()
-            .filter(|label| windows.contains_key(*label))
+            .filter(|label| {
+                windows.contains_key(*label) && target.is_none_or(|target| *label == target)
+            })
             .cloned()
             .collect();
         (sync.sequence, sync.pending.clone())
@@ -405,6 +473,82 @@ pub fn flush_frontends(app: &AppHandle, event: &str) -> FrontendFlush {
         request_id: sequence,
         result,
     }
+}
+
+#[cfg(target_os = "macos")]
+fn finish_window_hide(app: &AppHandle, label: &str, revision: u64, mut result: Result<(), String>) {
+    if result.is_ok() && workspace::hide_current(app, label, revision) && label == "onboarding" {
+        let shared = app.state::<Arc<Shared>>();
+        let mut settings = shared.settings();
+        if settings.onboarding.status != pennel_core::OnboardingStatus::Completed {
+            settings.onboarding.status = pennel_core::OnboardingStatus::Skipped;
+            result = shared
+                .engine
+                .update_settings(settings)
+                .map_err(|error| error.to_string());
+        }
+    }
+    let hide = workspace::finish_hide(app, label, revision, result.is_ok());
+    if let Some(window) = app.get_webview_window(label) {
+        if hide {
+            owned_dictation::close_owner(app, label);
+            let _ = window.hide();
+        } else if result.is_err() && workspace::requested(app, label) {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+        notify_visibility(app, label, window.is_visible().unwrap_or(!hide));
+    }
+    if let Err(error) = result {
+        let _ = app.emit_to(label, "window-hide-error", error);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_window_hide(app: &AppHandle, label: &str) {
+    let exit = app.state::<ExitState>();
+    let shared = app.state::<Arc<Shared>>();
+    if !exit.permits_hide(&shared.updating) {
+        return;
+    }
+    let Some(revision) = workspace::begin_hide(app, label) else {
+        return;
+    };
+    let ready = app
+        .state::<ExitState>()
+        .sync
+        .lock()
+        .unwrap()
+        .ready
+        .contains(label);
+    if !ready {
+        finish_window_hide(app, label, revision, Ok(()));
+        return;
+    }
+    let app = app.clone();
+    let label = label.to_owned();
+    std::thread::spawn(move || {
+        let exit = app.state::<ExitState>();
+        let shared = app.state::<Arc<Shared>>();
+        let flush = exit.serialize_hide(&shared.updating, || {
+            flush_frontend_requests(&app, "prepare-hide", Some(&label))
+        });
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let exit = handle.state::<ExitState>();
+            let shared = handle.state::<Arc<Shared>>();
+            if let Some(flush) = flush {
+                if exit.permits_hide(&shared.updating) {
+                    finish_window_hide(&handle, &label, revision, flush.result);
+                } else {
+                    workspace::finish_hide(&handle, &label, revision, false);
+                }
+                let _ = handle.emit_to(&label, "hide-flush-complete", flush.request_id);
+            } else {
+                workspace::finish_hide(&handle, &label, revision, false);
+            }
+        });
+    });
 }
 
 pub fn clipboard_mode() -> bool {
@@ -441,6 +585,7 @@ fn dispatch_cli(app: &AppHandle, arguments: &[String]) -> bool {
 
 #[cfg(target_os = "macos")]
 pub fn refresh_hotkey(app: &AppHandle, shared: &Arc<Shared>) {
+    macos_tray::changed();
     let active = shared.hotkey.lock().unwrap().is_some();
     if active
         || macos::permissions()
@@ -477,6 +622,7 @@ pub fn refresh_hotkey(app: &AppHandle, shared: &Arc<Shared>) {
         Err(error) => *shared.hotkey_error.lock().unwrap() = Some(error),
     }
     RETRYING.store(false, Ordering::SeqCst);
+    macos_tray::changed();
 }
 
 pub fn hotkey_hint(shared: &Shared) -> String {
@@ -489,6 +635,12 @@ pub fn hotkey_hint(shared: &Shared) -> String {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
+    macos_tray::build(app, shared)
+}
+
+#[cfg(not(target_os = "macos"))]
 fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
     let hint = MenuItem::with_id(app, "hint", hotkey_hint(shared), false, None::<&str>)?;
     app.manage(TrayHint(hint.clone()));
@@ -527,7 +679,7 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
                     });
                 }
             }
-            "open" => show_main(app, None),
+            "open" => open_default(app),
             "meeting" => show_main(app, Some("meeting")),
             "settings" => show_main(app, Some("providers")),
             "history" => show_main(app, Some("history")),
@@ -545,8 +697,6 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
     let dir = data_dir(&handle)?;
     let preview = is_preview(&handle);
-    app.manage(ExitState::default());
-    app.manage(workspace::Navigation::default());
     app.manage(owned_dictation::Sessions::default());
     external_paste::start_tracking();
     app.manage(call_detection::DetectionState::default());
@@ -692,11 +842,16 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
     let handled_cli = dispatch_cli(&handle, &std::env::args().collect::<Vec<_>>());
     if !handled_cli {
-        if shared.settings().onboarding.status == pennel_core::OnboardingStatus::Pending {
-            show_window(&handle, "onboarding", None);
-        } else {
-            show_main(&handle, None);
-        }
+        present(
+            &handle,
+            workspace::startup_presentation(
+                cfg!(target_os = "macos"),
+                shared.settings().onboarding.status,
+            ),
+        );
+    }
+    for arguments in workspace::initialize_launches(&handle) {
+        dispatch_launch(&handle, &arguments);
     }
     Ok(())
 }
@@ -733,10 +888,10 @@ impl pennel_core::SystemTranscriber for AppleTranscriber {
 
 fn main() {
     tauri::Builder::default()
+        .manage(ExitState::default())
+        .manage(workspace::Navigation::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            if !dispatch_cli(app, &args) {
-                show_main(app, None);
-            }
+            receive_launch(app, args);
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -757,17 +912,25 @@ fn main() {
                 )
             {
                 api.prevent_close();
-                owned_dictation::close_owner(window.app_handle(), window.label());
-                if window.label() == "onboarding"
-                    && let Some(shared) = window.app_handle().try_state::<Arc<Shared>>()
+                #[cfg(target_os = "macos")]
                 {
-                    let mut settings = shared.settings();
-                    if settings.onboarding.status != pennel_core::OnboardingStatus::Completed {
-                        settings.onboarding.status = pennel_core::OnboardingStatus::Skipped;
-                        let _ = shared.engine.update_settings(settings);
-                    }
+                    prepare_window_hide(window.app_handle(), window.label());
                 }
-                let _ = window.hide();
+                #[cfg(not(target_os = "macos"))]
+                {
+                    workspace::cancel_presentation(window.app_handle(), window.label());
+                    owned_dictation::close_owner(window.app_handle(), window.label());
+                    if window.label() == "onboarding"
+                        && let Some(shared) = window.app_handle().try_state::<Arc<Shared>>()
+                    {
+                        let mut settings = shared.settings();
+                        if settings.onboarding.status != pennel_core::OnboardingStatus::Completed {
+                            settings.onboarding.status = pennel_core::OnboardingStatus::Skipped;
+                            let _ = shared.engine.update_settings(settings);
+                        }
+                    }
+                    let _ = window.hide();
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -929,9 +1092,51 @@ fn main() {
                     }
                 });
             }
-            // Same as the Mac app: opening Pennel again from Finder or Spotlight shows the main window.
             #[cfg(target_os = "macos")]
-            tauri::RunEvent::Reopen { .. } => show_main(_app, None),
+            tauri::RunEvent::Reopen { .. } => open_default(_app),
             _ => {}
         });
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+
+    #[test]
+    fn queued_hide_cannot_emit_after_quit_or_update_claims_the_global_barrier() {
+        for updating_operation in [false, true] {
+            let exit = Arc::new(ExitState::default());
+            let updating = Arc::new(AtomicBool::new(false));
+            assert!(exit.permits_hide(&updating));
+            let global_flush = exit.flush_gate.lock().unwrap();
+            let queued_exit = exit.clone();
+            let queued_update = updating.clone();
+            let (queued, waiting) = mpsc::channel();
+            let close = std::thread::spawn(move || {
+                queued.send(()).unwrap();
+                queued_exit.serialize_hide(&queued_update, || "prepare-hide")
+            });
+            waiting.recv().unwrap();
+            if updating_operation {
+                updating.store(true, Ordering::SeqCst);
+            } else {
+                exit.requested.store(true, Ordering::SeqCst);
+            }
+            assert!(!exit.permits_hide(&updating));
+            drop(global_flush);
+            assert_eq!(close.join().unwrap(), None);
+        }
+    }
+
+    #[test]
+    fn hide_can_flush_again_after_a_global_transition_is_cancelled() {
+        let exit = ExitState::default();
+        let updating = AtomicBool::new(true);
+        assert_eq!(exit.serialize_hide(&updating, || "prepare-hide"), None);
+        updating.store(false, Ordering::SeqCst);
+        assert_eq!(
+            exit.serialize_hide(&updating, || "prepare-hide"),
+            Some("prepare-hide")
+        );
+    }
 }

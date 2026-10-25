@@ -8,11 +8,19 @@ The workspace brings **Dicteren, Vergaderingen, Geschiedenis and Instellingen** 
 
 **Systeem, Licht and Donker** use the shared semantic tokens in `assets/brand/tokens.json`. `make theme` generates the CSS and native Swift values; `make theme-check` checks that the committed outputs match. The interface uses bundled Figtree. Instrument Serif remains the wordmark face. The floating pill has separate colors so changing the window appearance does not invert it.
 
-New profiles use local speech recognition in **Snel** mode and open a separate headerless wizard: welcome, language/speech recognition, access, and a real first dictation. The model download and provider credentials use the existing core and OS credential services. A saved wizard step is not proof that a model or permission remains available. Existing profiles keep their providers, model choices and dictation mode, enter the workspace directly, and can resume setup when necessary.
+New profiles use local speech recognition in **Snel** mode and open a separate headerless wizard: welcome, language/speech recognition, access, and a real first dictation. The model download and provider credentials use the existing core and OS credential services. A saved wizard step is not proof that a model or permission remains available. Existing profiles keep their providers, model choices and dictation mode and can resume setup when necessary. Windows and Linux open the workspace at launch; Mac uses the menu bar lifecycle below.
 
 The in-app dictation pad retains an editable local draft. **Dicteerpad ook extern plakken** is off by default and applies only to recordings made in that pad. Enabling it captures the previous external target when recording starts; it does not change normal shortcut dictation in other apps. If the captured target cannot be used, the text remains in the pad. Onboarding practice is a separate owned session: it transcribes with a temporary Fast setting and never uses external paste or clipboard delivery.
 
 Window closing and navigation invalidate pending owned external delivery. Meeting recording and the normal background runtime retain their existing lifetime. Real device and platform acceptance are recorded separately in [redesign acceptance](redesign-acceptance.md).
+
+### Mac menu bar lifecycle
+
+The shared Tauri app lives in the Mac menu bar, without a Dock icon or Cmd-Tab entry, including while its windows are open. First launch or unfinished setup opens onboarding. Completing or skipping setup opens **Dicteren** once; later cold launches stay in the menu bar.
+
+Click the Pennel icon for the native action menu. **Start opname**, **Stop opname** and **Opname afronden…** reflect the recording runtime; the icon distinguishes an active recording and the dictation hint reports actual shortcut availability. **Open Pennel** opens the workspace, or resumes unfinished onboarding. Opening the running app through Finder or Spotlight does the same. Settings and history actions open their respective workspace destinations.
+
+Closing a workspace window saves its drafts before hiding it. If saving fails or times out, Pennel keeps the window open with an error. Reopening restores the dicteerpad session and refreshes the view; presentation polling pauses while hidden. Global dictation, the pill and meeting recording continue independently of workspace visibility. **Stop Pennel** uses the existing shutdown path to save drafts and finalize recordings.
 
 ## Dictation destinations and live text
 

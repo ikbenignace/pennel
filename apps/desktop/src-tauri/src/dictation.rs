@@ -60,7 +60,7 @@ pub enum Msg {
     },
     Finished {
         seq: u64,
-        outcome: Result<DictationResult, Failure>,
+        outcome: Box<Result<DictationResult, Failure>>,
         released: Instant,
         is_command: bool,
         destination: ExternalDestination,
@@ -864,7 +864,7 @@ impl Controller {
                     owned,
                 }) => self.finish(
                     seq,
-                    outcome,
+                    *outcome,
                     released,
                     is_command,
                     Delivery {
@@ -1284,7 +1284,7 @@ impl Controller {
                 };
                 let _ = tx.send(Msg::Finished {
                     seq,
-                    outcome,
+                    outcome: Box::new(outcome),
                     released,
                     is_command: true,
                     destination,
@@ -1299,7 +1299,7 @@ impl Controller {
             let outcome = session.finish(request).map_err(Failure::Core);
             let _ = tx.send(Msg::Finished {
                 seq,
-                outcome,
+                outcome: Box::new(outcome),
                 released,
                 is_command: false,
                 destination,

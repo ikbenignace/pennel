@@ -2,6 +2,7 @@ import { api, type ProviderAccount, type ProviderKind } from "../api";
 import { errorText, field, h, section } from "../dom";
 import { localView } from "./local";
 import type { Context } from "../main";
+import { VisibilityPoll } from "../window-lifecycle";
 
 let selected: string | null = null;
 
@@ -63,18 +64,13 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
     if (kind.availability.status === "permission_required") {
       const speech = (await api.permissions()).find((permission) => permission.kind === "speech");
       let disposed = false;
-      let checking = false;
-      const timer = window.setInterval(async () => {
-        if (checking || disposed) return;
-        checking = true;
-        try {
-          const next = (await api.permissions()).find((permission) => permission.kind === "speech");
-          if (!disposed && next?.status !== speech?.status) await ctx.refresh();
-        } catch (error) {
-          if (!disposed) { window.clearInterval(timer); ctx.report(error); }
-        } finally { checking = false; }
-      }, 1000);
-      ctx.onDispose(() => { disposed = true; window.clearInterval(timer); });
+      const poll = new VisibilityPoll(1000, async () => {
+        const next = (await api.permissions()).find((permission) => permission.kind === "speech");
+        if (!disposed && next?.status !== speech?.status) await ctx.refresh();
+      }, (error) => { poll.dispose(); ctx.report(error); });
+      poll.setVisible(ctx.visible, false);
+      ctx.onVisibilityChange((visible) => poll.setVisible(visible));
+      ctx.onDispose(() => { disposed = true; poll.dispose(); });
       body.append(h("button", { class: "btn", onclick: async () => { await api.requestPermission("speech"); await ctx.refresh(); } },
         speech?.status === "denied" ? "Open instellingen" : "Geef toegang"));
     }

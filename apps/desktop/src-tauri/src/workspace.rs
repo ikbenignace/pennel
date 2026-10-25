@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -71,7 +71,172 @@ impl WorkspaceRoute {
 pub struct Navigation {
     pending: Mutex<Option<WorkspaceRoute>>,
     onboarding: Mutex<Option<String>>,
-    requested: Mutex<HashSet<String>>,
+    visibility: Mutex<Visibility>,
+    launches: Mutex<LaunchQueue>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Presentation {
+    Onboarding,
+    Workspace,
+    Background,
+}
+
+pub fn startup_presentation(menu_bar: bool, status: pennel_core::OnboardingStatus) -> Presentation {
+    if status == pennel_core::OnboardingStatus::Pending {
+        Presentation::Onboarding
+    } else if menu_bar {
+        Presentation::Background
+    } else {
+        Presentation::Workspace
+    }
+}
+
+pub fn explicit_presentation(
+    menu_bar: bool,
+    status: pennel_core::OnboardingStatus,
+) -> Presentation {
+    if menu_bar && status == pennel_core::OnboardingStatus::Pending {
+        Presentation::Onboarding
+    } else {
+        Presentation::Workspace
+    }
+}
+
+#[derive(Default)]
+struct LaunchQueue {
+    initialized: bool,
+    pending: Vec<Vec<String>>,
+}
+
+impl LaunchQueue {
+    fn enqueue(&mut self, arguments: Vec<String>) -> Result<(), Vec<String>> {
+        if self.initialized {
+            Err(arguments)
+        } else {
+            self.pending.push(arguments);
+            Ok(())
+        }
+    }
+
+    fn initialize(&mut self) -> Vec<Vec<String>> {
+        self.initialized = true;
+        std::mem::take(&mut self.pending)
+    }
+}
+
+#[derive(Default)]
+struct WindowVisibility {
+    revision: u64,
+    requested: bool,
+    #[cfg(any(target_os = "macos", test))]
+    closing: Option<u64>,
+}
+
+#[derive(Default)]
+struct Visibility(HashMap<String, WindowVisibility>);
+
+impl Visibility {
+    fn request(&mut self, label: &str) {
+        let window = self.0.entry(label.into()).or_default();
+        window.revision = window.revision.wrapping_add(1);
+        window.requested = true;
+    }
+
+    fn requested(&self, label: &str) -> bool {
+        self.0.get(label).is_some_and(|window| window.requested)
+    }
+
+    fn cancel(&mut self, label: &str) {
+        let window = self.0.entry(label.into()).or_default();
+        window.revision = window.revision.wrapping_add(1);
+        window.requested = false;
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn begin_hide(&mut self, label: &str) -> Option<u64> {
+        let window = self.0.entry(label.into()).or_default();
+        if window.closing == Some(window.revision) {
+            return None;
+        }
+        window.revision = window.revision.wrapping_add(1);
+        window.requested = false;
+        window.closing = Some(window.revision);
+        Some(window.revision)
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn hide_current(&self, label: &str, revision: u64) -> bool {
+        self.0
+            .get(label)
+            .is_some_and(|window| window.revision == revision && window.closing == Some(revision))
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn finish_hide(&mut self, label: &str, revision: u64, success: bool) -> bool {
+        let Some(window) = self.0.get_mut(label) else {
+            return false;
+        };
+        if window.closing == Some(revision) {
+            window.closing = None;
+        }
+        if window.revision != revision {
+            return false;
+        }
+        window.requested = !success;
+        success
+    }
+}
+
+pub fn queue_launch(app: &AppHandle, arguments: Vec<String>) -> Result<(), Vec<String>> {
+    app.state::<Navigation>()
+        .launches
+        .lock()
+        .unwrap()
+        .enqueue(arguments)
+}
+
+pub fn initialize_launches(app: &AppHandle) -> Vec<Vec<String>> {
+    app.state::<Navigation>()
+        .launches
+        .lock()
+        .unwrap()
+        .initialize()
+}
+
+pub fn cancel_presentation(app: &AppHandle, label: &str) {
+    app.state::<Navigation>()
+        .visibility
+        .lock()
+        .unwrap()
+        .cancel(label);
+}
+
+#[cfg(target_os = "macos")]
+pub fn begin_hide(app: &AppHandle, label: &str) -> Option<u64> {
+    app.state::<Navigation>()
+        .visibility
+        .lock()
+        .unwrap()
+        .begin_hide(label)
+}
+
+#[cfg(target_os = "macos")]
+pub fn finish_hide(app: &AppHandle, label: &str, revision: u64, success: bool) -> bool {
+    app.state::<Navigation>()
+        .visibility
+        .lock()
+        .unwrap()
+        .finish_hide(label, revision, success)
+}
+
+#[cfg(target_os = "macos")]
+pub fn hide_current(app: &AppHandle, label: &str, revision: u64) -> bool {
+    app.state::<Navigation>()
+        .visibility
+        .lock()
+        .unwrap()
+        .hide_current(label, revision)
 }
 
 pub fn request_onboarding(app: &AppHandle, tab: Option<&str>) {
@@ -151,7 +316,7 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
 
 pub fn request(app: &AppHandle, label: &str, route: Option<WorkspaceRoute>) {
     let navigation = app.state::<Navigation>();
-    navigation.requested.lock().unwrap().insert(label.into());
+    navigation.visibility.lock().unwrap().request(label);
     if route.is_some() {
         *navigation.pending.lock().unwrap() = route;
     }
@@ -165,15 +330,118 @@ pub fn deliver(app: &AppHandle) {
 
 pub fn requested(app: &AppHandle, label: &str) -> bool {
     app.state::<Navigation>()
-        .requested
+        .visibility
         .lock()
         .unwrap()
-        .contains(label)
+        .requested(label)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mac_startup_only_presents_pending_onboarding() {
+        use pennel_core::OnboardingStatus::*;
+        assert_eq!(
+            startup_presentation(true, Pending),
+            Presentation::Onboarding
+        );
+        assert_eq!(
+            startup_presentation(true, Completed),
+            Presentation::Background
+        );
+        assert_eq!(
+            startup_presentation(true, Skipped),
+            Presentation::Background
+        );
+        assert_eq!(
+            startup_presentation(false, Pending),
+            Presentation::Onboarding
+        );
+        assert_eq!(
+            startup_presentation(false, Completed),
+            Presentation::Workspace
+        );
+        assert_eq!(
+            startup_presentation(false, Skipped),
+            Presentation::Workspace
+        );
+    }
+
+    #[test]
+    fn explicit_mac_open_resumes_the_wizard_or_opens_the_workspace() {
+        use pennel_core::OnboardingStatus::*;
+        assert_eq!(
+            explicit_presentation(true, Pending),
+            Presentation::Onboarding
+        );
+        assert_eq!(
+            explicit_presentation(true, Completed),
+            Presentation::Workspace
+        );
+        assert_eq!(
+            explicit_presentation(true, Skipped),
+            Presentation::Workspace
+        );
+        assert_eq!(
+            explicit_presentation(false, Pending),
+            Presentation::Workspace
+        );
+    }
+
+    #[test]
+    fn early_launches_are_drained_once_before_live_dispatch() {
+        let mut launches = LaunchQueue::default();
+        assert!(launches.enqueue(vec![]).is_ok());
+        assert!(launches.enqueue(vec!["--toggle-dictation".into()]).is_ok());
+        assert_eq!(
+            launches.initialize(),
+            vec![vec![], vec!["--toggle-dictation".to_owned()]]
+        );
+        assert!(launches.initialize().is_empty());
+        assert_eq!(
+            launches.enqueue(vec!["--toggle-meeting".into()]),
+            Err(vec!["--toggle-meeting".into()])
+        );
+    }
+
+    #[test]
+    fn hiding_cancels_delayed_frontend_presentation() {
+        let mut visibility = Visibility::default();
+        visibility.request("main");
+        assert!(visibility.requested("main"));
+        let close = visibility.begin_hide("main").unwrap();
+        assert!(visibility.hide_current("main", close));
+        assert!(!visibility.requested("main"));
+        assert!(visibility.begin_hide("main").is_none());
+        assert!(visibility.finish_hide("main", close, true));
+        assert!(!visibility.requested("main"));
+    }
+
+    #[test]
+    fn reopening_invalidates_an_older_close_without_losing_a_new_close() {
+        let mut visibility = Visibility::default();
+        visibility.request("main");
+        let old = visibility.begin_hide("main").unwrap();
+        visibility.request("main");
+        assert!(!visibility.hide_current("main", old));
+        assert!(!visibility.finish_hide("main", old, true));
+        assert!(visibility.requested("main"));
+        let current = visibility.begin_hide("main").unwrap();
+        assert!(!visibility.finish_hide("main", old, false));
+        assert!(visibility.finish_hide("main", current, true));
+    }
+
+    #[test]
+    fn failed_or_timed_out_hide_restores_the_requested_window() {
+        let mut visibility = Visibility::default();
+        visibility.request("main");
+        let close = visibility.begin_hide("main").unwrap();
+        assert!(!visibility.finish_hide("main", close, false));
+        assert!(visibility.requested("main"));
+        assert!(visibility.begin_hide("main").is_some());
+    }
 
     #[test]
     fn normal_work_area_preserves_the_approved_wizard_size() {
