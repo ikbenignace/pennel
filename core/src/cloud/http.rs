@@ -47,6 +47,7 @@ fn dispatch(
     method: &str,
     url: &str,
     token: Option<&str>,
+    headers: &[(&str, String)],
     content_type: &str,
     body: Option<&[u8]>,
 ) -> Result<ureq::http::Response<ureq::Body>, PennelError> {
@@ -57,6 +58,9 @@ fn dispatch(
         .header("Accept", "application/json");
     if let Some(token) = token {
         request = request.header("Authorization", format!("Bearer {token}"));
+    }
+    for (name, value) in headers {
+        request = request.header(*name, value.as_str());
     }
     if body.is_some() {
         request = request.header("Content-Type", content_type);
@@ -93,6 +97,7 @@ pub fn send_json(
         method,
         url,
         token,
+        &[],
         "application/json",
         payload.as_deref().map(str::as_bytes),
     )?;
@@ -119,7 +124,28 @@ pub fn send_bytes(
     token: Option<&str>,
     body: Option<&[u8]>,
 ) -> Result<(u16, Headers, Vec<u8>), PennelError> {
-    let mut response = dispatch(agent, method, url, token, "application/octet-stream", body)?;
+    send_raw(
+        agent,
+        method,
+        url,
+        token,
+        &[],
+        "application/octet-stream",
+        body,
+    )
+}
+
+/// Like [`send_bytes`], with extra request headers and an explicit content type.
+pub fn send_raw(
+    agent: &ureq::Agent,
+    method: &str,
+    url: &str,
+    token: Option<&str>,
+    headers: &[(&str, String)],
+    content_type: &str,
+    body: Option<&[u8]>,
+) -> Result<(u16, Headers, Vec<u8>), PennelError> {
+    let mut response = dispatch(agent, method, url, token, headers, content_type, body)?;
     let status = response.status().as_u16();
     let headers = collect_headers(&response);
     let bytes = response

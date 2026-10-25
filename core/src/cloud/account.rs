@@ -120,6 +120,11 @@ impl Session {
         self.token(false)
     }
 
+    /// For a request that got 401 although its access token looked valid.
+    pub fn refreshed_token(&self) -> Result<String, PennelError> {
+        self.token(true)
+    }
+
     fn token(&self, force: bool) -> Result<String, PennelError> {
         let mut access = self.access.lock().unwrap();
         if !force
@@ -174,7 +179,7 @@ impl Session {
         let url = self.url(path);
         let mut response = send_json(&self.http, method, &url, Some(&self.access_token()?), body)?;
         if response.0 == 401 {
-            let token = self.token(true)?;
+            let token = self.refreshed_token()?;
             response = send_json(&self.http, method, &url, Some(&token), body)?;
         }
         if !(200..300).contains(&response.0) {

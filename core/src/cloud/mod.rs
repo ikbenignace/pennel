@@ -4,6 +4,7 @@
 pub mod account;
 pub mod crypto;
 pub mod http;
+pub mod sync;
 
 const RELEASE_URL: &str = "https://api.pennel.app";
 const STAGING_URL: &str = "https://api-staging.pennel.app";

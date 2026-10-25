@@ -359,14 +359,14 @@ fn wrong_recovery_code() -> PennelError {
     }
 }
 
-fn vault_invalid() -> PennelError {
+pub(crate) fn vault_invalid() -> PennelError {
     PennelError::Cloud {
         code: "vault_invalid".into(),
         message: "De kluis op Pennel Cloud is onleesbaar.".into(),
     }
 }
 
-fn object_unreadable() -> PennelError {
+pub(crate) fn object_unreadable() -> PennelError {
     PennelError::Cloud {
         code: "object_unreadable".into(),
         message: "Een bestand uit Pennel Cloud kon niet worden ontsleuteld.".into(),
