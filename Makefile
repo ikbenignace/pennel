@@ -40,13 +40,15 @@ IOS_DESTINATION ?= platform=iOS Simulator,name=iPhone 17
 ios-core:
 	scripts/with-toolchain.sh scripts/build-core-ios.sh
 
+IOS_DERIVED_DATA ?= apps/ios/build/DerivedData
+
 ios: ios-core
-	if [ -d apps/ios/Pennel.xcodeproj ]; then \
-		xcodebuild build -project apps/ios/Pennel.xcodeproj -scheme Pennel -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO; \
-	fi
+	xcodebuild build -project apps/ios/Pennel.xcodeproj -scheme Pennel -configuration Release \
+		-destination 'generic/platform=iOS' -derivedDataPath $(IOS_DERIVED_DATA) CODE_SIGNING_ALLOWED=NO
+	@app=$(IOS_DERIVED_DATA)/Build/Products/Release-iphoneos/Pennel.app; \
+		echo "unsigned Release Pennel.app: $$(find $$app -type f -exec stat -f %z {} + | awk '{s+=$$1} END {print s}') bytes"
 
 ios-test: ios-core
-	if [ -d apps/ios/PennelMobileKit ]; then swift test --package-path apps/ios/PennelMobileKit; fi
-	if [ -d apps/ios/Pennel.xcodeproj ]; then \
-		xcodebuild test -project apps/ios/Pennel.xcodeproj -scheme Pennel -destination '$(IOS_DESTINATION)'; \
-	fi
+	swift test --package-path apps/ios/PennelMobileKit
+	xcodebuild test -project apps/ios/Pennel.xcodeproj -scheme Pennel -destination '$(IOS_DESTINATION)' \
+		-derivedDataPath $(IOS_DERIVED_DATA)
