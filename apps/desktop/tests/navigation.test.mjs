@@ -9,6 +9,11 @@ test("a provider broadcast is ignored by onboarding, history and library", () =>
   assert.deepEqual(localNavigation("settings", "providers"), { kind: "settings", tab: "providers", param: undefined });
 });
 
+test("the account tab is a local settings route", () => {
+  assert.deepEqual(localNavigation("settings", "account"), { kind: "settings", tab: "account", param: undefined });
+  assert.equal(localNavigation("library", "account"), null);
+});
+
 test("settings routes apply locally and preserve the two compatibility aliases", () => {
   assert.deepEqual(localNavigation("settings", "dictionary"), { kind: "settings", tab: "dictionary", param: undefined });
   assert.deepEqual(localNavigation("settings", "meetings"), { kind: "settings", tab: "meeting-settings", param: undefined });

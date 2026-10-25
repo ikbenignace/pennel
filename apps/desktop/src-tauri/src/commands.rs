@@ -744,6 +744,51 @@ pub fn delete_meeting(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>
     Ok(())
 }
 
+fn is_conflict_copy_name(name: &str) -> bool {
+    let mut components = Path::new(name).components();
+    matches!(components.next(), Some(Component::Normal(_)))
+        && components.next().is_none()
+        && !name.contains(['/', '\\', ':', '\0'])
+        && Path::new(name)
+            .file_stem()
+            .is_some_and(|stem| stem.to_string_lossy().contains(" (conflict "))
+}
+
+#[tauri::command]
+pub fn meeting_conflict_files(id: String, shared: State<'_, Arc<Shared>>) -> Result<Vec<String>> {
+    let directory = checked_meeting_dir(&shared.engine, &id)?;
+    let mut names: Vec<String> = std::fs::read_dir(directory)
+        .map_err(err)?
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.path().is_file())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| is_conflict_copy_name(name))
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
+#[tauri::command]
+pub fn delete_conflict_copy(
+    id: String,
+    name: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
+    if !is_conflict_copy_name(&name) {
+        return Err("Alleen een conflictversie kan hier worden verwijderd.".into());
+    }
+    let directory = checked_meeting_dir(&shared.engine, &id)?;
+    require_inactive_meeting(&shared, &id)?;
+    let file = directory.join(&name).canonicalize().map_err(err)?;
+    if file.parent() != Some(directory.as_path()) || !file.is_file() {
+        return Err("Conflictversie niet gevonden.".into());
+    }
+    std::fs::remove_file(file).map_err(err)?;
+    crate::cloud::poke(&app);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn search_library(
     query: String,
@@ -954,6 +999,28 @@ pub fn hide_window(window: tauri::Window) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_conflict_copies_inside_a_meeting_folder_may_be_deleted() {
+        assert!(is_conflict_copy_name(
+            "notes (conflict Mac 2026-10-25 0930).md"
+        ));
+        assert!(is_conflict_copy_name(
+            "transcript (conflict Laptop 2026-10-25 0930).json"
+        ));
+        for name in [
+            "notes.md",
+            "",
+            "..",
+            "../notes (conflict Mac 1).md",
+            "sub/notes (conflict Mac 1).md",
+            "sub\\notes (conflict Mac 1).md",
+            "C:notes (conflict Mac 1).md",
+            "notes(conflict Mac 1).md",
+        ] {
+            assert!(!is_conflict_copy_name(name), "{name}");
+        }
+    }
 
     #[test]
     fn provider_contract_exposes_every_persisted_kind_with_correct_tasks() {

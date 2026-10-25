@@ -2,6 +2,7 @@ import { api, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type
 import { LatestRequest, SerialQueue, persistAll } from "../async";
 import { askText, confirmDialog, errorText, formatClock, h, markdown, select, snippet } from "../dom";
 import { MeetingDraft } from "../meeting-draft";
+import { badgeFor, resolveOpenMeeting, type SyncItemState } from "../sync-badge";
 import type { Context } from "../main";
 
 let query = "";
@@ -186,15 +187,25 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
   const list = h("div", { class: "meeting-list" });
   const live = h("button", { class: "live-meeting text-button", hidden: true, onclick: () => api.showWindow("live") });
   const requests = new LatestRequest();
+  const syncOn = ctx.info.settings.cloud_sync === true;
+  let syncStates = new Map<string, SyncItemState>();
+  let shown: { id: string; title: string; start_iso: string }[] = [];
+  const loadStates = async () => {
+    syncStates = syncOn ? new Map((await api.meetingSyncStates()).map((item) => [item.id, item.state])) : new Map();
+  };
   const load = () => requests.run(async () => query.trim() ? api.searchLibrary(query) : { meetings: await api.meetings(""), passages: [] as Passage[] }, (result) => {
     list.replaceChildren();
+    shown = result.meetings;
     if (!result.meetings.length) { list.append(h("p", { class: "help library-empty" }, query.trim() ? "Geen meetings gevonden." : "Nog geen meetings.")); return; }
     let group = "";
     for (const meeting of result.meetings) {
       const day = dayGroup(meeting.start_iso);
       if (day !== group) { group = day; list.append(h("h3", { class: "meeting-day" }, day)); }
+      const badge = badgeFor(syncStates.get(meeting.id), syncOn);
       const selectMeeting = h("button", { class: "meeting-select", "aria-current": ctx.param === meeting.id ? "true" : null,
-        onclick: () => ctx.navigate("meetings", meeting.id) }, h("span", { class: "meeting-name" }, meeting.title),
+        onclick: () => ctx.navigate("meetings", meeting.id) },
+        h("span", { class: "meeting-name" }, meeting.title,
+          badge ? h("span", { class: `sync-badge ${syncStates.get(meeting.id)}`, title: badge.label, role: "img", "aria-label": badge.label }, badge.icon) : null),
         h("span", { class: "help" }, `${dateLabel(meeting.start_iso)}${meeting.duration_min ? ` · ${meeting.duration_min} min` : ""}`),
         result.passages.filter((passage) => passage.meeting_id === meeting.id).slice(0, 2).map((passage) => snippet(passage.snippet)));
       const rename = async () => {
@@ -217,7 +228,30 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
   let searchTimer: number | undefined;
   input.addEventListener("input", () => { query = input.value; window.clearTimeout(searchTimer); searchTimer = window.setTimeout(() => { void load(); }, 180); });
   ctx.onDispose(() => { window.clearTimeout(searchTimer); requests.cancel(); });
+  await loadStates().catch(ctx.report);
   await load();
+  if (syncOn) {
+    const syncQueue = new SerialQueue();
+    let disposed = false;
+    const unlisten = api.onSyncChanged(() => {
+      void syncQueue.run(async () => {
+        if (disposed) return;
+        const open = ctx.param && ctx.param !== "__chat__" ? ctx.param : null;
+        const remembered = shown.find((meeting) => meeting.id === open) ?? null;
+        const previous = open ? syncStates.get(open) : undefined;
+        await loadStates();
+        const all = await api.meetings("");
+        if (disposed) return;
+        if (open) {
+          const resolved = resolveOpenMeeting(open, all, remembered);
+          if (resolved !== open) { ctx.navigate("meetings", resolved); return; }
+          if ((previous === "conflict") !== (syncStates.get(open) === "conflict")) { ctx.rerender(); return; }
+        }
+        await load();
+      }).catch(ctx.report);
+    });
+    ctx.onDispose(() => { disposed = true; void unlisten.then((stop) => stop()).catch(() => undefined); });
+  }
   const updateLive = async () => {
     const status = await api.meetingStatus();
     live.hidden = !status.busy;
@@ -347,10 +381,19 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   });
   const footer = h("footer", { class: "meeting-footer row" }, selected, regenerate, retry, h("span", { class: "grow" }), copied, diarize, share,
     h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? "Toon in Finder" : "Open map"));
+  const conflicts = ctx.info.settings.cloud_sync === true ? await api.meetingConflictFiles(id) : [];
+  const banners = conflicts.map((name) => h("div", { class: "conflict-banner row", role: "status" },
+    h("span", { class: "grow" }, "Er is een conflictversie van dit bestand."),
+    h("button", { class: "btn", onclick: () => { void api.openPath(detail.dir).catch(ctx.report); } }, "Bekijken"),
+    h("button", { class: "btn danger", onclick: async () => {
+      if (!await confirmDialog("Conflictversie verwijderen?", `${name} wordt verwijderd.`, "Verwijderen")) return;
+      try { await api.deleteConflictCopy(id, name); } catch (error) { ctx.report(error); }
+      ctx.rerender();
+    } }, "Verwijderen")));
   const result = h("article", { class: "meeting-detail" },
     h("header", { class: "meeting-header" }, h("div", { class: "grow" }, h("h1", {}, detail.info.title),
       h("p", { class: "help" }, [dateLabel(detail.info.start_iso), detail.info.duration_min ? `${detail.info.duration_min} min` : "", detail.attendees.join(", ")].filter(Boolean).join(" · "))), tabs),
-    message, panel, footer);
+    ...banners, message, panel, footer);
   draw();
   if (ctx.jumpMs !== undefined) {
     const jump = ctx.jumpMs;

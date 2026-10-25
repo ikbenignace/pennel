@@ -1,5 +1,5 @@
 import { api, type ProviderAccount, type ProviderKind } from "../api";
-import { errorText, field, h, section } from "../dom";
+import { errorCode, errorText, field, h, section } from "../dom";
 import { localView } from "./local";
 import type { Context } from "../main";
 
@@ -116,6 +116,8 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
       check.disabled = false;
     } }, "Test");
     body.append(field("Programma", executable), h("div", { class: "row" }, detect, check), status);
+  } else if (account.kind === "pennel_cloud") {
+    body.append(await cloudCard(ctx, status));
   } else if (account.kind !== "local") {
     const baseUrl = h("input", { type: "text", value: account.base_url, placeholder: kind.default_base_url || "https://…/v1", "aria-label": "Base URL" });
     baseUrl.addEventListener("change", () => { void saveAccount("base_url", baseUrl.value.trim()); });
@@ -140,4 +142,18 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
       class: "btn danger", disabled: ctx.info.settings.providers.length < 2,
       onclick: () => ctx.mutate(() => api.removeProvider(account.id)),
     }, "Provider verwijderen")));
+}
+
+async function cloudCard(ctx: Context, status: HTMLElement): Promise<HTMLElement> {
+  try {
+    const { email } = await api.cloudAccount();
+    return h("p", { role: "status" }, email ? `Ingelogd als ${email}` : "Ingelogd");
+  } catch (error) {
+    if (errorCode(error) !== "not_signed_in") {
+      status.textContent = errorText(error);
+      return status;
+    }
+    return h("div", {}, h("p", {}, "Log in bij Pennel Cloud"),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => ctx.navigate("account") }, "Log in bij Pennel Cloud")));
+  }
 }

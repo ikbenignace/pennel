@@ -219,3 +219,6 @@ body[data-window="settings"] main { padding-top: 0; }
   body.printing-sheet #print-sheet { display: block; color: var(--ink); background: var(--paper); padding: 24px; }
   body.printing-sheet .print-code { font-size: 15px; font-weight: 600; letter-spacing: .08em; }
 }
+.sync-badge { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.sync-badge.conflict { color: var(--accent); }
+.conflict-banner { margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--background); }

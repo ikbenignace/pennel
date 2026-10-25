@@ -646,6 +646,8 @@ fn main() {
             commands::retranscribe_meeting,
             commands::rename_meeting,
             commands::delete_meeting,
+            commands::meeting_conflict_files,
+            commands::delete_conflict_copy,
             commands::search_library,
             commands::ask_meetings,
             commands::template_source,

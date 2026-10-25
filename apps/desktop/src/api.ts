@@ -419,6 +419,8 @@ export const api = {
   cloudSyncLast: () => invoke<SyncReport>("cloud_sync_last"),
   cloudSyncConfirmDeletes: () => invoke<void>("cloud_sync_confirm_deletes"),
   meetingSyncStates: () => invoke<MeetingSyncState[]>("meeting_sync_states"),
+  meetingConflictFiles: (id: string) => invoke<string[]>("meeting_conflict_files", { id }),
+  deleteConflictCopy: (id: string, name: string) => invoke<void>("delete_conflict_copy", { id, name }),
   cloudFolderWarning: () => invoke<string | null>("cloud_folder_warning"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   onSyncChanged: (handler: (report: SyncReport) => void): Promise<UnlistenFn> =>
