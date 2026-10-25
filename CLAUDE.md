@@ -5,19 +5,21 @@ Pennel ships one product on three platforms from one Rust core:
 - `core/` — `pennel-core`: all product logic (providers, cleanup, history, meetings, search, templates, export, local models, CLI agents). New behaviour goes here first.
 - `apps/desktop/` — shared Tauri application for macOS, Windows and Linux.
 - `apps/macos-platform/` — embedded Swift library for macOS system integrations; no product UI or second Rust engine.
-- `apps/macos/` — native reference application, retained until the shared application passes packaged-app and real-device acceptance.
+- `apps/macos/` — legacy native Swift application, frozen: no new features or restyling. It is removed once the shared application passes packaged-app and real-device acceptance.
 
-## UI parity (mandatory)
+**Decision (2026-10-25): Pennel goes all-in on Tauri.** The shared application is the only product UI on every platform; there will be no separate Swift app. Swift remains only inside `apps/macos-platform/` for Apple system integrations.
 
-The shared application must look and behave **near-identically** on every platform. During migration, use the native Mac application as the existing product baseline, complete missing shared surfaces, and keep the native application available until acceptance passes. Product additions unrelated to the migration are out of scope.
+## UI parity and look (mandatory)
+
+The shared application must look and behave **near-identically** on every platform, and must look and feel native: real system window chrome (no in-content title bar), system UI font with Instrument Serif for large titles, one calm warm background with a barely darker sidebar, no bordered panels, native-looking controls, real app icons where apps are listed. The visual reference is the original Swift app at commit `91775c1`.
 
 - Same windows, tabs, sections, order, labels and empty/error states on every platform. Platform differences are limited to what the OS forces (window chrome, hotkey names: `fn` on Mac, Right Ctrl on Windows/Linux, system permission prompts).
 - Same visual system: palette, typography (Figtree + Instrument Serif), spacing, radii, component shapes, pill, icons. Values come from the brand guide `assets/brand/brand.md`; never hard-code a new colour or size in only one app.
-- Same copy: UI text is Dutch-first and identical in both apps.
-- When a feature exists in the core, both UIs expose it. If one platform cannot support it yet (e.g. echo cancellation, Apple dictation), show the same control disabled with a short reason rather than hiding it silently, and record the gap in `docs/desktop.md`.
-- Review parity with screenshots of both apps rendered side by side (headless or the app's own windows), never by capturing the user's screen.
+- Same copy: UI text is Dutch-first and identical on every platform.
+- When a feature exists in the core, the shared app exposes it on every platform. If one platform cannot support it yet (e.g. echo cancellation, Apple dictation), show the same control disabled with a short reason rather than hiding it silently, and record the gap in `docs/desktop.md`.
+- Review the look with screenshots of the app's own windows or headless renders, never by capturing the user's screen.
 
-## Build and test both
+## Build and test everything
 
 Before calling any change done, build and test everything it can affect:
 
@@ -42,4 +44,4 @@ CI (`.github/workflows/ci.yml`, `desktop.yml`) must stay green on macOS, Windows
 
 - Conventional Commits; small, focused commits.
 - Comments only for non-obvious intent, constraints or workarounds.
-- Tests first for logic (Rust unit tests in `core/`, pure Swift logic in `PennelKit`, Rust/TS tests in `apps/desktop`).
+- Tests first for logic (Rust unit tests in `core/`, Rust/TS tests in `apps/desktop`).
