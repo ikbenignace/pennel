@@ -103,6 +103,19 @@ pub fn window_spec(kind: &str) -> WindowSpec {
     }
 }
 
+/// Percent-encodes a route value (a tab or meeting id) for a window URL query.
+pub fn query_value(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
+}
+
 pub fn label_spec(label: &str) -> Option<WindowSpec> {
     let kind = match label {
         "main" => "workspace",
@@ -344,6 +357,10 @@ mod tests {
             assert_eq!(label_spec(label), Some(spec));
         }
         assert_eq!(label_spec("pill"), None);
+        assert_eq!(
+            query_value("2026-10-25 Overleg/&x"),
+            "2026-10-25%20Overleg%2F%26x"
+        );
         assert_eq!(
             legacy_route("settings", Some("styles"))
                 .unwrap()

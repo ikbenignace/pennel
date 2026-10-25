@@ -110,9 +110,11 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
     if kind == "onboarding" {
         workspace::request_onboarding(app, tab);
     }
+    let tab = tab.map(str::to_owned);
     let app = app.clone();
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
+        let tab = tab.as_deref();
         let window = handle.get_webview_window(label).or_else(|| {
             let (width, height) = spec.size;
             let fit = if mode == "prompt" {
@@ -128,7 +130,14 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     )
                 })
             };
-            let url = format!("index.html?window={mode}");
+            // The first render already shows the requested place instead of navigating there afterwards.
+            let url = match tab.filter(|_| matches!(mode, "settings" | "dictation" | "workspace")) {
+                Some(tab) => format!(
+                    "index.html?window={mode}&tab={}",
+                    workspace::query_value(tab)
+                ),
+                None => format!("index.html?window={mode}"),
+            };
             let mut builder = tauri::WebviewWindowBuilder::new(
                 &handle,
                 label,
