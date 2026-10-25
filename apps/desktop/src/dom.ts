@@ -36,7 +36,7 @@ export function section(title: string, subtitle: string | null, ...body: (Child 
     ...body,
   );
   for (const control of node.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea")) {
-    if (!control.labels?.length && !control.hasAttribute("aria-label")) control.setAttribute("aria-labelledby", headingId);
+    if (!control.closest("label") && !control.labels?.length && !control.hasAttribute("aria-label") && !control.hasAttribute("aria-labelledby")) control.setAttribute("aria-labelledby", headingId);
   }
   return node;
 }

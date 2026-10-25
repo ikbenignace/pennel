@@ -20,8 +20,7 @@ async function remoteModels(providerId: string): Promise<RemoteModel[]> {
 export async function modelsView(ctx: Context): Promise<HTMLElement> {
   return h(
     "div",
-    {},
-    h("h1", {}, "Modellen"),
+    { class: "models-settings" },
     await slot(ctx, "dictation_stt", "Dicteren", "Spraak naar tekst wanneer je de sneltoets gebruikt.", false),
     await slot(ctx, "llm", "Opkuisen en samenvatten", "Taalmodel dat je dictaten opkuist en meetings samenvat.", true),
     await slot(ctx, "meeting_stt", "Meetings", "Spraak naar tekst voor opgenomen meetings.", false),

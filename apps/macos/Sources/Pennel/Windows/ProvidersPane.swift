@@ -6,7 +6,7 @@ import Speech
 import SwiftUI
 
 extension ProviderKind {
-    static let all: [ProviderKind] = [.groq, .openAi, .openRouter, .mistral, .ollama, .lmStudio, .custom, .local]
+    static let all: [ProviderKind] = [.openAi, .openRouter, .groq, .mistral, .ollama, .lmStudio, .custom, .local, .appleSpeech, .appleIntelligence, .claudeCode, .codex, .openCode, .copilot, .cursorAgent, .geminiCli]
 
     var label: String {
         switch self {
@@ -17,9 +17,9 @@ extension ProviderKind {
         case .ollama: "Ollama (lokaal)"
         case .lmStudio: "LM Studio (lokaal)"
         case .custom: "Eigen server"
-        case .local: "Lokaal op deze Mac"
+        case .local: "Lokaal op deze computer"
         case .claudeCode: "Claude Code"
-        case .codex: "Codex (ChatGPT)"
+        case .codex: "Codex"
         case .openCode: "OpenCode"
         case .copilot: "GitHub Copilot"
         case .cursorAgent: "Cursor"
@@ -50,7 +50,10 @@ extension ProviderKind {
 
 struct ProvidersPane: View {
     @Bindable var state: AppState
-    @State private var selection: String?
+    private var selection: String? {
+        get { state.workspace.providerSelection }
+        nonmutating set { state.workspace.providerSelection = newValue }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -59,12 +62,23 @@ struct ProvidersPane: View {
                     ProviderRow(account: account, ready: ready(account), selected: selection == account.id)
                         .onTapGesture { selection = account.id }
                 }
-                Menu("Provider toevoegen") {
+                Menu {
                     ForEach(addableKinds, id: \.self) { kind in
                         Button(kind.label) { add(kind) }
                             .disabled(unavailable(kind))
                     }
+                } label: {
+                    HStack(spacing: 10) {
+                        Text("Provider toevoegen…")
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
+                    }
+                    .font(.figtree(12)).foregroundStyle(Theme.muted)
+                    .padding(.horizontal, 9).padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Theme.field))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.line))
                 }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden)
                 .padding(.top, 8)
             }
             .frame(width: 190, alignment: .leading)
@@ -102,8 +116,7 @@ struct ProvidersPane: View {
         let singletons: Set<ProviderKind> = [.local, .appleSpeech, .appleIntelligence]
         var present = Set<ProviderKind>()
         for account in state.settings.providers where singletons.contains(account.kind) { present.insert(account.kind) }
-        let kinds: [ProviderKind] = ProviderKind.all + [.appleSpeech, .appleIntelligence]
-        return kinds.filter { !present.contains($0) }
+        return ProviderKind.all.filter { !present.contains($0) }
     }
 
     private func unavailable(_ kind: ProviderKind) -> Bool {
@@ -122,14 +135,15 @@ struct ProvidersPane: View {
     }
 
     private func add(_ kind: ProviderKind) {
-        let account = newAccount(kind: kind, existing: state.settings.providers)
+        var account = newAccount(kind: kind, existing: state.settings.providers)
+        if isCliAgent(kind: kind), let detected = detectCliAgents().first(where: { $0.kind == kind }) { account.baseUrl = detected.path }
         state.settings.providers.append(account)
         selection = account.id
     }
 
     private func delete(_ account: ProviderAccount) {
         if isCliAgent(kind: account.kind) { CliAgents.dismiss(account.kind) }
-        Keychain.set(nil, for: account.id)
+        guard Keychain.set(nil, for: account.id) else { state.lastError = "API-sleutel verwijderen mislukt. De provider is behouden."; return }
         state.settings.providers.removeAll { $0.id == account.id }
         state.save()
         selection = state.settings.providers.first?.id

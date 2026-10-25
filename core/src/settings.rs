@@ -16,6 +16,50 @@ pub enum DictationMode {
     Clean,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
+#[serde(rename_all = "snake_case")]
+pub enum AppearancePreference {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
+#[serde(rename_all = "snake_case")]
+pub enum OnboardingStatus {
+    Pending,
+    Skipped,
+    Completed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
+#[serde(rename_all = "snake_case")]
+pub enum OnboardingStep {
+    Welcome,
+    Engine,
+    Permissions,
+    Practice,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
+pub struct OnboardingProgress {
+    pub version: u32,
+    pub status: OnboardingStatus,
+    pub resume_step: OnboardingStep,
+}
+
+impl Default for OnboardingProgress {
+    fn default() -> Self {
+        // Missing fields belong to existing installations, not to a new first run.
+        Self {
+            version: 1,
+            status: OnboardingStatus::Skipped,
+            resume_step: OnboardingStep::Welcome,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
 pub enum Style {
@@ -92,6 +136,12 @@ pub struct Settings {
     pub auto_detect: bool,
     #[serde(default)]
     pub diarization: bool,
+    #[serde(default)]
+    pub appearance: AppearancePreference,
+    #[serde(default)]
+    pub onboarding: OnboardingProgress,
+    #[serde(default)]
+    pub dictation_pad_auto_paste: bool,
 }
 
 fn enabled() -> bool {
@@ -132,11 +182,11 @@ pub fn default_settings() -> Settings {
     let groq = new_account(ProviderKind::Groq, vec![]);
     let local = new_account(ProviderKind::Local, vec![groq.clone()]);
     Settings {
-        dictation_stt: choice(&groq, ProviderTask::DictationStt),
-        meeting_stt: choice(&groq, ProviderTask::MeetingStt),
+        dictation_stt: choice(&local, ProviderTask::DictationStt),
+        meeting_stt: choice(&local, ProviderTask::MeetingStt),
         llm: choice(&groq, ProviderTask::Llm),
         providers: vec![groq, local],
-        mode: DictationMode::Clean,
+        mode: DictationMode::Fast,
         language: None,
         dictionary: Vec::new(),
         style_rules: DEFAULT_STYLES
@@ -161,6 +211,12 @@ pub fn default_settings() -> Settings {
         consent_enabled: false,
         auto_detect: true,
         diarization: false,
+        appearance: AppearancePreference::System,
+        onboarding: OnboardingProgress {
+            status: OnboardingStatus::Pending,
+            ..OnboardingProgress::default()
+        },
+        dictation_pad_auto_paste: false,
     }
 }
 
@@ -328,6 +384,7 @@ impl LegacySettings {
             meetings_dir: String::new(),
             meeting_audio_retention_days: 0,
             default_template: default_template_id(),
+            onboarding: OnboardingProgress::default(),
             ..default_settings()
         }
     }
@@ -351,18 +408,68 @@ mod tests {
     }
 
     #[test]
+    fn fresh_profiles_start_local_fast_and_need_onboarding() {
+        let settings = default_settings();
+        assert_eq!(settings.dictation_stt.provider_id, "local");
+        assert_eq!(settings.meeting_stt.provider_id, "local");
+        assert_eq!(settings.mode, DictationMode::Fast);
+        assert_eq!(settings.appearance, AppearancePreference::System);
+        assert!(!settings.dictation_pad_auto_paste);
+        assert_eq!(settings.onboarding.version, 1);
+        assert_eq!(settings.onboarding.status, OnboardingStatus::Pending);
+        assert_eq!(settings.onboarding.resume_step, OnboardingStep::Welcome);
+    }
+
+    #[test]
+    fn existing_profiles_without_ui_preferences_keep_their_configuration() {
+        let mut previous = default_settings();
+        previous.dictation_stt = choice(&previous.providers[0], ProviderTask::DictationStt);
+        previous.meeting_stt = choice(&previous.providers[0], ProviderTask::MeetingStt);
+        previous.mode = DictationMode::Clean;
+        let mut json = serde_json::to_value(&previous).unwrap();
+        let fields = json.as_object_mut().unwrap();
+        fields.remove("appearance");
+        fields.remove("onboarding");
+        fields.remove("dictation_pad_auto_paste");
+        let restored: Settings = serde_json::from_value(json).unwrap();
+        assert_eq!(restored.providers, previous.providers);
+        assert_eq!(restored.dictation_stt, previous.dictation_stt);
+        assert_eq!(restored.meeting_stt, previous.meeting_stt);
+        assert_eq!(restored.llm, previous.llm);
+        assert_eq!(restored.mode, DictationMode::Clean);
+        assert_eq!(restored.appearance, AppearancePreference::System);
+        assert_eq!(restored.onboarding.status, OnboardingStatus::Skipped);
+        assert!(!restored.dictation_pad_auto_paste);
+    }
+
+    #[test]
+    fn ui_preferences_roundtrip_without_resetting_onboarding() {
+        let mut settings = default_settings();
+        settings.appearance = AppearancePreference::Dark;
+        settings.dictation_pad_auto_paste = true;
+        settings.onboarding = OnboardingProgress {
+            version: 1,
+            status: OnboardingStatus::Pending,
+            resume_step: OnboardingStep::Practice,
+        };
+        let restored: Settings =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(restored, settings);
+    }
+
+    #[test]
     fn defaults_have_groq_and_local() {
         let s = default_settings();
         assert_eq!(ids(&s), ["groq", "local"]);
         assert_eq!(
             s.dictation_stt,
             ModelChoice {
-                provider_id: "groq".into(),
+                provider_id: "local".into(),
                 model: "whisper-large-v3-turbo".into()
             }
         );
         assert_eq!(s.llm.provider_id, "groq");
-        assert_eq!(s.mode, DictationMode::Clean);
+        assert_eq!(s.mode, DictationMode::Fast);
         assert_eq!(s.hotkey, DEFAULT_HOTKEY);
         assert_eq!(s.local_unload_minutes, 5);
         let slack = s
@@ -380,6 +487,8 @@ mod tests {
         std::fs::write(&path, V1_GROQ).unwrap();
         let s = Settings::load(&path).unwrap();
         assert_eq!(ids(&s), ["groq", "local"]);
+        assert_eq!(s.onboarding.status, OnboardingStatus::Skipped);
+        assert_eq!(s.mode, DictationMode::Clean);
         assert_eq!(
             s.dictation_stt,
             ModelChoice {

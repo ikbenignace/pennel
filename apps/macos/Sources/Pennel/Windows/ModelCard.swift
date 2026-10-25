@@ -64,7 +64,7 @@ private struct Badge: View {
 
     var body: some View {
         Text(text)
-            .font(.figtree(10, weight: .medium))
+            .font(.figtree(11, weight: .medium))
             .foregroundStyle(Theme.accent)
             .padding(.horizontal, 6)
             .padding(.vertical, 1)
@@ -83,7 +83,7 @@ private struct ScoreBar: View {
                 Spacer()
                 Text(value.map { "\($0)" } ?? "niet gemeten")
             }
-            .font(.figtree(10))
+            .font(.figtree(11))
             .foregroundStyle(Theme.muted)
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {

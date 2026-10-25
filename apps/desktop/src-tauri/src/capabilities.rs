@@ -151,6 +151,7 @@ pub struct PlatformCapabilities {
     pub apple_speech: Capability,
     pub apple_intelligence: Capability,
     pub selection: Capability,
+    pub pad_external_paste: Capability,
     pub rich_clipboard: Capability,
     pub audio_playback: Capability,
     pub diarization: Capability,
@@ -296,6 +297,7 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
             "Apple Intelligence is alleen beschikbaar op een geschikte Mac met macOS 26 of nieuwer.",
         ),
         selection: Capability::available(),
+        pad_external_paste: Capability::available(),
         rich_clipboard: Capability::available(),
         audio_playback: Capability::unsupported(
             "Audio afspelen is op dit platform nog niet beschikbaar.",
@@ -400,6 +402,13 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
         && let Some(reason) = hotkey_error
     {
         result.record_shortcut = Capability::unavailable(reason);
+    }
+    result.pad_external_paste = result.selection.clone();
+    #[cfg(target_os = "linux")]
+    if crate::linux_input::is_wayland() {
+        result.pad_external_paste = Capability::unsupported(
+            "Wayland staat automatisch extern plakken niet toe. Kopieer de tekst en plak zelf met Ctrl+V.",
+        );
     }
     result
 }

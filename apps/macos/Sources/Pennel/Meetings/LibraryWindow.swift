@@ -13,39 +13,61 @@ struct LibraryView: View {
     @Bindable var meeting: MeetingController
     let openRecording: () -> Void
 
-    @State private var query = ""
+    private var query: String {
+        get { state.workspace.meetingQuery }
+        nonmutating set { state.workspace.meetingQuery = newValue }
+    }
     @State private var meetings: [MeetingInfo] = []
-    @State private var selection: String?
+    private var selection: String? {
+        get { state.workspace.meetingSelection }
+        nonmutating set { state.workspace.meetingSelection = newValue }
+    }
     @State private var renaming: MeetingInfo?
     @State private var newTitle = ""
     @State private var deleting: MeetingInfo?
-    @State private var asking = false
+    private var asking: Bool {
+        get { state.workspace.askingMeetings }
+        nonmutating set { state.workspace.askingMeetings = newValue }
+    }
     @State private var snippets: [String: [String]] = [:]
     @State private var search: Task<Void, Never>?
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-                .frame(width: 230)
-                .background(Theme.background)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                if asking || selection != nil {
+                    Button {
+                        asking = false
+                        selection = nil
+                    } label: { Label("Alle vergaderingen", systemImage: "chevron.left") }
+                    .buttonStyle(.plain).font(.figtree(12)).foregroundStyle(Theme.muted)
+                } else {
+                    Text("Vergaderingen").font(.figtree(21, weight: .semibold))
+                }
+                Spacer()
+                if !asking && selection == nil { Button("Nieuwe opname", action: openRecording) }
+            }
+            .frame(minHeight: asking || selection != nil ? 0 : 31)
+            .padding(.horizontal, asking || selection != nil ? 32 : 37)
+            .padding(.top, asking || selection != nil ? 28 : 32)
+            .padding(.bottom, asking || selection != nil ? 18 : 27)
             Group {
                 if asking {
                     MeetingChatView(state: state, chat: state.chat(for: nil))
-                } else if let selection, meetings.contains(where: { $0.id == selection }) {
+                } else if let selection {
                     MeetingDetailView(state: state, meetingId: selection).id(selection)
                 } else {
-                    Text("Kies een meeting of start een opname.")
-                        .foregroundStyle(Theme.muted)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    overview
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 860, minHeight: 560)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.paper)
         .onAppear(perform: reload)
         .onChange(of: query) { reload() }
         .onReceive(NotificationCenter.default.publisher(for: .pennelMeetingsChanged)) { _ in reload() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .pennelSelectMeeting)) { note in
             selection = note.object as? String
             asking = false
@@ -66,49 +88,45 @@ struct LibraryView: View {
         }
     }
 
-    private var sidebar: some View {
+    private var overview: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("Zoeken", text: $query)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal, 12)
-                .padding(.top, 36)
-                .padding(.bottom, 6)
-            Button {
-                asking = true
-            } label: {
-                Label("Vraag het je meetings", systemImage: "text.bubble")
-                    .font(.figtree(12))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 7).fill(asking ? Theme.line : .clear))
-                    .contentShape(Rectangle())
+            HStack(spacing: 15) {
+                TextField("Zoeken", text: Binding(get: { query }, set: { query = $0 }))
+                    .textFieldStyle(.plain).font(.figtree(12)).padding(.horizontal, 8)
+                    .frame(width: 245, height: 31)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Theme.field))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.line))
+                Spacer()
+                Button("Vraag het je meetings") { asking = true }
+                    .buttonStyle(.plain).font(.figtree(12)).foregroundStyle(Theme.muted)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 8)
-            .padding(.bottom, 4)
-            if meeting.isRecording {
-                Button(action: openRecording) {
-                    HStack(spacing: 8) {
-                        Circle().fill(Theme.accent).frame(width: 7, height: 7)
-                        Text(meeting.title).lineLimit(1)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Theme.line))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 8)
-            }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(groups, id: \.0) { title, items in
-                        Text(title).font(.figtree(11)).foregroundStyle(Theme.muted).padding(.horizontal, 12).padding(.top, 14)
-                        ForEach(items, id: \.id) { row($0) }
+            .padding(.horizontal, 37).padding(.bottom, 20)
+            if meetings.isEmpty {
+                VStack(spacing: 0) {
+                    PennelIcon.notebook.image.resizable().scaledToFit().frame(width: 27, height: 27)
+                        .foregroundStyle(Theme.muted).padding(.bottom, 18)
+                    Text(query.isEmpty ? "Nog geen vergaderingen." : "Geen meetings gevonden.")
+                        .font(.figtree(17, weight: .medium)).padding(.bottom, 18)
+                    Text(query.isEmpty ? "Start een opname. Je notities en transcript komen hier." : "Probeer een andere zoekterm.")
+                        .font(.figtree(13)).foregroundStyle(Theme.muted)
+                        .multilineTextAlignment(.center).frame(maxWidth: 290).lineSpacing(4)
+                    if query.isEmpty {
+                        Button("Start je eerste opname", action: openRecording)
+                            .buttonStyle(PennelPrimaryButtonStyle()).padding(.top, 23)
                     }
                 }
-                .padding(.horizontal, 6)
+                .frame(maxWidth: .infinity).padding(.vertical, 67).padding(.horizontal, 10)
+                Spacer(minLength: 0)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(groups, id: \.0) { title, items in
+                            Text(title).font(.figtree(11)).foregroundStyle(Theme.muted).padding(.top, 16)
+                            ForEach(items, id: \.id) { row($0) }
+                        }
+                    }
+                    .padding(.horizontal, 32).padding(.bottom, 24)
+                }
             }
         }
     }
@@ -157,7 +175,7 @@ struct LibraryView: View {
 
     private var groups: [(String, [MeetingInfo])] {
         let calendar = Calendar.current
-        let now = Date()
+        let now = state.now
         var today: [MeetingInfo] = [], week: [MeetingInfo] = [], older: [MeetingInfo] = []
         for info in meetings {
             let date = Self.date(info) ?? .distantPast
@@ -177,8 +195,15 @@ struct LibraryView: View {
     }
 
     static func subtitle(_ info: MeetingInfo) -> String {
-        let time = date(info)?.formatted(date: .abbreviated, time: .shortened) ?? ""
+        let time = date(info).map(formattedDate) ?? ""
         return info.durationMin > 0 ? "\(time) · \(info.durationMin) min" : time
+    }
+
+    static func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "nl_BE")
+        formatter.dateFormat = "d MMM yyyy, HH:mm"
+        return formatter.string(from: date)
     }
 
     static func highlighted(_ snippet: String) -> AttributedString {
@@ -202,13 +227,15 @@ struct LibraryView: View {
             guard !Task.isCancelled else { return }
             meetings = result.meetings
             snippets = Dictionary(grouping: result.passages, by: \.meetingId).mapValues { Array($0.prefix(2).map(\.snippet)) }
-            if selection == nil { selection = meetings.first?.id }
         }
     }
 
     private func rename() {
         guard let info = renaming else { return }
-        if let id = try? state.engine.renameMeeting(id: info.id, title: newTitle) { selection = id }
+        if let id = try? state.engine.renameMeeting(id: info.id, title: newTitle) {
+            selection = id
+            if let draft = state.workspace.meetingNoteDrafts.removeValue(forKey: info.id) { state.workspace.meetingNoteDrafts[id] = draft }
+        }
         renaming = nil
         reload()
     }

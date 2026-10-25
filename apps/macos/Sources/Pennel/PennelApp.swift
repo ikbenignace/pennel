@@ -26,8 +26,11 @@ final class PennelApp: NSObject, NSApplicationDelegate {
         do {
             let state = try AppState()
             self.state = state
+            NativeAppearance.apply(state.settings.appearance)
+            ExternalPasteCoordinator.shared.startTracking()
             let dictation = DictationController(state: state)
             self.dictation = dictation
+            state.dictation = dictation
             state.onHotkeyChange = { [weak dictation] trigger in dictation?.setTrigger(trigger) }
             let meeting = MeetingController(state: state)
             self.meeting = meeting
@@ -68,10 +71,8 @@ final class PennelApp: NSObject, NSApplicationDelegate {
                 DispatchQueue.global(qos: .utility).async { _ = engine.unloadIdleModels() }
             }
             if state.needsOnboarding {
-                windows.show(id: "onboarding", title: "Welkom bij Pennel", size: NSSize(width: 520, height: 560)) {
-                    OnboardingView(state: state)
-                }
-            }
+                menuBar.openOnboarding()
+            } else { menuBar.openWorkspace() }
         } catch {
             let alert = NSAlert()
             alert.messageText = "Pennel kon niet starten"
@@ -95,12 +96,19 @@ final class PennelApp: NSObject, NSApplicationDelegate {
 
     /// Pennel has no Dock icon, so opening the app again (Finder, Spotlight, `open`) shows the library.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        menuBar?.openLibrary()
+        menuBar?.openWorkspace()
         return false
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let meeting, meeting.isRecording else { return .terminateNow }
+        if state?.workspace.templateEditing != nil {
+            state?.lastError = "Bewaar of annuleer eerst het geopende sjabloon."
+            menuBar?.openWorkspace(.settings)
+            return .terminateCancel
+        }
+        if state?.flushWorkspaceDrafts() == false { menuBar?.openWorkspace(); return .terminateCancel }
+        dictation?.shutdownOwnedSession()
+        guard let meeting, meeting.isRecording || meeting.phase == .summarizing else { return .terminateNow }
         Task {
             await meeting.stopForQuit()
             sender.reply(toApplicationShouldTerminate: true)

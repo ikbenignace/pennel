@@ -1,0 +1,126 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { DictationSessionState, OwnedSessionLifecycle, PadDraftState } from "../src/dictation-session-state.ts";
+
+const snapshot = (id, kind = "practice", phase = "idle") => ({ session_id: id, kind, phase, text: "", error: null, target_name: null, external_paste_available: false, external_paste_reason: null });
+
+test("late results from a closed or replaced owned session are rejected", () => {
+  const state = new DictationSessionState();
+  state.bind(snapshot("old"));
+  assert.equal(state.close(), "old");
+  assert.equal(state.accept(snapshot("old", "practice", "done")), false);
+  state.bind(snapshot("new"));
+  assert.equal(state.accept(snapshot("old", "practice", "done")), false);
+  assert.equal(state.snapshot.session_id, "new");
+});
+
+test("pad and practice results cannot cross ownership and busy phases are explicit", () => {
+  const state = new DictationSessionState();
+  state.bind(snapshot("owned", "pad"));
+  assert.equal(state.accept(snapshot("owned", "practice", "done")), false);
+  assert.equal(state.accept(snapshot("owned", "pad", "listening")), true);
+  assert.equal(state.busy, true);
+  state.accept(snapshot("owned", "pad", "working"));
+  assert.equal(state.busy, true);
+  state.accept(snapshot("owned", "pad", "done"));
+  assert.equal(state.busy, false);
+});
+
+test("manual edits survive in-flight refreshes and saved text survives session refresh", () => {
+  const draft = new PadDraftState();
+  draft.hydrate("Bewaarde tekst");
+  draft.edit("Mijn eigen wijziging");
+  assert.equal(draft.accept({ phase: "idle", text: "Bewaarde tekst" }), false);
+  assert.equal(draft.value, "Mijn eigen wijziging");
+  draft.acknowledge("Mijn eigen wijziging");
+  draft.accept({ phase: "idle", text: "Mijn eigen wijziging" });
+  assert.equal(draft.value, "Mijn eigen wijziging");
+  assert.equal(draft.dirty, false);
+});
+
+test("recognized text retained after a storage error becomes an unsaved client draft", () => {
+  const draft = new PadDraftState();
+  draft.hydrate("Eerste zin.");
+  draft.accept({ phase: "error", text: "Eerste zin.\nNieuwe woorden." });
+  assert.equal(draft.value, "Eerste zin.\nNieuwe woorden.");
+  assert.equal(draft.dirty, true);
+  assert.equal(draft.accept({ phase: "idle", text: "Eerste zin." }), false);
+  draft.acknowledge("Eerste zin.\nNieuwe woorden.");
+  assert.equal(draft.dirty, false);
+});
+
+test("reopening a retained unsaved backend pad still requires a successful save", () => {
+  const draft = new PadDraftState();
+  draft.hydrate("Herstelde, nog niet bewaarde tekst.");
+  draft.accept({ phase: "error", text: "Herstelde, nog niet bewaarde tekst." });
+  assert.equal(draft.dirty, true);
+});
+
+test("closing during an open and immediately reopening binds a fresh replacement session", async () => {
+  let resolveFirst;
+  let opens = 0;
+  const closed = [];
+  const updates = [];
+  const first = new Promise((resolve) => { resolveFirst = resolve; });
+  const driver = {
+    open: async () => { opens += 1; return opens === 1 ? first : snapshot("replacement"); },
+    get: async () => snapshot("replacement"),
+    toggle: async () => {}, cancel: async () => {},
+    close: async (id) => { closed.push(id); },
+    subscribe: async () => () => {},
+  };
+  const lifecycle = new OwnedSessionLifecycle("practice", (value) => updates.push(value.session_id), driver);
+  const opening = lifecycle.open();
+  await Promise.resolve();
+  await lifecycle.close();
+  const reopening = lifecycle.open();
+  resolveFirst(snapshot("stale"));
+  await Promise.all([opening, reopening]);
+  assert.equal(opens, 2);
+  assert.deepEqual(closed, ["stale"]);
+  assert.deepEqual(updates, ["replacement"]);
+  assert.equal(lifecycle.state.snapshot.session_id, "replacement");
+});
+
+test("a delayed state request cannot regress a completed event to an older busy phase", async () => {
+  let emit;
+  let resolveRefresh;
+  const delayed = new Promise((resolve) => { resolveRefresh = resolve; });
+  const driver = {
+    open: async () => snapshot("owned"), get: async () => delayed,
+    toggle: async () => {}, cancel: async () => {}, close: async () => {},
+    subscribe: async (listener) => { emit = listener; return () => {}; },
+  };
+  const lifecycle = new OwnedSessionLifecycle("practice", () => {}, driver);
+  await lifecycle.open();
+  const reading = lifecycle.refresh();
+  emit({ ...snapshot("owned", "practice", "done"), text: "Klaar" });
+  resolveRefresh(snapshot("owned", "practice", "working"));
+  await reading;
+  assert.equal(lifecycle.state.snapshot.phase, "done");
+  assert.equal(lifecycle.state.snapshot.text, "Klaar");
+});
+
+test("a get started before a local edit/save cannot overwrite the acknowledged pad text", async () => {
+  let resolveRefresh;
+  const delayed = new Promise((resolve) => { resolveRefresh = resolve; });
+  const stored = { ...snapshot("pad", "pad"), text: "Oude tekst" };
+  const draft = new PadDraftState();
+  const driver = {
+    open: async () => stored, get: async () => delayed,
+    toggle: async () => {}, cancel: async () => {}, close: async () => {},
+    subscribe: async () => () => {},
+  };
+  const lifecycle = new OwnedSessionLifecycle("pad", (value) => draft.accept(value), driver);
+  await lifecycle.open();
+  const reading = lifecycle.refresh();
+  lifecycle.invalidateRefresh();
+  draft.edit("Mijn bewaarde wijziging");
+  lifecycle.acceptLocalSavedText("Mijn bewaarde wijziging");
+  draft.acknowledge("Mijn bewaarde wijziging");
+  resolveRefresh(stored);
+  await reading;
+  assert.equal(lifecycle.state.snapshot.text, "Mijn bewaarde wijziging");
+  assert.equal(draft.value, "Mijn bewaarde wijziging");
+  assert.equal(draft.dirty, false);
+});

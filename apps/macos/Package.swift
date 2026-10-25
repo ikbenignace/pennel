@@ -33,5 +33,10 @@ let package = Package(
         ),
         .testTarget(name: "PennelKitTests", dependencies: ["PennelKit"]),
         .testTarget(name: "PennelCoreSmokeTests", dependencies: ["PennelCore"]),
+        .testTarget(
+            name: "PennelUITests",
+            dependencies: ["Pennel"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
     ]
 )

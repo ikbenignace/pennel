@@ -6,9 +6,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::cleanup::{
     accept_cleanup, cleanup_messages, cleanup_timeout_secs, resolve_style, strip_wrapping,
 };
+use crate::dictation_pad::DictationPad;
 use crate::error::PennelError;
 use crate::export::MeetingExport;
 use crate::history::{HistoryEntry, HistoryStore};
+use crate::live_dictation::{DictationPreviewObserver, LiveDictationSession};
 use crate::llm::Reasoning;
 use crate::local_engine::LocalEngine;
 use crate::meeting_chat::{ChatTurn, MeetingAnswer};
@@ -75,6 +77,7 @@ pub struct PennelEngine {
     settings_path: PathBuf,
     settings: RwLock<Settings>,
     history: Mutex<HistoryStore>,
+    dictation_pad: Mutex<DictationPad>,
     models: ModelStore,
     downloads: Mutex<HashMap<String, CancelFlag>>,
     local: LocalEngine,
@@ -189,45 +192,37 @@ impl PennelEngine {
     }
 
     pub fn dictate(&self, request: DictationRequest) -> Result<DictationResult, PennelError> {
-        if !has_speech(&request.samples, request.sample_rate) {
-            return Err(PennelError::NoSpeech);
-        }
-        let settings = self.settings();
-        let (account, _) = settings
-            .resolve(&settings.dictation_stt)
-            .ok_or(PennelError::NotFound)?;
-        if requires_key(account.kind) && request.keys.get(&account).is_none() {
-            return Err(PennelError::MissingApiKey { task: "stt".into() });
-        }
-        let wav = encode_wav(&request.samples, request.sample_rate);
-        let app = request.app_bundle_id.as_deref();
-        let transcript = match self.process(&settings, &wav, app, &request.keys) {
-            Err(
-                e @ (PennelError::Http { .. }
-                | PennelError::Network { .. }
-                | PennelError::InvalidResponse { .. }
-                | PennelError::ModelNotDownloaded),
-            ) => {
-                self.history
-                    .lock()
-                    .unwrap()
-                    .insert_failed(app, &wav, &e.to_string(), now_ms())?;
-                return Err(e);
-            }
-            other => other?,
-        };
-        let history_id = self.history.lock().unwrap().insert_done(
-            app,
-            &transcript.raw,
-            &transcript.text,
-            now_ms(),
-        )?;
-        Ok(DictationResult {
-            history_id,
-            text: transcript.text,
-            raw: transcript.raw,
-            cleanup: transcript.cleanup,
-        })
+        self.dictate_with_settings(request, self.settings())
+    }
+
+    /// Practice exercises recognition without calling the user's normal cleanup provider.
+    pub fn dictate_practice(
+        &self,
+        request: DictationRequest,
+    ) -> Result<DictationResult, PennelError> {
+        let mut settings = self.settings();
+        settings.mode = DictationMode::Fast;
+        self.dictate_with_settings(request, settings)
+    }
+
+    pub fn begin_dictation_session(
+        self: Arc<Self>,
+        observer: Arc<dyn DictationPreviewObserver>,
+        practice: bool,
+    ) -> Arc<LiveDictationSession> {
+        LiveDictationSession::new(self.clone(), observer, self.settings(), practice)
+    }
+
+    pub fn dictation_pad_text(&self) -> String {
+        self.dictation_pad.lock().unwrap().text()
+    }
+
+    pub fn save_dictation_pad(&self, text: String) -> Result<(), PennelError> {
+        self.dictation_pad.lock().unwrap().save(text)
+    }
+
+    pub fn append_dictation_pad(&self, text: String) -> Result<String, PennelError> {
+        self.dictation_pad.lock().unwrap().append(text)
     }
 
     /// Speaks an instruction that rewrites `selection`, or writes new text when nothing is selected.
@@ -236,59 +231,7 @@ impl PennelEngine {
         request: DictationRequest,
         selection: Option<String>,
     ) -> Result<DictationResult, PennelError> {
-        use crate::command::{COMMAND_TIMEOUT_SECS, MAX_SELECTION_CHARS, command_messages};
-
-        if !has_speech(&request.samples, request.sample_rate) {
-            return Err(PennelError::NoSpeech);
-        }
-        if selection
-            .as_ref()
-            .is_some_and(|s| s.chars().count() > MAX_SELECTION_CHARS)
-        {
-            return Err(PennelError::InvalidResponse {
-                message: "selection too long".into(),
-            });
-        }
-        let settings = self.settings();
-        let (llm_account, llm_model) = settings
-            .resolve(&settings.llm)
-            .ok_or(PennelError::NotFound)?;
-        let llm_key = request.keys.get(&llm_account);
-        if requires_key(llm_account.kind) && llm_key.is_none() {
-            return Err(PennelError::MissingApiKey { task: "llm".into() });
-        }
-        let wav = encode_wav(&request.samples, request.sample_rate);
-        let instruction = self.stt(&settings, &settings.dictation_stt, &wav, &request.keys)?;
-        if instruction.trim().is_empty() || is_hallucination(&instruction) {
-            return Err(PennelError::NoSpeech);
-        }
-        let selection = selection.filter(|s| !s.trim().is_empty());
-        let messages = command_messages(&instruction, selection.as_deref(), &settings.dictionary);
-        let output = self.complete_llm(
-            &endpoint(&llm_account, llm_model),
-            llm_key,
-            &messages,
-            COMMAND_TIMEOUT_SECS,
-            Reasoning::Off,
-        )?;
-        let text = strip_wrapping(&output);
-        if text.is_empty() {
-            return Err(PennelError::InvalidResponse {
-                message: "empty command result".into(),
-            });
-        }
-        let app = request.app_bundle_id.as_deref();
-        let history_id =
-            self.history
-                .lock()
-                .unwrap()
-                .insert_done(app, &instruction, &text, now_ms())?;
-        Ok(DictationResult {
-            history_id,
-            text,
-            raw: instruction,
-            cleanup: CleanupStatus::Applied,
-        })
+        self.command_with_settings_observed(request, selection, self.settings(), None)
     }
 
     pub fn retry(&self, history_id: String, keys: ApiKeys) -> Result<DictationResult, PennelError> {
@@ -851,6 +794,154 @@ fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
 }
 
 impl PennelEngine {
+    pub(crate) fn command_with_settings_observed(
+        &self,
+        request: DictationRequest,
+        selection: Option<String>,
+        settings: Settings,
+        progress: Option<&LiveDictationSession>,
+    ) -> Result<DictationResult, PennelError> {
+        if let Some(progress) = progress {
+            progress.ensure_active()?;
+        }
+        use crate::command::{COMMAND_TIMEOUT_SECS, MAX_SELECTION_CHARS, command_messages};
+
+        if !has_speech(&request.samples, request.sample_rate) {
+            return Err(PennelError::NoSpeech);
+        }
+        if selection
+            .as_ref()
+            .is_some_and(|s| s.chars().count() > MAX_SELECTION_CHARS)
+        {
+            return Err(PennelError::InvalidResponse {
+                message: "selection too long".into(),
+            });
+        }
+        let (llm_account, llm_model) = settings
+            .resolve(&settings.llm)
+            .ok_or(PennelError::NotFound)?;
+        let llm_key = request.keys.get(&llm_account);
+        if requires_key(llm_account.kind) && llm_key.is_none() {
+            return Err(PennelError::MissingApiKey { task: "llm".into() });
+        }
+        let wav = encode_wav(&request.samples, request.sample_rate);
+        let instruction = self.stt(&settings, &settings.dictation_stt, &wav, &request.keys)?;
+        if instruction.trim().is_empty() || is_hallucination(&instruction) {
+            return Err(PennelError::NoSpeech);
+        }
+        if let Some(progress) = progress {
+            progress.observe_raw(&instruction)?;
+        }
+        let selection = selection.filter(|s| !s.trim().is_empty());
+        let messages = command_messages(&instruction, selection.as_deref(), &settings.dictionary);
+        let output = self.complete_llm(
+            &endpoint(&llm_account, llm_model),
+            llm_key,
+            &messages,
+            COMMAND_TIMEOUT_SECS,
+            Reasoning::Off,
+        )?;
+        let text = strip_wrapping(&output);
+        if text.is_empty() {
+            return Err(PennelError::InvalidResponse {
+                message: "empty command result".into(),
+            });
+        }
+        let app = request.app_bundle_id.as_deref();
+        let insert = || {
+            self.history
+                .lock()
+                .unwrap()
+                .insert_done(app, &instruction, &text, now_ms())
+        };
+        let history_id = if let Some(progress) = progress {
+            progress.with_active(insert)?
+        } else {
+            insert()?
+        };
+        Ok(DictationResult {
+            history_id,
+            text,
+            raw: instruction,
+            cleanup: CleanupStatus::Applied,
+        })
+    }
+
+    fn dictate_with_settings(
+        &self,
+        request: DictationRequest,
+        settings: Settings,
+    ) -> Result<DictationResult, PennelError> {
+        self.dictate_with_settings_observed(request, settings, None)
+    }
+
+    pub(crate) fn dictate_with_settings_observed(
+        &self,
+        request: DictationRequest,
+        settings: Settings,
+        progress: Option<&LiveDictationSession>,
+    ) -> Result<DictationResult, PennelError> {
+        if let Some(progress) = progress {
+            progress.ensure_active()?;
+        }
+        if !has_speech(&request.samples, request.sample_rate) {
+            return Err(PennelError::NoSpeech);
+        }
+        let (account, _) = settings
+            .resolve(&settings.dictation_stt)
+            .ok_or(PennelError::NotFound)?;
+        if requires_key(account.kind) && request.keys.get(&account).is_none() {
+            return Err(PennelError::MissingApiKey { task: "stt".into() });
+        }
+        let wav = encode_wav(&request.samples, request.sample_rate);
+        let app = request.app_bundle_id.as_deref();
+        let result = self.process_observed(&settings, &wav, app, &request.keys, progress);
+        if let Some(progress) = progress {
+            progress.ensure_active()?;
+        }
+        let transcript = match result {
+            Err(
+                e @ (PennelError::Http { .. }
+                | PennelError::Network { .. }
+                | PennelError::InvalidResponse { .. }
+                | PennelError::ModelNotDownloaded),
+            ) => {
+                let insert = || {
+                    self.history
+                        .lock()
+                        .unwrap()
+                        .insert_failed(app, &wav, &e.to_string(), now_ms())
+                };
+                if let Some(progress) = progress {
+                    progress.with_active(insert)?;
+                } else {
+                    insert()?;
+                }
+                return Err(e);
+            }
+            other => other?,
+        };
+        let insert = || {
+            self.history.lock().unwrap().insert_done(
+                app,
+                &transcript.raw,
+                &transcript.text,
+                now_ms(),
+            )
+        };
+        let history_id = if let Some(progress) = progress {
+            progress.with_active(insert)?
+        } else {
+            insert()?
+        };
+        Ok(DictationResult {
+            history_id,
+            text: transcript.text,
+            raw: transcript.raw,
+            cleanup: transcript.cleanup,
+        })
+    }
+
     fn open(data_dir: String, preview: bool) -> Result<Arc<Self>, PennelError> {
         let dir = PathBuf::from(data_dir);
         std::fs::create_dir_all(&dir).map_err(PennelError::storage)?;
@@ -881,6 +972,7 @@ impl PennelEngine {
             None
         };
         let history = HistoryStore::open(&dir)?;
+        let dictation_pad = DictationPad::open(&dir)?;
         let index = open_index(&dir.join("index.sqlite"));
         storage.finish()?;
         history.prune(settings.history_retention_days, now_ms())?;
@@ -888,6 +980,7 @@ impl PennelEngine {
             settings_path,
             settings: RwLock::new(settings),
             history: Mutex::new(history),
+            dictation_pad: Mutex::new(dictation_pad),
             models,
             downloads: Mutex::new(HashMap::new()),
             local: LocalEngine::default(),
@@ -970,9 +1063,23 @@ impl PennelEngine {
         app: Option<&str>,
         keys: &ApiKeys,
     ) -> Result<Transcript, PennelError> {
+        self.process_observed(settings, wav, app, keys, None)
+    }
+
+    fn process_observed(
+        &self,
+        settings: &Settings,
+        wav: &[u8],
+        app: Option<&str>,
+        keys: &ApiKeys,
+        progress: Option<&LiveDictationSession>,
+    ) -> Result<Transcript, PennelError> {
         let raw = self.stt(settings, &settings.dictation_stt, wav, keys)?;
         if is_hallucination(&raw) {
             return Err(PennelError::NoSpeech);
+        }
+        if let Some(progress) = progress {
+            progress.observe_raw(&raw)?;
         }
         let (text, cleanup) = match settings.mode {
             DictationMode::Fast => (raw.clone(), CleanupStatus::Skipped),
@@ -999,6 +1106,32 @@ impl PennelEngine {
             return system_llm::complete(model.as_deref(), messages, timeout_secs);
         }
         crate::llm::chat_complete_within(provider, key, messages, timeout_secs, reasoning)
+    }
+
+    pub(crate) fn preview_local(
+        &self,
+        settings: &Settings,
+        samples: &[f32],
+        cancel: &transcribe_cpp::CancelToken,
+    ) -> Result<Option<String>, PennelError> {
+        let Some((account, model)) = settings.resolve(&settings.dictation_stt) else {
+            return Err(PennelError::NotFound);
+        };
+        if account.kind != ProviderKind::Local {
+            return Ok(None);
+        }
+        let path = self
+            .models
+            .path(&model)
+            .ok_or(PennelError::ModelNotDownloaded)?;
+        let vocabulary = capped_terms(&settings.dictionary, MAX_PROMPT_CHARS);
+        self.local.preview(
+            &path,
+            samples,
+            settings.language.as_deref(),
+            &vocabulary,
+            cancel,
+        )
     }
 
     /// Speech-to-text for one WAV via the provider in `choice`, cloud or local.
@@ -1161,6 +1294,8 @@ mod tests {
         let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
         let mut settings = engine.settings();
         settings.providers[0].base_url = server.url();
+        settings.dictation_stt.provider_id = "groq".into();
+        settings.meeting_stt.provider_id = "groq".into();
         settings.mode = mode;
         engine.update_settings(settings).unwrap();
         engine
@@ -1192,6 +1327,51 @@ mod tests {
         assert_eq!(result.text, "euh hallo");
         assert_eq!(result.cleanup, CleanupStatus::Skipped);
         llm_mock.assert();
+    }
+
+    #[test]
+    fn practice_uses_speech_only_and_preserves_the_normal_configuration() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Clean);
+        let before = engine.settings();
+        let transcription = stt(&mut server, "Een echt proefdictaat.");
+        let cleanup = llm(&mut server, "Deze mag niet worden aangeroepen.").expect(0);
+        let result = engine
+            .dictate_practice(request(speech(), Some("app.pennel.practice")))
+            .unwrap();
+        assert_eq!(result.text, "Een echt proefdictaat.");
+        assert_eq!(result.cleanup, CleanupStatus::Skipped);
+        assert_eq!(engine.settings(), before);
+        assert_eq!(engine.history(1).unwrap()[0].id, result.history_id);
+        transcription.assert();
+        cleanup.assert();
+    }
+
+    #[test]
+    fn dictation_pad_keeps_edited_text_across_engine_restarts() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let engine = PennelEngine::new_preview(path.clone()).unwrap();
+        assert!(engine.dictation_pad_text().is_empty());
+        engine
+            .save_dictation_pad("Handmatig aangepast.\n".into())
+            .unwrap();
+        assert_eq!(
+            engine
+                .append_dictation_pad("Een nieuw dictaat.".into())
+                .unwrap(),
+            "Handmatig aangepast.\nEen nieuw dictaat."
+        );
+        drop(engine);
+        let reopened = PennelEngine::new_preview(path).unwrap();
+        assert_eq!(
+            reopened.dictation_pad_text(),
+            "Handmatig aangepast.\nEen nieuw dictaat."
+        );
+        assert_eq!(
+            reopened.append_dictation_pad(" ".into()).unwrap(),
+            reopened.dictation_pad_text()
+        );
     }
 
     #[test]
@@ -1505,6 +1685,7 @@ mod tests {
         let engine = PennelEngine::new_preview(data.path().to_string_lossy().into_owned()).unwrap();
         let mut settings = engine.settings();
         settings.providers[0].base_url = "http://127.0.0.1:1".into();
+        settings.meeting_stt.provider_id = "groq".into();
         engine.update_settings(settings).unwrap();
         assert_eq!(
             engine.validate_meeting_setup(ApiKeys {

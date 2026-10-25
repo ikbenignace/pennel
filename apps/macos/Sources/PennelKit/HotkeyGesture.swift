@@ -12,6 +12,7 @@ public enum GestureAction: Equatable, Sendable {
 public struct HotkeyGesture: Sendable {
     private enum Phase {
         case idle
+        case manual(startedAt: TimeInterval)
         case holding(pressedAt: TimeInterval)
         case handsFree(startedAt: TimeInterval, awaitingRelease: Bool)
         case awaitingRelease
@@ -23,11 +24,31 @@ public struct HotkeyGesture: Sendable {
     private var phase: Phase = .idle
     private var lastTapUp: TimeInterval?
     public private(set) var isHandsFree = false
+    public var isManual: Bool { if case .manual = phase { true } else { false } }
 
     public init(tapMax: TimeInterval = 0.25, doubleTapWindow: TimeInterval = 0.35, maxDuration: TimeInterval = 600) {
         self.tapMax = tapMax
         self.doubleTapWindow = doubleTapWindow
         self.maxDuration = maxDuration
+    }
+
+    /// Explicit UI recording does not depend on observing a physical modifier release.
+    public mutating func manualToggle(at t: TimeInterval) -> [GestureAction] {
+        lastTapUp = nil
+        switch phase {
+        case .idle, .awaitingRelease:
+            phase = .manual(startedAt: t)
+            isHandsFree = true
+            return [.start]
+        case .holding, .handsFree(_, awaitingRelease: true):
+            phase = .awaitingRelease
+            isHandsFree = false
+            return [.submit]
+        case .manual, .handsFree(_, awaitingRelease: false):
+            phase = .idle
+            isHandsFree = false
+            return [.submit]
+        }
     }
 
     public mutating func handle(_ edge: KeyEdge, at t: TimeInterval) -> [GestureAction] {
@@ -72,6 +93,9 @@ public struct HotkeyGesture: Sendable {
 
     public mutating func tick(at t: TimeInterval) -> [GestureAction] {
         switch phase {
+        case .manual(let startedAt) where t - startedAt >= maxDuration:
+            isHandsFree = false
+            phase = .idle
         case .holding(let startedAt) where t - startedAt >= maxDuration:
             phase = .awaitingRelease
         case .handsFree(let startedAt, let awaitingRelease) where t - startedAt >= maxDuration:

@@ -48,6 +48,39 @@ final class HotkeyGestureTests: XCTestCase {
         XCTAssertEqual(gesture.handle(.down, at: 0.5), [])
         XCTAssertEqual(gesture.handle(.up, at: 1), [.submit])
     }
+
+    func testManualRecordingIgnoresPhysicalReleaseUntilButtonStops() {
+        var gesture = HotkeyGesture()
+        XCTAssertEqual(gesture.manualToggle(at: 0), [.start])
+        XCTAssertTrue(gesture.isManual)
+        XCTAssertEqual(gesture.handle(.down, at: 1), [])
+        XCTAssertEqual(gesture.handle(.up, at: 1.1), [])
+        XCTAssertEqual(gesture.interrupt(), [])
+        XCTAssertEqual(gesture.manualToggle(at: 2), [.submit])
+        XCTAssertFalse(gesture.isManual)
+        XCTAssertFalse(gesture.isHandsFree)
+        XCTAssertEqual(gesture.handle(.down, at: 3), [.start])
+        XCTAssertEqual(gesture.handle(.up, at: 4), [.submit])
+    }
+
+    func testManualButtonSubmitsHeldRecordingOnlyOnce() {
+        var gesture = HotkeyGesture()
+        XCTAssertEqual(gesture.handle(.down, at: 0), [.start])
+        XCTAssertEqual(gesture.manualToggle(at: 1), [.submit])
+        XCTAssertEqual(gesture.handle(.up, at: 1.1), [])
+        XCTAssertEqual(gesture.handle(.down, at: 2), [.start])
+        XCTAssertEqual(gesture.handle(.up, at: 3), [.submit])
+    }
+
+    func testManualRecordingHasMaximumDurationAndCanRestart() {
+        var gesture = HotkeyGesture(maxDuration: 10)
+        XCTAssertEqual(gesture.manualToggle(at: 0), [.start])
+        XCTAssertEqual(gesture.tick(at: 9), [])
+        XCTAssertEqual(gesture.tick(at: 10), [.submit])
+        XCTAssertEqual(gesture.tick(at: 11), [])
+        XCTAssertFalse(gesture.isManual)
+        XCTAssertEqual(gesture.manualToggle(at: 12), [.start])
+    }
 }
 
 final class HotkeyInterruptTests: XCTestCase {

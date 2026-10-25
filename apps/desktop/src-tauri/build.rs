@@ -96,6 +96,7 @@ fn build_macos_platform() {
         "Speech",
         "Security",
         "Foundation",
+        "UniformTypeIdentifiers",
     ] {
         println!("cargo:rustc-link-lib=framework={framework}");
     }

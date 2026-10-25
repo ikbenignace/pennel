@@ -21,7 +21,7 @@ struct RecordingPane: View {
     @State private var newEventTitle = ""
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             PaneSection(title: "Calls herkennen", subtitle: "Pennel merkt wanneer een call-app je microfoon gebruikt en vraagt of je wilt opnemen.") {
                 Toggle("Automatisch herkennen", isOn: $state.settings.autoDetect)
                 Toggle("Sneltoets ⌘⇧R om een opname te starten of stoppen", isOn: $state.settings.recordShortcutEnabled)
@@ -34,10 +34,7 @@ struct RecordingPane: View {
                         AppIcon(bundleId: id)
                         Text(AppIcon.name(for: id)).lineLimit(1)
                         Spacer()
-                        Picker("", selection: appAction(id)) {
-                            ForEach(RecordAction.all, id: \.self) { Text($0.label).tag($0) }
-                        }
-                        .labelsHidden()
+                        PennelPopup(label: "Opnemen in \(AppIcon.name(for: id))", options: RecordAction.all.map { ($0, $0.label) }, selection: appAction(id))
                         .frame(width: 110)
                     }
                 }
@@ -56,10 +53,7 @@ struct RecordingPane: View {
                         HStack {
                             Text(item.name).lineLimit(1)
                             Spacer()
-                            Picker("", selection: calendarAction(item.id, item.name)) {
-                                ForEach(RecordAction.all, id: \.self) { Text($0.label).tag($0) }
-                            }
-                            .labelsHidden()
+                            PennelPopup(label: "Opnemen voor agenda \(item.name)", options: RecordAction.all.map { ($0, $0.label) }, selection: calendarAction(item.id, item.name))
                             .frame(width: 110)
                         }
                     }
@@ -79,15 +73,12 @@ struct RecordingPane: View {
                     HStack {
                         Text(rule.title)
                         Spacer()
-                        Picker("", selection: $rule.action) {
-                            ForEach(RecordAction.all, id: \.self) { Text($0.label).tag($0) }
-                        }
-                        .labelsHidden()
+                        PennelPopup(label: "Opnemen voor \(rule.title)", options: RecordAction.all.map { ($0, $0.label) }, selection: $rule.action)
                         .frame(width: 110)
                         Button {
                             state.settings.eventRules.removeAll { $0.title == rule.title }
                         } label: {
-                            Image(systemName: "xmark").foregroundStyle(Theme.muted)
+                            PennelIcon.close.image.foregroundStyle(Theme.muted).frame(width: 14, height: 14)
                         }
                         .buttonStyle(.plain)
                     }
@@ -102,7 +93,7 @@ struct RecordingPane: View {
     private var appIds: [String] {
         let known = knownCallApps() + browserApps()
         let extra = state.settings.appRules.map(\.bundleId).filter { !known.contains($0) }
-        return (known + extra).filter { AppIcon.url(for: $0) != nil || extra.contains($0) }
+        return known + extra
     }
 
     private func appAction(_ id: String) -> Binding<RecordAction> {

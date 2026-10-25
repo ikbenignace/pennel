@@ -18,7 +18,10 @@ final class AudioRecorder: @unchecked Sendable {
         interleaved: false
     )!
 
-    func start(onLevel: @escaping @Sendable (Float) -> Void) throws {
+    func start(
+        onSamples: @escaping @Sendable ([Float]) -> Void = { _ in },
+        onLevel: @escaping @Sendable (Float) -> Void
+    ) throws {
         lock.withLock { samples.removeAll(keepingCapacity: true) }
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
@@ -30,6 +33,7 @@ final class AudioRecorder: @unchecked Sendable {
         input.installTap(onBus: 0, bufferSize: 2048, format: inputFormat) { [weak self] buffer, _ in
             guard let self, let converted = self.convert(buffer) else { return }
             self.lock.withLock { self.samples.append(contentsOf: converted) }
+            onSamples(converted)
             onLevel(Self.rms(converted))
         }
         engine.prepare()

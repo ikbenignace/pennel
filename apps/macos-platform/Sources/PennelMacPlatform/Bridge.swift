@@ -100,6 +100,65 @@ public func foregroundJSON() -> UnsafeMutablePointer<CChar>? {
     }
 }
 
+@_cdecl("pennel_mac_pick_style_application")
+public func pickStyleApplicationJSON(_ error: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutablePointer<CChar>? {
+    do {
+        let selection = try onMain { try MainActor.assumeIsolated { try pickStyleApplication() } }
+        guard let selection else { return bridgeString("null") }
+        return bridgeJSON(["id": selection.id, "name": selection.name])
+    } catch let failure {
+        writeError(error, failure)
+        return nil
+    }
+}
+
+@_cdecl("pennel_mac_external_target_start")
+public func externalTargetStart() {
+    onMain { MainActor.assumeIsolated { ExternalPasteCoordinator.shared.startTracking() } }
+}
+
+@_cdecl("pennel_mac_external_target_capture")
+public func externalTargetCapture() -> UnsafeMutablePointer<CChar>? {
+    let target = onMain { MainActor.assumeIsolated { ExternalPasteCoordinator.shared.capture() } }
+    guard let target else { return bridgeString("null") }
+    return bridgeJSON(["token": target.token, "name": target.name, "bundle_id": target.bundleID])
+}
+
+@_cdecl("pennel_mac_external_target_capture_current")
+public func externalTargetCaptureCurrent() -> UnsafeMutablePointer<CChar>? {
+    let target = onMain { MainActor.assumeIsolated { ExternalPasteCoordinator.shared.captureCurrentExternal() } }
+    guard let target else { return bridgeString("null") }
+    return bridgeJSON(["token": target.token, "name": target.name, "bundle_id": target.bundleID])
+}
+
+@_cdecl("pennel_mac_external_target_cancel")
+public func externalTargetCancel(_ rawToken: UnsafePointer<CChar>?) {
+    guard let token = decodeString(rawToken) else { return }
+    onMain { MainActor.assumeIsolated { ExternalPasteCoordinator.shared.cancel(token) } }
+}
+
+@_cdecl("pennel_mac_external_target_is_current")
+public func externalTargetIsCurrent(_ rawToken: UnsafePointer<CChar>?) -> Bool {
+    guard let token = decodeString(rawToken) else { return false }
+    return onMain { MainActor.assumeIsolated { ExternalPasteCoordinator.shared.isCurrent(token) } }
+}
+
+@_cdecl("pennel_mac_external_target_paste")
+func externalTargetPaste(_ rawText: UnsafePointer<CChar>?, _ rawToken: UnsafePointer<CChar>?, _ sink: @escaping TextSink, _ context: UnsafeMutableRawPointer?) {
+    guard let text = decodeString(rawText), let token = decodeString(rawToken) else {
+        completion(sink, context, value: nil, error: "Ongeldige plakbestemming")
+        return
+    }
+    Task { @MainActor in
+        do {
+            try await ExternalPasteCoordinator.shared.paste(text: text, token: token)
+            completion(sink, context, value: "")
+        } catch {
+            completion(sink, context, value: nil, error: error.localizedDescription)
+        }
+    }
+}
+
 @_cdecl("pennel_mac_other_instances")
 public func otherInstancesJSON() -> UnsafeMutablePointer<CChar>? {
     onMain {
@@ -315,6 +374,46 @@ func transcribe(_ samples: UnsafePointer<Float>?, _ count: Int, _ rate: UInt32, 
             let text = try AppleSpeechTranscriber().transcribe(samples: owned, sampleRate: rate, language: language)
             completion(sink, context, value: text)
         } catch { completion(sink, context, value: nil, error: error.localizedDescription) }
+    }
+}
+
+private final class LiveSpeechSink: @unchecked Sendable {
+    let sink: TextSink
+    let context: UnsafeMutableRawPointer?
+
+    init(sink: @escaping TextSink, context: UnsafeMutableRawPointer?) {
+        self.sink = sink
+        self.context = context
+    }
+
+    func emit(_ text: String) { completion(sink, context, value: text) }
+}
+
+@_cdecl("pennel_mac_speech_preview_start")
+func speechPreviewStart(_ rawLanguage: UnsafePointer<CChar>?, _ sink: @escaping TextSink, _ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
+    let callback = LiveSpeechSink(sink: sink, context: context)
+    let preview = LiveSpeechPreview(language: decodeString(rawLanguage), onText: { callback.emit($0) })
+    guard preview.start() else { preview.stop(); return nil }
+    return Unmanaged.passRetained(preview).toOpaque()
+}
+
+@_cdecl("pennel_mac_speech_preview_feed")
+public func speechPreviewFeed(_ handle: UnsafeMutableRawPointer?, _ samples: UnsafePointer<Float>?, _ count: Int) {
+    guard let handle, let samples, count > 0 else { return }
+    let preview = Unmanaged<LiveSpeechPreview>.fromOpaque(handle).takeUnretainedValue()
+    preview.feed(Array(UnsafeBufferPointer(start: samples, count: count)))
+}
+
+@_cdecl("pennel_mac_speech_preview_stop")
+public func speechPreviewStop(_ handle: UnsafeMutableRawPointer?) {
+    guard let handle else { return }
+    // stop drains the repeated sink before Rust releases its callback allocation.
+    let preview = Unmanaged<LiveSpeechPreview>.fromOpaque(handle).takeRetainedValue()
+    preview.stop()
+    if !Thread.isMainThread {
+        let finished = DispatchSemaphore(value: 0)
+        Task.detached { await preview.stopAndWait(); finished.signal() }
+        finished.wait()
     }
 }
 

@@ -1,6 +1,7 @@
-import { api, type Capability, type MeetingTemplate, type RecordAction } from "../api";
+import { api, listen, type Capability, type MeetingTemplate, type RecordAction } from "../api";
 import { confirmDialog, errorText, h, section, select, toggle } from "../dom";
 import type { Context } from "../main";
+import { icon } from "../icons";
 
 const actions: [RecordAction, string][] = [["ask", "Vragen"], ["always", "Altijd"], ["never", "Nooit"]];
 const apps: [string, string][] = [
@@ -8,7 +9,7 @@ const apps: [string, string][] = [
   ["com.tinyspeck.slackmacgap", "Slack"], ["com.apple.FaceTime", "FaceTime"],
   ["net.whatsapp.WhatsApp", "WhatsApp"], ["Cisco-Systems.Spark", "Webex"],
   ["com.hnc.Discord", "Discord"], ["com.google.Chrome", "Google Chrome"],
-  ["com.apple.Safari", "Safari"], ["com.microsoft.edgemac", "Microsoft Edge"],
+  ["com.apple.Safari", "Safari"], ["company.thebrowser.Browser", "Arc"], ["com.microsoft.edgemac", "Microsoft Edge"],
   ["org.mozilla.firefox", "Firefox"], ["com.brave.Browser", "Brave"],
 ];
 
@@ -77,8 +78,7 @@ export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
   const templates = await api.meetingTemplates();
   const recording = await api.meetingStatus();
   const pathLocked = ctx.info.preview || recording.busy;
-  const path = h("input", { type: "text", value: settings.meetings_dir, placeholder: "Standaardmap", disabled: pathLocked, "aria-label": "Meetingmap" });
-  path.addEventListener("change", () => { void ctx.save((next) => { next.meetings_dir = path.value.trim(); }); });
+  const path = h("span", { class: "grow meeting-path", "aria-label": "Meetingmap" }, ctx.info.preview ? "Preview · aparte meetingmap" : settings.meetings_dir || "~/Pennel");
   const status = h("p", { class: "help" }, "Sprekersmodel nog niet gecontroleerd.");
   const download = h("button", { class: "btn", onclick: async () => {
     download.disabled = true;
@@ -93,15 +93,15 @@ export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
     download.disabled = model.kind === "downloaded";
   } catch (error) { status.textContent = errorText(error); }
   const listeners = await Promise.all([
-    import("@tauri-apps/api/event").then(({ listen }) => listen<{ id: string; downloaded: number; total: number }>("download-progress", (event) => {
+    listen<{ id: string; downloaded: number; total: number }>("download-progress", (event) => {
       if (event.payload.id !== ctx.info.diarizer_model_id) return;
       progress.hidden = false; progress.max = event.payload.total || 1; progress.value = event.payload.downloaded;
-    })),
-    import("@tauri-apps/api/event").then(({ listen }) => listen<{ id: string; error: string | null }>("download-done", (event) => {
+    }),
+    listen<{ id: string; error: string | null }>("download-done", (event) => {
       if (event.payload.id !== ctx.info.diarizer_model_id) return;
       status.textContent = event.payload.error ? errorText(event.payload.error) : "Model klaar · Sortformer, tot 4 sprekers";
       progress.hidden = true; download.disabled = !event.payload.error;
-    })),
+    }),
   ]);
   ctx.onDispose(() => listeners.forEach((dispose) => dispose()));
   return h("div", { class: "settings-pane" },
@@ -111,8 +111,8 @@ export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
           const selected = await api.chooseMeetingsDir();
           if (selected !== null) await ctx.save((next) => { next.meetings_dir = selected; });
         } }, "Kies…"),
-        h("button", { class: "btn", disabled: pathLocked, onclick: () => ctx.save((next) => { next.meetings_dir = ""; }) }, "Standaard")),
-      ctx.info.preview ? h("p", { class: "help" }, "Deze preview bewaart meetings in een aparte testmap. Je bestaande meetingmap blijft apart.") : null,
+        settings.meetings_dir ? h("button", { class: "btn", disabled: pathLocked, onclick: () => ctx.save((next) => { next.meetings_dir = ""; }) }, "Standaard") : null),
+      ctx.info.preview ? h("p", { class: "help" }, "De preview gebruikt uitsluitend zijn eigen meetingmap.") : null,
       !ctx.info.preview && recording.busy ? h("p", { class: "help" }, "Wacht tot de opname is afgerond voordat je de meetingmap wijzigt.") : null,
       /(?:Mobile Documents|\/Documents(?:\/|$)|\/Desktop(?:\/|$))/.test(settings.meetings_dir)
         ? h("p", { class: "help" }, "Als je deze map synchroniseert, gaan je meetings en audio ook naar die dienst.") : null),
@@ -132,7 +132,8 @@ export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
 export async function recordingSettingsView(ctx: Context): Promise<HTMLElement> {
   const { settings, capabilities, platform } = ctx.info;
   const snapshot = await api.calendar();
-  const appIds = new Map(apps);
+  const names = new Map(apps);
+  const appIds = new Map((ctx.info.recording_app_ids ?? apps.map(([id]) => id)).map((id) => [id, names.get(id) ?? id]));
   settings.app_rules.forEach((rule) => { if (!appIds.has(rule.bundle_id)) appIds.set(rule.bundle_id, rule.bundle_id); });
   const addTitle = h("input", { type: "text", placeholder: "Titel van de meeting", class: "grow" });
   const add = async () => {
@@ -151,7 +152,7 @@ export async function recordingSettingsView(ctx: Context): Promise<HTMLElement> 
       toggle("Toestemmingszin kopiëren bij de start van een opname", settings.consent_enabled,
         (value) => ctx.save((next) => { next.consent_enabled = value; }))),
     section("Per app", null,
-      [...appIds].map(([id, name]) => h("div", { class: "row rule-row" }, h("span", { class: "grow" }, name),
+      [...appIds].map(([id, name]) => h("div", { class: "row rule-row" }, icon("laptop"), h("span", { class: "grow" }, name),
         select(actions, settings.app_rules.find((rule) => rule.bundle_id === id)?.action ?? "ask", (action) => ctx.save((next) => {
           next.app_rules = next.app_rules.filter((rule) => rule.bundle_id !== id);
           if (action !== "ask") next.app_rules.push({ bundle_id: id, action });
@@ -173,5 +174,5 @@ export async function recordingSettingsView(ctx: Context): Promise<HTMLElement> 
       h("div", { class: "row" }, addTitle, h("button", { class: "btn", onclick: add }, "Toevoegen")),
       settings.event_rules.map((rule) => h("div", { class: "row rule-row" }, h("span", { class: "grow" }, rule.title),
         select(actions, rule.action, (action) => ctx.save((next) => { const found = next.event_rules.find((item) => item.title === rule.title); if (found) found.action = action; })),
-        h("button", { class: "btn icon-button", "aria-label": `Regel voor ${rule.title} verwijderen`, onclick: () => ctx.save((next) => { next.event_rules = next.event_rules.filter((item) => item.title !== rule.title); }) }, "×")))));
+        h("button", { class: "button-icon", "aria-label": `Regel voor ${rule.title} verwijderen`, onclick: () => ctx.save((next) => { next.event_rules = next.event_rules.filter((item) => item.title !== rule.title); }) }, icon("close"))))));
 }

@@ -7,16 +7,17 @@ struct MeetingsPane: View {
     @Bindable var state: AppState
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             PaneSection(title: "Map", subtitle: "Elke meeting wordt een map met Markdown en audio. Leesbaar in Obsidian.") {
                 HStack {
                     Text(displayPath).lineLimit(1).truncationMode(.middle)
                     Spacer()
-                    Button("Kies…", action: choose)
+                    Button("Kies…", action: choose).disabled(state.preview)
                     if !state.settings.meetingsDir.isEmpty {
-                        Button("Standaard") { state.settings.meetingsDir = "" }
+                        Button("Standaard") { state.settings.meetingsDir = "" }.disabled(state.preview)
                     }
                 }
+                if state.preview { Text("De preview gebruikt uitsluitend zijn eigen meetingmap.").font(.figtree(11)).foregroundStyle(Theme.muted) }
                 if syncsToCloud {
                     Text("Deze map lijkt naar iCloud te synchroniseren. Je meetings en audio gaan dan ook naar Apple.")
                         .font(.figtree(12))
@@ -29,13 +30,7 @@ struct MeetingsPane: View {
             TemplatesSection(state: state)
             SpeakersSection(state: state)
             PaneSection(title: "Audio bewaren", subtitle: "Notities en transcript blijven altijd staan.") {
-                Picker("", selection: $state.settings.meetingAudioRetentionDays) {
-                    Text("30 dagen").tag(UInt32(30))
-                    Text("90 dagen").tag(UInt32(90))
-                    Text("1 jaar").tag(UInt32(365))
-                    Text("Altijd").tag(UInt32(0))
-                }
-                .labelsHidden()
+                PennelPopup(label: "Audio bewaren", options: [(UInt32(30), "30 dagen"), (UInt32(90), "90 dagen"), (UInt32(365), "1 jaar"), (UInt32(0), "Altijd")], selection: $state.settings.meetingAudioRetentionDays)
                 .frame(maxWidth: 220)
             }
         }
@@ -46,7 +41,7 @@ struct MeetingsPane: View {
     }
 
     private var displayPath: String {
-        path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+        state.preview ? "Preview · aparte meetingmap" : path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
     }
 
     /// iCloud Drive lives under Mobile Documents; Desktop & Documents sync when that iCloud option is on.
@@ -74,10 +69,7 @@ struct TemplatePicker: View {
     @Binding var selection: String
 
     var body: some View {
-        Picker("", selection: $selection) {
-            ForEach(state.templates, id: \.id) { Text($0.name).tag($0.id) }
-        }
-        .labelsHidden()
+        PennelPopup(label: "Sjabloon", options: state.templates.map { ($0.id, $0.name) }, selection: $selection)
         .frame(maxWidth: 220)
         .onAppear {
             if state.templates.isEmpty { state.reloadTemplates() }

@@ -1,9 +1,10 @@
+@import "./theme.generated.css";
+
 @font-face {
   font-family: "Figtree";
   src: url("../../../assets/brand/fonts/Figtree-Regular.ttf") format("truetype");
   font-weight: 400;
 }
-
 @font-face {
   font-family: "Figtree";
   src: url("../../../assets/brand/fonts/Figtree-Medium.ttf") format("truetype");
@@ -20,16 +21,4 @@
   font-family: "Instrument Serif";
   src: url("../../../assets/brand/fonts/InstrumentSerif-Regular.ttf") format("truetype");
   font-weight: 400;
-}
-
-:root {
-  --paper: #fcfbf8;
-  --background: #f7f4ee;
-  --ink: #2a2723;
-  --muted: #7a7268;
-  --line: #ece7de;
-  --accent: #c2410c;
-  --wave: #f2b48e;
-  --ui: "Figtree", "Segoe UI", system-ui, sans-serif;
-  --serif: "Instrument Serif", Georgia, serif;
 }

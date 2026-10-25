@@ -4,13 +4,16 @@ import SwiftUI
 
 struct TemplatesSection: View {
     let state: AppState
-    @State private var editing: EditorTarget?
+    private var editing: EditorTarget? {
+        get { state.workspace.templateEditing }
+        nonmutating set { state.workspace.templateEditing = newValue }
+    }
     @State private var deleting: MeetingTemplate?
     @State private var error: String?
 
     private var templates: [MeetingTemplate] { state.templates }
 
-    struct EditorTarget {
+    struct EditorTarget: Identifiable {
         let id: String?
         let name: String
         let body: String
@@ -39,20 +42,6 @@ struct TemplatesSection: View {
             }
         }
         .onAppear(perform: reload)
-        .sheet(item: Binding(get: { editing.map(Wrapped.init) }, set: { editing = $0?.target })) { wrapped in
-            TemplateEditor(target: wrapped.target) { name, body in
-                do {
-                    _ = try state.engine.saveTemplate(id: wrapped.target.id, name: name, body: body)
-                    editing = nil
-                    reload()
-                    return nil
-                } catch {
-                    return "Bewaren mislukt: \(error)"
-                }
-            } onCancel: {
-                editing = nil
-            }
-        }
         .confirmationDialog(
             deleting?.builtin == true ? "Origineel sjabloon herstellen?" : "Sjabloon \(deleting?.name ?? "") verwijderen?",
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
@@ -71,13 +60,9 @@ struct TemplatesSection: View {
         }
     }
 
-    private struct Wrapped: Identifiable {
-        let target: EditorTarget
-        var id: String { target.identity }
-    }
 
     private func tag(_ text: String) -> some View {
-        Text(text).font(.figtree(10)).foregroundStyle(Theme.muted)
+        Text(text).font(.figtree(11)).foregroundStyle(Theme.muted)
     }
 
     private func edit(_ template: MeetingTemplate) {

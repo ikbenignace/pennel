@@ -87,6 +87,7 @@ impl StartupStorage {
         }
         let snapshot = [
             "settings.json",
+            crate::dictation_pad::PAD_FILE,
             "history.sqlite",
             "index.sqlite",
             "failed-audio",
@@ -158,7 +159,12 @@ fn ensure_snapshot(dir: &Path) -> Result<(), PennelError> {
     fs::create_dir(&staging).map_err(PennelError::storage)?;
     private_directory(&staging)?;
     let mut files = Vec::new();
-    for name in ["settings.json", "history.sqlite", "index.sqlite"] {
+    for name in [
+        "settings.json",
+        crate::dictation_pad::PAD_FILE,
+        "history.sqlite",
+        "index.sqlite",
+    ] {
         let source = dir.join(name);
         if !source.exists() {
             continue;
@@ -289,6 +295,11 @@ mod tests {
     fn snapshot_includes_wal_rows_and_failed_audio_before_pruning() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("settings.json"), "original").unwrap();
+        fs::write(
+            dir.path().join(crate::dictation_pad::PAD_FILE),
+            "Eigen concept",
+        )
+        .unwrap();
         fs::create_dir(dir.path().join("failed-audio")).unwrap();
         fs::write(dir.path().join("failed-audio/one.wav"), b"private audio").unwrap();
         let connection = Connection::open(dir.path().join("history.sqlite")).unwrap();
@@ -304,6 +315,11 @@ mod tests {
         assert_eq!(
             fs::read(dir.path().join(BACKUP).join("failed-audio/one.wav")).unwrap(),
             b"private audio"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join(BACKUP).join(crate::dictation_pad::PAD_FILE))
+                .unwrap(),
+            "Eigen concept"
         );
         storage.finish().unwrap();
     }

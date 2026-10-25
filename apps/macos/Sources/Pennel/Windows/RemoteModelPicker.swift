@@ -49,11 +49,11 @@ struct RemoteModelPicker: View {
                 HStack {
                     Text(model.id).font(.figtree(12, weight: model.id == selection ? .semibold : .regular))
                     if model.isRouter {
-                        Text("willekeurig").font(.figtree(10)).foregroundStyle(Theme.accent)
+                        Text("willekeurig").font(.figtree(11)).foregroundStyle(Theme.accent)
                     }
                 }
                 if let facts = facts(model) {
-                    Text(facts).font(.figtree(10)).foregroundStyle(Theme.muted)
+                    Text(facts).font(.figtree(11)).foregroundStyle(Theme.muted)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
