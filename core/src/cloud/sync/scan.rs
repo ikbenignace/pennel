@@ -97,16 +97,66 @@ pub fn is_template_name(name: &str) -> bool {
     is_syncable(name) && name.to_lowercase().ends_with(".md")
 }
 
+fn refused_char(c: char) -> bool {
+    matches!(c, '/' | '\\' | ':' | '<' | '>' | '"' | '|' | '?' | '*') || c.is_control()
+}
+
+/// Windows refuses these as a name stem, whatever the extension.
+fn reserved_stem(name: &str) -> bool {
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or(name)
+        .trim_end()
+        .to_ascii_lowercase();
+    matches!(stem.as_str(), "con" | "prn" | "aux" | "nul")
+        || ((stem.starts_with("com") || stem.starts_with("lpt"))
+            && stem.len() == 4
+            && stem.as_bytes()[3].is_ascii_digit()
+            && stem.as_bytes()[3] != b'0')
+}
+
+/// The on-disk name of a synced file. What Windows refuses becomes `_` on every platform, so
+/// all devices write the same name; the sync key keeps the original.
+pub fn portable_name(name: &str) -> String {
+    let replaced: String = name
+        .chars()
+        .map(|c| if refused_char(c) { '_' } else { c })
+        .collect();
+    let kept = replaced.trim_end_matches(['.', ' ']);
+    let portable = format!("{kept}{}", "_".repeat(replaced.len() - kept.len()));
+    if reserved_stem(&portable) {
+        format!("_{portable}")
+    } else {
+        portable
+    }
+}
+
+/// Where the file for a synced `name` is: under that name when it exists, else under its
+/// portable name.
+pub fn file_slot(dir: &Path, name: &str) -> Slot {
+    let portable = portable_name(name);
+    if portable == name {
+        return slot(dir, name);
+    }
+    match slot(dir, name) {
+        Slot::Existing(path) => Slot::Existing(path),
+        _ => slot(dir, &portable),
+    }
+}
+
 /// A folder name from another device made safe for every platform; `None` when nothing usable is left.
 pub fn clean_folder(name: &str) -> Option<String> {
-    let kept: String = nfc(name)
-        .chars()
-        .filter(|c| {
-            !matches!(c, '/' | '\\' | ':' | '<' | '>' | '"' | '|' | '?' | '*') && !c.is_control()
-        })
-        .collect();
+    let kept: String = nfc(name).chars().filter(|c| !refused_char(*c)).collect();
     let trimmed = kept.trim().trim_end_matches(['.', ' ']).trim();
-    (!trimmed.is_empty() && !trimmed.starts_with('.')).then(|| trimmed.to_string())
+    if trimmed.is_empty() || trimmed.starts_with('.') {
+        return None;
+    }
+    Some(if reserved_stem(trimmed) {
+        format!("_{trimmed}")
+    } else {
+        trimmed.to_string()
+    })
 }
 
 fn utf8_entries(dir: &Path) -> Vec<(String, PathBuf)> {
@@ -366,6 +416,29 @@ mod tests {
         );
         assert_eq!(files[1].hash, sha256_hex(b"meeting.md"));
         assert_eq!(files[1].rel_path, Path::new(folder).join("meeting.md"));
+    }
+
+    #[test]
+    fn portable_names_avoid_what_windows_refuses() {
+        assert_eq!(portable_name("notes.md"), "notes.md");
+        assert_eq!(portable_name("a:b?.md"), "a_b_.md");
+        assert_eq!(portable_name("x<y>|\"*\u{1}.md"), "x_y_____.md");
+        assert_eq!(portable_name("CON.md"), "_CON.md");
+        assert_eq!(portable_name("lpt1.txt"), "_lpt1.txt");
+        assert_eq!(portable_name("console.md"), "console.md");
+        assert_eq!(portable_name("notes.md. "), "notes.md__");
+        assert_eq!(clean_folder("CON"), Some("_CON".into()));
+        assert_eq!(clean_folder("Aux.x"), Some("_Aux.x".into()));
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a_b.md"), "a").unwrap();
+        assert_eq!(
+            file_slot(dir.path(), "a:b.md"),
+            Slot::Existing(dir.path().join("a_b.md"))
+        );
+        assert_eq!(
+            file_slot(dir.path(), "c:d.md"),
+            Slot::Free(dir.path().join("c_d.md"))
+        );
     }
 
     #[test]

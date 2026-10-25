@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use api::{ChangePage, PutResult, SyncApi};
 use chrono::{Local, TimeZone};
 use scan::{
-    Key, LocalFile, MEETING_FILE, Slot, TEMPLATES_DIR, clean_folder, find_dir, hash_file, nfc,
-    parse_key, sha256_hex, slot,
+    Key, LocalFile, MEETING_FILE, Slot, TEMPLATES_DIR, clean_folder, file_slot, find_dir,
+    hash_file, nfc, parse_key, portable_name, sha256_hex, slot,
 };
 use state::{Entry, SyncState};
 
@@ -449,7 +449,7 @@ impl Pass<'_> {
 
     fn local_hash(&self, key: &str) -> Option<String> {
         let (dir, _, name) = self.location(key)?;
-        match slot(&dir, &name) {
+        match file_slot(&dir, &name) {
             Slot::Existing(path) => hash_file(&path),
             _ => None,
         }
@@ -514,7 +514,7 @@ impl Pass<'_> {
 
     /// Writes the remote version beside `name`; an identical copy already there is reused.
     fn conflict_copy(&mut self, dir: &Path, name: &str, payload: &Payload) -> Result<(), Stop> {
-        let (base, ext) = conflict_name(name, payload);
+        let (base, ext) = conflict_name(&portable_name(name), payload);
         let content_hash = sha256_hex(&payload.content);
         for n in 1.. {
             let candidate = if n == 1 {
@@ -575,7 +575,7 @@ impl Pass<'_> {
                 (self.root.join(&folder), Some(folder), name, Some(uid))
             }
         };
-        let target = match slot(&dir, &name) {
+        let target = match file_slot(&dir, &name) {
             Slot::Taken => {
                 // Writing would replace a different file on a case-insensitive disk.
                 return self.conflict_copy(&dir, &name, &payload);
@@ -638,7 +638,7 @@ impl Pass<'_> {
             if name == MEETING_FILE {
                 continue;
             }
-            let entry = self.state.entry(&scan::meeting_key(uid, &name))?;
+            let entry = tracked_entry(self.state, &scan::meeting_key(uid, &name))?;
             if entry.is_none_or(|e| hash_file(&path).as_deref() != Some(e.synced_hash.as_str())) {
                 return Ok(true);
             }
@@ -675,7 +675,7 @@ impl Pass<'_> {
                 })?;
                 continue;
             }
-            match slot(&dir, &name) {
+            match file_slot(&dir, &name) {
                 Slot::Existing(path) if hash_file(&path).as_deref() == Some(&entry.synced_hash) => {
                     let rel = path.strip_prefix(&self.root).unwrap_or(&path).to_path_buf();
                     trash::move_to_trash(self.data_dir, &self.root, &rel)?;
@@ -722,7 +722,12 @@ impl Pass<'_> {
             .filter(|(_, folder)| !self.is_recording(folder))
             .map(|(uid, folder)| (uid.clone(), folder.clone()))
             .collect();
-        let files = scan::scan(&self.root, &live)?;
+        let mut files = scan::scan(&self.root, &live)?;
+        for file in &mut files {
+            if let Some(entry) = tracked_entry(self.state, &file.key)? {
+                file.key = entry.key;
+            }
+        }
         let keys: HashSet<String> = files.iter().map(|f| f.key.clone()).collect();
         for file in &files {
             let entry = self.state.entry(&file.key)?;
@@ -884,7 +889,7 @@ impl Pass<'_> {
     /// counts as deleted. An unreadable `meeting.md` or a recording meeting never does.
     fn vanished(&self, entry: &Entry) -> Result<bool, PennelError> {
         let absent = |dir: &Path, name: &str| {
-            scan::listable(dir) && !matches!(slot(dir, name), Slot::Existing(_))
+            scan::listable(dir) && !matches!(file_slot(dir, name), Slot::Existing(_))
         };
         Ok(match parse_key(&entry.key) {
             // A missing `.templates` folder (moved, or not synced into this root yet) is not
@@ -931,6 +936,27 @@ impl Pass<'_> {
     }
 }
 
+/// The entry for the file a key from disk names. A download whose name was not portable lives
+/// under its portable name but keeps the key it was synced under.
+fn tracked_entry(state: &SyncState, key: &str) -> Result<Option<Entry>, PennelError> {
+    if let Some(entry) = state.entry(key)? {
+        return Ok(Some(entry));
+    }
+    let Some((prefix, name)) = key.rsplit_once('/') else {
+        return Ok(None);
+    };
+    if !name.contains('_') {
+        return Ok(None);
+    }
+    let prefix = format!("{prefix}/");
+    Ok(state
+        .entries_with_prefix(&prefix)?
+        .into_iter()
+        .find(|entry| {
+            entry.key[prefix.len()..] != *name && portable_name(&entry.key[prefix.len()..]) == name
+        }))
+}
+
 fn has_conflict_copy(dir: &Path) -> bool {
     std::fs::read_dir(dir)
         .into_iter()
@@ -954,7 +980,7 @@ pub fn item_states(root: &Path, state: &SyncState) -> Result<Vec<MeetingSyncStat
             let mut pending = folder.uid.is_none();
             if let Some(uid) = folder.uid.as_deref() {
                 for (name, path) in scan::syncable_files(&dir)? {
-                    let entry = state.entry(&scan::meeting_key(uid, &name))?;
+                    let entry = tracked_entry(state, &scan::meeting_key(uid, &name))?;
                     if entry.is_none_or(|e| hash_file(&path).as_deref() != Some(&e.synced_hash)) {
                         pending = true;
                         break;
@@ -1074,6 +1100,14 @@ mod tests {
 
         fn store(&self) -> MeetingStore {
             MeetingStore::new(&self.root)
+        }
+
+        fn engine_states(&self) -> Vec<SyncItemState> {
+            item_states(&self.root, &self.state)
+                .unwrap()
+                .into_iter()
+                .map(|s| s.state)
+                .collect()
         }
 
         fn path(&self, rel: &str) -> PathBuf {
@@ -1651,6 +1685,63 @@ mod tests {
             }
         );
         assert_eq!(api.live_objects(), 1);
+    }
+
+    fn put_remote(api: &FakeApi, device: &Device, key: &str, folder: Option<&str>, text: &str) {
+        let vault_key = VaultKey::from_b64(&device.key).unwrap();
+        let id = crypto::object_id(&vault_key, key);
+        let payload = Payload {
+            key: key.into(),
+            folder: folder.map(str::to_string),
+            content: text.as_bytes().to_vec(),
+            modified_ms: 0,
+            device: "Linux".into(),
+        };
+        let blob = crypto::seal(&vault_key, &id, 1, &payload);
+        assert!(matches!(
+            api.put(&id, 0, 1, &blob).unwrap(),
+            PutResult::Ok(_)
+        ));
+    }
+
+    #[test]
+    fn names_windows_refuses_are_written_portably_and_keep_their_key() {
+        let (api, a, b) = setup();
+        let id = shared_meeting(&api, &a, &b);
+        let uid = a.store().uid_of(&id).unwrap();
+        let odd = format!("meeting/{uid}/a:b?.md");
+        put_remote(&api, &a, &odd, Some(&id), "raar\n");
+        put_remote(&api, &a, "templates/con.md", None, "# Con\n");
+        let live = api.live_objects();
+
+        let report = b.sync(&api);
+        synced(&report);
+        assert_eq!(report.downloaded, 2);
+        assert_eq!(b.read(&format!("{id}/a_b_.md")).as_deref(), Some("raar\n"));
+        assert_eq!(b.read(".templates/_con.md").as_deref(), Some("# Con\n"));
+        assert!(b.state.entry(&odd).unwrap().is_some());
+
+        let report = b.sync(&api);
+        synced(&report);
+        assert_eq!(report.uploaded, 0);
+        assert_eq!(api.live_objects(), live);
+
+        b.write(&format!("{id}/a_b_.md"), "aangepast\n");
+        let report = b.sync(&api);
+        synced(&report);
+        assert_eq!(report.uploaded, 1);
+        assert_eq!(api.live_objects(), live);
+        synced(&a.sync(&api));
+        assert_eq!(
+            a.read(&format!("{id}/a_b_.md")).as_deref(),
+            Some("aangepast\n")
+        );
+        assert_eq!(b.engine_states(), vec![SyncItemState::Synced]);
+
+        std::fs::remove_file(b.path(&format!("{id}/a_b_.md"))).unwrap();
+        synced(&b.sync(&api));
+        assert_eq!(api.live_objects(), live - 1);
+        assert!(b.state.entry(&odd).unwrap().is_none());
     }
 
     #[test]

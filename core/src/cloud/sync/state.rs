@@ -102,6 +102,19 @@ impl SyncState {
             .map_err(PennelError::storage)
     }
 
+    pub fn entries_with_prefix(&self, prefix: &str) -> Result<Vec<Entry>, PennelError> {
+        let mut statement = self
+            .conn
+            .prepare(&format!(
+                "select {COLUMNS} from entries where substr(key, 1, ?2) = ?1 order by key"
+            ))
+            .map_err(PennelError::storage)?;
+        statement
+            .query_map(params![prefix, prefix.len() as i64], entry_from)
+            .and_then(Iterator::collect)
+            .map_err(PennelError::storage)
+    }
+
     pub fn put(&self, entry: &Entry) -> Result<(), PennelError> {
         self.conn
             .execute(
