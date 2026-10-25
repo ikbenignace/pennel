@@ -215,7 +215,7 @@ pub fn copy_secret(text: &str) -> Result<(), String> {
     if unsafe { pennel_mac_copy_secret(text.as_ptr()) } {
         Ok(())
     } else {
-        Err("Tekst kon niet naar het klembord worden gekopieerd".into())
+        Err("Kopiëren is mislukt.".into())
     }
 }
 

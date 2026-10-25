@@ -81,6 +81,10 @@ export function relativeTime(thenMs: number, nowMs: number): string {
   return days === 1 ? "1 dag geleden" : `${days} dagen geleden`;
 }
 
+export function copyStatusText(failure: string | null): string {
+  return failure ?? "Gekopieerd";
+}
+
 export interface AccountUi {
   login:
     | { kind: "idle" }

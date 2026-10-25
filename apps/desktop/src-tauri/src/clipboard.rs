@@ -17,14 +17,21 @@ pub trait Clipboard {
     fn snapshot(&mut self) -> Self::Snapshot;
     fn restore(&mut self, snapshot: &Self::Snapshot);
     /// Writes text marked so clipboard managers and Windows clipboard history skip it.
-    fn set_transient_text(&mut self, text: &str);
+    fn try_set_transient_text(&mut self, text: &str) -> Result<(), String>;
+    fn set_transient_text(&mut self, text: &str) {
+        let _ = self.try_set_transient_text(text);
+    }
     fn text(&mut self) -> Option<String>;
 }
 
 /// Puts a secret on the clipboard marked so clipboard managers and Windows clipboard history skip it.
-pub fn copy_secret<C: Clipboard>(clipboard: &mut C, text: &str) {
-    clipboard.set_transient_text(text);
+pub fn copy_secret<C: Clipboard>(clipboard: &mut C, text: &str) -> Result<(), String> {
+    clipboard
+        .try_set_transient_text(text)
+        .map_err(|_| COPY_FAILED.to_owned())
 }
+
+pub const COPY_FAILED: &str = "Kopiëren is mislukt.";
 
 pub struct Token<S> {
     saved: S,
@@ -121,6 +128,7 @@ mod tests {
         contents: Option<String>,
         writes: u64,
         transient_writes: u64,
+        fail_writes: bool,
         pending_copy: Rc<RefCell<Option<String>>>,
     }
 
@@ -151,10 +159,14 @@ mod tests {
             self.writes += 1;
         }
 
-        fn set_transient_text(&mut self, text: &str) {
+        fn try_set_transient_text(&mut self, text: &str) -> Result<(), String> {
             self.transient_writes += 1;
+            if self.fail_writes {
+                return Err("boom".into());
+            }
             self.contents = Some(text.into());
             self.writes += 1;
+            Ok(())
         }
 
         fn text(&mut self) -> Option<String> {
@@ -171,9 +183,21 @@ mod tests {
     #[test]
     fn secrets_are_written_through_the_history_excluding_path() {
         let mut c = FakeClipboard::default();
-        copy_secret(&mut c, "ABCD-EFGH");
+        assert_eq!(copy_secret(&mut c, "ABCD-EFGH"), Ok(()));
         assert_eq!(c.transient_writes, 1);
         assert_eq!(c.contents.as_deref(), Some("ABCD-EFGH"));
+    }
+
+    #[test]
+    fn a_failed_secret_write_is_reported_without_the_secret() {
+        let mut c = FakeClipboard {
+            fail_writes: true,
+            ..FakeClipboard::default()
+        };
+        let error = copy_secret(&mut c, "ABCD-EFGH").unwrap_err();
+        assert_eq!(error, COPY_FAILED);
+        assert!(!error.contains("ABCD"));
+        assert_eq!(c.contents, None);
     }
 
     #[test]

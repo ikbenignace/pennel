@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accountScreenFor, afterSignOut, formatUsage, initialAccountUi, pollLogin, recoveryNeedsConfirmation } from "../src/cloud-login.ts";
+import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, pollLogin, recoveryNeedsConfirmation } from "../src/cloud-login.ts";
 
 function clock(start = 0) {
   const state = { time: start, sleeps: [] };
@@ -98,4 +98,9 @@ test("not_signed_in leads to the signed-out screen, other errors do not", () => 
   assert.equal(accountScreenFor("not_signed_in"), "signed_out");
   assert.equal(accountScreenFor("error"), "signed_in");
   assert.equal(accountScreenFor(null), "signed_in");
+});
+
+test("a failed copy shows the error instead of the success text", () => {
+  assert.equal(copyStatusText(null), "Gekopieerd");
+  assert.equal(copyStatusText("Kopiëren is mislukt."), "Kopiëren is mislukt.");
 });

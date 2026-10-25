@@ -73,14 +73,17 @@ mod portable {
             };
         }
 
-        fn set_transient_text(&mut self, text: &str) {
+        fn try_set_transient_text(&mut self, text: &str) -> Result<(), String> {
             #[cfg(target_os = "macos")]
             use arboard::SetExtApple;
             #[cfg(target_os = "linux")]
             use arboard::SetExtLinux;
-            if let Some(clipboard) = self.inner() {
-                let _ = clipboard.set().exclude_from_history().text(text.to_owned());
-            }
+            let clipboard = self.inner().ok_or("klembord niet beschikbaar")?;
+            clipboard
+                .set()
+                .exclude_from_history()
+                .text(text.to_owned())
+                .map_err(|error| error.to_string())
         }
 
         fn text(&mut self) -> Option<String> {
@@ -156,20 +159,22 @@ mod win {
         Some(bytes)
     }
 
-    unsafe fn write_global(format: u32, bytes: &[u8]) {
+    unsafe fn write_global(format: u32, bytes: &[u8]) -> bool {
         let Ok(global) = (unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes.len().max(1)) }) else {
-            return;
+            return false;
         };
         let ptr = unsafe { GlobalLock(global) } as *mut u8;
         if ptr.is_null() {
             let _ = unsafe { GlobalFree(Some(global)) };
-            return;
+            return false;
         }
         unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len()) };
         let _ = unsafe { GlobalUnlock(global) };
         if unsafe { SetClipboardData(format, Some(HANDLE(global.0))) }.is_err() {
             let _ = unsafe { GlobalFree(Some(global)) };
+            return false;
         }
+        true
     }
 
     impl Clipboard for SystemClipboard {
@@ -218,9 +223,9 @@ mod win {
             }
         }
 
-        fn set_transient_text(&mut self, text: &str) {
+        fn try_set_transient_text(&mut self, text: &str) -> Result<(), String> {
             let Some(_open) = Open::new() else {
-                return;
+                return Err("klembord is in gebruik".into());
             };
             let _ = unsafe { EmptyClipboard() };
             let wide: Vec<u8> = text
@@ -228,17 +233,23 @@ mod win {
                 .chain(std::iter::once(0))
                 .flat_map(u16::to_le_bytes)
                 .collect();
-            unsafe {
-                write_global(CF_UNICODETEXT, &wide);
+            let written = unsafe {
                 let exclude =
                     RegisterClipboardFormatW(w!("ExcludeClipboardContentFromMonitorProcessing"));
-                write_global(exclude, &[0]);
-                for name in [
-                    w!("CanIncludeInClipboardHistory"),
-                    w!("CanUploadToCloudClipboard"),
-                ] {
-                    write_global(RegisterClipboardFormatW(name), &0u32.to_le_bytes());
-                }
+                write_global(CF_UNICODETEXT, &wide)
+                    && write_global(exclude, &[0])
+                    && [
+                        w!("CanIncludeInClipboardHistory"),
+                        w!("CanUploadToCloudClipboard"),
+                    ]
+                    .into_iter()
+                    .all(|name| write_global(RegisterClipboardFormatW(name), &0u32.to_le_bytes()))
+            };
+            if written {
+                Ok(())
+            } else {
+                let _ = unsafe { EmptyClipboard() };
+                Err("klembord schrijven mislukt".into())
             }
         }
 

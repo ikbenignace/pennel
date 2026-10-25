@@ -1,5 +1,5 @@
 import { api, type CloudAccount, type CloudDevice, type Settings, type SyncReport } from "../api";
-import { accountScreenFor, afterSignOut, formatUsage, initialAccountUi, pollLogin, recoveryNeedsConfirmation, relativeTime, type LoginPoll } from "../cloud-login";
+import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, pollLogin, recoveryNeedsConfirmation, relativeTime, type LoginPoll } from "../cloud-login";
 import { confirmDialog, errorCode, errorText, h, section, toggle } from "../dom";
 import type { Context } from "../main";
 
@@ -268,8 +268,8 @@ function syncSection(ctx: Context, report: SyncReport, enabled: boolean, warning
 }
 
 async function copyRecoveryCode(code: string, status: HTMLElement) {
-  try { await api.copySecretText(code); status.textContent = "Gekopieerd"; }
-  catch (error) { status.textContent = errorText(error); }
+  try { await api.copySecretText(code); status.textContent = copyStatusText(null); }
+  catch (error) { status.textContent = copyStatusText(errorText(error)); }
 }
 
 function printRecoveryCode(code: string) {

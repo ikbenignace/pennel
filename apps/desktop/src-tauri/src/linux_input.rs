@@ -48,8 +48,22 @@ pub fn bounded_output(program: &str, arguments: &[&str], timeout: Duration) -> O
 /// wl-copy owns the Wayland selection in its daemon after this process finishes.
 /// Text is passed through stdin, never command arguments or logs.
 pub fn copy_wayland(text: &str) -> Result<(), String> {
-    let mut child = Command::new("wl-copy")
-        .args(["--type", "text/plain;charset=utf-8"])
+    copy_wayland_with(text, false)
+}
+
+/// `--sensitive` (wl-clipboard 2.2+) keeps clipboard managers from recording the text. Older
+/// versions reject the flag, in which case the text is copied without it.
+pub fn copy_wayland_secret(text: &str) -> Result<(), String> {
+    copy_wayland_with(text, true).or_else(|_| copy_wayland_with(text, false))
+}
+
+fn copy_wayland_with(text: &str, sensitive: bool) -> Result<(), String> {
+    let mut command = Command::new("wl-copy");
+    command.args(["--type", "text/plain;charset=utf-8"]);
+    if sensitive {
+        command.arg("--sensitive");
+    }
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
