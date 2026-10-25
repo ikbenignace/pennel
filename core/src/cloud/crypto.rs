@@ -17,6 +17,8 @@ const TAG_LEN: usize = 16;
 const KEY_LEN: usize = 32;
 const SALT_LEN: usize = 16;
 const VAULT_AD: &[u8] = b"pennel-vault-v1";
+const ID_KEY_LABEL: &[u8] = b"pennel/object-id/v1";
+const ENC_KEY_LABEL: &[u8] = b"pennel/object-enc/v1";
 
 const RECOVERY_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const RECOVERY_SYMBOLS: usize = 24;
@@ -25,9 +27,9 @@ const RECOVERY_GROUP: usize = 4;
 const KDF_ALG: &str = "argon2id";
 // Upper bounds on server-supplied parameters, so a hostile or broken server
 // cannot make unwrap allocate gigabytes or spin for minutes.
-const MAX_M_KIB: u32 = 1 << 20;
-const MAX_T: u32 = 16;
-const MAX_P: u32 = 16;
+const MAX_M_KIB: u32 = 262_144;
+const MAX_T: u32 = 8;
+const MAX_P: u32 = 4;
 const MAX_SALT_LEN: usize = 64;
 
 pub struct VaultKey([u8; KEY_LEN]);
@@ -139,14 +141,16 @@ const WRAP_PARAMS: KdfParams = KdfParams {
     p: 1,
 };
 
-/// Callers pass a code from [`new_recovery_code`]; anything else is used verbatim.
-pub fn wrap(key: &VaultKey, code: &str) -> (Vec<u8>, Kdf) {
+/// Only the canonical form from [`new_recovery_code`] is accepted, so a vault can
+/// never be wrapped under a code that `unwrap` would later refuse.
+pub fn wrap(key: &VaultKey, code: &str) -> Result<(Vec<u8>, Kdf), PennelError> {
     wrap_with(key, code, WRAP_PARAMS)
 }
 
-fn wrap_with(key: &VaultKey, code: &str, params: KdfParams) -> (Vec<u8>, Kdf) {
-    debug_assert!(normalise_recovery_code(code).is_some());
-    let code = Zeroizing::new(normalise_recovery_code(code).unwrap_or_else(|| code.to_owned()));
+fn wrap_with(key: &VaultKey, code: &str, params: KdfParams) -> Result<(Vec<u8>, Kdf), PennelError> {
+    if normalise_recovery_code(code).as_deref() != Some(code) {
+        return Err(wrong_recovery_code());
+    }
     let mut salt = [0u8; SALT_LEN];
     fill_random(&mut salt);
     let kdf = Kdf {
@@ -156,9 +160,9 @@ fn wrap_with(key: &VaultKey, code: &str, params: KdfParams) -> (Vec<u8>, Kdf) {
         p: params.p,
         salt: B64.encode(salt),
     };
-    let wrapping_key = derive_wrapping_key(code.as_bytes(), &salt, params)
-        .expect("built-in Argon2 parameters are valid");
-    (encrypt(&wrapping_key, VAULT_AD, &key.0), kdf)
+    let wrapping_key =
+        derive_wrapping_key(code.as_bytes(), &salt, params).ok_or_else(vault_invalid)?;
+    Ok((encrypt(&wrapping_key, VAULT_AD, &key.0), kdf))
 }
 
 pub fn unwrap(wrapped: &[u8], kdf: &Kdf, code: &str) -> Result<VaultKey, PennelError> {
@@ -209,10 +213,7 @@ fn derive_wrapping_key(
 
 pub fn object_id(key: &VaultKey, object_key: &str) -> String {
     let normalised: String = object_key.nfc().collect();
-    let mut mac =
-        <Hmac<Sha256> as KeyInit>::new_from_slice(&key.0).expect("HMAC accepts any key length");
-    mac.update(normalised.as_bytes());
-    let digest = mac.finalize().into_bytes();
+    let digest = hmac_sha256(&subkey(key, ID_KEY_LABEL)[..], normalised.as_bytes());
     let mut hex = String::with_capacity(digest.len() * 2);
     for byte in digest.iter() {
         hex.push(char::from(b"0123456789abcdef"[usize::from(byte >> 4)]));
@@ -258,7 +259,7 @@ mod content_b64 {
 pub fn seal(key: &VaultKey, object_id: &str, generation: u32, payload: &Payload) -> Vec<u8> {
     let plaintext =
         Zeroizing::new(serde_json::to_vec(payload).expect("payload serialises to JSON"));
-    encrypt(&key.0, &object_ad(object_id, generation), &plaintext)
+    encrypt(&enc_key(key), &object_ad(object_id, generation), &plaintext)
 }
 
 pub fn open(
@@ -267,9 +268,30 @@ pub fn open(
     generation: u32,
     blob: &[u8],
 ) -> Result<Payload, PennelError> {
-    let plaintext =
-        decrypt(&key.0, &object_ad(object_id, generation), blob).ok_or_else(object_unreadable)?;
-    serde_json::from_slice(&plaintext).map_err(|_| object_unreadable())
+    let plaintext = decrypt(&enc_key(key), &object_ad(object_id, generation), blob)
+        .ok_or_else(object_unreadable)?;
+    let payload: Payload = serde_json::from_slice(&plaintext).map_err(|_| object_unreadable())?;
+    // A valid blob replayed under another id must not be written to the wrong path.
+    if self::object_id(key, &payload.key) != object_id {
+        return Err(object_unreadable());
+    }
+    Ok(payload)
+}
+
+fn enc_key(key: &VaultKey) -> Zeroizing<[u8; KEY_LEN]> {
+    subkey(key, ENC_KEY_LABEL)
+}
+
+// One root key, separate keys per purpose: HMAC-SHA256(root, label).
+fn subkey(key: &VaultKey, label: &[u8]) -> Zeroizing<[u8; KEY_LEN]> {
+    Zeroizing::new(hmac_sha256(&key.0, label))
+}
+
+fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; KEY_LEN] {
+    let mut mac =
+        <Hmac<Sha256> as KeyInit>::new_from_slice(key).expect("HMAC accepts any key length");
+    mac.update(message);
+    mac.finalize().into_bytes().into()
 }
 
 fn object_ad(object_id: &str, generation: u32) -> Vec<u8> {
@@ -400,7 +422,7 @@ mod tests {
     #[test]
     fn wrap_unwrap_roundtrip() {
         let key = VaultKey::generate();
-        let (wrapped, kdf) = wrap(&key, CODE);
+        let (wrapped, kdf) = wrap(&key, CODE).unwrap();
         assert_eq!(wrapped[0], 0x01);
         assert_eq!(wrapped.len(), 1 + 24 + 32 + 16);
         assert_eq!(kdf.alg, "argon2id");
@@ -415,7 +437,7 @@ mod tests {
     #[test]
     fn wrap_unwrap_roundtrip_with_production_params() {
         let key = VaultKey::generate();
-        let (wrapped, kdf) = wrap_with(&key, CODE, PRODUCTION_PARAMS);
+        let (wrapped, kdf) = wrap_with(&key, CODE, PRODUCTION_PARAMS).unwrap();
         assert_eq!(
             (kdf.alg.as_str(), kdf.m_kib, kdf.t, kdf.p),
             ("argon2id", 65536, 3, 1)
@@ -433,8 +455,8 @@ mod tests {
     #[test]
     fn wrap_uses_fresh_salt_and_nonce() {
         let key = VaultKey::generate();
-        let (first, first_kdf) = wrap(&key, CODE);
-        let (second, second_kdf) = wrap(&key, CODE);
+        let (first, first_kdf) = wrap(&key, CODE).unwrap();
+        let (second, second_kdf) = wrap(&key, CODE).unwrap();
         assert_ne!(first_kdf.salt, second_kdf.salt);
         assert_ne!(first[1..25], second[1..25]);
     }
@@ -442,7 +464,7 @@ mod tests {
     #[test]
     fn wrong_recovery_code_rejected() {
         let key = VaultKey::generate();
-        let (wrapped, kdf) = wrap(&key, CODE);
+        let (wrapped, kdf) = wrap(&key, CODE).unwrap();
         assert_recovery_code_error(unwrap(&wrapped, &kdf, "7K3M-Q9TV-W2XZ-H4JN-P6RS-A8BD"));
         assert_recovery_code_error(unwrap(&wrapped, &kdf, "not a code"));
         assert_recovery_code_error(unwrap(&wrapped, &kdf, ""));
@@ -451,7 +473,7 @@ mod tests {
     #[test]
     fn unwrap_rejects_malformed_vault_without_panicking() {
         let key = VaultKey::generate();
-        let (wrapped, kdf) = wrap(&key, CODE);
+        let (wrapped, kdf) = wrap(&key, CODE).unwrap();
         for blob in [
             &[][..],
             &[0x01][..],
@@ -497,9 +519,59 @@ mod tests {
                 p: 0,
                 ..kdf.clone()
             },
+            Kdf {
+                m_kib: 262_145,
+                ..kdf.clone()
+            },
+            Kdf {
+                t: 9,
+                ..kdf.clone()
+            },
+            Kdf {
+                p: 5,
+                m_kib: 64,
+                ..kdf.clone()
+            },
         ];
         for bad in bad_kdfs {
             assert!(unwrap(&wrapped, &bad, CODE).is_err());
+        }
+    }
+
+    #[test]
+    fn kdf_bounds_accept_production_and_reject_above_limits() {
+        let salt = base64_of(&[9u8; 16]);
+        let kdf = |m_kib, t, p| Kdf {
+            alg: "argon2id".into(),
+            m_kib,
+            t,
+            p,
+            salt: salt.clone(),
+        };
+        assert!(validate_kdf(&kdf(65536, 3, 1)).is_some());
+        assert!(validate_kdf(&kdf(262_144, 8, 4)).is_some());
+        assert!(validate_kdf(&kdf(262_145, 3, 1)).is_none());
+        assert!(validate_kdf(&kdf(65536, 9, 1)).is_none());
+        assert!(validate_kdf(&kdf(65536, 3, 5)).is_none());
+        assert!(validate_kdf(&kdf(31, 3, 4)).is_none());
+    }
+
+    #[test]
+    fn wrap_rejects_invalid_or_non_canonical_code() {
+        let key = VaultKey::generate();
+        for code in [
+            "",
+            "not a code",
+            "7K3M-Q9TV-W2XZ-H4JN-P6RS-A8B",
+            "7k3m-q9tv-w2xz-h4jn-p6rs-a8bc",
+            "7K3MQ9TVW2XZH4JNP6RSA8BC",
+            "7K3M Q9TV W2XZ H4JN P6RS A8BC",
+            "OK3M-Q9TV-W2XZ-H4JN-P6RS-A8BC",
+        ] {
+            match wrap(&key, code) {
+                Err(PennelError::Cloud { code, .. }) => assert_eq!(code, "recovery_code"),
+                other => panic!("expected recovery_code error, got ok={}", other.is_ok()),
+            }
         }
     }
 
@@ -572,14 +644,42 @@ mod tests {
     }
 
     #[test]
-    fn object_id_matches_hmac_sha256_reference() {
-        // RFC 4231 test case 2 uses a 4-byte key; HMAC zero-pads keys to the block
-        // size, so the same vector holds for that key padded to 32 bytes.
-        let mut bytes = [0u8; 32];
-        bytes[..4].copy_from_slice(b"Jefe");
+    fn object_id_known_answer_uses_derived_id_key() {
+        // Computed independently: HMAC-SHA256(HMAC-SHA256([7; 32], "pennel/object-id/v1"),
+        // "templates/standup.md"). A change here re-keys every object on the server.
+        let key = VaultKey([7u8; 32]);
         assert_eq!(
-            object_id(&VaultKey(bytes), "what do ya want for nothing?"),
-            "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+            object_id(&key, "templates/standup.md"),
+            "37fd5c3fe6453428e919a3b447a64a95ec06b4ce27277ea2bb9f0cb62a4374fe"
+        );
+        let raw_key_id = "04f1c96e4cbc21d77767c05414ae912920afefff218efd3555d169627906945b";
+        assert_ne!(object_id(&key, "templates/standup.md"), raw_key_id);
+    }
+
+    #[test]
+    fn seal_uses_derived_encryption_key() {
+        let key = VaultKey::generate();
+        let id = object_id(&key, &payload().key);
+        let ad = object_ad(&id, 1);
+        let blob = seal(&key, &id, 1, &payload());
+        assert!(decrypt(&key.0, &ad, &blob).is_none());
+        let plaintext = serde_json::to_vec(&payload()).unwrap();
+        let raw_key_blob = encrypt(&key.0, &ad, &plaintext);
+        assert!(open(&key, &id, 1, &raw_key_blob).is_err());
+    }
+
+    #[test]
+    fn open_rejects_payload_key_that_maps_to_other_id() {
+        let key = VaultKey::generate();
+        let claimed_id = object_id(&key, "templates/b.md");
+        let swapped = Payload {
+            key: "templates/a.md".into(),
+            ..payload()
+        };
+        let blob = seal(&key, &claimed_id, 1, &swapped);
+        assert_eq!(
+            open(&key, &claimed_id, 1, &blob).unwrap_err(),
+            object_unreadable()
         );
     }
 
@@ -662,7 +762,7 @@ mod tests {
     fn open_rejects_authentic_but_invalid_payload() {
         let key = VaultKey::generate();
         let id = object_id(&key, "templates/x.md");
-        let blob = encrypt(&key.0, &object_ad(&id, 1), b"not json");
+        let blob = encrypt(&enc_key(&key), &object_ad(&id, 1), b"not json");
         assert!(open(&key, &id, 1, &blob).is_err());
     }
 }
