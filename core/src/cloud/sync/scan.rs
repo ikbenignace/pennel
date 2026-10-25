@@ -121,16 +121,45 @@ fn utf8_entries(dir: &Path) -> Vec<(String, PathBuf)> {
     names
 }
 
-pub fn meeting_folders(root: &Path) -> Vec<MeetingFolder> {
+pub const UNREADABLE_LIBRARY: &str = "De meetingmap kon niet worden gelezen.";
+
+fn unreadable() -> PennelError {
+    PennelError::Cloud {
+        code: "library_unreadable".into(),
+        message: UNREADABLE_LIBRARY.into(),
+    }
+}
+
+/// Like `utf8_entries`, but a listing that fails halfway is an error rather than fewer files:
+/// a missing file would otherwise be pushed as a delete. A folder that is gone lists as empty.
+fn strict_entries(dir: &Path) -> Result<Vec<(String, PathBuf)>, PennelError> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(_) => return Err(unreadable()),
+    };
+    let mut names = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|_| unreadable())?;
+        if let Some(name) = entry.file_name().to_str() {
+            names.push((name.to_string(), entry.path()));
+        }
+    }
+    names.sort();
+    Ok(names)
+}
+
+pub fn meeting_folders(root: &Path) -> Result<Vec<MeetingFolder>, PennelError> {
+    std::fs::read_dir(root).map_err(|_| unreadable())?;
     let store = crate::meetings::MeetingStore::new(root);
-    utf8_entries(root)
+    Ok(strict_entries(root)?
         .into_iter()
         .filter(|(name, path)| !name.starts_with('.') && path.join(MEETING_FILE).is_file())
         .map(|(name, _)| MeetingFolder {
             uid: store.uid_of(&name),
             name,
         })
-        .collect()
+        .collect())
 }
 
 /// The existing folder that `name` refers to: exact, then Unicode-equivalent, then differing in case only.
@@ -185,14 +214,14 @@ pub fn slot(dir: &Path, name: &str) -> Slot {
     }
 }
 
-fn files_in(dir: &Path, accept: fn(&str) -> bool) -> Vec<(String, PathBuf)> {
+fn files_in(dir: &Path, accept: fn(&str) -> bool) -> Result<Vec<(String, PathBuf)>, PennelError> {
     let mut seen = HashSet::new();
-    utf8_entries(dir)
+    Ok(strict_entries(dir)?
         .into_iter()
         .filter(|(name, path)| accept(name) && path.is_file())
         // Two names that normalise to the same key: only the first is synced.
         .filter(|(name, _)| seen.insert(nfc(name)))
-        .collect()
+        .collect())
 }
 
 /// `folders` maps uid to the on-disk folder name, recording meetings already left out.
@@ -214,7 +243,7 @@ pub fn scan(root: &Path, folders: &HashMap<String, String>) -> Result<Vec<LocalF
     let mut ordered: Vec<(&String, &String)> = folders.iter().collect();
     ordered.sort_by(|a, b| a.1.cmp(b.1));
     for (uid, folder) in ordered {
-        for (name, _) in files_in(&root.join(folder), is_syncable) {
+        for (name, _) in files_in(&root.join(folder), is_syncable)? {
             add(
                 meeting_key(uid, &name),
                 Path::new(folder).join(&name),
@@ -222,7 +251,7 @@ pub fn scan(root: &Path, folders: &HashMap<String, String>) -> Result<Vec<LocalF
             )?;
         }
     }
-    for (name, _) in files_in(&root.join(TEMPLATES_DIR), is_template_name) {
+    for (name, _) in files_in(&root.join(TEMPLATES_DIR), is_template_name)? {
         add(
             template_key(&name),
             Path::new(TEMPLATES_DIR).join(&name),
@@ -241,7 +270,7 @@ pub fn listable(dir: &Path) -> bool {
 }
 
 /// The files sync carries in `dir`, under their on-disk names.
-pub fn syncable_files(dir: &Path) -> Vec<(String, PathBuf)> {
+pub fn syncable_files(dir: &Path) -> Result<Vec<(String, PathBuf)>, PennelError> {
     files_in(dir, is_syncable)
 }
 

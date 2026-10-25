@@ -78,6 +78,8 @@ const MAX_OBJECT_BYTES: usize = 5_242_880;
 const MISSING_ROOT: &str = "De meetingmap is niet gevonden.";
 const TOO_LARGE: &str = "Dit bestand is groter dan 5 MB.";
 const UNKNOWN_DEVICE: &str = "ander toestel";
+const UNEXPECTED_RESPONSE: &str = "Pennel Cloud gaf een onverwacht antwoord.";
+const MASS_DELETE: &str = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
 
 struct Stop(SyncStatus);
 
@@ -90,6 +92,10 @@ impl From<PennelError> for Stop {
 pub(crate) fn status_for(error: PennelError) -> SyncStatus {
     match error {
         PennelError::Network { .. } => SyncStatus::Offline,
+        PennelError::Cloud { code, .. } if code == "rate_limited" => SyncStatus::Offline,
+        PennelError::InvalidResponse { .. } => SyncStatus::Error {
+            message: UNEXPECTED_RESPONSE.into(),
+        },
         PennelError::NotSignedIn => SyncStatus::SignedOut,
         PennelError::VaultLocked => SyncStatus::NeedsRecoveryCode,
         PennelError::Cloud { code, message } if code == "storage_full" => {
@@ -258,7 +264,7 @@ impl Pass<'_> {
     /// synced before keeps it.
     fn resolve_folders(&self) -> Result<HashMap<String, String>, PennelError> {
         let mut by_uid: HashMap<String, Vec<String>> = HashMap::new();
-        for folder in scan::meeting_folders(&self.root) {
+        for folder in scan::meeting_folders(&self.root)? {
             if let Some(uid) = folder.uid {
                 by_uid.entry(uid).or_default().push(folder.name);
             }
@@ -278,7 +284,7 @@ impl Pass<'_> {
 
     fn assign_uids(&mut self) -> Result<(), Stop> {
         let mut owners = self.resolve_folders()?;
-        for folder in scan::meeting_folders(&self.root) {
+        for folder in scan::meeting_folders(&self.root)? {
             if self.is_recording(&folder.name) {
                 continue;
             }
@@ -317,20 +323,25 @@ impl Pass<'_> {
 
     fn pull(&mut self) -> Result<(), Stop> {
         for id in self.state.deferred()? {
-            self.state.undefer(&id)?;
             let entry = self.state.entry_by_object(&id)?;
-            match self.api.get(&id)? {
-                Some((version, blob)) => {
-                    let before = entry.as_ref().map(|e| self.local_hash(&e.key));
-                    self.apply_remote(&id, version, &blob, entry, before)?;
-                }
-                None => {
-                    if let Some(entry) = entry {
+            let before = entry.as_ref().map(|e| self.local_hash(&e.key));
+            // Until it is applied the item stays deferred; applying may defer it again.
+            let fetched = self.api.get(&id)?;
+            self.state.undefer(&id)?;
+            let applied = match fetched {
+                Some((version, blob)) => self.apply_remote(&id, version, &blob, entry, before),
+                None => match entry {
+                    Some(entry) => {
                         let version = entry.server_version;
-                        self.apply_tombstones(vec![(entry, version)])?;
+                        self.apply_tombstones(vec![(entry, version)])
                     }
-                }
+                    None => Ok(()),
+                },
+            };
+            if applied.is_err() {
+                self.state.defer(&id)?;
             }
+            applied?;
         }
         let mut cursor = self.state.cursor()?;
         let mut full: Option<HashSet<String>> = None;
@@ -342,9 +353,9 @@ impl Pass<'_> {
                     continue;
                 }
                 ChangePage::CursorExpired => {
-                    return Err(Stop(status_for(PennelError::InvalidResponse {
-                        message: "cursor expired at 0".into(),
-                    })));
+                    return Err(Stop(SyncStatus::Error {
+                        message: UNEXPECTED_RESPONSE.into(),
+                    }));
                 }
                 ChangePage::Ok {
                     changes,
@@ -562,11 +573,8 @@ impl Pass<'_> {
             || entry
                 .as_ref()
                 .is_some_and(|e| local.as_deref() == Some(e.synced_hash.as_str()));
-        if !unchanged_here {
-            self.conflict_copy(&dir, &name, &payload)?;
-            self.state.put(&record(base_hash, folder))?;
-            return Ok(());
-        }
+        // Also when meeting.md conflicts: the folder name follows the other device either way,
+        // so a rename there never reverts and no old folder is left behind.
         let mut folder = folder;
         let mut target = target;
         if name == MEETING_FILE
@@ -578,6 +586,11 @@ impl Pass<'_> {
             dir = self.root.join(&renamed);
             target = dir.join(target.file_name().expect("file path"));
             folder = Some(renamed);
+        }
+        if !unchanged_here {
+            self.conflict_copy(&dir, &name, &payload)?;
+            self.state.put(&record(base_hash, folder))?;
+            return Ok(());
         }
         if write_checked(&dir, &target, &payload.content, local.as_deref())? {
             self.counts.downloaded += 1;
@@ -591,7 +604,7 @@ impl Pass<'_> {
 
     /// True when deleting this meeting would lose something: a file never synced or changed since.
     fn meeting_has_local_work(&self, uid: &str, dir: &Path) -> Result<bool, PennelError> {
-        for (name, path) in scan::syncable_files(dir) {
+        for (name, path) in scan::syncable_files(dir)? {
             if name == MEETING_FILE {
                 continue;
             }
@@ -657,7 +670,7 @@ impl Pass<'_> {
     /// into the trash.
     fn clean_up_folder(&mut self, uid: &str, folder: &str) -> Result<(), PennelError> {
         let dir = self.root.join(folder);
-        if !dir.is_dir() || !scan::listable(&dir) || !scan::syncable_files(&dir).is_empty() {
+        if !dir.is_dir() || !scan::listable(&dir) || !scan::syncable_files(&dir)?.is_empty() {
             return Ok(());
         }
         let empty = std::fs::read_dir(&dir)
@@ -688,9 +701,63 @@ impl Pass<'_> {
             }
             self.push_file(file, entry)?;
         }
-        for entry in self.state.entries()? {
-            if !keys.contains(&entry.key) && self.vanished(&entry) {
+        self.push_deletes(&keys)
+    }
+
+    /// Whole meetings that vanished outside Pennel are held back when they are suspiciously
+    /// many (an emptied or swapped folder), until the user confirms.
+    fn push_deletes(&mut self, keys: &HashSet<String>) -> Result<(), Stop> {
+        let entries = self.state.entries()?;
+        let tracked: HashSet<String> = entries
+            .iter()
+            .filter_map(|e| match parse_key(&e.key) {
+                Some(Key::Meeting { uid, .. }) => Some(uid),
+                _ => None,
+            })
+            .collect();
+        let on_purpose = self.state.deleted_on_purpose()?;
+        let mut single = Vec::new();
+        let mut whole: HashMap<String, Vec<Entry>> = HashMap::new();
+        for entry in entries {
+            if keys.contains(&entry.key) || !self.vanished(&entry) {
+                continue;
+            }
+            match parse_key(&entry.key) {
+                Some(Key::Meeting { uid, .. }) if !self.folders.contains_key(&uid) => {
+                    whole.entry(uid).or_default().push(entry);
+                }
+                _ => single.push(entry),
+            }
+        }
+        let unexpected = whole
+            .keys()
+            .filter(|uid| !on_purpose.contains(*uid))
+            .count();
+        let confirmed = self.state.deletes_confirmed()?;
+        let brake = !confirmed
+            && ((unexpected == tracked.len() && tracked.len() >= 2)
+                || (unexpected * 2 > tracked.len() && unexpected > 5));
+        for entry in single {
+            self.push_delete(entry)?;
+        }
+        for (uid, entries) in whole {
+            if brake && !on_purpose.contains(&uid) {
+                continue;
+            }
+            for entry in entries {
                 self.push_delete(entry)?;
+            }
+        }
+        if brake {
+            self.problem = Some(MASS_DELETE.into());
+        } else if confirmed {
+            self.state.clear_confirmation()?;
+        }
+        let remaining: Vec<String> = self.state.entries()?.into_iter().map(|e| e.key).collect();
+        for uid in on_purpose {
+            let prefix = format!("meeting/{uid}/");
+            if !remaining.iter().any(|key| key.starts_with(&prefix)) {
+                self.state.unmark_deleted(&uid)?;
             }
         }
         Ok(())
@@ -789,8 +856,10 @@ impl Pass<'_> {
         match parse_key(&entry.key) {
             Some(Key::Template { name }) => absent(&self.root.join(TEMPLATES_DIR), &name),
             Some(Key::Meeting { uid, name }) => match self.folders.get(&uid) {
+                // A folder renamed while this pass runs is found again next pass.
                 Some(folder) => {
-                    !self.is_recording(folder) && absent(&self.root.join(folder), &name)
+                    let dir = self.root.join(folder);
+                    !self.is_recording(folder) && dir.is_dir() && absent(&dir, &name)
                 }
                 None => entry.folder.as_deref().is_some_and(|folder| {
                     !self.is_recording(folder) && find_dir(&self.root, folder).is_none()
@@ -836,14 +905,14 @@ fn has_conflict_copy(dir: &Path) -> bool {
 /// Per meeting: a conflict copy is present, something is not uploaded yet, or all is synced.
 pub fn item_states(root: &Path, state: &SyncState) -> Result<Vec<MeetingSyncState>, PennelError> {
     let mut states = Vec::new();
-    for folder in scan::meeting_folders(root) {
+    for folder in scan::meeting_folders(root)? {
         let dir = root.join(&folder.name);
         let item = if has_conflict_copy(&dir) {
             SyncItemState::Conflict
         } else {
             let mut pending = folder.uid.is_none();
             if let Some(uid) = folder.uid.as_deref() {
-                for (name, path) in scan::syncable_files(&dir) {
+                for (name, path) in scan::syncable_files(&dir)? {
                     let entry = state.entry(&scan::meeting_key(uid, &name))?;
                     if entry.is_none_or(|e| hash_file(&path).as_deref() != Some(&e.synced_hash)) {
                         pending = true;
@@ -1534,8 +1603,195 @@ mod tests {
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o000)).unwrap();
         let report = a.sync(&api);
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
-        synced(&report);
+        assert_eq!(
+            report.status,
+            SyncStatus::Error {
+                message: scan::UNREADABLE_LIBRARY.into()
+            }
+        );
         assert_eq!(api.live_objects(), 1);
+    }
+
+    const BRAKE_MESSAGE: &str = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
+
+    fn meetings(device: &Device, count: usize) -> Vec<String> {
+        (0..count)
+            .map(|n| {
+                device
+                    .store()
+                    .create(&format!("Meeting {n}"), start())
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn emptied_root_pushes_no_deletes() {
+        let (api, a, _) = setup();
+        for id in meetings(&a, 2) {
+            a.write(&format!("{id}/notes.md"), "n\n");
+        }
+        synced(&a.sync(&api));
+        for folder in a.folders() {
+            std::fs::remove_dir_all(a.path(&folder)).unwrap();
+        }
+        assert_eq!(
+            a.sync(&api).status,
+            SyncStatus::Error {
+                message: BRAKE_MESSAGE.into()
+            }
+        );
+        assert_eq!(api.live_objects(), 4);
+        assert_eq!(
+            a.sync(&api).status,
+            SyncStatus::Error {
+                message: BRAKE_MESSAGE.into()
+            }
+        );
+        a.state.confirm_deletes().unwrap();
+        synced(&a.sync(&api));
+        assert_eq!(api.live_objects(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_root_reports_error_and_deletes_nothing() {
+        use std::os::unix::fs::PermissionsExt;
+        let (api, a, _) = setup();
+        meetings(&a, 3);
+        synced(&a.sync(&api));
+        std::fs::set_permissions(&a.root, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let report = a.sync(&api);
+        std::fs::set_permissions(&a.root, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            report.status,
+            SyncStatus::Error {
+                message: "De meetingmap kon niet worden gelezen.".into()
+            }
+        );
+        assert_eq!(api.live_objects(), 3);
+    }
+
+    #[test]
+    fn partial_mass_delete_is_held_back() {
+        let (api, a, _) = setup();
+        let ids = meetings(&a, 8);
+        synced(&a.sync(&api));
+        for id in &ids[..6] {
+            std::fs::remove_dir_all(a.path(id)).unwrap();
+        }
+        assert_eq!(
+            a.sync(&api).status,
+            SyncStatus::Error {
+                message: BRAKE_MESSAGE.into()
+            }
+        );
+        assert_eq!(api.live_objects(), 8);
+    }
+
+    #[test]
+    fn a_few_deleted_meetings_are_pushed() {
+        let (api, a, _) = setup();
+        let ids = meetings(&a, 3);
+        synced(&a.sync(&api));
+        std::fs::remove_dir_all(a.path(&ids[0])).unwrap();
+        synced(&a.sync(&api));
+        assert_eq!(api.live_objects(), 2);
+    }
+
+    #[test]
+    fn intended_deletes_bypass_the_brake() {
+        let (api, a, _) = setup();
+        let ids = meetings(&a, 2);
+        synced(&a.sync(&api));
+        for id in &ids {
+            let uid = a.store().uid_of(id).unwrap();
+            a.state.mark_deleted(&uid).unwrap();
+            std::fs::remove_dir_all(a.path(id)).unwrap();
+        }
+        synced(&a.sync(&api));
+        assert_eq!(api.live_objects(), 0);
+    }
+
+    #[test]
+    fn folder_renamed_during_push_is_not_deleted() {
+        let (api, a, b) = setup();
+        let id = shared_meeting(&api, &a, &b);
+        std::fs::remove_file(a.path(&format!("{id}/transcript.md"))).unwrap();
+        a.write(&format!("{id}/notes.md"), "nieuw\n");
+        let from = a.path(&id);
+        let to = a.path(&format!("{id} hernoemd"));
+        let mut fired = false;
+        api.on_put(move |_| {
+            if !fired {
+                fired = true;
+                std::fs::rename(&from, &to).unwrap();
+            }
+        });
+        synced(&a.sync(&api));
+        assert_eq!(api.live_objects(), 3);
+        synced(&a.sync(&api));
+        assert_eq!(api.live_objects(), 2);
+    }
+
+    #[test]
+    fn deferred_change_survives_a_failed_download() {
+        let (api, a, b) = setup();
+        let id = shared_meeting(&api, &a, &b);
+        a.write(&format!("{id}/notes.md"), "tijdens opname\n");
+        synced(&a.sync(&api));
+        synced(&b.sync_recording(&api, std::slice::from_ref(&id)));
+        api.fail_gets(true);
+        assert_eq!(b.sync(&api).status, SyncStatus::Offline);
+        api.fail_gets(false);
+        synced(&b.sync(&api));
+        assert_eq!(
+            b.read(&format!("{id}/notes.md")).as_deref(),
+            Some("tijdens opname\n")
+        );
+    }
+
+    #[test]
+    fn meeting_md_conflict_still_follows_the_rename() {
+        let (api, a, b) = setup();
+        let id = shared_meeting(&api, &a, &b);
+        let renamed = a.store().rename(&id, "Nieuwe titel").unwrap();
+        synced(&a.sync(&api));
+        b.store().set_attendees(&id, &["Els".into()]).unwrap();
+        let local_edit = b.read(&format!("{id}/meeting.md")).unwrap();
+        let report = b.sync(&api);
+        synced(&report);
+        assert_eq!(b.folders(), vec![renamed.clone()]);
+        let live = b.read(&format!("{renamed}/meeting.md")).unwrap();
+        let copies = b.conflict_copies(&renamed);
+        let kept = live == local_edit
+            || copies
+                .iter()
+                .any(|c| b.read(&format!("{renamed}/{c}")).as_deref() == Some(&local_edit));
+        assert!(kept, "local meeting.md edit lost");
+        synced(&a.sync(&api));
+        assert_eq!(a.folders(), vec![renamed.clone()]);
+        synced(&b.sync(&api));
+        assert_eq!(b.folders(), vec![renamed]);
+    }
+
+    #[test]
+    fn transient_and_unexpected_errors_map_to_dutch_statuses() {
+        assert_eq!(
+            status_for(PennelError::Cloud {
+                code: "rate_limited".into(),
+                message: "Te veel pogingen. Wacht even en probeer opnieuw.".into()
+            }),
+            SyncStatus::Offline
+        );
+        assert_eq!(
+            status_for(PennelError::InvalidResponse {
+                message: "unexpected changes response".into()
+            }),
+            SyncStatus::Error {
+                message: "Pennel Cloud gaf een onverwacht antwoord.".into()
+            }
+        );
     }
 
     #[test]

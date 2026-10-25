@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -25,6 +26,7 @@ const GENERATION: &str = "generation";
 const ROOT: &str = "root";
 const LAST_SUCCESS: &str = "last_success_ms";
 const DEVICE: &str = "device";
+const CONFIRM_DELETES: &str = "confirm_deletes";
 
 fn entry_from(row: &rusqlite::Row<'_>) -> rusqlite::Result<Entry> {
     Ok(Entry {
@@ -60,7 +62,8 @@ impl SyncState {
              );
              create index if not exists entries_object on entries(object_id);
              create table if not exists meta (k text primary key, v text not null);
-             create table if not exists deferred (object_id text primary key);",
+             create table if not exists deferred (object_id text primary key);
+             create table if not exists intended (uid text primary key);",
         )
         .map_err(PennelError::storage)?;
         Ok(Self { conn })
@@ -209,6 +212,48 @@ impl SyncState {
             .map_err(PennelError::storage)
     }
 
+    /// A meeting the user deleted in Pennel itself: its deletion is pushed without the brake.
+    pub fn mark_deleted(&self, uid: &str) -> Result<(), PennelError> {
+        self.conn
+            .execute("insert or ignore into intended (uid) values (?1)", [uid])
+            .map(drop)
+            .map_err(PennelError::storage)
+    }
+
+    pub fn deleted_on_purpose(&self) -> Result<HashSet<String>, PennelError> {
+        let mut statement = self
+            .conn
+            .prepare("select uid from intended")
+            .map_err(PennelError::storage)?;
+        statement
+            .query_map([], |row| row.get(0))
+            .and_then(Iterator::collect)
+            .map_err(PennelError::storage)
+    }
+
+    pub fn unmark_deleted(&self, uid: &str) -> Result<(), PennelError> {
+        self.conn
+            .execute("delete from intended where uid = ?1", [uid])
+            .map(drop)
+            .map_err(PennelError::storage)
+    }
+
+    /// Lets the next pass push deletions the mass-delete brake held back.
+    pub fn confirm_deletes(&self) -> Result<(), PennelError> {
+        self.set_meta(CONFIRM_DELETES, "1")
+    }
+
+    pub fn deletes_confirmed(&self) -> Result<bool, PennelError> {
+        Ok(self.meta(CONFIRM_DELETES)?.is_some())
+    }
+
+    pub fn clear_confirmation(&self) -> Result<(), PennelError> {
+        self.conn
+            .execute("delete from meta where k = ?1", [CONFIRM_DELETES])
+            .map(drop)
+            .map_err(PennelError::storage)
+    }
+
     pub fn cursor(&self) -> Result<i64, PennelError> {
         Ok(self.meta(CURSOR)?.and_then(|v| v.parse().ok()).unwrap_or(0))
     }
@@ -261,15 +306,17 @@ impl SyncState {
     pub fn forget_progress(&self) -> Result<(), PennelError> {
         self.conn
             .execute_batch(
-                "delete from entries; delete from deferred;
-                 delete from meta where k in ('cursor');",
+                "delete from entries; delete from deferred; delete from intended;
+                 delete from meta where k in ('cursor', 'confirm_deletes');",
             )
             .map_err(PennelError::storage)
     }
 
     pub fn clear(&self) -> Result<(), PennelError> {
         self.conn
-            .execute_batch("delete from entries; delete from deferred; delete from meta;")
+            .execute_batch(
+                "delete from entries; delete from deferred; delete from intended; delete from meta;",
+            )
             .map_err(PennelError::storage)
     }
 }

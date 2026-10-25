@@ -173,3 +173,93 @@ fn signed_out_engine_reports_signed_out() {
     assert_eq!(engine.cloud_sync_run(vec![]).status, SyncStatus::SignedOut);
     assert_eq!(engine.cloud_sync_enable(), Err(PennelError::NotSignedIn));
 }
+
+fn keys() -> crate::engine::ApiKeys {
+    crate::engine::ApiKeys {
+        by_provider: std::collections::HashMap::new(),
+    }
+}
+
+#[test]
+fn engine_deletes_bypass_the_brake_and_confirm_releases_held_deletes() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    a.engine.cloud_sync_enable().unwrap();
+    let ids: Vec<String> = (0..2)
+        .map(|n| store(&a).create(&format!("Weg {n}"), start()).unwrap())
+        .collect();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    for id in &ids {
+        a.engine.delete_meeting(id.clone()).unwrap();
+    }
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    assert_eq!(api.live_objects(), 0);
+
+    let ids: Vec<String> = (0..2)
+        .map(|n| store(&a).create(&format!("Extern {n}"), start()).unwrap())
+        .collect();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    for id in &ids {
+        std::fs::remove_dir_all(a.root.join(id)).unwrap();
+    }
+    assert!(matches!(
+        a.engine.cloud_sync_run(vec![]).status,
+        SyncStatus::Error { .. }
+    ));
+    assert_eq!(api.live_objects(), 2);
+    a.engine.cloud_sync_confirm_deletes().unwrap();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    assert_eq!(api.live_objects(), 0);
+}
+
+#[test]
+fn own_recording_session_is_never_synced() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    a.engine.cloud_sync_enable().unwrap();
+    let session = a
+        .engine
+        .clone()
+        .start_meeting("Loopt nog".into(), keys())
+        .unwrap();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    assert_eq!(api.live_objects(), 0);
+    drop(session);
+}
+
+#[test]
+fn status_reads_do_not_wait_for_a_running_pass() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    let b = host(&api, "Laptop");
+    let code = a.engine.cloud_sync_enable().unwrap();
+    b.engine.cloud_sync_unlock(code).unwrap();
+    store(&a).create("Onderweg", start()).unwrap();
+    a.engine.cloud_sync_run(vec![]);
+    let (entered, entered_rx) = mpsc::channel();
+    let (release, release_rx) = mpsc::channel::<()>();
+    let release_rx = std::sync::Mutex::new(release_rx);
+    api.on_get(move |_| {
+        let _ = entered.send(());
+        let _ = release_rx
+            .lock()
+            .unwrap()
+            .recv_timeout(Duration::from_secs(10));
+    });
+    let engine = b.engine.clone();
+    let pass = std::thread::spawn(move || engine.cloud_sync_run(vec![]));
+    entered_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    let engine = b.engine.clone();
+    let (done, done_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let states = engine.meeting_sync_states();
+        let last = engine.cloud_sync_last();
+        let _ = done.send((states, last));
+    });
+    let answered = done_rx.recv_timeout(Duration::from_secs(2));
+    release.send(()).unwrap();
+    assert!(answered.is_ok(), "status reads blocked on the running pass");
+    assert_eq!(pass.join().unwrap().status, SyncStatus::Synced);
+}

@@ -96,6 +96,7 @@ pub struct PennelEngine {
     sync_gate: Mutex<()>,
     sync_state: Mutex<Option<SyncState>>,
     sync_last: Mutex<Option<SyncReport>>,
+    sync_items: Mutex<Vec<MeetingSyncState>>,
     #[cfg(test)]
     sync_api_override: Mutex<Option<Arc<dyn SyncApi>>>,
     preview: bool,
@@ -290,14 +291,25 @@ impl PennelEngine {
         self.report(status)
     }
 
+    /// The user confirmed that the meetings the brake held back were deleted on purpose.
+    pub fn cloud_sync_confirm_deletes(&self) -> Result<(), PennelError> {
+        self.with_sync_state(SyncState::confirm_deletes)
+    }
+
+    /// Never waits for a running pass: then the states from before it are returned.
     pub fn meeting_sync_states(&self) -> Vec<MeetingSyncState> {
         let settings = self.settings();
         if !settings.cloud_sync {
             return Vec::new();
         }
         let root = library_root(&settings);
-        self.with_sync_state(|state| sync::item_states(&root, state))
-            .unwrap_or_default()
+        match self.try_sync_state(|state| sync::item_states(&root, state)) {
+            Some(Ok(states)) => {
+                *self.sync_items.lock().unwrap() = states.clone();
+                states
+            }
+            _ => self.sync_items.lock().unwrap().clone(),
+        }
     }
 
     pub fn cloud_folder_warning(&self) -> Option<String> {
@@ -651,7 +663,14 @@ impl PennelEngine {
     pub fn delete_meeting(&self, id: String) -> Result<(), PennelError> {
         self.claim_library()?;
         self.ensure_meeting_inactive(&id)?;
-        self.meeting_store().delete(&id)
+        let store = self.meeting_store();
+        let uid = store.uid_of(&id);
+        store.delete(&id)?;
+        // Deleted in Pennel itself: sync may push this deletion past the mass-delete brake.
+        if let Some(uid) = uid {
+            let _ = self.with_sync_state(|state| state.mark_deleted(&uid));
+        }
+        Ok(())
     }
 
     pub fn prune_meeting_audio(&self) -> u32 {
@@ -1109,6 +1128,25 @@ impl PennelEngine {
         query(slot.as_ref().expect("opened above"))
     }
 
+    /// `None` while a pass holds the state.
+    fn try_sync_state<T>(
+        &self,
+        query: impl FnOnce(&SyncState) -> Result<T, PennelError>,
+    ) -> Option<Result<T, PennelError>> {
+        let mut slot = match self.sync_state.try_lock() {
+            Ok(slot) => slot,
+            Err(std::sync::TryLockError::WouldBlock) => return None,
+            Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+        };
+        if slot.is_none() {
+            match SyncState::open(&self.data_dir()) {
+                Ok(state) => *slot = Some(state),
+                Err(error) => return Some(Err(error)),
+            }
+        }
+        Some(query(slot.as_ref().expect("opened above")))
+    }
+
     fn clear_sync_state(&self) {
         let _gate = self.sync_gate.lock().unwrap();
         let _ = self.with_sync_state(SyncState::clear);
@@ -1150,14 +1188,25 @@ impl PennelEngine {
             downloaded: 0,
             conflicts: 0,
             last_success_ms: self
-                .with_sync_state(|state| state.last_success_ms())
-                .ok()
+                .try_sync_state(|state| state.last_success_ms())
+                .and_then(Result::ok)
                 .flatten(),
         }
     }
 
     fn sync_pass(&self, recording: &[String]) -> SyncReport {
         let _gate = self.sync_gate.lock().unwrap();
+        let mut recording = recording.to_vec();
+        recording.extend(
+            self.active_sessions
+                .lock()
+                .unwrap()
+                .iter()
+                .filter_map(Weak::upgrade)
+                .filter(|session| !session.is_finalized())
+                .map(|session| session.id()),
+        );
+        let recording = recording.as_slice();
         let settings = self.settings();
         if !settings.cloud_sync {
             return self.report(SyncStatus::Off);
@@ -1199,6 +1248,9 @@ impl PennelEngine {
                 state.set_last_success_ms(now_ms())?;
             }
             report.last_success_ms = state.last_success_ms()?;
+            if let Ok(states) = sync::item_states(&root, state) {
+                *self.sync_items.lock().unwrap() = states;
+            }
             Ok(report)
         });
         let report = outcome.unwrap_or_else(|error| self.report(sync::status_for(error)));
@@ -1263,6 +1315,7 @@ impl PennelEngine {
             sync_gate: Mutex::new(()),
             sync_state: Mutex::new(None),
             sync_last: Mutex::new(None),
+            sync_items: Mutex::new(Vec::new()),
             #[cfg(test)]
             sync_api_override: Mutex::new(None),
             preview,

@@ -147,19 +147,27 @@ impl HttpSyncApi {
             content_type,
             body,
         )?;
-        if response.0 != 401 {
-            return Ok(response);
+        let response = if response.0 == 401 {
+            let token = self.session.refreshed_token()?;
+            send_raw(
+                &self.http,
+                method,
+                &url,
+                Some(&token),
+                headers,
+                content_type,
+                body,
+            )?
+        } else {
+            response
+        };
+        // Rate limits and server or gateway trouble pass: stop and retry on the next pass.
+        if response.0 == 429 || response.0 >= 500 {
+            return Err(PennelError::Network {
+                message: format!("status {}", response.0),
+            });
         }
-        let token = self.session.refreshed_token()?;
-        send_raw(
-            &self.http,
-            method,
-            &url,
-            Some(&token),
-            headers,
-            content_type,
-            body,
-        )
+        Ok(response)
     }
 
     fn object_path(id: &str) -> String {
@@ -381,6 +389,8 @@ pub(crate) mod fake {
     pub(crate) struct FakeApi {
         server: Mutex<Server>,
         after_get: Mutex<Option<Hook>>,
+        before_put: Mutex<Option<Hook>>,
+        failing_gets: std::sync::atomic::AtomicBool,
     }
 
     impl FakeApi {
@@ -391,7 +401,18 @@ pub(crate) mod fake {
                     ..Server::default()
                 }),
                 after_get: Mutex::new(None),
+                before_put: Mutex::new(None),
+                failing_gets: std::sync::atomic::AtomicBool::new(false),
             }
+        }
+
+        pub(crate) fn on_put(&self, hook: impl FnMut(&str) + Send + 'static) {
+            *self.before_put.lock().unwrap() = Some(Box::new(hook));
+        }
+
+        pub(crate) fn fail_gets(&self, failing: bool) {
+            self.failing_gets
+                .store(failing, std::sync::atomic::Ordering::SeqCst);
         }
 
         pub(crate) fn set_offline(&self, offline: bool) {
@@ -513,6 +534,11 @@ pub(crate) mod fake {
         }
 
         fn get(&self, id: &str) -> Result<Option<(i64, Vec<u8>)>, PennelError> {
+            if self.failing_gets.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(PennelError::Network {
+                    message: "offline".into(),
+                });
+            }
             let found = {
                 let server = self.server.lock().unwrap();
                 Self::check(&server)?;
@@ -535,6 +561,9 @@ pub(crate) mod fake {
             generation: u32,
             blob: &[u8],
         ) -> Result<PutResult, PennelError> {
+            if let Some(hook) = self.before_put.lock().unwrap().as_mut() {
+                hook(id);
+            }
             let mut server = self.server.lock().unwrap();
             Self::check(&server)?;
             if generation != server.generation {
@@ -753,6 +782,37 @@ mod tests {
                 generation: 2
             }
         );
+    }
+
+    #[test]
+    fn rate_limits_and_server_errors_are_transient() {
+        let mut server = mockito::Server::new();
+        let (api, _refresh) = fixture(&mut server);
+        let _limited = server
+            .mock("PUT", format!("/v1/objects/{ID}").as_str())
+            .with_status(429)
+            .with_body(r#"{"error":"rate_limited","message":"Te veel pogingen. Wacht even en probeer opnieuw."}"#)
+            .create();
+        assert!(matches!(
+            api.put(ID, 0, 1, b"x"),
+            Err(PennelError::Network { .. })
+        ));
+        let _down = server
+            .mock("GET", "/v1/sync/changes")
+            .match_query(Matcher::Any)
+            .with_status(502)
+            .with_body("<html>Bad Gateway</html>")
+            .create();
+        assert!(matches!(
+            api.changes(0, 10),
+            Err(PennelError::Network { .. })
+        ));
+        let _busy = server
+            .mock("GET", "/v1/vault")
+            .with_status(503)
+            .with_body(r#"{"error":"overloaded","message":"Druk."}"#)
+            .create();
+        assert!(matches!(api.vault(), Err(PennelError::Network { .. })));
     }
 
     #[test]
