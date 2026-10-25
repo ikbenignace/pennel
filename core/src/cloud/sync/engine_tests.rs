@@ -407,3 +407,57 @@ fn revoked_device_keeps_its_key_and_resumes_without_the_code() {
     assert_eq!(report.uploaded, 1);
     assert_eq!(api.live_objects(), 2);
 }
+
+#[test]
+fn confirming_deletes_and_naming_the_device_do_not_wait_for_a_running_pass() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    let b = host(&api, "Laptop");
+    let code = a.engine.cloud_sync_enable().unwrap();
+    b.engine.cloud_sync_unlock(code).unwrap();
+    let ids: Vec<String> = (0..2)
+        .map(|n| store(&a).create(&format!("Weg {n}"), start()).unwrap())
+        .collect();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    for id in &ids {
+        std::fs::remove_dir_all(a.root.join(id)).unwrap();
+    }
+    assert!(matches!(
+        a.engine.cloud_sync_run(vec![]).status,
+        SyncStatus::Error { .. }
+    ));
+    b.engine.cloud_sync_run(vec![]);
+    store(&b).create("Nieuw", start()).unwrap();
+    assert_eq!(b.engine.cloud_sync_run(vec![]).uploaded, 1);
+
+    let (entered, entered_rx) = mpsc::channel();
+    let (release, release_rx) = mpsc::channel::<()>();
+    let release_rx = std::sync::Mutex::new(release_rx);
+    api.on_get(move |_| {
+        let _ = entered.send(());
+        let _ = release_rx
+            .lock()
+            .unwrap()
+            .recv_timeout(Duration::from_secs(10));
+    });
+    let engine = a.engine.clone();
+    let pass = std::thread::spawn(move || engine.cloud_sync_run(vec![]));
+    entered_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    let engine = a.engine.clone();
+    let (done, done_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let confirmed = engine.cloud_sync_confirm_deletes();
+        engine.remember_device_name("Werkplek");
+        let _ = done.send(confirmed);
+    });
+    let answered = done_rx.recv_timeout(Duration::from_secs(2));
+    release.send(()).unwrap();
+    assert_eq!(answered.expect("waited for the running pass"), Ok(()));
+    pass.join().unwrap();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    assert_eq!(api.live_objects(), 1);
+    let state = SyncState::open(&a.engine.data_dir()).unwrap();
+    assert_eq!(state.device().unwrap().as_deref(), Some("Werkplek"));
+}

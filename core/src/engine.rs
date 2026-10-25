@@ -98,6 +98,9 @@ pub struct PennelEngine {
     sync_last: Mutex<Option<SyncReport>>,
     sync_items: Mutex<Vec<MeetingSyncState>>,
     deleted_meetings: Mutex<Vec<String>>,
+    /// Set while a pass held the state; the next pass records them.
+    pending_device: Mutex<Option<String>>,
+    pending_confirm: Mutex<bool>,
     #[cfg(test)]
     sync_api_override: Mutex<Option<Arc<dyn SyncApi>>>,
     preview: bool,
@@ -305,8 +308,15 @@ impl PennelEngine {
     }
 
     /// The user confirmed that the meetings the brake held back were deleted on purpose.
+    /// Never waits for a running pass: the next one picks the confirmation up.
     pub fn cloud_sync_confirm_deletes(&self) -> Result<(), PennelError> {
-        self.with_sync_state(SyncState::confirm_deletes)
+        match self.try_sync_state(SyncState::confirm_deletes) {
+            Some(result) => result,
+            None => {
+                *self.pending_confirm.lock().unwrap() = true;
+                Ok(())
+            }
+        }
     }
 
     /// Never waits for a running pass: then the states from before it are returned.
@@ -1168,12 +1178,18 @@ impl PennelEngine {
         let _gate = self.sync_gate.lock().unwrap();
         let _ = self.with_sync_state(SyncState::clear);
         self.deleted_meetings.lock().unwrap().clear();
+        *self.pending_device.lock().unwrap() = None;
+        *self.pending_confirm.lock().unwrap() = false;
         *self.sync_last.lock().unwrap() = None;
     }
 
     /// Names this device in the conflict copies it causes elsewhere.
     pub(crate) fn remember_device_name(&self, name: &str) {
-        let _ = self.with_sync_state(|state| state.set_device(name));
+        let mut pending = self.pending_device.lock().unwrap();
+        match self.try_sync_state(|state| state.set_device(name)) {
+            Some(_) => *pending = None,
+            None => *pending = Some(name.to_string()),
+        }
     }
 
     fn vault_key(&self) -> Option<VaultKey> {
@@ -1259,6 +1275,12 @@ impl PennelEngine {
             if let Err(error) = deleted.iter().try_for_each(|uid| state.mark_deleted(uid)) {
                 self.deleted_meetings.lock().unwrap().extend(deleted);
                 return Err(error);
+            }
+            if let Some(name) = self.pending_device.lock().unwrap().take() {
+                state.set_device(&name)?;
+            }
+            if std::mem::take(&mut *self.pending_confirm.lock().unwrap()) {
+                state.confirm_deletes()?;
             }
             let device = state.device()?.unwrap_or_else(|| "Pennel".into());
             let mut report = sync::run(PassInput {
@@ -1346,6 +1368,8 @@ impl PennelEngine {
             sync_last: Mutex::new(None),
             sync_items: Mutex::new(Vec::new()),
             deleted_meetings: Mutex::new(Vec::new()),
+            pending_device: Mutex::new(None),
+            pending_confirm: Mutex::new(false),
             #[cfg(test)]
             sync_api_override: Mutex::new(None),
             preview,
