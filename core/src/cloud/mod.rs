@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 pub mod account;
+pub mod crypto;
 pub mod http;
 
 const RELEASE_URL: &str = "https://api.pennel.app";
