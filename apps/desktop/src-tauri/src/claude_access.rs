@@ -172,8 +172,8 @@ fn run(
         match relay.poll() {
             Ok(requests) => {
                 failures = 0;
-                if inner.stopped() || !relay.active() {
-                    continue;
+                if inner.stopped() {
+                    return;
                 }
                 let last = if requests.is_empty() {
                     last_request(&inner)
@@ -357,6 +357,7 @@ mod tests {
         polls: Mutex<VecDeque<Result<Vec<RelayRequest>, PennelError>>>,
         poll_count: AtomicUsize,
         answered: Mutex<Vec<(String, RelayAnswer)>>,
+        off_after_poll: AtomicBool,
     }
 
     impl Relay for Fake {
@@ -365,6 +366,9 @@ mod tests {
         }
         fn poll(&self) -> Result<Vec<RelayRequest>, PennelError> {
             self.poll_count.fetch_add(1, Ordering::SeqCst);
+            if self.off_after_poll.load(Ordering::SeqCst) {
+                self.active.store(false, Ordering::SeqCst);
+            }
             let next = self.polls.lock().unwrap().pop_front();
             next.unwrap_or_else(|| {
                 std::thread::sleep(Duration::from_millis(5));
@@ -469,6 +473,23 @@ mod tests {
         std::thread::sleep(Duration::from_millis(50));
         assert!(fake.poll_count.load(Ordering::SeqCst) <= polls + 1);
         assert!(seen.lock().unwrap().contains(&ClaudeStatus::Connecting));
+        runner.stop();
+    }
+
+    #[test]
+    fn a_request_arriving_after_switch_off_is_refused_not_run() {
+        let fake = Arc::new(Fake::default());
+        fake.polls
+            .lock()
+            .unwrap()
+            .push_back(Ok(vec![request("late")]));
+        fake.off_after_poll.store(true, Ordering::SeqCst);
+        fake.active.store(true, Ordering::SeqCst);
+        let (runner, _) = runner(&fake);
+        wait_until(|| !fake.answered.lock().unwrap().is_empty());
+        let (id, answer) = fake.answered.lock().unwrap()[0].clone();
+        assert_eq!(id, "late");
+        assert!(matches!(answer, RelayAnswer::Failed { code, .. } if code == "unavailable"));
         runner.stop();
     }
 

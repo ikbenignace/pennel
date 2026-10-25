@@ -41,7 +41,7 @@ with zero or one request. A new poll from the same device supersedes an older on
 | `search_meetings` | `query` (1–200 chars), `limit` 1–20 (default 10) | matching meetings with id, title, date, duration and up to two snippets | `search_library` |
 | `list_recent_meetings` | `limit` 1–50 (default 10) | newest meetings with id, title, date, duration, whether there is a summary | `meetings` |
 | `get_meeting` | `meeting_id` (must be one of this computer's meetings), `part` = `summary` / `notes` / `transcript` / `all` (default `all`) | that part; `summary` is the body of `meeting.md`, `notes` is `notes.md` | `meetings`, `meeting_markdown`, `meeting_notes`, `meeting_transcript` |
-| `ask_meetings` | `question` (1–1000 chars), optional `meeting_id` | an answer citing the meetings it used; without a configured model, the most relevant passages | `ask_meetings`, `search_passages` |
+| `ask_meetings` | `question` (1–1000 chars), optional `meeting_id` | an answer citing the meetings it used; without a configured model, the most relevant passages | `ask_meetings`, then the meeting index for the fallback |
 
 Error codes: `not_found`, `invalid_arguments`, `unavailable`, `failed`.
 
