@@ -32,13 +32,18 @@ uuid = { version = "1.29.0", features = ["v7"] }
 zeroize = "1.9.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-transcribe-cpp = { version = "0.4.1", default-features = false, features = ["metal"] }
+transcribe-cpp = { version = "0.4.1", default-features = false, features = ["metal"], optional = true }
 
-[target.'cfg(not(target_os = "macos"))'.dependencies]
-transcribe-cpp = { version = "0.4.1", default-features = false }
+[target.'cfg(target_os = "ios")'.dependencies]
+transcribe-cpp = { version = "0.4.1", default-features = false, features = ["metal"], optional = true }
+
+[target.'cfg(not(any(target_os = "macos", target_os = "ios")))'.dependencies]
+transcribe-cpp = { version = "0.4.1", default-features = false, optional = true }
 
 [features]
-vulkan = ["transcribe-cpp/vulkan"]
+default = ["local-models"]
+local-models = ["dep:transcribe-cpp"]
+vulkan = ["local-models", "transcribe-cpp/vulkan"]
 
 [dev-dependencies]
 mockito = "1.7.2"

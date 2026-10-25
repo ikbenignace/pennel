@@ -1,11 +1,18 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(feature = "local-models")]
+use std::path::PathBuf;
+#[cfg(feature = "local-models")]
 use std::sync::{Mutex, TryLockError};
 use std::time::{Duration, Instant};
 
-use transcribe_cpp::{CancelToken, Feature, Model, RunOptions, Session};
+#[cfg(feature = "local-models")]
+pub(crate) use transcribe_cpp::CancelToken;
+#[cfg(feature = "local-models")]
+use transcribe_cpp::{Feature, Model, RunOptions, Session};
 
 use crate::error::PennelError;
 
+#[cfg(feature = "local-models")]
 struct Loaded {
     path: PathBuf,
     session: Session,
@@ -18,15 +25,34 @@ struct Loaded {
 /// Local speech model kept in memory between dictations and released after inactivity.
 #[derive(Default)]
 pub struct LocalEngine {
+    #[cfg(feature = "local-models")]
     loaded: Mutex<Option<Loaded>>,
 }
 
+/// Stands in for the native engine's token where local models are not built in.
+#[cfg(not(feature = "local-models"))]
+#[derive(Default)]
+pub(crate) struct CancelToken(std::sync::atomic::AtomicBool);
+
+#[cfg(not(feature = "local-models"))]
+impl CancelToken {
+    pub(crate) fn cancel(&self) {
+        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub(crate) fn is_cancelled(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+#[cfg(feature = "local-models")]
 fn engine_error(e: transcribe_cpp::Error) -> PennelError {
     PennelError::InvalidResponse {
         message: format!("lokaal model: {e}"),
     }
 }
 
+#[cfg(feature = "local-models")]
 fn loaded_model<'a>(
     loaded: &'a mut Option<Loaded>,
     path: &Path,
@@ -52,6 +78,7 @@ fn loaded_model<'a>(
     Ok(loaded.as_mut().expect("loaded above"))
 }
 
+#[cfg(feature = "local-models")]
 fn run(
     model: &mut Loaded,
     samples: &[f32],
@@ -87,6 +114,7 @@ fn run(
     }
 }
 
+#[cfg(feature = "local-models")]
 /// Only passes options the loaded model can use: an unsupported language falls back to autodetect,
 /// and the dictionary goes wherever the model accepts custom terms.
 pub(crate) fn run_options(
@@ -120,6 +148,7 @@ pub(crate) fn run_options(
     options
 }
 
+#[cfg(feature = "local-models")]
 impl LocalEngine {
     #[cfg(test)]
     pub fn is_loaded(&self) -> bool {
@@ -181,10 +210,44 @@ impl LocalEngine {
     }
 }
 
+#[cfg(not(feature = "local-models"))]
+impl LocalEngine {
+    #[cfg(test)]
+    pub fn is_loaded(&self) -> bool {
+        false
+    }
+
+    pub fn unload_if_idle(&self, _idle: Duration, _now: Instant) -> bool {
+        false
+    }
+
+    pub fn transcribe(
+        &self,
+        _model_path: &Path,
+        _samples: &[f32],
+        _language: Option<&str>,
+        _vocabulary: &[String],
+    ) -> Result<String, PennelError> {
+        Err(PennelError::local_models_unavailable())
+    }
+
+    pub(crate) fn preview(
+        &self,
+        _model_path: &Path,
+        _samples: &[f32],
+        _language: Option<&str>,
+        _vocabulary: &[String],
+        _cancel: &CancelToken,
+    ) -> Result<Option<String>, PennelError> {
+        Err(PennelError::local_models_unavailable())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[cfg(feature = "local-models")]
     fn langs(codes: &[&str]) -> Vec<String> {
         codes.iter().map(|c| c.to_string()).collect()
     }
@@ -196,6 +259,7 @@ mod tests {
         assert!(!engine.unload_if_idle(Duration::ZERO, Instant::now()));
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn missing_model_file_is_model_not_downloaded() {
         let engine = LocalEngine::default();
@@ -210,6 +274,7 @@ mod tests {
         assert_eq!(err, PennelError::ModelNotDownloaded);
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn preview_does_not_wait_for_an_active_final_transcription() {
         let engine = std::sync::Arc::new(LocalEngine::default());
@@ -229,6 +294,7 @@ mod tests {
         assert_eq!(result.unwrap(), Ok(None));
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn cancelled_preview_never_loads_a_model() {
         let engine = LocalEngine::default();
@@ -247,6 +313,7 @@ mod tests {
         assert!(!engine.is_loaded());
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn run_options_drops_unsupported_language() {
         assert_eq!(
@@ -277,6 +344,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn run_options_routes_vocabulary() {
         let terms = langs(&["Pennel"]);
@@ -291,6 +359,7 @@ mod tests {
         assert_eq!(neither.prompt, None);
     }
 
+    #[cfg(feature = "local-models")]
     fn real_model_transcribes(file: &str) {
         let home = std::env::var("HOME").unwrap();
         let model = PathBuf::from(home)
@@ -315,6 +384,7 @@ mod tests {
     }
 
     /// Downloads Parakeet v3 into the app's model folder if missing; run with `cargo test -- --ignored`.
+    #[cfg(feature = "local-models")]
     #[test]
     #[ignore]
     fn real_parakeet_transcribes() {
@@ -339,9 +409,21 @@ mod tests {
     }
 
     /// Needs the legacy small model in the app's model folder; run with `cargo test -- --ignored`.
+    #[cfg(feature = "local-models")]
     #[test]
     #[ignore]
     fn real_legacy_whisper_transcribes() {
         real_model_transcribes("whisper-small-q5_1.bin");
+    }
+
+    #[cfg(not(feature = "local-models"))]
+    #[test]
+    fn local_transcribe_without_feature_is_dutch_error() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let engine = LocalEngine::default();
+        assert_eq!(
+            engine.transcribe(file.path(), &[0.0; 16_000], None, &[]),
+            Err(PennelError::local_models_unavailable())
+        );
     }
 }

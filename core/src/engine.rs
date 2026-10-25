@@ -1165,6 +1165,9 @@ impl PennelEngine {
     }
 
     pub fn local_models(&self, language: Option<String>, supported_only: bool) -> Vec<LocalModel> {
+        if cfg!(not(feature = "local-models")) {
+            return Vec::new();
+        }
         self.models
             .local_models(language.as_deref(), supported_only)
     }
@@ -1199,6 +1202,9 @@ impl PennelEngine {
         id: String,
         listener: Arc<dyn DownloadListener>,
     ) -> Result<(), PennelError> {
+        if cfg!(not(feature = "local-models")) {
+            return Err(PennelError::local_models_unavailable());
+        }
         let (task, owner) = {
             let mut downloads = self.downloads.lock().unwrap();
             match downloads.entry(id.clone()) {
@@ -1940,7 +1946,7 @@ impl PennelEngine {
         &self,
         settings: &Settings,
         samples: &[f32],
-        cancel: &transcribe_cpp::CancelToken,
+        cancel: &crate::local_engine::CancelToken,
     ) -> Result<Option<String>, PennelError> {
         let Some((account, model)) = settings.resolve(&settings.dictation_stt) else {
             return Err(PennelError::NotFound);
@@ -2713,12 +2719,14 @@ mod tests {
         fn on_progress(&self, _: u64, _: u64) {}
     }
 
+    #[cfg(feature = "local-models")]
     struct DownloadGate {
         entered: std::sync::Barrier,
         release: std::sync::Barrier,
         first: std::sync::atomic::AtomicBool,
     }
 
+    #[cfg(feature = "local-models")]
     impl DownloadGate {
         fn new() -> Self {
             Self {
@@ -2729,6 +2737,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "local-models")]
     impl DownloadListener for DownloadGate {
         fn on_progress(&self, _: u64, _: u64) {
             if self.first.swap(false, std::sync::atomic::Ordering::SeqCst) {
@@ -2738,11 +2747,13 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "local-models")]
     struct JoinedProgress {
         joined: std::sync::mpsc::Sender<()>,
         progress: Mutex<Vec<(u64, u64)>>,
     }
 
+    #[cfg(feature = "local-models")]
     impl DownloadListener for JoinedProgress {
         fn on_progress(&self, downloaded: u64, total: u64) {
             self.progress.lock().unwrap().push((downloaded, total));
@@ -2771,6 +2782,7 @@ mod tests {
         Arc::new(engine)
     }
 
+    #[cfg(feature = "local-models")]
     fn shared_download(cancel: bool, join_only: bool) {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let bytes = vec![b'm'; 3 * 1024 * 1024];
@@ -2834,16 +2846,19 @@ mod tests {
         request.assert();
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn concurrent_model_downloads_share_one_writer_and_progress() {
         shared_download(false, false);
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn joining_an_active_download_waits_for_its_existing_worker() {
         shared_download(false, true);
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn cancelling_a_shared_download_releases_waiters_and_keeps_partial_model() {
         shared_download(true, true);
@@ -2864,6 +2879,7 @@ mod tests {
         request.assert();
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn engine_model_api_reports_state_and_unknown_ids() {
         let dir = tempfile::tempdir().unwrap();
@@ -2880,6 +2896,26 @@ mod tests {
         );
         engine.cancel_download("whisper-small-q5_1".into());
         engine.delete_model("whisper-small-q5_1".into()).unwrap();
+    }
+
+    #[cfg(not(feature = "local-models"))]
+    #[test]
+    fn local_models_list_empty_without_feature() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        assert!(engine.local_models(None, false).is_empty());
+        assert_eq!(
+            engine
+                .download_model("whisper-small-q5_1".into(), Arc::new(Silent))
+                .unwrap_err(),
+            PennelError::local_models_unavailable()
+        );
+        assert_eq!(
+            engine
+                .download_model(engine.diarizer_model_id(), Arc::new(Silent))
+                .unwrap_err(),
+            PennelError::local_models_unavailable()
+        );
     }
 
     #[test]

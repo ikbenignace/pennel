@@ -1,7 +1,5 @@
 use std::path::Path;
 
-use transcribe_cpp::Model;
-
 use crate::error::PennelError;
 use crate::meetings::{Segment, Speaker};
 
@@ -14,7 +12,10 @@ const MS_PER_WORD: u64 = 450;
 pub type Turn = (u64, u64, u32);
 
 /// Runs the diarization model over a whole track (16 kHz mono).
+#[cfg(feature = "local-models")]
 pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, PennelError> {
+    use transcribe_cpp::Model;
+
     if !model_path.exists() {
         return Err(PennelError::ModelNotDownloaded);
     }
@@ -29,6 +30,11 @@ pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, PennelEr
         .filter(|t| t.speaker_id > 0 && t.t1_ms > t.t0_ms)
         .map(|t| (t.t0_ms.max(0) as u64, t.t1_ms as u64, t.speaker_id as u32))
         .collect())
+}
+
+#[cfg(not(feature = "local-models"))]
+pub fn diarize(_model_path: &Path, _samples: &[f32]) -> Result<Vec<Turn>, PennelError> {
+    Err(PennelError::local_models_unavailable())
 }
 
 /// Gives each "Anderen" segment the voice that overlaps it most. Transcripts store start times only, so a
@@ -162,5 +168,15 @@ mod tests {
         let voices: std::collections::HashSet<u32> = turns.iter().map(|t| t.2).collect();
         eprintln!("{turns:?}");
         assert_eq!(voices.len(), 3);
+    }
+
+    #[cfg(not(feature = "local-models"))]
+    #[test]
+    fn diarize_without_feature_is_dutch_error() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        assert_eq!(
+            diarize(file.path(), &[0.0; 16_000]),
+            Err(PennelError::local_models_unavailable())
+        );
     }
 }
