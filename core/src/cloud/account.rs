@@ -101,9 +101,15 @@ impl Session {
     }
 
     fn clear_secrets(&self) {
+        let mut access = self.access.lock().unwrap();
+        self.clear_locked(&mut access);
+    }
+
+    // Callers hold `access`, so an in-flight refresh cannot write a rotated token afterwards.
+    fn clear_locked(&self, access: &mut Option<AccessToken>) {
         self.secrets.set(REFRESH_ACCOUNT.into(), None);
         self.secrets.set(super::VAULT_KEY_ACCOUNT.into(), None);
-        *self.access.lock().unwrap() = None;
+        *access = None;
     }
 
     pub fn access_token(&self) -> Result<String, PennelError> {
@@ -132,8 +138,7 @@ impl Session {
         if status == 401 {
             let code = body.get("error").and_then(Value::as_str).unwrap_or("");
             if code.is_empty() || is_revoked(code) {
-                drop(access);
-                self.clear_secrets();
+                self.clear_locked(&mut access);
                 return Err(PennelError::NotSignedIn);
             }
         }
@@ -230,10 +235,12 @@ impl Session {
             value: access,
             expires_at: Instant::now() + Duration::from_secs(lifetime),
         });
-        let account = self.account()?;
-        Ok(CloudLoginPoll::Done {
-            email: account.email,
-        })
+        // The tokens are already stored; the UI fetches the account again if the e-mail is missing.
+        let email = self
+            .account()
+            .map(|account| account.email)
+            .unwrap_or_default();
+        Ok(CloudLoginPoll::Done { email })
     }
 
     pub fn account(&self) -> Result<CloudAccount, PennelError> {
@@ -582,5 +589,119 @@ mod tests {
             std::fs::read_to_string(meeting.join("meeting.md")).unwrap(),
             "notities"
         );
+    }
+
+    #[test]
+    fn clear_during_in_flight_refresh_leaves_no_refresh_token() {
+        let mut server = mockito::Server::new();
+        let (secrets, session) = fixture(&server);
+        secrets.set(REFRESH_ACCOUNT.into(), Some("old".into()));
+        let _refresh = server
+            .mock("POST", "/v1/auth/refresh")
+            .with_body_from_request(|_| {
+                std::thread::sleep(Duration::from_millis(400));
+                br#"{"access_token":"a1","refresh_token":"new1","expires_in":900}"#.to_vec()
+            })
+            .create();
+        let session = Arc::new(session);
+        let refreshing = {
+            let session = session.clone();
+            std::thread::spawn(move || {
+                let _ = session.access_token();
+            })
+        };
+        std::thread::sleep(Duration::from_millis(150));
+        session.clear_secrets();
+        refreshing.join().unwrap();
+        assert_eq!(stored(&secrets), None);
+        assert!(!session.signed_in());
+    }
+
+    #[test]
+    fn unauthorized_call_refreshes_once_and_retries_with_new_token() {
+        let mut server = mockito::Server::new();
+        let (secrets, session) = fixture(&server);
+        secrets.set(REFRESH_ACCOUNT.into(), Some("old".into()));
+        let first = server
+            .mock("POST", "/v1/auth/refresh")
+            .match_body(Matcher::Json(json!({"refresh_token": "old"})))
+            .with_body(r#"{"access_token":"a1","refresh_token":"new1","expires_in":900}"#)
+            .expect(1)
+            .create();
+        let second = server
+            .mock("POST", "/v1/auth/refresh")
+            .match_body(Matcher::Json(json!({"refresh_token": "new1"})))
+            .with_body(r#"{"access_token":"a2","refresh_token":"new2","expires_in":900}"#)
+            .expect(1)
+            .create();
+        let rejected = server
+            .mock("GET", "/v1/account")
+            .match_header("authorization", "Bearer a1")
+            .with_status(401)
+            .with_body(r#"{"error":"unauthorized"}"#)
+            .expect(1)
+            .create();
+        let accepted = server
+            .mock("GET", "/v1/account")
+            .match_header("authorization", "Bearer a2")
+            .with_body(ACCOUNT)
+            .expect(1)
+            .create();
+        assert_eq!(session.account().unwrap().email, "a@b.nl");
+        first.assert();
+        second.assert();
+        rejected.assert();
+        accepted.assert();
+        assert_eq!(stored(&secrets).as_deref(), Some("new2"));
+    }
+
+    #[test]
+    fn forced_refresh_revoked_signs_out_and_clears_both_secrets() {
+        let mut server = mockito::Server::new();
+        let (secrets, session) = fixture(&server);
+        secrets.set(REFRESH_ACCOUNT.into(), Some("old".into()));
+        secrets.set(crate::cloud::VAULT_KEY_ACCOUNT.into(), Some("key".into()));
+        let _first = server
+            .mock("POST", "/v1/auth/refresh")
+            .match_body(Matcher::Json(json!({"refresh_token": "old"})))
+            .with_body(r#"{"access_token":"a1","refresh_token":"new1","expires_in":900}"#)
+            .create();
+        let _revoked = server
+            .mock("POST", "/v1/auth/refresh")
+            .match_body(Matcher::Json(json!({"refresh_token": "new1"})))
+            .with_status(401)
+            .with_body(r#"{"error":"session_revoked"}"#)
+            .create();
+        let _rejected = server
+            .mock("GET", "/v1/account")
+            .with_status(401)
+            .with_body(r#"{"error":"unauthorized"}"#)
+            .create();
+        assert_eq!(session.account(), Err(PennelError::NotSignedIn));
+        assert_eq!(stored(&secrets), None);
+        assert_eq!(secrets.get(crate::cloud::VAULT_KEY_ACCOUNT.into()), None);
+    }
+
+    #[test]
+    fn login_done_survives_failing_account_lookup() {
+        let mut server = mockito::Server::new();
+        let (secrets, session) = fixture(&server);
+        let _done = server
+            .mock("POST", "/v1/auth/token")
+            .with_body(r#"{"access_token":"acc","refresh_token":"ref1","expires_in":900,"device_id":"d1"}"#)
+            .create();
+        let _account = server
+            .mock("GET", "/v1/account")
+            .with_status(500)
+            .with_body(r#"{"error":"internal"}"#)
+            .create();
+        assert_eq!(
+            session.login_poll("dc").unwrap(),
+            CloudLoginPoll::Done {
+                email: String::new()
+            }
+        );
+        assert_eq!(stored(&secrets).as_deref(), Some("ref1"));
+        assert!(session.signed_in());
     }
 }
