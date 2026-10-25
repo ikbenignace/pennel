@@ -1,4 +1,4 @@
-.PHONY: core test app app-preview run desktop desktop-preview desktop-test packaging-test theme theme-check
+.PHONY: core test app app-preview run desktop desktop-preview desktop-test packaging-test theme theme-check ios-core ios ios-test
 
 core: theme
 	scripts/with-toolchain.sh scripts/build-core.sh
@@ -34,3 +34,17 @@ theme:
 
 theme-check:
 	python3 scripts/generate-theme.py --check
+
+ios-core:
+	scripts/with-toolchain.sh scripts/build-core-ios.sh
+
+ios: ios-core
+	if [ -d apps/ios/Pennel.xcodeproj ]; then \
+		xcodebuild build -project apps/ios/Pennel.xcodeproj -scheme Pennel -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO; \
+	fi
+
+ios-test: ios-core
+	if [ -d apps/ios/PennelMobileKit ]; then swift test --package-path apps/ios/PennelMobileKit; fi
+	if [ -d apps/ios/Pennel.xcodeproj ]; then \
+		xcodebuild test -project apps/ios/Pennel.xcodeproj -scheme Pennel -destination 'platform=iOS Simulator,name=iPhone 17'; \
+	fi
