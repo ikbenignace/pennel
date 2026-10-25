@@ -225,6 +225,7 @@ body[data-window="settings"] main { padding-top: 0; }
 .conflict-banner { display: flex; align-items: center; gap: 10px; margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--subtle); color: var(--muted); font-size: var(--font-label); }
 .conflict-banner > .ui-icon { color: var(--accent); }
 .conflict-banner > span { flex: 1; }
+.meeting-detail > .conflict-banner { margin: 0 32px 12px; flex-shrink: 0; }
 
 html, body { background: var(--surface); color: var(--foreground); font-size: var(--font-body); }
 h1 { font: 600 var(--font-title)/1.2 var(--ui); letter-spacing: -.015em; }
@@ -513,6 +514,7 @@ body[data-window="onboarding"] main { display: flex; overflow: hidden; }
   .library-overview .library-search { flex-basis: 100%; }
   .library-controls .grow { display: none; }
   .meeting-back { margin-left: 20px; margin-right: 20px; }
+  .meeting-detail > .conflict-banner { margin-left: 20px; margin-right: 20px; }
   .meeting-header, .meeting-panel, .meeting-footer, .meeting-tabs, .meeting-summary-setup, .chat-history, .chat-composer { padding-left: 20px; padding-right: 20px; }
   .transcript-line { grid-template-columns: 42px 65px minmax(0, 1fr); gap: 8px; }
   .style-rule { flex-wrap: wrap; }
