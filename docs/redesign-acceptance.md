@@ -135,3 +135,19 @@ The following require separate evidence and are not established by fixture scree
 The native reference app remains available until the shared packages and real-device acceptance pass. No release publication is implied by local build or screenshot results.
 
 The initial local previews used ad-hoc signing. The fn follow-up above rebuilt both with an existing Apple Development certificate and retained its selection for later preview builds. Production signing/notarization and full permission persistence across upgrades are not established by these local previews.
+
+## Mac menu bar follow-up
+
+The shared Tauri app now launches in the menu bar after completed or skipped setup. Setup still opens on first use, and finishing or skipping it opens Dicteren once. Explicit reopening resumes unfinished setup or opens the workspace. Mac window closing uses an acknowledged save barrier; window-owned sessions are restored on reopening, and quit/update barriers take priority over closing.
+
+Local checks on 2026-10-25 passed: 110 shared-backend tests, 71 frontend tests and the production build, 318 core tests (5 existing ignored), 76 native Swift tests, 58 macOS platform tests, core/shared Clippy and formatting, and 30 packaging tests. The native reference app built successfully. Menu presentation tests cover recording transitions and shared-token icon colors; icon generation is reproducible.
+
+The final shared preview and disk image were rebuilt with the existing stable development identity. Strict bundle signature/identity/permission metadata inspection and disk-image checksum verification passed. Evidence is under `build/menu-bar-*.log` and `build/menu-bar-final-bundle.json`.
+
+A fresh isolated preview profile showed onboarding, and **Later instellen** opened Dicteren. A subsequent cold launch of the final package had accessory activation policy and no visible windows (`build/menu-bar-final-quiet-start.json`). Explicit reopening showed the workspace. Closing the dicteerpad left the same process running without visible windows, and reopening restored a synthetic draft. History/settings navigation and explicit quit were checked through the real packaged interface. A separate process/window metadata check avoided the app-inspection tool's automatic reopening behavior. The previous shared preview profile was restored after testing; canonical data, credentials and the running native preview were preserved.
+
+Four affected fixture surfaces (Dicteren, dicteerpad, recording and onboarding Welcome) were captured in light/dark appearances in both renderers: eight paired compositions, no dimension mismatches or runtime/layout errors. The comparison gallery is `build/menu-bar-visual/index.html`; it is a scoped comparison, not a new full-matrix acceptance claim.
+
+The [desktop CI matrix](https://github.com/ikbenignace/pennel/actions/runs/40208667421) passed all six jobs on revision `8fdd176`: Mac, Windows and Linux app tests/installers, Windows/Linux core checks, and packaging-tool tests. CI exposed existing blockers that were repaired without changing Mac migration behavior: non-Mac dictation-message sizing, explicit development signing, Windows-safe migration refusal assertions, and initial Windows AAC format negotiation. Four portable format regressions passed, and the existing native Mac AAC fixture and Windows roundtrip assertions passed unchanged. The Windows follow-up changes no Mac runtime code.
+
+Live microphone dictation, recording during window closure, interactive status-menu/VoiceOver acceptance and full platform device acceptance remain open. The isolated test profile had no downloaded speech model; no model download or new OS permission grant was performed.
