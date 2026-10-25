@@ -7,9 +7,28 @@ on:
 
 concurrency:
   group: desktop-${{ github.ref }}
-  cancel-in-progress: true
+  # A cancelled main run could leave a release half published; main runs queue instead.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: plan
+        name: Decide whether this main push ships a release
+        run: |
+          python3 scripts/desktop-auto-release.py plan | tee plan.txt
+          if [ "${{ github.event_name }}" != push ] || [ "${{ github.ref }}" != refs/heads/main ]; then
+            sed -i 's/^release=.*/release=false/' plan.txt
+          fi
+          cat plan.txt >> "$GITHUB_OUTPUT"
+
   core:
     strategy:
       fail-fast: false
@@ -75,6 +94,7 @@ jobs:
             runner: ${{ vars.LINUX_RUNNER || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             bundles: deb,appimage
+    needs: version
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     env:
@@ -154,12 +174,14 @@ jobs:
         env:
           PENNEL_BUILD_TARGET: ${{ matrix.target }}
           PENNEL_BUNDLE_FORMATS: ${{ matrix.bundles }}
+          PENNEL_RELEASE_VERSION: ${{ needs.version.outputs.release == 'true' && needs.version.outputs.version || '' }}
         shell: bash
         run: |
           py=python
           command -v python3 >/dev/null && py=python3
           "$py" - <<'PY'
           import importlib.util
+          import json
           import os
           import shutil
           import sys
@@ -171,7 +193,12 @@ jobs:
           npx = shutil.which("npx.cmd" if sys.platform == "win32" else "npx")
           if not npx:
               raise SystemExit("Node.js/npm is required to build desktop installers")
-          release.build_distributable(npx, os.environ["PENNEL_BUILD_TARGET"], os.environ["PENNEL_BUNDLE_FORMATS"], None, os.environ, sys.platform)
+          config = None
+          if os.environ.get("PENNEL_RELEASE_VERSION"):
+              config = Path("../../build/tauri.version.conf.json").resolve()
+              config.parent.mkdir(parents=True, exist_ok=True)
+              config.write_text(json.dumps({"version": os.environ["PENNEL_RELEASE_VERSION"]}), encoding="utf-8")
+          release.build_distributable(npx, os.environ["PENNEL_BUILD_TARGET"], os.environ["PENNEL_BUNDLE_FORMATS"], config, os.environ, sys.platform)
           PY
       - name: Inspect packaged Mac app without opening it
         if: runner.os == 'macOS'
@@ -199,3 +226,57 @@ jobs:
       - uses: actions/checkout@v5
       - name: Release configuration, manifest gates and bundle metadata tests
         run: make packaging-test
+
+  release:
+    needs: [version, core, app, packaging-tools]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: pennel-*-development
+          path: dist
+          merge-multiple: true
+      - name: Publish the GitHub release
+        run: |
+          set -euo pipefail
+          # Self-hosted runners can keep bundles of earlier versions; ship only this one.
+          mapfile -t files < <(find dist -type f -name "Pennel_${VERSION}_*" \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.AppImage' \))
+          for kind in _aarch64.dmg -setup.exe .msi .deb .AppImage; do
+            printf '%s\n' "${files[@]}" | grep -q -- "$kind\$" || { echo "::error::missing $kind for $VERSION"; exit 1; }
+          done
+          sha256sum "${files[@]}" | sed 's#  .*/#  #' > SHA256SUMS.txt
+          gh release create "v${VERSION}" "${files[@]}" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "Pennel ${VERSION}" --generate-notes
+      - name: Update the Homebrew cask
+        env:
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAP_KEY" ]; then
+            echo "::warning::HOMEBREW_TAP_DEPLOY_KEY is not set; the cask stays on the previous version"
+            exit 0
+          fi
+          dmg=$(find dist -type f -name "Pennel_${VERSION}_aarch64.dmg" | head -1)
+          sha=$(sha256sum "$dmg" | cut -d' ' -f1)
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$TAP_KEY" > ~/.ssh/tap_key
+          chmod 600 ~/.ssh/tap_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 git@github.com:ikbenignace/homebrew-pennel.git tap
+          mkdir -p tap/Casks
+          python3 scripts/desktop-auto-release.py cask "$VERSION" "$sha" --repository "$GITHUB_REPOSITORY" > tap/Casks/pennel.rb
+          cd tap
+          git config user.name "pennel-release"
+          git config user.email "pennel-release@users.noreply.github.com"
+          git add Casks/pennel.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "pennel ${VERSION}"
+          git push origin HEAD
+          rm -f ~/.ssh/tap_key
