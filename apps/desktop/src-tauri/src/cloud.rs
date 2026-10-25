@@ -87,7 +87,10 @@ impl SyncRunner {
             move || recording_meeting_ids(&shared)
         };
         let run = move |ids: Vec<String>| {
-            if !shared.settings().cloud_sync || !shared.engine.cloud_signed_in() {
+            if !should_run(
+                shared.settings().cloud_sync,
+                shared.engine.cloud_signed_in(),
+            ) {
                 return;
             }
             let report = shared.engine.cloud_sync_run(ids);
@@ -161,6 +164,12 @@ impl SyncRunner {
     }
 }
 
+/// A pass only makes sense while sync is on and an account is signed in; deleting the account
+/// or logging out turns every later pass into a no-op.
+fn should_run(sync_on: bool, signed_in: bool) -> bool {
+    sync_on && signed_in
+}
+
 fn recording_meeting_ids(shared: &Shared) -> Vec<String> {
     shared
         .meeting_context
@@ -212,6 +221,7 @@ impl From<SyncStatus> for SyncStatusView {
 #[derive(Serialize, Clone)]
 pub struct SyncReportView {
     status: SyncStatusView,
+    brake: bool,
     uploaded: u32,
     downloaded: u32,
     conflicts: u32,
@@ -221,6 +231,7 @@ pub struct SyncReportView {
 impl From<SyncReport> for SyncReportView {
     fn from(report: SyncReport) -> Self {
         Self {
+            brake: matches!(&report.status, SyncStatus::Error { message } if message == pennel_core::MASS_DELETE),
             status: report.status.into(),
             uploaded: report.uploaded,
             downloaded: report.downloaded,
@@ -564,6 +575,38 @@ mod tests {
             assert!(start.elapsed() < Duration::from_secs(5), "timed out");
             std::thread::sleep(Duration::from_millis(5));
         }
+    }
+
+    fn report(status: SyncStatus) -> SyncReport {
+        SyncReport {
+            status,
+            uploaded: 0,
+            downloaded: 0,
+            conflicts: 0,
+            last_success_ms: None,
+        }
+    }
+
+    #[test]
+    fn only_the_mass_delete_error_sets_brake() {
+        let brake = SyncReportView::from(report(SyncStatus::Error {
+            message: pennel_core::MASS_DELETE.into(),
+        }));
+        assert!(brake.brake);
+        let other = SyncReportView::from(report(SyncStatus::Error {
+            message: "iets anders".into(),
+        }));
+        assert!(!other.brake);
+        assert!(!SyncReportView::from(report(SyncStatus::Synced)).brake);
+        let json = serde_json::to_value(&brake).unwrap();
+        assert_eq!(json["brake"], true);
+    }
+
+    #[test]
+    fn passes_stop_once_signed_out_or_sync_off() {
+        assert!(should_run(true, true));
+        assert!(!should_run(true, false));
+        assert!(!should_run(false, true));
     }
 
     #[test]

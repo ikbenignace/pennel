@@ -26,6 +26,7 @@ unsafe extern "C" {
     fn pennel_mac_read_selection(sink: TextSink, context: *mut c_void);
     fn pennel_mac_paste(text: *const c_char, sink: TextSink, context: *mut c_void);
     fn pennel_mac_copy_text(text: *const c_char, html: *const c_char) -> bool;
+    fn pennel_mac_copy_secret(text: *const c_char) -> bool;
     fn pennel_mac_share(
         text: *const c_char,
         title: *const c_char,
@@ -202,6 +203,16 @@ pub fn copy_text(text: &str, html: Option<&str>) -> Result<(), String> {
         )
     };
     if copied {
+        Ok(())
+    } else {
+        Err("Tekst kon niet naar het klembord worden gekopieerd".into())
+    }
+}
+
+/// Copies text marked so clipboard managers keep it out of their history.
+pub fn copy_secret(text: &str) -> Result<(), String> {
+    let text = c_string(text)?;
+    if unsafe { pennel_mac_copy_secret(text.as_ptr()) } {
         Ok(())
     } else {
         Err("Tekst kon niet naar het klembord worden gekopieerd".into())

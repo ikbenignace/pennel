@@ -84,7 +84,7 @@ const UNKNOWN_DEVICE: &str = "ander toestel";
 const UNEXPECTED_RESPONSE: &str = "Pennel Cloud gaf een onverwacht antwoord.";
 const CHANGED_DURING_SYNC: &str =
     "Een meetingbestand werd tijdens de sync gewijzigd; Pennel probeert het straks opnieuw.";
-const MASS_DELETE: &str = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
+pub const MASS_DELETE: &str = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
 
 struct Stop(SyncStatus);
 

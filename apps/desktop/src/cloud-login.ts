@@ -81,8 +81,34 @@ export function relativeTime(thenMs: number, nowMs: number): string {
   return days === 1 ? "1 dag geleden" : `${days} dagen geleden`;
 }
 
-export const MASS_DELETE_MESSAGE = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
+export interface AccountUi {
+  login:
+    | { kind: "idle" }
+    | { kind: "code"; start: { user_code: string; verification_uri: string; device_code: string; interval_secs: number } }
+    | { kind: "expired" };
+  offerCloud: boolean;
+  shownCode: string | null;
+  askCode: boolean;
+  lostCode: boolean;
+  codeDraft: string;
+  notice: string | null;
+  syncing: boolean;
+}
 
-export function isMassDeleteBrake(status: { kind: string; message?: string }): boolean {
-  return status.kind === "error" && status.message === MASS_DELETE_MESSAGE;
+export function initialAccountUi(): AccountUi {
+  return { login: { kind: "idle" }, offerCloud: false, shownCode: null, askCode: false, lostCode: false, codeDraft: "", notice: null, syncing: false };
+}
+
+/** After logout or account deletion nothing of the signed-in session may linger on screen. */
+export function afterSignOut(): AccountUi {
+  return initialAccountUi();
+}
+
+export function accountScreenFor(errorCode: string | null): "signed_out" | "signed_in" {
+  return errorCode === "not_signed_in" ? "signed_out" : "signed_in";
+}
+
+/** Only an explicit "false" counts: the flag is absent on devices that never created a code. */
+export function recoveryNeedsConfirmation(state: { signedIn: boolean; syncOn: boolean; confirmed: boolean | null }): boolean {
+  return state.signedIn && state.syncOn && state.confirmed === false;
 }

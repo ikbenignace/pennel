@@ -140,6 +140,14 @@ pub async fn copy_text(text: String, html: Option<String>) -> Result<(), String>
     .map_err(|error| error.to_string())?
 }
 
+/// Copies text that must not reach clipboard history (the recovery code). Never logged.
+#[tauri::command]
+pub async fn copy_secret_text(text: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::platform_clipboard::copy_secret(&text))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 #[tauri::command]
 pub fn show_window(kind: String, tab: Option<String>, app: AppHandle) -> Result<(), String> {
     if !matches!(

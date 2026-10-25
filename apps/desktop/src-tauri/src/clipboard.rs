@@ -21,6 +21,11 @@ pub trait Clipboard {
     fn text(&mut self) -> Option<String>;
 }
 
+/// Puts a secret on the clipboard marked so clipboard managers and Windows clipboard history skip it.
+pub fn copy_secret<C: Clipboard>(clipboard: &mut C, text: &str) {
+    clipboard.set_transient_text(text);
+}
+
 pub struct Token<S> {
     saved: S,
     fingerprint_after_set: u64,
@@ -115,6 +120,7 @@ mod tests {
     struct FakeClipboard {
         contents: Option<String>,
         writes: u64,
+        transient_writes: u64,
         pending_copy: Rc<RefCell<Option<String>>>,
     }
 
@@ -146,6 +152,7 @@ mod tests {
         }
 
         fn set_transient_text(&mut self, text: &str) {
+            self.transient_writes += 1;
             self.contents = Some(text.into());
             self.writes += 1;
         }
@@ -159,6 +166,14 @@ mod tests {
         let pending = c.pending_copy.clone();
         let selection = selection.to_owned();
         move || *pending.borrow_mut() = Some(selection)
+    }
+
+    #[test]
+    fn secrets_are_written_through_the_history_excluding_path() {
+        let mut c = FakeClipboard::default();
+        copy_secret(&mut c, "ABCD-EFGH");
+        assert_eq!(c.transient_writes, 1);
+        assert_eq!(c.contents.as_deref(), Some("ABCD-EFGH"));
     }
 
     #[test]

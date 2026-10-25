@@ -1,5 +1,17 @@
 //! Retains clipboard ownership on X11 after a copy command completes.
 
+/// Like `copy`, but marked so clipboard history and managers skip the text.
+pub fn copy_secret(text: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    return crate::macos::copy_secret(text);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let mut clipboard = crate::clipboard_system::SystemClipboard::new();
+        crate::clipboard::copy_secret(&mut clipboard, text);
+        Ok(())
+    }
+}
+
 pub fn copy(text: &str, html: Option<&str>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     return crate::macos::copy_text(text, html);

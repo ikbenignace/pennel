@@ -147,6 +147,21 @@ public func copyText(_ rawText: UnsafePointer<CChar>?, _ rawHTML: UnsafePointer<
     }
 }
 
+@_cdecl("pennel_mac_copy_secret")
+public func copySecret(_ rawText: UnsafePointer<CChar>?) -> Bool {
+    let text = decodeString(rawText) ?? ""
+    return onMain {
+        let item = NSPasteboardItem()
+        guard item.setString(text, forType: .string) else { return false }
+        // Conventions honoured by clipboard managers so the secret stays out of their history.
+        item.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
+        item.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.writeObjects([item])
+    }
+}
+
 private final class NativeHotkeys {
     var monitor: HotkeyMonitor?
     var shortcut: ShortcutTap?

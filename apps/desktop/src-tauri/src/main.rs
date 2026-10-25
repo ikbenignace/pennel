@@ -665,6 +665,7 @@ fn main() {
             platform_commands::play_meeting_audio,
             platform_commands::stop_audio,
             platform_commands::copy_text,
+            platform_commands::copy_secret_text,
             platform_commands::show_window,
             platform_commands::record_prompt,
             platform_commands::answer_record_prompt,

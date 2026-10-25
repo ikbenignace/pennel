@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatUsage, pollLogin } from "../src/cloud-login.ts";
+import { accountScreenFor, afterSignOut, formatUsage, initialAccountUi, pollLogin, recoveryNeedsConfirmation } from "../src/cloud-login.ts";
 
 function clock(start = 0) {
   const state = { time: start, sleeps: [] };
@@ -74,4 +74,28 @@ test("usage handles zero and sub-hour values", () => {
   assert.equal(usage.audio, "0 min van 20 u");
   assert.equal(usage.tokens, "0 mln van 2 mln tokens");
   assert.equal(usage.storage, "0 MB van 1 GB");
+});
+
+test("recovery code confirmation is only asked while explicitly unconfirmed", () => {
+  const base = { signedIn: true, syncOn: true };
+  assert.equal(recoveryNeedsConfirmation({ ...base, confirmed: false }), true);
+  assert.equal(recoveryNeedsConfirmation({ ...base, confirmed: true }), false);
+  assert.equal(recoveryNeedsConfirmation({ ...base, confirmed: null }), false);
+  assert.equal(recoveryNeedsConfirmation({ signedIn: false, syncOn: true, confirmed: false }), false);
+  assert.equal(recoveryNeedsConfirmation({ signedIn: true, syncOn: false, confirmed: false }), false);
+});
+
+test("logging out or deleting the account clears every local trace", () => {
+  const dirty = {
+    ...initialAccountUi(), shownCode: "ABCD", askCode: true, lostCode: true, codeDraft: "x", notice: "fout",
+    syncing: true, offerCloud: true, login: { kind: "expired" },
+  };
+  assert.notDeepEqual(dirty, initialAccountUi());
+  assert.deepEqual(afterSignOut(dirty), initialAccountUi());
+});
+
+test("not_signed_in leads to the signed-out screen, other errors do not", () => {
+  assert.equal(accountScreenFor("not_signed_in"), "signed_out");
+  assert.equal(accountScreenFor("error"), "signed_in");
+  assert.equal(accountScreenFor(null), "signed_in");
 });

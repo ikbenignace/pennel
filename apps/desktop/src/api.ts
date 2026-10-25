@@ -290,6 +290,7 @@ export type SyncStatus =
 
 export interface SyncReport {
   status: SyncStatus;
+  brake: boolean;
   uploaded: number;
   downloaded: number;
   conflicts: number;
@@ -343,6 +344,7 @@ export const api = {
   calendar: () => invoke<CalendarSnapshot>("calendar_snapshot"),
   chooseMeetingsDir: () => invoke<string | null>("choose_meetings_dir"),
   showWindow: (kind: AppWindow, tab: string | null = null) => invoke<void>("show_window", { kind, tab }),
+  copySecretText: (text: string) => invoke<void>("copy_secret_text", { text }),
   copyText: (text: string, html: string | null = null) => invoke<void>("copy_text", { text, html }),
   playMeetingAudio: (id: string, speaker: Speaker, startMs: number) =>
     invoke<void>("play_meeting_audio", { id, speaker, startMs }),
