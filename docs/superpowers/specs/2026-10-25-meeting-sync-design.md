@@ -83,8 +83,8 @@ Endpoints (JSON, onder `/v1`):
 | `POST /auth/device` | start de login: `device_code`, `user_code`, `verification_uri` |
 | `POST /auth/token` | de app vraagt na of de login rond is; daarna access- en refresh-token |
 | `POST /auth/refresh` | nieuw access token |
-| `POST /auth/email`, `POST /auth/email/verify`, `POST /auth/device/approve` | voor de webpagina: magic link sturen en verifiëren, code bevestigen |
-| `GET` / `PUT /vault` | ingepakte kluissleutel, KDF-parameters en generatie; `DELETE /vault` = opnieuw beginnen (wist alle objecten, generatie +1) |
+| `POST /auth/email`, `POST /auth/email/verify`, `POST /auth/device/lookup` | voor de webpagina: magic link sturen en verifiëren, en de toestelnaam bij een code opzoeken. Het toestel keurt de server goed bij `email/verify`; een aparte `approve` bestaat niet |
+| `GET` / `PUT /vault` | ingepakte kluissleutel, KDF-parameters en generatie; `DELETE /vault` = opnieuw beginnen (wist alle objecten, generatie +1). Een kluis aanmaken kan alleen met `If-None-Match: *`: 409 `vault_exists` als er al een is; zonder die header op een ontbrekende kluis 409 `vault_missing` |
 | `GET /sync/changes?since=&limit=` | wijzigingen sinds de cursor: `[{id, version, size, deleted}]`, een nieuwe cursor en de huidige kluisgeneratie |
 | `GET /objects/{id}` | versleutelde blob en versie |
 | `PUT /objects/{id}` | blob met `If-Match: <versie>` (0 = nieuw); 409 bij conflict |
@@ -128,7 +128,8 @@ Doel: een nieuwe gebruiker kan dicteren, opkuisen en meetings samenvatten zonder
   - De app stuurt als model `pennel-auto`; de server kiest het echte model. Een model dat niet in de toegelaten lijst staat, krijgt 400.
 - **Opslag:** geen audio en geen tekst. De server telt per account en per dag alleen seconden audio, inputtokens en outputtokens (uit de `usage` van upstream). Request- en response-bodies worden nooit gelogd.
 - **Misbruikbeperking:**
-  - Maximaal 25 MB en 30 minuten audio per request.
+  - Maximaal 25 MB per request. De grens van 30 minuten audio controleert de server alleen bij WAV; voor andere formaten bepaalt de grens van 25 MB de lengte.
+  - Chat-requests mogen maximaal 4 MB zijn.
   - Maximaal 2 gelijktijdige requests per account.
   - Een maandlimiet per account (§7).
   - Een globaal dagplafond aan kosten per upstream (env). Daarboven antwoordt de server 503 met "Pennel Cloud is tijdelijk overbelast".
@@ -167,6 +168,9 @@ Doel: een nieuwe gebruiker kan dicteren, opkuisen en meetings samenvatten zonder
 9. Een vaste meeting-uid in de frontmatter, zodat hernoemen goed synct.
 10. De herstelcode wordt nooit bewaard. "Nieuwe code" pakt de sleutel opnieuw in. De kluisgeneratie maakt "opnieuw beginnen" zichtbaar op alle toestellen. Geen sleutelrotatie bij afmelden in v1.
 11. Gehoste modellen standaard via Mistral (EU), upstream configureerbaar; de app vraagt `pennel-auto`.
+12. Een toestel wordt goedgekeurd bij `email/verify`; `device/lookup` toont alleen de toestelnaam. Er is geen aparte `approve`.
+13. Een kluis aanmaken vraagt `If-None-Match: *`, zodat twee toestellen niet allebei een nieuwe kluis maken (409 `vault_exists` of `vault_missing`).
+14. De limiet van 30 minuten audio geldt alleen voor WAV; andere formaten vertrouwen op de grens van 25 MB. Chat-requests zijn maximaal 4 MB.
 
 ## 7. Limieten in de beta
 - **Sync:** 1 GB versleutelde opslag per account, 5 MB per bestand en 10 toestellen.
