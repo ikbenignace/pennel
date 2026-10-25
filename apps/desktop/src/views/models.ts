@@ -50,7 +50,9 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
         c.provider_id = id;
         c.model = (llm ? kind?.default_llm_model : kind?.default_stt_model) ?? "";
       }),
+    "menu",
   );
+  provider.setAttribute("aria-label", `Provider voor ${title.toLocaleLowerCase("nl-BE")}`);
 
   for (const option of provider.options) {
     const candidate = eligible.find((item) => item.id === option.value);
@@ -68,6 +70,7 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
           downloaded.map((m) => [m.id, m.name] as [string, string]),
           choice.model,
           (id) => set((c) => (c.model = id)),
+          "menu",
         )
       : h("span", { class: "muted" }, "Nog geen model gedownload — zie Lokale modellen.");
   } else if (account?.kind === "apple_speech") {

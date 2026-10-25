@@ -1,6 +1,6 @@
 import { api, fixtureClient, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type Passage, type Segment } from "../api";
 import { SerialQueue, orFallback, persistAll } from "../async";
-import { askText, confirmDialog, errorText, formatClock, h, markdown, select } from "../dom";
+import { askText, confirmDialog, errorText, formatClock, h, markdown, menuButton, select } from "../dom";
 import { MeetingDraft } from "../meeting-draft";
 import type { Context } from "../main";
 import { icon } from "../icons";
@@ -127,8 +127,8 @@ function transcript(ctx: Context, segments: Segment[], detail?: MeetingDetail, i
           try { await api.renameSpeaker(id, segment.voice!, name); ctx.rerender(); }
           catch (error) { picker.value = original; ctx.report(error); }
         })();
-      });
-      picker.className = "speaker speaker-picker";
+      }, "menu");
+      picker.classList.add("speaker", "speaker-picker");
       picker.style.color = speakerColor;
       picker.setAttribute("aria-label", `Naam voor deze stem: ${speakerLabel(segment, detail)}`);
       speaker = picker;
@@ -279,30 +279,31 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     catch (error) { current.message = errorText(error); }
     current.working = false; ctx.rerender();
   });
-  const selected = select(templates.map((template) => [template.id, template.name]), current.template, (template) => { current.template = template; });
+  const selected = select(templates.map((template) => [template.id, template.name]), current.template, (template) => { current.template = template; }, "menu");
+  selected.setAttribute("aria-label", "Sjabloon");
   selected.disabled = runtime.busy;
-  const share = h("details", { class: "share-menu" }, h("summary", { class: "btn" }, "Delen"));
   const copied = h("span", { class: "help", role: "status" });
   const copy = async (formatted: boolean, withTranscript = false) => {
     const exported = await api.exportMeeting(id, withTranscript);
     await api.copyText(exported.markdown, formatted ? exported.html : null);
     copied.textContent = withTranscript ? "Gekopieerd met transcript" : "Gekopieerd";
-    share.open = false;
   };
   const rich = ctx.info.capabilities.rich_clipboard;
-  share.append(h("div", { class: "menu-panel" },
-    h("button", { class: "text-button", disabled: rich.status !== "available", title: rich.reason, onclick: () => copy(true) }, "Kopieer opgemaakt"),
-    h("button", { class: "text-button", onclick: () => copy(false) }, "Kopieer als Markdown"),
-    h("button", { class: "text-button", onclick: () => copy(rich.status === "available", true) }, "Kopieer met transcript"),
-    h("button", { class: "text-button", onclick: async () => {
+  const shareAction = (work: () => Promise<unknown>) => () => work().catch(ctx.report);
+  const share = menuButton("Delen", [
+    { label: "Kopieer opgemaakt", disabled: rich.status !== "available", title: rich.reason, run: shareAction(() => copy(true)) },
+    { label: "Kopieer als Markdown", run: shareAction(() => copy(false)) },
+    { label: "Kopieer met transcript", run: shareAction(() => copy(rich.status === "available", true)) },
+    { label: "Deelnemers…", run: shareAction(async () => {
       const value = await askText("Deelnemers", detail.attendees.join(", "), "Scheid de namen met een komma.");
       if (value === null) return;
       await api.setMeetingAttendees(id, value.split(",").map((name) => name.trim()).filter(Boolean)); ctx.rerender();
-    } }, "Deelnemers…"),
-    h("button", { class: "text-button", onclick: () => api.shareMeeting(id, false, "mail") }, "Mail…"),
-    h("button", { class: "text-button", disabled: ctx.info.platform !== "macos",
+    }) },
+    { label: "Mail…", run: shareAction(() => api.shareMeeting(id, false, "mail")) },
+    { label: "Deel…", disabled: ctx.info.platform !== "macos",
       title: ctx.info.platform === "macos" ? "Open het deelmenu" : "Kopieer je notities of open de meetingmap om te delen.",
-      onclick: () => api.shareMeeting(id, false, "share") }, "Deel…")));
+      run: shareAction(() => api.shareMeeting(id, false, "share")) },
+  ], "share-menu");
   const diarization = ctx.info.capabilities.diarization;
   const speakerReason = runtime.busy || detail.info.duration_min <= 0 ? "Rond eerst de opname af."
     : diarization.status !== "available" ? diarization.reason ?? "Sprekers herkennen is niet beschikbaar."

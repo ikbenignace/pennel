@@ -226,7 +226,7 @@ class OnboardingWizard {
     const language = select(languages, this.language, (value) => {
       this.language = value;
       void this.loadModels().then(() => { if (this.engine === "local") this.renderEngineDetail(); this.updateCommon(); }).catch(this.fail);
-    });
+    }, "menu");
     language.setAttribute("aria-label", "Taal");
     const choices = h("div", { class: "engine-choices", role: "group", "aria-label": "Spraakherkenning" });
     this.localButtons.clear();
@@ -241,7 +241,7 @@ class OnboardingWizard {
       this.localButtons.set(value, button); choices.append(button);
     }
     this.body.replaceChildren(this.title("Hoe wil je dicteren?", "Kies je spraakherkenning. Je kunt dit later aanpassen."),
-      h("label", { class: "engine-language" }, h("span", {}, "Taal"), language), choices, this.engineDetail);
+      h("div", { class: "engine-language" }, h("span", {}, "Taal"), language), choices, this.engineDetail);
     this.renderEngineDetail();
   }
 
@@ -287,7 +287,7 @@ class OnboardingWizard {
       this.providerModel = account?.id === this.ctx.info.settings.dictation_stt.provider_id ? this.ctx.info.settings.dictation_stt.model : kind?.default_stt_model ?? "";
       this.providerBaseUrl = account?.base_url ?? kind?.default_base_url ?? "";
       this.renderProvider(); this.updateCommon();
-    });
+    }, "menu");
     picker.setAttribute("aria-label", "Eigen provider");
     const kind = this.customKind(); const account = this.customAccount();
     const keySet = !!account && this.ctx.info.keys[account.id];

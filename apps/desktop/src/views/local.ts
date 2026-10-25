@@ -129,9 +129,12 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       language = value || null;
       ctx.rerender();
     },
+    "menu",
   );
+  languagePicker.setAttribute("aria-label", "Nauwkeurigheid voor");
   const onlyThis = h("input", {
     type: "checkbox",
+    role: "switch",
     checked: supportedOnly,
     onchange: () => {
       supportedOnly = onlyThis.checked;
@@ -146,7 +149,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     section(
       "Modellen",
       "Draaien volledig op je computer. Je audio verlaat je computer niet.",
-      h("div", { class: "row model-filters" }, h("label", { class: "model-language" }, h("span", {}, "Nauwkeurigheid voor"), languagePicker), h("label", { class: "row" }, onlyThis, "Alleen deze taal")),
+      h("div", { class: "row model-filters" }, h("div", { class: "model-language" }, h("span", { "aria-hidden": "true" }, "Nauwkeurigheid voor"), languagePicker), h("label", { class: "row" }, onlyThis, "Alleen deze taal")),
       h("p", { class: "help model-benchmark-note" }, "Scores uit onafhankelijke benchmarks: snelheid op Apple Silicon, nauwkeurigheid in de gekozen taal (hoger is beter)."),
       models.filter((model) => model.recommended || model.state.kind === "downloaded").map(card),
       h("details", { class: "all-models" }, h("summary", {}, `Alle modellen (${models.filter((model) => !model.recommended && model.state.kind !== "downloaded").length})`), models.filter((model) => !model.recommended && model.state.kind !== "downloaded").map(card)),

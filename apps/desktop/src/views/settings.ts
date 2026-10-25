@@ -118,7 +118,7 @@ export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
       /(?:Mobile Documents|\/Documents(?:\/|$)|\/Desktop(?:\/|$))/.test(settings.meetings_dir)
         ? h("p", { class: "help" }, "Als je deze map synchroniseert, gaan je meetings en audio ook naar die dienst.") : null),
     section("Standaardsjabloon", null, select(templates.map((template) => [template.id, template.name]), settings.default_template,
-      (id) => ctx.save((next) => { next.default_template = id; }))),
+      (id) => ctx.save((next) => { next.default_template = id; }), "menu")),
     await templateSection(ctx, templates),
     section("Sprekers herkennen", "Splitst ‘Anderen’ na de meeting op in afzonderlijke stemmen die je een naam kunt geven. Draait lokaal.",
       toggle("Sprekers herkennen na elke meeting", settings.diarization,

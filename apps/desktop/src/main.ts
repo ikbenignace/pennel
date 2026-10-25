@@ -215,7 +215,7 @@ function appearanceView(ctx: Context): HTMLElement {
   });
   picker.setAttribute("aria-label", "Weergave");
   ctx.onInfoChange((next) => { picker.value = next.settings.appearance; });
-  return h("div", {}, section("Weergave", "Volg systeem past de lichte of donkere weergave aan met je apparaat.", h("label", { class: "preference-row" }, h("span", {}, "Weergave"), picker)),
+  return h("div", {}, section("Weergave", "Volg systeem past de lichte of donkere weergave aan met je apparaat.", h("div", { class: "preference-row" }, h("span", {}, "Weergave"), picker)),
     section("Introductie", "Toon de eerste stappen opnieuw: spraakherkenning, toegang en een oefendictaat.",
       h("button", { class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "welcome") }, "Introductie opnieuw openen")));
 }

@@ -1,5 +1,5 @@
 import { api, type ProviderAccount, type ProviderKind } from "../api";
-import { errorCode, errorText, field, h, section } from "../dom";
+import { errorCode, errorText, field, h, menuButton, section } from "../dom";
 import { localView } from "./local";
 import type { Context } from "../main";
 
@@ -21,22 +21,19 @@ export async function providersView(ctx: Context): Promise<HTMLElement> {
       h("span", { class: "grow" }, h("span", { class: "provider-name" }, provider.name),
         h("span", { class: "provider-kind" }, kind?.label ?? provider.kind)));
   }));
-  const add = h("select", { class: "provider-add", "aria-label": "Provider toevoegen" }, h("option", { value: "" }, "Provider toevoegen…"));
-  for (const kind of kinds) {
-    if ((kind.kind === "local" || kind.kind === "apple_speech" || kind.kind === "apple_intelligence") && settings.providers.some((provider) => provider.kind === kind.kind)) continue;
+  const addable = kinds.filter((kind) => !((kind.kind === "local" || kind.kind === "apple_speech" || kind.kind === "apple_intelligence") && settings.providers.some((provider) => provider.kind === kind.kind)));
+  const add = menuButton("Provider toevoegen…", addable.map((kind) => {
     const unsupported = kind.availability.status === "unsupported";
-    add.append(h("option", { value: kind.kind, disabled: unsupported, title: kind.availability.reason },
-      unsupported && kind.availability.reason ? `${kind.label} — ${kind.availability.reason}` : kind.label));
-  }
-  add.addEventListener("change", () => {
-    if (!add.value) return;
-    const kind = add.value as ProviderKind;
-    void ctx.mutate(async () => {
-      const next = await api.addProvider(kind);
-      selected = next.settings.providers.at(-1)?.id ?? null;
-      return next;
-    });
-  });
+    return {
+      label: unsupported && kind.availability.reason ? `${kind.label} — ${kind.availability.reason}` : kind.label,
+      disabled: unsupported, title: kind.availability.reason,
+      run: () => ctx.mutate(async () => {
+        const next = await api.addProvider(kind.kind as ProviderKind);
+        selected = next.settings.providers.at(-1)?.id ?? null;
+        return next;
+      }),
+    };
+  }), "provider-add");
   list.append(add);
   return h("div", {},
     ctx.info.migration_warning ? section("API-sleutels", null,
