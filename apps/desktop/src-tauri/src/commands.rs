@@ -5,9 +5,9 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use pennel_core::{
-    ChatTurn, DetectedAgent, HistoryEntry, LibrarySearch, LocalModel, MeetingAnswer, MeetingExport,
-    MeetingInfo, MeetingTemplate, ModelState, ProviderKind, ProviderTask, RemoteModel, Segment,
-    Settings, SpeakerName,
+    ChatTurn, DetectedAgent, HistoryEntry, KnownVoice, LibrarySearch, LocalModel, MeetingAnswer,
+    MeetingExport, MeetingInfo, MeetingTemplate, MeetingVoice, ModelState, ProviderKind,
+    ProviderTask, RemoteModel, Segment, Settings, SpeakerName, SpeakerRecognition, VoiceProfile,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -17,6 +17,7 @@ use crate::capabilities::{self, Capability, PlatformCapabilities};
 use crate::diagnostics::{self, Log};
 use crate::dictation::Msg;
 use crate::meeting_runtime;
+use crate::speakers;
 use crate::state::Shared;
 
 const LOG: Log = Log::new("app");
@@ -1027,22 +1028,126 @@ pub async fn diarize_meeting(
     id: String,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
-) -> Result<u32> {
+) -> Result<SpeakerRecognition> {
     let shared = shared.inner().clone();
-    let count = blocking(move || {
+    let recognition = blocking(move || {
         let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
         let dir = checked_meeting_dir(&shared.engine, &id)?;
         require_inactive_meeting(&shared, &id)?;
-        let audio = dir.join("anderen.m4a").canonicalize().map_err(err)?;
-        if audio.parent() != Some(dir.as_path()) {
-            return Err("Het audiospoor valt buiten de meetingmap.".into());
-        }
-        let samples = crate::platform_audio::decode_audio(&audio)?;
-        shared.engine.diarize_meeting(id, samples).map_err(err)
+        speakers::recognize(&shared, &id, &dir)
     })
     .await?;
     crate::cloud::poke(&app);
-    Ok(count)
+    Ok(recognition)
+}
+
+#[derive(Serialize)]
+pub struct SpeakerSetup {
+    local_available: bool,
+    ready: bool,
+    signed_in: bool,
+    model_ids: Vec<String>,
+    legacy_model: bool,
+    profile: Option<VoiceProfile>,
+    known: Vec<KnownVoice>,
+    enrollment_text: String,
+}
+
+#[tauri::command]
+pub async fn speaker_setup(shared: State<'_, Arc<Shared>>) -> Result<SpeakerSetup> {
+    let shared = shared.inner().clone();
+    blocking(move || {
+        let engine = &shared.engine;
+        Ok(SpeakerSetup {
+            local_available: engine.local_speaker_recognition_available(),
+            ready: engine.speaker_recognition_ready(),
+            signed_in: engine.cloud_signed_in(),
+            model_ids: engine.speaker_model_ids(),
+            legacy_model: engine.model_state(engine.diarizer_model_id()) == ModelState::Downloaded,
+            profile: engine.voice_profile(),
+            known: engine.known_voices(),
+            enrollment_text: engine.voice_enrollment_text(),
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub fn start_voice_enrollment(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    speakers::start_enrollment(&app, shared.inner())
+}
+
+#[tauri::command]
+pub async fn finish_voice_enrollment(shared: State<'_, Arc<Shared>>) -> Result<VoiceProfile> {
+    let shared = shared.inner().clone();
+    blocking(move || speakers::finish_enrollment(&shared)).await
+}
+
+#[tauri::command]
+pub fn cancel_voice_enrollment() {
+    speakers::cancel_enrollment();
+}
+
+#[tauri::command]
+pub fn forget_voice_profile(shared: State<'_, Arc<Shared>>) -> Result<()> {
+    shared
+        .engine
+        .forget_voice_profile()
+        .map_err(speakers::speaker_error)
+}
+
+#[tauri::command]
+pub fn rename_known_voice(id: String, name: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    if name.trim().is_empty() {
+        return Err("Geef de stem een naam.".into());
+    }
+    shared
+        .engine
+        .rename_known_voice(id, name.trim().to_owned())
+        .map_err(speakers::speaker_error)
+}
+
+#[tauri::command]
+pub fn forget_known_voice(id: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    shared
+        .engine
+        .forget_known_voice(id)
+        .map_err(speakers::speaker_error)
+}
+
+#[tauri::command]
+pub fn forget_all_voices(shared: State<'_, Arc<Shared>>) -> Result<()> {
+    shared
+        .engine
+        .forget_all_voices()
+        .map_err(speakers::speaker_error)
+}
+
+#[tauri::command]
+pub fn meeting_voices(id: String, shared: State<'_, Arc<Shared>>) -> Result<Vec<MeetingVoice>> {
+    checked_meeting_dir(&shared.engine, &id)?;
+    Ok(shared.engine.meeting_voices(id))
+}
+
+#[tauri::command]
+pub fn remember_speaker(
+    id: String,
+    voice: u32,
+    name: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
+    checked_meeting_dir(&shared.engine, &id)?;
+    require_inactive_meeting(&shared, &id)?;
+    if name.trim().is_empty() {
+        return Err("Geef de stem een naam om ze te onthouden.".into());
+    }
+    shared
+        .engine
+        .remember_speaker(id, voice, name.trim().to_owned())
+        .map_err(speakers::speaker_error)?;
+    crate::cloud::poke(&app);
+    Ok(())
 }
 
 #[tauri::command]

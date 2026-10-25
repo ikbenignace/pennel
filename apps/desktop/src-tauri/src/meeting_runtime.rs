@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use pennel_core::{MeetingSession, ModelState, RecordingPhase};
+use pennel_core::{MeetingSession, RecordingPhase};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
@@ -555,17 +555,9 @@ fn postprocess(app: AppHandle, shared: Arc<Shared>, id: String) {
         return;
     }
     let settings = shared.settings();
-    if settings.diarization
-        && shared.engine.model_state(shared.engine.diarizer_model_id()) == ModelState::Downloaded
-    {
-        let path =
-            std::path::PathBuf::from(shared.engine.meeting_dir(id.clone())).join("anderen.m4a");
-        match crate::platform_audio::decode_audio(&path).and_then(|samples| {
-            shared
-                .engine
-                .diarize_meeting(id.clone(), samples)
-                .map_err(|error| error.to_string())
-        }) {
+    if settings.diarization && shared.engine.speaker_recognition_ready() {
+        let dir = std::path::PathBuf::from(shared.engine.meeting_dir(id.clone()));
+        match crate::speakers::recognize(&shared, &id, &dir) {
             Ok(_) => {
                 let _ = app.emit("meeting-updated", &id);
             }

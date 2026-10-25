@@ -275,9 +275,9 @@ pub fn complete(app: &AppHandle, shared: &Shared, capture: &OwnedCapture, text: 
     }
     if capture.kind == SessionKind::Practice {
         let mut settings = shared.settings();
+        // Onboarding completes after the optional voice step, which comes next.
         settings.onboarding.version = 1;
-        settings.onboarding.status = pennel_core::OnboardingStatus::Completed;
-        settings.onboarding.resume_step = pennel_core::OnboardingStep::Practice;
+        settings.onboarding.resume_step = pennel_core::OnboardingStep::Voice;
         if let Err(error) = shared.engine.update_settings(settings) {
             failed(app, &capture.id, error.to_string());
             return false;

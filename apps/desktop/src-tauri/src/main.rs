@@ -40,6 +40,7 @@ mod platform_commands;
 mod record_shortcut;
 mod resample;
 mod secrets;
+mod speakers;
 mod state;
 mod status;
 mod style_application;
@@ -1021,6 +1022,16 @@ fn main() {
             commands::delete_template,
             commands::rename_speaker,
             commands::diarize_meeting,
+            commands::speaker_setup,
+            commands::start_voice_enrollment,
+            commands::finish_voice_enrollment,
+            commands::cancel_voice_enrollment,
+            commands::forget_voice_profile,
+            commands::rename_known_voice,
+            commands::forget_known_voice,
+            commands::forget_all_voices,
+            commands::meeting_voices,
+            commands::remember_speaker,
             commands::export_meeting,
             commands::save_meeting_notes,
             commands::set_meeting_attendees,
