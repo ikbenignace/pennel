@@ -180,6 +180,7 @@ pub fn save_settings(
         LOG.info(format!("sneltoets gewijzigd naar {hotkey:?}"));
     }
     crate::record_shortcut::refresh(&app, &shared);
+    let _ = app.emit("settings-changed", ());
     Ok(info(&shared))
 }
 

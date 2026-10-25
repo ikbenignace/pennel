@@ -410,6 +410,7 @@ pub async fn cloud_logout(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Res
     })
     .await?;
     let _ = app.emit("sync-changed", SyncReportView::from(current_report(&app)));
+    settings_changed(&app);
     Ok(())
 }
 
@@ -457,6 +458,7 @@ pub async fn cloud_delete_account(app: AppHandle, shared: State<'_, Arc<Shared>>
     let shared = shared.inner().clone();
     blocking(move || shared.engine.cloud_delete_account().map_err(err)).await?;
     let _ = app.emit("sync-changed", SyncReportView::from(current_report(&app)));
+    settings_changed(&app);
     Ok(())
 }
 
@@ -465,6 +467,7 @@ pub async fn cloud_sync_enable(app: AppHandle, shared: State<'_, Arc<Shared>>) -
     let shared = shared.inner().clone();
     let code = blocking(move || shared.engine.cloud_sync_enable().map_err(err)).await?;
     poke(&app);
+    settings_changed(&app);
     Ok(code)
 }
 
@@ -477,6 +480,7 @@ pub async fn cloud_sync_unlock(
     let shared = shared.inner().clone();
     blocking(move || shared.engine.cloud_sync_unlock(code).map_err(err)).await?;
     poke(&app);
+    settings_changed(&app);
     Ok(())
 }
 
@@ -491,6 +495,7 @@ pub async fn cloud_sync_reset(app: AppHandle, shared: State<'_, Arc<Shared>>) ->
     let shared = shared.inner().clone();
     let code = blocking(move || shared.engine.cloud_sync_reset().map_err(err)).await?;
     poke(&app);
+    settings_changed(&app);
     Ok(code)
 }
 
@@ -499,6 +504,7 @@ pub async fn cloud_sync_disable(app: AppHandle, shared: State<'_, Arc<Shared>>) 
     let shared = shared.inner().clone();
     blocking(move || shared.engine.cloud_sync_disable().map_err(err)).await?;
     let _ = app.emit("sync-changed", SyncReportView::from(current_report(&app)));
+    settings_changed(&app);
     Ok(())
 }
 
@@ -533,14 +539,23 @@ pub async fn cloud_sync_confirm_deletes(
 pub async fn meeting_sync_states(shared: State<'_, Arc<Shared>>) -> Result<Vec<MeetingSyncView>> {
     let shared = shared.inner().clone();
     blocking(move || {
-        Ok(shared
-            .engine
-            .meeting_sync_states()
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(states_when_signed_in(shared.engine.cloud_signed_in(), || {
+            shared.engine.meeting_sync_states()
+        })
+        .into_iter()
+        .map(Into::into)
+        .collect())
     })
     .await
+}
+
+/// After logout, account deletion or a revoked device nothing syncs, so no meeting may claim to wait for it.
+fn states_when_signed_in<T>(signed_in: bool, states: impl FnOnce() -> Vec<T>) -> Vec<T> {
+    if signed_in { states() } else { Vec::new() }
+}
+
+fn settings_changed(app: &AppHandle) {
+    let _ = app.emit("settings-changed", ());
 }
 
 #[tauri::command]
@@ -600,6 +615,18 @@ mod tests {
         assert!(!SyncReportView::from(report(SyncStatus::Synced)).brake);
         let json = serde_json::to_value(&brake).unwrap();
         assert_eq!(json["brake"], true);
+    }
+
+    #[test]
+    fn signed_out_meetings_have_no_sync_state() {
+        assert_eq!(states_when_signed_in(true, || vec![1, 2]), vec![1, 2]);
+        let mut asked = false;
+        let none: Vec<i32> = states_when_signed_in(false, || {
+            asked = true;
+            vec![1]
+        });
+        assert!(none.is_empty());
+        assert!(!asked);
     }
 
     #[test]
