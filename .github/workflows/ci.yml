@@ -33,6 +33,10 @@ jobs:
         run: cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
       - name: Rust tests
         run: cargo test --manifest-path core/Cargo.toml --lib
+      - name: Rust lint without local models
+        run: cargo clippy --manifest-path core/Cargo.toml --lib --tests --no-default-features -- -D warnings
+      - name: Rust tests without local models
+        run: cargo test --manifest-path core/Cargo.toml --no-default-features --lib
       - name: Core bindings
         run: make core
       - name: Swift tests
