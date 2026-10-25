@@ -37,3 +37,14 @@ test("replaying or skipping a completed wizard never downgrades completion", () 
   const completed = { version: 1, status: "completed", resume_step: "practice" };
   assert.deepEqual(onboardingProgressChange(completed, "engine", "skipped"), { version: 1, status: "completed", resume_step: "engine" });
 });
+
+test("model chooser keeps a valid selection and defaults to the recommended model", async () => {
+  const { defaultModelId, modelOptionLabel } = await import("../src/onboarding-state.ts");
+  const models = [{ id: "a", name: "Klein", size_bytes: 150e6, recommended: false }, { id: "b", name: "Groot", size_bytes: 1.2e9, recommended: true }];
+  assert.equal(defaultModelId(models, "a"), "a");
+  assert.equal(defaultModelId(models, "zzz"), "b");
+  assert.equal(defaultModelId([], "x"), "x");
+  const size = (bytes) => `${bytes / 1e6} MB`;
+  assert.equal(modelOptionLabel(models[1], size), "Groot · 1200 MB · Aanbevolen");
+  assert.equal(modelOptionLabel(models[0], size), "Klein · 150 MB");
+});

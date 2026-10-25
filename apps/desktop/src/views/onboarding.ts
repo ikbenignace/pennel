@@ -2,7 +2,7 @@ import { api, fixtureClient, listen, type DictationSessionSnapshot, type KindInf
 import { errorCode, errorText, formatBytes, h, select } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
 import { icon } from "../icons";
-import { manualPracticeAllowed, onboardingProgressChange, onboardingSteps, stepIndex } from "../onboarding-state";
+import { defaultModelId, manualPracticeAllowed, modelOptionLabel, onboardingProgressChange, onboardingSteps, stepIndex } from "../onboarding-state";
 import { hotkeyLabel, hotkeyKeyLabel } from "../presentation";
 import { workspaceRoute } from "../workspace-state";
 import type { Context } from "../main";
@@ -221,7 +221,7 @@ class OnboardingWizard {
     const models = await api.localModels(this.language || null, false);
     if (this.disposed || generation !== this.modelsGeneration) return;
     this.models = models;
-    if (!models.some((model) => model.id === this.localModelId)) this.localModelId = models.find((model) => model.recommended)?.id ?? models[0]?.id ?? this.localModelId;
+    this.localModelId = defaultModelId(models, this.localModelId);
     await this.attachDownload();
   }
 
@@ -246,6 +246,17 @@ class OnboardingWizard {
       if (errorCode(error) === "cancelled" || errorText(error).toLowerCase() === "cancelled") { this.updateCommon(); return; }
       this.fail(error);
     });
+  }
+
+  private async chooseModel(id: string) {
+    if (id === this.localModelId) return;
+    const previous = this.localModelId;
+    if (this.downloading) await api.cancelDownload(previous).catch(() => undefined);
+    this.attachedDownloads.delete(previous);
+    this.localModelId = id; this.downloading = false; this.downloadError = null; this.downloadProgress = { downloaded: 0, total: 0 };
+    await this.attachDownload();
+    if (this.disposed) return;
+    this.renderEngineDetail(); this.updateCommon();
   }
 
   private localModel(): LocalModel | undefined { return this.models.find((model) => model.id === this.localModelId); }
@@ -291,7 +302,11 @@ class OnboardingWizard {
     if (appleButton) { appleButton.disabled = apple?.availability.status === "unsupported"; if (apple?.availability.reason) appleButton.title = apple.availability.reason; }
     if (this.engine === "local") {
       const model = this.localModel();
-      const name = h("div", {}, h("strong", {}, model?.name ?? "Lokaal spraakmodel"), h("small", {}, model ? `${formatBytes(model.size_bytes)} · eenmalige download` : "Geen passend lokaal model beschikbaar."));
+      const downloaded = model?.state.kind === "downloaded";
+      const picker = select(this.models.map((item): [string, string] => [item.id, modelOptionLabel(item, formatBytes)]), this.localModelId, (value) => { void this.chooseModel(value).catch(this.fail); }, "menu");
+      picker.setAttribute("aria-label", "Spraakmodel");
+      picker.disabled = this.models.length === 0;
+      const name = h("div", {}, picker, h("small", {}, model ? (downloaded ? formatBytes(model.size_bytes) : `${formatBytes(model.size_bytes)} · eenmalige download`) : "Geen passend lokaal model beschikbaar."));
       const status = h("span", { class: "engine-model-status", "data-download-state": true });
       const track = h("progress", { class: "engine-download-progress", "aria-label": "Model downloaden", hidden: !this.downloading });
       const caption = h("div", { class: "engine-download-caption", hidden: !this.downloading }, h("span", { "data-download-caption": true }), h("button", { class: "text-button", onclick: () => {
@@ -351,7 +366,7 @@ class OnboardingWizard {
     const label = this.engineDetail.querySelector("[data-download-caption]");
     if (label) label.textContent = this.downloadProgress.total ? `${Math.min(100, Math.round(this.downloadProgress.downloaded / this.downloadProgress.total * 100))}%` : "Download voorbereiden…";
     const status = this.engineDetail.querySelector("[data-download-state]");
-    if (status) status.replaceChildren(...(this.localModel()?.state.kind === "downloaded" ? [icon("check"), document.createTextNode("Klaar")] : []));
+    if (status) status.replaceChildren(...(this.localModel()?.state.kind === "downloaded" ? [icon("check"), document.createTextNode("Gedownload")] : []));
   }
 
   private async refreshPermissions() {

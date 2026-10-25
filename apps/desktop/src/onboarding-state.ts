@@ -1,4 +1,4 @@
-import type { OnboardingProgress, OnboardingStep, PermissionInfo, Settings, SetupReadiness } from "./api";
+import type { LocalModel, OnboardingProgress, OnboardingStep, PermissionInfo, Settings, SetupReadiness } from "./api";
 
 export const onboardingSteps: OnboardingStep[] = ["welcome", "engine", "permissions", "practice"];
 
@@ -25,4 +25,13 @@ export function manualPracticeAllowed(readiness: SetupReadiness | null, permissi
   const apple = settings.providers.find((provider) => provider.id === settings.dictation_stt.provider_id)?.kind === "apple_speech";
   return !["denied", "restricted", "unsupported"].includes(microphone ?? "unknown")
     && (!apple || speech === "granted") && !!settings.dictation_stt.model;
+}
+
+export function defaultModelId(models: LocalModel[], current: string): string {
+  if (models.some((model) => model.id === current)) return current;
+  return models.find((model) => model.recommended)?.id ?? models[0]?.id ?? current;
+}
+
+export function modelOptionLabel(model: LocalModel, formatSize: (bytes: number) => string): string {
+  return [model.name, formatSize(model.size_bytes), model.recommended ? "Aanbevolen" : null].filter(Boolean).join(" · ");
 }
