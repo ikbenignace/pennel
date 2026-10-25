@@ -1,4 +1,4 @@
-import { api, listen, type DictationSessionSnapshot } from "./api";
+import { api, listenToWindow, type DictationSessionSnapshot } from "./api";
 import { OwnedSessionLifecycle } from "./dictation-session-state";
 
 export class OwnedDictationSession extends OwnedSessionLifecycle {
@@ -9,7 +9,7 @@ export class OwnedDictationSession extends OwnedSessionLifecycle {
       toggle: api.toggleDictationSession,
       cancel: api.cancelDictationSession,
       close: api.closeDictationSession,
-      subscribe: (handler) => listen<DictationSessionSnapshot>("dictation-session", (event) => handler(event.payload)),
+      subscribe: (handler) => listenToWindow<DictationSessionSnapshot>("dictation-session", (event) => handler(event.payload)),
     });
   }
 }

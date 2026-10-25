@@ -246,7 +246,9 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                         workspace::deliver(&handle, label);
                     }
                     let _ = window.show();
-                    let _ = window.set_focus();
+                    if workspace::take_focus(&handle, label) {
+                        let _ = window.set_focus();
+                    }
                     notify_visibility(&handle, label, true);
                 }
             }
@@ -430,7 +432,9 @@ pub fn frontend_ready(app: &AppHandle, label: &str) {
         if let Some(window) = app.get_webview_window(label) {
             fit_window_to_work_area(app, &window);
             let _ = window.show();
-            let _ = window.set_focus();
+            if workspace::take_focus(app, label) {
+                let _ = window.set_focus();
+            }
             notify_visibility(app, label, true);
         }
     } else {
@@ -529,7 +533,6 @@ fn finish_window_hide(app: &AppHandle, label: &str, revision: u64, mut result: R
             let _ = window.hide();
         } else if result.is_err() && workspace::requested(app, label) {
             let _ = window.show();
-            let _ = window.set_focus();
         }
         notify_visibility(app, label, window.is_visible().unwrap_or(!hide));
     }

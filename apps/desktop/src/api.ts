@@ -1,5 +1,6 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type Event } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { LoginPoll } from "./cloud-login";
 import type { WorkspaceRoute } from "./workspace-state";
 
@@ -25,6 +26,15 @@ function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> 
 export function listen<T>(event: string, handler: (event: Event<T>) => void): Promise<() => void> {
   const client = fixtureClient();
   return client ? client.listen(event, (value) => handler({ event, id: 0, payload: value.payload as T })) : tauriListen<T>(event, handler);
+}
+
+/**
+ * For events the backend sends to one window with `emit_to`. A plain `listen` also receives every
+ * other window's targeted events, so a route meant for one window would make all windows navigate.
+ */
+export function listenToWindow<T>(event: string, handler: (event: Event<T>) => void): Promise<() => void> {
+  const client = fixtureClient();
+  return client ? listen(event, handler) : tauriListen<T>(event, handler, { target: getCurrentWebviewWindow().label });
 }
 
 export interface AppIdentity { name: string; icon: string }

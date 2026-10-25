@@ -1,13 +1,13 @@
 import "./styles.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, fixtureClient, listen, type AppInfo, type MeetingFinished, type Settings, type UpdateInfo } from "./api";
+import { api, fixtureClient, listen, listenToWindow, type AppInfo, type MeetingFinished, type Settings, type UpdateInfo } from "./api";
 import { LatestRequest, SerialQueue, persistAll } from "./async";
 import { errorText, h, section, select } from "./dom";
 import { dictationView, dictionaryView, stylesView } from "./views/dictation";
 import { historyView } from "./views/history";
 import { displayedMeetingSession, finishMeetingDrafts, flushMeetingDrafts, meetingView, meetingsView } from "./views/meetings";
 import { FrontendBarrier, canShowFinished, type FrontendBarrierKind } from "./session-events";
-import { legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, windowForSection, windowMode, windowTitles, workspaceRoute, type WorkspaceRoute, type MeetingSourceTarget } from "./workspace-state";
+import { deliveredRouteApplies, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, windowForSection, windowMode, windowTitles, workspaceRoute, type WorkspaceRoute, type MeetingSourceTarget } from "./workspace-state";
 import { LibrarySidebar } from "./views/library";
 import { modelsView } from "./views/models";
 import { accountView } from "./views/account";
@@ -410,18 +410,18 @@ async function boot() {
   if (mode !== "prompt") showRecovery();
   if (mode !== "prompt") windowShortcuts();
   await listen("capabilities-changed", () => { if (!booted) capabilitiesDirty = true; else void refresh().catch(report); });
-  await listen<unknown>("workspace-navigate", (event) => { const route = parseWorkspaceRoute(event.payload); if (route) void go(route); });
-  await listen<string>("navigate", (event) => {
+  await listenToWindow<unknown>("workspace-navigate", (event) => { const route = parseWorkspaceRoute(event.payload); if (route && deliveredRouteApplies(mode, route)) void go(route); });
+  await listenToWindow<string>("navigate", (event) => {
     if (mode === "onboarding") { window.dispatchEvent(new CustomEvent("pennel-onboarding-route", { detail: event.payload })); return; }
-    const route = legacyWorkspaceRoute("workspace", event.payload); if (route) void go(route);
+    const route = legacyWorkspaceRoute("workspace", event.payload); if (route && deliveredRouteApplies(mode, route)) void go(route);
   });
   await listen("settings-changed", () => { void refresh(() => true, true).catch(report); });
-  await listen<{ visible: boolean }>("workspace-visibility-changed", (event) => {
+  await listenToWindow<{ visible: boolean }>("workspace-visibility-changed", (event) => {
     windowVisible = event.payload.visible;
     notifyVisibility();
     if (presentationVisible()) void refresh(() => presentationVisible(), true).catch(report);
   });
-  await listen<string>("window-hide-error", (event) => report(event.payload));
+  await listenToWindow<string>("window-hide-error", (event) => report(event.payload));
   await listen<RecoveryNotice>("dictation-recovery", (event) => {
     recoveryNotice = event.payload;
     if (event.payload.unsaved) info.unsaved_history_count = Math.max(1, info.unsaved_history_count ?? 0);
@@ -435,8 +435,8 @@ async function boot() {
   await listen<MeetingFinished>("meeting-finished", (event) => { guardedFinishSeen = true; meetingFinished(event.payload); });
   await listen("meeting-stopped", () => { if (!guardedFinishSeen && ["recording", "meetings"].includes(navigation.current.section)) void render(); void refreshSidebar().catch(report); });
   if (mode !== "prompt") {
-    for (const [event, kind] of [["prepare-exit", "quit"], ["prepare-recording-stop", "recording"], ["prepare-update", "update"], ["prepare-hide", "hide"]] as const) await listen<number>(event, (value) => prepareFlush(value.payload, kind));
-    await listen<number>("hide-flush-complete", (event) => {
+    for (const [event, kind] of [["prepare-exit", "quit"], ["prepare-recording-stop", "recording"], ["prepare-update", "update"], ["prepare-hide", "hide"]] as const) await listenToWindow<number>(event, (value) => prepareFlush(value.payload, kind));
+    await listenToWindow<number>("hide-flush-complete", (event) => {
       if (barrier.complete(event.payload, "hide")) { lockInterface(); notifyVisibility(); }
     });
     await listen<number>("recording-flush-complete", (event) => {

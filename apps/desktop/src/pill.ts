@@ -1,6 +1,6 @@
 import "./fonts.css";
 import "./pill.css";
-import { api, listen, type PillPreview, type PillState } from "./api";
+import { api, listenToWindow, type PillPreview, type PillState } from "./api";
 import { PillPreviewState } from "./pill-preview-state";
 import { PILL_METRICS } from "./pill-metrics.generated";
 
@@ -52,13 +52,13 @@ async function boot() {
   let eventReceived = false;
   let previewReceived = false;
   let pendingPreview: PillPreview | null | undefined;
-  await listen<PillState>("pill-state", (event) => { eventReceived = true; render(event.payload); });
-  await listen<PillPreview | null>("pill-preview", (event) => {
+  await listenToWindow<PillState>("pill-state", (event) => { eventReceived = true; render(event.payload); });
+  await listenToWindow<PillPreview | null>("pill-preview", (event) => {
     pendingPreview = event.payload;
     if (previewState.receive(event.payload)) previewReceived = true;
     renderPreview();
   });
-  await listen<number>("pill-level", (event) => setLevel(event.payload));
+  await listenToWindow<number>("pill-level", (event) => setLevel(event.payload));
   const snapshot = await api.dictationState();
   if (!eventReceived) render(snapshot);
   if (!previewReceived && visible) {

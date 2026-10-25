@@ -77,6 +77,11 @@ export function legacyWorkspaceRoute(kind: string, route?: string | null): Works
   return null;
 }
 
+/** A delivered route only navigates the window that shows it; it never opens another window, which would answer back. */
+export function deliveredRouteApplies(mode: string, route: WorkspaceRoute): boolean {
+  return windowForSection(route.section) === mode;
+}
+
 export function routeKey(route: WorkspaceRoute): string {
   return JSON.stringify([route.section, route.tab, route.meeting_id, route.jump_ms, route.source_target ?? null]);
 }

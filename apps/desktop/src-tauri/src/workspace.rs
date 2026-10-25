@@ -253,6 +253,9 @@ impl LaunchQueue {
 struct WindowVisibility {
     revision: u64,
     requested: bool,
+    /// One programmatic focus per explicit request: losing focus, a refresh or a repeated
+    /// delivery may never pull the window to the front again.
+    focus_pending: bool,
     #[cfg(any(target_os = "macos", test))]
     closing: Option<u64>,
 }
@@ -265,6 +268,15 @@ impl Visibility {
         let window = self.0.entry(label.into()).or_default();
         window.revision = window.revision.wrapping_add(1);
         window.requested = true;
+        window.focus_pending = true;
+    }
+
+    fn take_focus(&mut self, label: &str) -> bool {
+        self.0.get_mut(label).is_some_and(|window| {
+            let focus = window.requested && window.focus_pending;
+            window.focus_pending = false;
+            focus
+        })
     }
 
     fn requested(&self, label: &str) -> bool {
@@ -275,6 +287,7 @@ impl Visibility {
         let window = self.0.entry(label.into()).or_default();
         window.revision = window.revision.wrapping_add(1);
         window.requested = false;
+        window.focus_pending = false;
     }
 
     #[cfg(any(target_os = "macos", test))]
@@ -285,6 +298,7 @@ impl Visibility {
         }
         window.revision = window.revision.wrapping_add(1);
         window.requested = false;
+        window.focus_pending = false;
         window.closing = Some(window.revision);
         Some(window.revision)
     }
@@ -464,6 +478,15 @@ pub fn deliver(app: &AppHandle, label: &str) {
     }
 }
 
+/// True once per explicit request, for the show that answers it.
+pub fn take_focus(app: &AppHandle, label: &str) -> bool {
+    app.state::<Navigation>()
+        .visibility
+        .lock()
+        .unwrap()
+        .take_focus(label)
+}
+
 pub fn requested(app: &AppHandle, label: &str) -> bool {
     app.state::<Navigation>()
         .visibility
@@ -566,6 +589,33 @@ mod tests {
             launches.enqueue(vec!["--toggle-meeting".into()]),
             Err(vec!["--toggle-meeting".into()])
         );
+    }
+
+    #[test]
+    fn an_explicit_request_focuses_its_window_at_most_once() {
+        let mut visibility = Visibility::default();
+        assert!(!visibility.take_focus("dictation"));
+        visibility.request("dictation");
+        assert!(visibility.take_focus("dictation"));
+        // Losing focus, refreshing or delivering again never pulls the window back to the front.
+        assert!(!visibility.take_focus("dictation"));
+        assert!(visibility.requested("dictation"));
+        visibility.request("dictation");
+        assert!(visibility.take_focus("dictation"));
+        assert!(!visibility.take_focus("dictation"));
+    }
+
+    #[test]
+    fn a_closed_or_cancelled_window_is_never_focused() {
+        let mut visibility = Visibility::default();
+        visibility.request("settings");
+        visibility.cancel("settings");
+        assert!(!visibility.take_focus("settings"));
+        visibility.request("history");
+        let close = visibility.begin_hide("history").unwrap();
+        assert!(!visibility.finish_hide("history", close, false));
+        assert!(visibility.requested("history"));
+        assert!(!visibility.take_focus("history"));
     }
 
     #[test]
