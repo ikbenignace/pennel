@@ -101,13 +101,23 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   ctx.beforeLeave(async () => { await flush(); await session.close(); });
   ctx.onDispose(() => { mounted = false; window.clearTimeout(saving); void flush().catch(ctx.report); void session.close().catch(ctx.report); });
   ctx.onInfoChange(() => { void refreshReadiness(); if (session.state.snapshot) apply(session.state.snapshot); });
-  ctx.onFocusChange((focused) => { if (focused) void session.refresh().catch(async () => { await session.close(); await session.open(); }).catch(showError); });
+  const restoreSession = async () => {
+    if (!mounted || !ctx.visible) return;
+    try { await session.open(); await session.refresh(); }
+    catch {
+      await session.close();
+      if (mounted && ctx.visible) await session.open();
+    }
+    if (mounted && ctx.visible) await refreshReadiness();
+  };
+  ctx.onFocusChange((focused) => { if (focused) void restoreSession().catch(showError); });
+  ctx.onVisibilityChange((visible) => { if (visible) void restoreSession().catch(showError); });
   const root = h("div", { class: "pad-workspace" }, back, setup,
     h("div", { class: "page-heading" }, h("div", {}, h("h1", {}, "Dicteerpad"), h("p", { class: "muted" }, "Spreek, lees na en werk je tekst bij.")), start),
     h("div", { class: "shortcut-instruction" }, shortcutKey, shortcutInstruction), shortcutHelp,
     textarea, h("div", { class: "row pad-actions" }, copy, cancel, h("span", { class: "grow" }),
       h("button", { class: "text-button", onclick: () => ctx.navigate("dictation") }, icon("settings"), "Dicteren instellen")), status, target);
-  try { await session.open(); } catch (error) { showError(error); }
+  try { if (ctx.visible) await session.open(); } catch (error) { showError(error); }
   await refreshReadiness();
   return root;
 }

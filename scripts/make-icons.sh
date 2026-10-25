@@ -13,6 +13,7 @@ done
 iconutil -c icns "$set_dir" -o "$res/Pennel.icns"
 rsvg-convert -w 18 -h 18 "$brand/menubar.svg" -o "$res/MenubarTemplate.png"
 rsvg-convert -w 36 -h 36 "$brand/menubar.svg" -o "$res/MenubarTemplate@2x.png"
+python3 "$root/scripts/generate-menubar-icons.py"
 rsvg-convert -h 48 "$brand/wordmark.svg" -o "$res/Wordmark.png"
 rsvg-convert -h 96 "$brand/wordmark.svg" -o "$res/Wordmark@2x.png"
 echo "icons written to $res"

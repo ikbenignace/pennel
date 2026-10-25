@@ -6,7 +6,7 @@ import { errorText, h, section, select } from "./dom";
 import { dictationView, dictionaryView, stylesView } from "./views/dictation";
 import { historyView } from "./views/history";
 import { displayedMeetingSession, finishMeetingDrafts, flushMeetingDrafts, meetingView, meetingsView } from "./views/meetings";
-import { FrontendBarrier, canShowFinished } from "./session-events";
+import { FrontendBarrier, canShowFinished, type FrontendBarrierKind } from "./session-events";
 import { legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, windowForSection, windowMode, windowTitles, workspaceRoute, type WorkspaceRoute } from "./workspace-state";
 import { LibrarySidebar } from "./views/library";
 import { modelsView } from "./views/models";
@@ -17,6 +17,7 @@ import { promptView } from "./views/welcome";
 import { onboardingView } from "./views/onboarding";
 import { padView } from "./views/pad";
 import { appInfoContentEqual } from "./presentation";
+import { VisibilityPoll } from "./window-lifecycle";
 
 export interface Context {
   info: AppInfo;
@@ -32,6 +33,8 @@ export interface Context {
   onFlush: (flush: () => Promise<void>) => void;
   onInfoChange: (listener: (info: AppInfo) => void) => void;
   onFocusChange: (listener: (focused: boolean) => void) => void;
+  readonly visible: boolean;
+  onVisibilityChange: (listener: (visible: boolean) => void) => void;
   param?: string;
   jumpMs?: number;
 }
@@ -44,6 +47,7 @@ interface Mounted {
   leave: (() => Promise<void>)[];
   info: ((info: AppInfo) => void)[];
   focus: ((focused: boolean) => void)[];
+  visibility: ((visible: boolean) => void)[];
 }
 
 const tabs: [string, string, View][] = [
@@ -70,7 +74,8 @@ let booted = false;
 let capabilitiesDirty = false;
 let needsRefresh = false;
 let guardedFinishSeen = false;
-let barrierKind: "quit" | "recording" | "update" | null = null;
+let windowVisible = true;
+let sidebarPoll: VisibilityPoll | null = null;
 const settingsQueue = new SerialQueue();
 const pendingSettings: ((settings: Settings) => void)[] = [];
 const barrier = new FrontendBarrier();
@@ -194,6 +199,8 @@ function contextFor(target: Mounted): Context {
     onFlush: (flush) => target.flush.push(flush),
     onInfoChange: (listener) => target.info.push(listener),
     onFocusChange: (listener) => target.focus.push(listener),
+    get visible() { return presentationVisible(); },
+    onVisibilityChange: (listener) => target.visibility.push(listener),
     param: route.section === "dictation" && route.tab === "pad" ? "__pad__" : route.section === "settings" && route.tab === "local" ? "__local__" : route.tab === "chat" ? "__chat__" : route.meeting_id ?? undefined,
     jumpMs: route.jump_ms ?? undefined,
   };
@@ -234,7 +241,7 @@ async function render(allowed: () => boolean = () => true) {
   await chooseMeeting().catch(report);
   if (mine !== generation) return;
   const route = navigation.current;
-  const target: Mounted = { key: routeKey(route), cleanup: [], flush: [], leave: [], info: [], focus: [] };
+  const target: Mounted = { key: routeKey(route), cleanup: [], flush: [], leave: [], info: [], focus: [], visibility: [] };
   const ctx = contextFor(target);
   const view = mode === "onboarding" ? onboardingView : mode === "prompt" ? promptView
     : route.section === "settings" ? settingsView : route.section === "history" ? historyView
@@ -245,6 +252,7 @@ async function render(allowed: () => boolean = () => true) {
     const paneScroll = mounted?.key === target.key ? content.querySelector<HTMLElement>(".settings-pane")?.scrollTop : undefined;
     mounted?.cleanup.forEach((cleanup) => cleanup());
     mounted = target;
+    target.visibility.forEach((listener) => listener(presentationVisible()));
     const scroll = content.scrollTop;
     content.replaceChildren(node);
     content.scrollTop = scroll;
@@ -273,6 +281,7 @@ function workspaceShell() {
 }
 
 async function refreshSidebar() {
+  if (mode !== "workspace" || !presentationVisible()) return;
   await library?.refresh();
 }
 
@@ -281,10 +290,18 @@ function lockInterface() {
   if (barrier.locked) app.setAttribute("aria-busy", "true"); else app.removeAttribute("aria-busy");
 }
 
-function prepareFlush(requestId: number, kind: "quit" | "recording" | "update") {
-  barrier.begin(requestId); barrierKind = kind; lockInterface();
+function prepareFlush(requestId: number, kind: FrontendBarrierKind) {
+  const target = mounted;
+  const preparing = barrier.prepare(requestId, flushAll, kind === "hide" ? () => persistAll(target?.leave ?? []) : undefined, kind);
+  if (barrier.isCurrent(requestId)) {
+    lockInterface();
+    if (kind === "hide") notifyVisibility();
+  }
   void (async () => {
-    try { await flushAll(); await api.frontendFlushed(requestId, true); }
+    try {
+      const success = await preparing;
+      await api.frontendFlushed(requestId, success, success ? null : "Een andere vensteractie is al bezig.");
+    }
     catch (error) {
       if (barrier.isCurrent(requestId)) report(error);
       try { await api.frontendFlushed(requestId, false, errorText(error)); } catch (ackError) { if (barrier.isCurrent(requestId)) report(ackError); }
@@ -298,7 +315,7 @@ function meetingFinished(event: MeetingFinished) {
     const accepted = canShowFinished(status, event.session_id, displayedMeetingSession());
     const showing = navigation.current.section === "recording" || (navigation.current.section === "meetings" && navigation.current.meeting_id === event.id);
     if (navigation.current.section === "recording" && accepted && event.id) navigation.set(workspaceRoute("meetings", null, event.id));
-    if (accepted && showing && (barrierKind === null || barrierKind === "recording")) {
+    if (accepted && showing && (barrier.kind === null || barrier.kind === "recording")) {
       const warning = event.error ?? event.flush_warning; if (warning) report(warning);
       void render();
     }
@@ -331,6 +348,7 @@ function settingsFooter(ctx: Context) {
 }
 
 function focusChanged(focused: boolean) {
+  if (!presentationVisible() || barrier.locked) return;
   mounted?.focus.forEach((listener) => listener(focused));
   if (focused) void refresh(() => true, true).catch(report);
 }
@@ -347,11 +365,22 @@ function windowShortcuts() {
   });
 }
 
+function presentationVisible(): boolean {
+  return windowVisible && barrier.kind !== "hide";
+}
+
+function notifyVisibility() {
+  const visible = presentationVisible();
+  sidebarPoll?.setVisible(visible);
+  mounted?.visibility.forEach((listener) => listener(visible));
+}
+
 async function boot() {
   document.body.dataset.window = mode;
   document.title = mode === "onboarding" ? "Welkom bij Pennel" : mode === "prompt" ? "Pennel" : windowTitles[mode];
   info = await api.info(); applyAppearance();
   document.documentElement.dataset.platform = info.platform;
+  windowVisible = !!fixtureClient() || info.platform !== "macos" || mode === "prompt";
   if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "prompt" ? [] : [titlebarDragRegion()]), banner, content);
   if (mode !== "prompt") windowShortcuts();
   await listen("capabilities-changed", () => { if (!booted) capabilitiesDirty = true; else void refresh().catch(report); });
@@ -361,6 +390,12 @@ async function boot() {
     const route = legacyWorkspaceRoute("workspace", event.payload); if (route) void go(route);
   });
   await listen("settings-changed", () => { void refresh(() => true, true).catch(report); });
+  await listen<{ visible: boolean }>("workspace-visibility-changed", (event) => {
+    windowVisible = event.payload.visible;
+    notifyVisibility();
+    if (presentationVisible()) void refresh(() => presentationVisible(), true).catch(report);
+  });
+  await listen<string>("window-hide-error", (event) => report(event.payload));
   await listen("history-changed", () => { if (navigation.current.section === "history") void refresh().catch(report); });
   await listen("meeting-updated", () => {
     void refreshSidebar().catch(report);
@@ -369,12 +404,15 @@ async function boot() {
   await listen<MeetingFinished>("meeting-finished", (event) => { guardedFinishSeen = true; meetingFinished(event.payload); });
   await listen("meeting-stopped", () => { if (!guardedFinishSeen && ["recording", "meetings"].includes(navigation.current.section)) void render(); void refreshSidebar().catch(report); });
   if (mode !== "prompt") {
-    for (const [event, kind] of [["prepare-exit", "quit"], ["prepare-recording-stop", "recording"], ["prepare-update", "update"]] as const) await listen<number>(event, (value) => prepareFlush(value.payload, kind));
+    for (const [event, kind] of [["prepare-exit", "quit"], ["prepare-recording-stop", "recording"], ["prepare-update", "update"], ["prepare-hide", "hide"]] as const) await listen<number>(event, (value) => prepareFlush(value.payload, kind));
+    await listen<number>("hide-flush-complete", (event) => {
+      if (barrier.complete(event.payload, "hide")) { lockInterface(); notifyVisibility(); }
+    });
     await listen<number>("recording-flush-complete", (event) => {
       const id = event.payload;
-      void barrier.resume(id, () => refresh(() => barrier.isCurrent(id))).then((resumed) => { if (resumed) barrierKind = null; lockInterface(); }).catch((error) => { if (barrier.isCurrent(id)) { report(error); barrier.complete(id); barrierKind = null; lockInterface(); } });
+      void barrier.resume(id, () => refresh(() => barrier.isCurrent(id))).then(() => { lockInterface(); }).catch((error) => { if (barrier.isCurrent(id)) { report(error); barrier.complete(id); lockInterface(); } });
     });
-    for (const event of ["exit-cancelled", "update-cancelled"]) await listen<number>(event, (value) => { if (barrier.complete(value.payload)) { barrierKind = null; lockInterface(); } });
+    for (const event of ["exit-cancelled", "update-cancelled"]) await listen<number>(event, (value) => { if (barrier.complete(value.payload)) lockInterface(); });
   }
   await render();
   if (mode !== "prompt") await api.frontendReady();
@@ -385,21 +423,23 @@ async function boot() {
     try {
       const window = getCurrentWindow();
       void window.onFocusChanged((event) => focusChanged(event.payload));
-      void window.onCloseRequested(() => { void flushAll().then(() => persistAll(mounted?.leave ?? [])).catch(report); mounted?.focus.forEach((listener) => listener(false)); });
+      if (info.platform !== "macos") void window.onCloseRequested(() => { void flushAll().then(() => persistAll(mounted?.leave ?? [])).catch(report); mounted?.focus.forEach((listener) => listener(false)); });
     } catch { /* Window events are unavailable in a browser-only preview. */ }
   }
   if (capabilitiesDirty) { capabilitiesDirty = false; await refresh(); }
   if (mode === "workspace" && library) {
     const sidebar = library;
-    await sidebar.start().catch(report);
-    sidebar.highlight();
-    let reading = false;
-    window.setInterval(() => { if (reading) return; reading = true; void sidebar.refresh().catch(report).finally(() => { reading = false; }); }, 2000);
+    let started = false;
+    sidebarPoll = new VisibilityPoll(2000, async () => {
+      if (!started) { await sidebar.start(); started = true; }
+      else await refreshSidebar();
+    }, report);
+    sidebarPoll.setVisible(presentationVisible());
   }
 }
 
 content.addEventListener("focusout", () => { window.setTimeout(() => { if (needsRefresh && !editing() && !mounted?.info.length) void render(); }, 0); });
 window.addEventListener("unhandledrejection", (event) => { event.preventDefault(); report(event.reason); });
-window.addEventListener("beforeunload", () => { mounted?.cleanup.forEach((cleanup) => cleanup()); });
+window.addEventListener("beforeunload", () => { sidebarPoll?.dispose(); mounted?.cleanup.forEach((cleanup) => cleanup()); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (info) applyAppearance(); });
 void boot().catch(report);

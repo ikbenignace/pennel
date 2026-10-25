@@ -185,8 +185,10 @@ pub fn show_workspace(
     crate::workspace::request(&app, crate::workspace::window_spec(kind).label, Some(route));
     crate::show_window(&app, kind, None);
     if window.label() == "onboarding" {
+        crate::workspace::cancel_presentation(&app, window.label());
         crate::owned_dictation::close_owner(&app, window.label());
         let _ = window.hide();
+        crate::notify_visibility(&app, window.label(), false);
     }
     Ok(())
 }

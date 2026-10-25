@@ -7,6 +7,7 @@ import { hotkeyLabel, hotkeyKeyLabel } from "../presentation";
 import { workspaceRoute } from "../workspace-state";
 import type { Context } from "../main";
 import wordmarkSource from "../../../../assets/brand/wordmark.svg?raw";
+import { VisibilityPoll } from "../window-lifecycle";
 
 type Engine = "local" | "apple" | "custom";
 const languages: [string, string][] = [["", "Automatisch"], ["nl", "Nederlands"], ["en", "Engels"], ["fr", "Frans"], ["de", "Duits"]];
@@ -54,7 +55,7 @@ class OnboardingWizard {
   private renderGeneration = 0;
   private modelsGeneration = 0;
   private permissionSignature = "";
-  private poll: number | undefined;
+  private poll: VisibilityPoll | undefined;
   private readonly cleanup: (() => void)[] = [];
   private practice: OwnedDictationSession | null = null;
   private practiceDone = false;
@@ -94,6 +95,13 @@ class OnboardingWizard {
       if (this.index === 3) {
         if (!focused) { if (this.practiceText) this.practiceText.disabled = true; void this.practice?.close().catch(this.fail); }
         else void this.practice?.open().catch(this.fail);
+      }
+    });
+    ctx.onVisibilityChange((visible) => {
+      this.poll?.setVisible(visible);
+      if (visible && this.index === 3) {
+        if (this.practice) void this.practice.open().catch(this.fail);
+        else void this.renderStep().catch(this.fail);
       }
     });
     ctx.beforeLeave(async () => { this.fresh = false; await this.closePractice(); });
@@ -165,7 +173,7 @@ class OnboardingWizard {
 
   private async renderStep() {
     const generation = ++this.renderGeneration;
-    window.clearInterval(this.poll); this.poll = undefined;
+    this.poll?.dispose(); this.poll = undefined;
     this.root.dataset.step = onboardingSteps[this.index];
     this.body.className = `onboarding-body onboarding-${onboardingSteps[this.index]}`;
     if (this.index === 0) this.renderWelcome();
@@ -174,7 +182,8 @@ class OnboardingWizard {
       this.body.replaceChildren(this.title("Luisteren. En tekst plaatsen.", "Zo kan Pennel ook in je andere apps werken."), this.readyRow,
         h("p", { class: "help onboarding-permission-help" }, "Agenda en systeemaudio vragen we pas wanneer je meetings wilt opnemen."));
       this.permissionSignature = ""; await this.refreshPermissions();
-      this.poll = window.setInterval(() => { void this.refreshPermissions().catch(this.fail); }, 1500);
+      this.poll = new VisibilityPoll(1500, () => this.refreshPermissions(), this.fail);
+      this.poll.setVisible(this.ctx.visible, false);
     }
     if (this.index === 3) await this.renderPractice();
     this.updateCommon();
@@ -495,7 +504,7 @@ class OnboardingWizard {
   }
 
   private dispose() {
-    this.disposed = true; ++this.renderGeneration; window.clearInterval(this.poll);
+    this.disposed = true; ++this.renderGeneration; this.poll?.dispose();
     this.cleanup.forEach((cleanup) => cleanup());
     void this.closePractice().catch(this.ctx.report);
   }

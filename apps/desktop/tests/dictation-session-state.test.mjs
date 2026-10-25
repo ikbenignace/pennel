@@ -124,3 +124,26 @@ test("a get started before a local edit/save cannot overwrite the acknowledged p
   assert.equal(draft.value, "Mijn bewaarde wijziging");
   assert.equal(draft.dirty, false);
 });
+
+test("a hidden pad rebinds once when reopened and rejects results from its closed session", async () => {
+  const listeners = [];
+  const updates = [];
+  let opens = 0;
+  const closed = [];
+  const driver = {
+    open: async () => snapshot(`pad-${++opens}`, "pad"),
+    get: async (id) => snapshot(id, "pad"),
+    toggle: async () => {}, cancel: async () => {},
+    close: async (id) => { closed.push(id); },
+    subscribe: async (listener) => { listeners.push(listener); return () => {}; },
+  };
+  const lifecycle = new OwnedSessionLifecycle("pad", (value) => updates.push(value.session_id), driver);
+  await lifecycle.open();
+  await lifecycle.close();
+  await Promise.all([lifecycle.open(), lifecycle.open()]);
+  listeners[0]({ ...snapshot("pad-1", "pad", "done"), text: "Te laat" });
+  assert.equal(opens, 2);
+  assert.deepEqual(closed, ["pad-1"]);
+  assert.deepEqual(updates, ["pad-1", "pad-2"]);
+  assert.equal(lifecycle.state.snapshot.session_id, "pad-2");
+});

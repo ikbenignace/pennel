@@ -400,6 +400,7 @@ mod tests {
         assert!(source.join("history.sqlite").exists());
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn preexisting_logs_are_preserved_in_a_backup_directory() {
         let root = tempfile::tempdir().unwrap();
@@ -423,6 +424,49 @@ mod tests {
             b"existing log"
         );
         assert!(destination.join("settings.json").exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn open_canonical_lease_prevents_windows_promotion_without_changing_originals() {
+        let root = tempfile::tempdir().unwrap();
+        let (source, destination, home) = legacy(root.path());
+        fs::create_dir_all(destination.join("logs")).unwrap();
+        fs::write(destination.join("logs/pennel.log"), b"existing log").unwrap();
+
+        // Migration ships on Mac. Windows refuses to rename a directory containing the held lease;
+        // the shared tests must verify safe refusal without weakening that lease for promotion.
+        assert!(matches!(
+            prepare(&destination, &home),
+            Err(MigrationError::Io(error)) if error.kind() == std::io::ErrorKind::PermissionDenied
+        ));
+        assert_eq!(
+            fs::read(destination.join("logs/pennel.log")).unwrap(),
+            b"existing log"
+        );
+        let staging = source.parent().unwrap().join(STAGING);
+        for name in [
+            "settings.json",
+            "history.sqlite",
+            "history.sqlite-wal",
+            "models/model.gguf",
+        ] {
+            assert_eq!(
+                fs::read(source.join(name)).unwrap(),
+                fs::read(staging.join(name)).unwrap()
+            );
+            assert!(!destination.join(name).exists());
+        }
+        let state = read_marker(&staging.join(STAGE_OWNER)).unwrap().unwrap();
+        validate_marker(&state, &source, &destination, &home).unwrap();
+        assert!(staging.join(MARKER).exists());
+        assert!(!destination.join(MARKER).exists());
+        let lease = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(destination.join(".pennel.lock"))
+            .unwrap();
+        lease.try_lock().unwrap();
     }
 
     #[test]

@@ -9,6 +9,10 @@ use windows::core::PCWSTR;
 use super::{AacPcm, ComApartment};
 use crate::resample::MonoResampler;
 
+#[path = "decode_format.rs"]
+mod decode_format;
+use decode_format::{PcmFormat, update_format};
+
 const INPUT_RATE: u64 = 16_000;
 const ENCODE_RATE: u64 = 48_000;
 const MAX_SAMPLES: usize = INPUT_RATE as usize * 3 * 3600;
@@ -353,6 +357,39 @@ pub fn decode_audio(path: &Path) -> Result<Vec<f32>, String> {
         .map_err(|_| "Audiodecodering is onverwacht gestopt".to_owned())?
 }
 
+unsafe fn decoded_format(reader: &IMFSourceReader, stream: u32) -> Result<PcmFormat, String> {
+    unsafe {
+        let format = reader
+            .GetCurrentMediaType(stream)
+            .map_err(|error| error.to_string())?;
+        let major_type = format
+            .GetGUID(&MF_MT_MAJOR_TYPE)
+            .map_err(|error| error.to_string())?;
+        let subtype = format
+            .GetGUID(&MF_MT_SUBTYPE)
+            .map_err(|error| error.to_string())?;
+        let rate = format
+            .GetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND)
+            .map_err(|error| error.to_string())?;
+        let channels = format
+            .GetUINT32(&MF_MT_AUDIO_NUM_CHANNELS)
+            .map_err(|error| error.to_string())?;
+        let bits = format
+            .GetUINT32(&MF_MT_AUDIO_BITS_PER_SAMPLE)
+            .map_err(|error| error.to_string())?;
+        let alignment = format
+            .GetUINT32(&MF_MT_AUDIO_BLOCK_ALIGNMENT)
+            .map_err(|error| error.to_string())?;
+        PcmFormat::float32(
+            rate,
+            channels,
+            bits,
+            alignment,
+            major_type == MFMediaType_Audio && subtype == MFAudioFormat_Float,
+        )
+    }
+}
+
 fn decode_mta(path: PathBuf) -> Result<Vec<f32>, String> {
     let _media = MediaFoundation::new()?;
     let path = wide_path(&path)?;
@@ -376,19 +413,9 @@ fn decode_mta(path: PathBuf) -> Result<Vec<f32>, String> {
         reader
             .SetCurrentMediaType(stream, None, &output)
             .map_err(|error| error.to_string())?;
-        let format = reader
-            .GetCurrentMediaType(stream)
-            .map_err(|error| error.to_string())?;
-        let rate = format
-            .GetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND)
-            .map_err(|error| error.to_string())?;
-        let channels = format
-            .GetUINT32(&MF_MT_AUDIO_NUM_CHANNELS)
-            .map_err(|error| error.to_string())?;
-        if rate == 0 || channels == 0 || channels > u16::MAX.into() {
-            return Err("Ongeldig audioformaat".into());
-        }
-        let mut resampler = MonoResampler::new(rate, channels as u16);
+        let mut format = decoded_format(&reader, stream)?;
+        let mut resampler = MonoResampler::new(format.rate, format.channels);
+        let mut received_audio = false;
         let mut samples = Vec::new();
         loop {
             let mut flags = 0u32;
@@ -400,7 +427,10 @@ fn decode_mta(path: PathBuf) -> Result<Vec<f32>, String> {
                 return Err("Audio bevat een onleesbaar blok".into());
             }
             if flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED.0 as u32 != 0 {
-                return Err("Het audioformaat verandert tijdens het bestand".into());
+                let next = decoded_format(&reader, stream)?;
+                if update_format(&mut format, next, received_audio)? {
+                    resampler = MonoResampler::new(format.rate, format.channels);
+                }
             }
             if let Some(sample) = sample {
                 let buffer = sample
@@ -408,12 +438,13 @@ fn decode_mta(path: PathBuf) -> Result<Vec<f32>, String> {
                     .map_err(|error| error.to_string())?;
                 let locked = LockedBuffer::new(&buffer)?;
                 if locked.length > locked.capacity
-                    || locked.length % 4 != 0
+                    || locked.length % format.block_alignment() != 0
                     || (locked.length != 0 && locked.data.is_null())
                 {
                     return Err("Windows gaf een ongeldig audiobuffer terug".into());
                 }
                 if locked.length != 0 {
+                    received_audio = true;
                     let bytes = std::slice::from_raw_parts(locked.data, locked.length as usize);
                     let decoded: Vec<_> = bytes
                         .as_chunks::<4>()
