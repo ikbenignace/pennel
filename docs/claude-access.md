@@ -40,14 +40,16 @@ with zero or one request. A new poll from the same device supersedes an older on
 |---|---|---|---|
 | `search_meetings` | `query` (1–200 chars), `limit` 1–20 (default 10) | matching meetings with id, title, date, duration and up to two snippets | `search_library` |
 | `list_recent_meetings` | `limit` 1–50 (default 10) | newest meetings with id, title, date, duration, whether there is a summary | `meetings` |
-| `get_meeting` | `meeting_id`, `part` = `summary` / `notes` / `transcript` / `all` (default `all`) | that part | `meeting_info`, `meeting_markdown`, `meeting_notes`, `meeting_transcript` |
+| `get_meeting` | `meeting_id` (must be one of this computer's meetings), `part` = `summary` / `notes` / `transcript` / `all` (default `all`) | that part; `summary` is the body of `meeting.md`, `notes` is `notes.md` | `meetings`, `meeting_markdown`, `meeting_notes`, `meeting_transcript` |
 | `ask_meetings` | `question` (1–1000 chars), optional `meeting_id` | an answer citing the meetings it used; without a configured model, the most relevant passages | `ask_meetings`, `search_passages` |
 
 Error codes: `not_found`, `invalid_arguments`, `unavailable`, `failed`.
 
 ## Privacy rules the app follows
 
-- Off by default on every computer; only polls while signed in **and** the switch is on. Switching off, signing out or the device being revoked stops the poll at once.
+- Off by default on every computer; only polls while signed in **and** the switch is on. Signing out or deleting the account switches it off. After switching off, a poll already in flight ends on its own and any request it brings is answered `unavailable` instead of being run.
+- At most four calls are answered at once; a fifth is answered `unavailable`.
+- Implementation: `core/src/cloud/relay.rs` (HTTP), `core/src/claude_access.rs` (tools), `apps/desktop/src-tauri/src/claude_access.rs` (runner), `apps/desktop/src/views/account.ts` (UI).
 - Read-only: the handlers call fixed engine functions with validated arguments. Nothing Claude sends can change, delete or export meetings or trigger any other action.
 - Never logged: arguments, questions and answers. Logs hold the tool name, duration and outcome.
 - Audio never leaves the computer through this channel; only text.
