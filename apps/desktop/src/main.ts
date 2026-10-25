@@ -255,7 +255,7 @@ async function render(allowed: () => boolean = () => true) {
 function updateNavigation() {
   const section = navigation.current.section === "recording" ? "meetings" : navigation.current.section;
   navButtons.forEach((button, key) => { if (key === section) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current"); });
-  setWindowTitle(sectionTitles[navigation.current.section]);
+  if (mode === "workspace") setWindowTitle(sectionTitles[navigation.current.section]);
 }
 
 function setWindowTitle(title: string) {
