@@ -32,6 +32,15 @@ final class ModelDownloads {
     private(set) var errors: [String: String] = [:]
     private let engine: PennelEngine
     private let queue = DispatchQueue(label: "dev.pennel.downloads", qos: .utility, attributes: .concurrent)
+    #if DEBUG && PENNEL_REFERENCE_SNAPSHOT
+    private var snapshotOverride = false
+    func configureSnapshot(states: [String: ModelState], progress: [String: Double] = [:], errors: [String: String] = [:]) {
+        snapshotOverride = true
+        self.states.merge(states) { _, new in new }
+        self.progress = progress
+        self.errors = errors
+    }
+    #endif
 
     init(engine: PennelEngine) {
         self.engine = engine
@@ -49,6 +58,9 @@ final class ModelDownloads {
     func reload() {
         models = engine.localModels(language: scoreLanguage, supportedOnly: false)
         visible = engine.localModels(language: scoreLanguage, supportedOnly: supportedOnly)
+        #if DEBUG && PENNEL_REFERENCE_SNAPSHOT
+        if snapshotOverride { return }
+        #endif
         for model in models {
             states[model.id] = engine.modelState(id: model.id)
         }

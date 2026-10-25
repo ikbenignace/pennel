@@ -21,10 +21,21 @@ unsafe extern "C" {
     fn pennel_mac_permissions() -> *mut c_char;
     fn pennel_mac_request_permission(kind: *const c_char) -> bool;
     fn pennel_mac_foreground() -> *mut c_char;
+    fn pennel_mac_pick_style_application(error: *mut *mut c_char) -> *mut c_char;
+    fn pennel_mac_external_target_start();
+    fn pennel_mac_external_target_capture() -> *mut c_char;
+    fn pennel_mac_external_target_capture_current() -> *mut c_char;
+    fn pennel_mac_external_target_cancel(token: *const c_char);
+    fn pennel_mac_external_target_is_current(token: *const c_char) -> bool;
+    fn pennel_mac_external_target_paste(
+        text: *const c_char,
+        token: *const c_char,
+        sink: TextSink,
+        context: *mut c_void,
+    );
     fn pennel_mac_other_instances() -> *mut c_char;
     fn pennel_mac_migrate_legacy_key(account: *const c_char, error: *mut *mut c_char) -> bool;
     fn pennel_mac_read_selection(sink: TextSink, context: *mut c_void);
-    fn pennel_mac_paste(text: *const c_char, sink: TextSink, context: *mut c_void);
     fn pennel_mac_copy_text(text: *const c_char, html: *const c_char) -> bool;
     fn pennel_mac_copy_secret(text: *const c_char) -> bool;
     fn pennel_mac_share(
@@ -68,6 +79,13 @@ unsafe extern "C" {
         sink: TextSink,
         context: *mut c_void,
     );
+    fn pennel_mac_speech_preview_start(
+        language: *const c_char,
+        sink: TextSink,
+        context: *mut c_void,
+    ) -> *mut c_void;
+    fn pennel_mac_speech_preview_feed(handle: *mut c_void, samples: *const f32, count: usize);
+    fn pennel_mac_speech_preview_stop(handle: *mut c_void);
     fn pennel_mac_language_model_availability() -> *mut c_char;
     fn pennel_mac_language_model_complete(
         messages: *const c_char,
@@ -145,6 +163,60 @@ pub fn foreground() -> Option<ForegroundApp> {
     serde_json::from_value(unsafe { take_json(pennel_mac_foreground()) }).ok()
 }
 
+pub fn pick_style_application() -> Result<Option<crate::style_application::StyleApplication>, String>
+{
+    let mut error = ptr::null_mut();
+    let selected = unsafe { take_string(pennel_mac_pick_style_application(&mut error)) };
+    if let Some(error) = unsafe { take_string(error) } {
+        return Err(error);
+    }
+    serde_json::from_str(
+        selected
+            .as_deref()
+            .ok_or("De appkiezer gaf geen antwoord.")?,
+    )
+    .map_err(|_| "De gekozen app heeft geen bruikbare app-ID.".into())
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ExternalTarget {
+    pub token: String,
+    pub name: String,
+    pub bundle_id: String,
+}
+
+pub fn start_external_target_tracking() {
+    unsafe { pennel_mac_external_target_start() };
+}
+
+pub fn external_target() -> Option<ExternalTarget> {
+    serde_json::from_value(unsafe { take_json(pennel_mac_external_target_capture()) }).ok()
+}
+
+pub fn current_external_target() -> Option<ExternalTarget> {
+    serde_json::from_value(unsafe { take_json(pennel_mac_external_target_capture_current()) }).ok()
+}
+
+pub fn cancel_external_target(token: &str) {
+    if let Ok(token) = c_string(token) {
+        unsafe { pennel_mac_external_target_cancel(token.as_ptr()) };
+    }
+}
+
+pub fn external_target_is_current(token: &str) -> bool {
+    c_string(token)
+        .is_ok_and(|token| unsafe { pennel_mac_external_target_is_current(token.as_ptr()) })
+}
+
+pub fn paste_external_target(text: &str, token: &str) -> Result<(), String> {
+    let text = c_string(text)?;
+    let token = c_string(token)?;
+    wait_text(|sink, context| unsafe {
+        pennel_mac_external_target_paste(text.as_ptr(), token.as_ptr(), sink, context)
+    })
+    .map(|_| ())
+}
+
 /// Running canonical Pennel/Musli apps that predate the shared core's storage locks.
 pub fn other_instances() -> Vec<ForegroundApp> {
     serde_json::from_value(unsafe { take_json(pennel_mac_other_instances()) }).unwrap_or_default()
@@ -186,11 +258,6 @@ fn wait_text(start: impl FnOnce(TextSink, *mut c_void)) -> Result<Option<String>
 
 pub fn read_selection() -> Result<Option<String>, String> {
     wait_text(|sink, context| unsafe { pennel_mac_read_selection(sink, context) })
-}
-
-pub fn paste(text: &str) -> Result<(), String> {
-    let text = c_string(text)?;
-    wait_text(|sink, context| unsafe { pennel_mac_paste(text.as_ptr(), sink, context) }).map(|_| ())
 }
 
 pub fn copy_text(text: &str, html: Option<&str>) -> Result<(), String> {
@@ -479,6 +546,85 @@ impl MeetingCapture {
 impl Drop for MeetingCapture {
     fn drop(&mut self) {
         let _ = self.finish();
+        let _ = &self.callback;
+    }
+}
+
+type PreviewCallback = Mutex<Box<dyn FnMut(String) + Send>>;
+
+unsafe extern "C" fn preview_text(
+    context: *mut c_void,
+    value: *const c_char,
+    error: *const c_char,
+) {
+    if context.is_null() || !error.is_null() {
+        return;
+    }
+    let Some(text) = (unsafe { copy_string(value) }) else {
+        return;
+    };
+    let callback = unsafe { &*context.cast::<PreviewCallback>() };
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        callback.lock().unwrap_or_else(|p| p.into_inner())(text);
+    }));
+}
+
+pub struct AppleSpeechPreview {
+    handle: Option<NonNull<c_void>>,
+    callback: Box<PreviewCallback>,
+}
+
+// Swift serializes input and drains repeated callbacks before the handle is released.
+unsafe impl Send for AppleSpeechPreview {}
+unsafe impl Sync for AppleSpeechPreview {}
+
+impl AppleSpeechPreview {
+    pub fn start(
+        language: Option<&str>,
+        callback: impl FnMut(String) + Send + 'static,
+    ) -> Result<Self, String> {
+        let language = language.map(c_string).transpose()?;
+        let mut callback: Box<PreviewCallback> = Box::new(Mutex::new(Box::new(callback)));
+        let context = (&mut *callback as *mut PreviewCallback).cast();
+        let handle = NonNull::new(unsafe {
+            pennel_mac_speech_preview_start(
+                language
+                    .as_ref()
+                    .map_or(ptr::null(), |value| value.as_ptr()),
+                preview_text,
+                context,
+            )
+        })
+        .ok_or_else(|| "Live Apple-preview is niet beschikbaar".to_owned())?;
+        Ok(Self {
+            handle: Some(handle),
+            callback,
+        })
+    }
+
+    pub fn feed(&self, samples: &[f32]) {
+        if let Some(handle) = self.handle {
+            unsafe {
+                pennel_mac_speech_preview_feed(handle.as_ptr(), samples.as_ptr(), samples.len())
+            };
+        }
+    }
+
+    /// The runtime calls this on its worker before starting the final Apple transcription.
+    pub fn stop(mut self) {
+        self.finish();
+    }
+
+    fn finish(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            unsafe { pennel_mac_speech_preview_stop(handle.as_ptr()) };
+        }
+    }
+}
+
+impl Drop for AppleSpeechPreview {
+    fn drop(&mut self) {
+        self.finish();
         let _ = &self.callback;
     }
 }

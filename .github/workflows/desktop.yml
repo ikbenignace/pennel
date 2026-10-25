@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+      - name: Shared theme tokens
+        run: python scripts/generate-theme.py --check
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -54,6 +56,8 @@ jobs:
         working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v5
+      - name: Shared theme tokens
+        run: python ../../scripts/generate-theme.py --check
       - uses: maxim-lobanov/setup-xcode@v1
         if: runner.os == 'macOS'
         with:

@@ -8,12 +8,14 @@ mod cli_agent;
 mod cloud;
 mod command;
 mod diarize;
+mod dictation_pad;
 mod engine;
 mod error;
 mod export;
 mod gesture;
 mod history;
 mod http;
+mod live_dictation;
 mod llm;
 mod local_engine;
 mod meeting_chat;
@@ -27,6 +29,7 @@ mod remote_models;
 mod rules;
 mod session;
 mod settings;
+mod setup;
 mod speech;
 mod status;
 mod storage;
@@ -50,6 +53,9 @@ pub use error::PennelError;
 pub use export::MeetingExport;
 pub use gesture::{GestureAction, HotkeyGesture, KeyEdge};
 pub use history::{HistoryEntry, HistoryStatus};
+pub use live_dictation::{
+    DictationPreviewMode, DictationPreviewObserver, DictationPreviewUpdate, LiveDictationSession,
+};
 pub use meeting_chat::{ChatTurn, Citation, MeetingAnswer};
 pub use meeting_index::{Passage, PassageKind};
 pub use meetings::{MeetingInfo, NoteLine, Segment, Speaker, SpeakerName, mark_lines};
@@ -67,8 +73,10 @@ pub use rules::{
 };
 pub use session::MeetingSession;
 pub use settings::{
-    DictationMode, HotkeyTrigger, ModelChoice, Settings, Style, StyleRule, default_settings,
+    AppearancePreference, DictationMode, HotkeyTrigger, ModelChoice, OnboardingProgress,
+    OnboardingStatus, OnboardingStep, Settings, Style, StyleRule, default_settings,
 };
+pub use setup::{SetupAccess, SetupFacts, SetupReadiness, dictation_readiness, meeting_readiness};
 pub use status::{CommandIntent, DictationStatus, PillState};
 pub use system_llm::{LanguageModelMessage, SystemLanguageModel};
 pub use system_stt::SystemTranscriber;

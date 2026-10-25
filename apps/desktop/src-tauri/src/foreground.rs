@@ -8,6 +8,7 @@ pub struct ForegroundApp {
     pub executable: String,
 }
 
+#[cfg(any(not(target_os = "macos"), test))]
 const KNOWN: &[(&str, &str)] = &[
     ("slack", "com.tinyspeck.slackmacgap"),
     ("whatsapp", "net.whatsapp.WhatsApp"),
@@ -34,6 +35,7 @@ const KNOWN: &[(&str, &str)] = &[
 ];
 
 /// The id the core's style rules use for this executable: a known bundle id, else the executable name.
+#[cfg(any(not(target_os = "macos"), test))]
 pub fn style_id(executable: &str) -> String {
     if executable.contains('.') && !executable.to_lowercase().ends_with(".exe") {
         return executable.to_owned();

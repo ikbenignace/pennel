@@ -10,10 +10,11 @@ struct LocalModelsView: View {
 
     var body: some View {
         let downloads = state.downloads
-        PaneSection(title: "Modellen", subtitle: "Draaien volledig op je Mac. Je audio verlaat je computer niet.") {
+        PaneSection(title: "Modellen", subtitle: "Draaien volledig op je computer. Je audio verlaat je computer niet.") {
             HStack(spacing: 12) {
-                Picker("Nauwkeurigheid voor", selection: languageBinding) {
-                    ForEach(LanguageNames.common, id: \.self) { Text(LanguageNames.name($0)).tag($0) }
+                HStack(spacing: 12) {
+                    Text("Nauwkeurigheid voor").foregroundStyle(Theme.muted).frame(width: 90, alignment: .leading)
+                    PennelPopup(label: "Nauwkeurigheid voor", options: LanguageNames.common.map { ($0, LanguageNames.name($0)) }, selection: languageBinding)
                 }
                 .frame(maxWidth: 260)
                 Toggle("Alleen deze taal", isOn: supportedOnlyBinding)
@@ -36,13 +37,7 @@ struct LocalModelsView: View {
             }
 
             FieldRow(label: "Vrijgeven na") {
-                Picker("", selection: $state.settings.localUnloadMinutes) {
-                    Text("1 min").tag(UInt32(1))
-                    Text("5 min").tag(UInt32(5))
-                    Text("15 min").tag(UInt32(15))
-                    Text("1 uur").tag(UInt32(60))
-                }
-                .labelsHidden()
+                PennelPopup(label: "Vrijgeven na", options: [(UInt32(1), "1 min"), (UInt32(5), "5 min"), (UInt32(15), "15 min"), (UInt32(60), "1 uur")], selection: $state.settings.localUnloadMinutes)
                 .frame(maxWidth: 140)
             }
             Text("Het model wordt geladen bij je eerste dictaat en daarna uit het geheugen gehaald als je het niet gebruikt.")

@@ -342,6 +342,7 @@ mod tests {
             PennelEngine::new(dir.path().join("data").to_string_lossy().into_owned()).unwrap();
         let mut settings = engine.settings();
         settings.providers[0].base_url = server.url();
+        settings.meeting_stt.provider_id = "groq".into();
         settings.meetings_dir = dir.path().join("meetings").to_string_lossy().into_owned();
         engine.update_settings(settings).unwrap();
         engine

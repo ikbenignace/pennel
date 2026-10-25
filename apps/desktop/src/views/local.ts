@@ -1,12 +1,12 @@
-import { listen } from "@tauri-apps/api/event";
-import { api, type LocalModel } from "../api";
-import { confirmDialog, field, formatBytes, h, section, select } from "../dom";
+import { api, listen, type LocalModel } from "../api";
+import { confirmDialog, errorText, field, h, section, select } from "../dom";
 import type { Context } from "../main";
 
 const progress = new Map<string, { downloaded: number; total: number }>();
 const failures = new Map<string, string>();
 let language: string | null = null;
-let supportedOnly = false;
+let languageInitialized = false;
+let supportedOnly = true;
 let listening = false;
 let refresh: (() => void) | null = null;
 
@@ -29,15 +29,19 @@ async function listenOnce() {
 }
 
 function bar(label: string, value: number | null) {
-  return h(
-    "span",
-    { class: "muted" },
-    `${label} `,
-    h("span", { class: "bar" }, h("span", { style: `width:${value ?? 0}%` })),
-  );
+  return h("div", { class: "model-score" },
+    h("div", { class: "model-score-label" }, h("span", {}, label), h("span", {}, value === null ? "niet gemeten" : String(value))),
+    h("div", { class: "model-score-track" }, h("span", { style: `width:${value ?? 0}%` })));
+}
+
+function languageName(code: string): string {
+  const names: Record<string, string> = { nl: "Nederlands", en: "Engels", fr: "Frans", de: "Duits", es: "Spaans", it: "Italiaans", pt: "Portugees", pl: "Pools" };
+  const name = names[code] ?? new Intl.DisplayNames(["nl"], { type: "language" }).of(code) ?? code;
+  return name.charAt(0).toLocaleUpperCase("nl-BE") + name.slice(1);
 }
 
 export async function localView(ctx: Context, embedded = false): Promise<HTMLElement> {
+  if (!languageInitialized) { language = ctx.info.settings.language ?? "nl"; languageInitialized = true; }
   await listenOnce();
   const models = await api.localModels(language, supportedOnly);
   const inUse = new Set(
@@ -58,14 +62,11 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     let actions: (Node | string)[];
     if (active) {
       actions = [
-        h("progress", { "data-model": model.id, max: active.total || 1, value: active.downloaded }),
         h("button", { class: "btn", onclick: () => api.cancelDownload(model.id) }, "Annuleren"),
       ];
     } else if (model.state.kind === "downloaded") {
       actions = [
-        inUse.has(model.id)
-          ? h("span", { class: "badge" }, "In gebruik")
-          : h("button", { class: "btn", onclick: () => use(model) }, "Gebruik"),
+        ...inUse.has(model.id) ? [] : [h("button", { class: "btn", onclick: () => use(model) }, "Gebruik")],
         h(
           "button",
           {
@@ -82,7 +83,8 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       const start = async () => {
         failures.delete(model.id);
         progress.set(model.id, { downloaded: 0, total: model.size_bytes });
-        await api.downloadModel(model.id);
+        try { await api.downloadModel(model.id); }
+        catch (error) { progress.delete(model.id); failures.set(model.id, errorText(error)); }
         ctx.rerender();
       };
       actions =
@@ -91,36 +93,36 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
               h("button", { class: "btn", onclick: start }, "Verder downloaden"),
               h("button", { class: "btn danger", onclick: async () => await ctx.mutate(() => api.deleteModel(model.id)) }, "Verwijder"),
             ]
-          : [h("button", { class: "btn primary", onclick: start }, "Downloaden")];
+          : [h("button", { class: "btn", onclick: start }, "Downloaden")];
     }
-    return h(
-      "div",
-      { class: "model-card" },
-      h(
-        "div",
-        {},
-        h(
-          "div",
-          { class: "row" },
-          h("strong", {}, model.name),
-          model.recommended ? h("span", { class: "badge" }, "Aanbevolen") : null,
-          h("span", { class: "muted" }, formatBytes(model.size_bytes)),
-        ),
-        h("div", { class: "muted" }, model.description),
-        h("div", { class: "row" }, bar("Snelheid", model.speed), bar("Nauwkeurigheid", model.accuracy)),
-        failures.has(model.id) ? h("div", { class: "error" }, `Download mislukt: ${failures.get(model.id)}`) : null,
-      ),
-      h("div", { class: "row" }, actions),
-    );
+    const inUseHere = inUse.has(model.id);
+    const metadata = [model.description, `${Math.floor(model.size_bytes / 1e6)} MB`, model.parameters ? `${model.parameters} parameters` : null].filter(Boolean).join(" · ");
+    const languages = [...model.languages].map(languageName).sort((a, b) => a.localeCompare(b, "nl"));
+    const languageDetails = languages.length ? h("details", { class: "model-languages" },
+      h("summary", {}, languages.length === 1 ? `Alleen ${languages[0]}` : `${languages.length} talen ›`), h("p", {}, languages.join(", "))) : null;
+    if (languageDetails) languageDetails.addEventListener("toggle", () => {
+      languageDetails.querySelector("summary")!.textContent = languageDetails.open ? "Verberg talen" : languages.length === 1 ? `Alleen ${languages[0]}` : `${languages.length} talen ›`;
+    });
+    return h("div", { class: "model-card" },
+      h("div", { class: "model-card-heading" }, h("div", { class: "grow" },
+        h("div", { class: "row" }, h("strong", {}, model.name), inUseHere || model.recommended ? h("span", { class: "model-badge" }, inUseHere ? "In gebruik" : "Aanbevolen") : null),
+        h("p", { class: "model-details" }, metadata)),
+        h("div", { class: "row model-actions" }, actions)),
+      h("div", { class: "model-scores" }, bar("Snelheid", model.speed), bar("Nauwkeurigheid", model.accuracy)), languageDetails,
+      active ? h("progress", { "data-model": model.id, max: active.total || 1, value: active.downloaded, "aria-label": `${model.name} downloaden` }) : null,
+      failures.has(model.id) ? h("div", { class: "error" }, `Download mislukt: ${failures.get(model.id)}`) : null);
   };
 
   const languagePicker = select<string>(
     [
-      ["", "Alle talen"],
       ["nl", "Nederlands"],
       ["en", "Engels"],
       ["fr", "Frans"],
       ["de", "Duits"],
+      ["es", "Spaans"],
+      ["it", "Italiaans"],
+      ["pt", "Portugees"],
+      ["pl", "Pools"],
     ],
     language ?? "",
     (value) => {
@@ -143,15 +145,11 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     embedded ? null : h("h1", {}, "Lokale modellen"),
     section(
       "Modellen",
-      `Draaien volledig op je computer (${ctx.info.capabilities.local_acceleration === "metal" ? "Metal" : ctx.info.capabilities.local_acceleration === "vulkan" ? "Vulkan" : "CPU"}). Je audio verlaat je computer niet.`,
-      h("p", { class: "help" }, "Snelheid is gebenchmarkt op Apple Silicon. De prestaties op deze computer kunnen verschillen."),
-      h("div", { class: "row" }, field("Nauwkeurigheid voor", languagePicker), h("label", { class: "row" }, onlyThis, "Alleen deze taal")),
+      "Draaien volledig op je computer. Je audio verlaat je computer niet.",
+      h("div", { class: "row model-filters" }, h("label", { class: "model-language" }, h("span", {}, "Nauwkeurigheid voor"), languagePicker), h("label", { class: "row" }, onlyThis, "Alleen deze taal")),
+      h("p", { class: "help model-benchmark-note" }, "Scores uit onafhankelijke benchmarks: snelheid op Apple Silicon, nauwkeurigheid in de gekozen taal (hoger is beter)."),
       models.filter((model) => model.recommended || model.state.kind === "downloaded").map(card),
-      h("details", {}, h("summary", {}, "Alle modellen"), models.filter((model) => !model.recommended && model.state.kind !== "downloaded").map(card)),
-    ),
-    section(
-      "Geheugen",
-      "Het model wordt geladen bij je eerste dictaat en daarna uit het geheugen gehaald als je het niet gebruikt.",
+      h("details", { class: "all-models" }, h("summary", {}, `Alle modellen (${models.filter((model) => !model.recommended && model.state.kind !== "downloaded").length})`), models.filter((model) => !model.recommended && model.state.kind !== "downloaded").map(card)),
       field(
         "Vrijgeven na",
         select<string>(
@@ -165,6 +163,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
           (v) => ctx.save((s) => (s.local_unload_minutes = Number(v))),
         ),
       ),
+      h("p", { class: "help" }, "Het model wordt geladen bij je eerste dictaat en daarna uit het geheugen gehaald als je het niet gebruikt."),
     ),
   );
   const onRefresh = () => { if (root.isConnected) void ctx.refresh().catch(ctx.report); };

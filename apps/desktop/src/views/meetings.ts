@@ -1,9 +1,11 @@
-import { api, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type Passage, type Segment } from "../api";
+import { api, fixtureClient, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type Passage, type Segment } from "../api";
 import { LatestRequest, SerialQueue, orFallback, persistAll } from "../async";
 import { askText, confirmDialog, errorText, formatClock, h, markdown, select, snippet } from "../dom";
 import { MeetingDraft } from "../meeting-draft";
 import { badgeFor, resolveOpenMeeting, syncActive, type SyncItemState } from "../sync-badge";
 import type { Context } from "../main";
+import { icon } from "../icons";
+import { languageModelConfigured } from "../presentation";
 
 let query = "";
 const notesQueue = new SerialQueue();
@@ -25,11 +27,9 @@ function dateLabel(date: string) {
 function dayGroup(date: string) {
   const day = new Date(date);
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
   const week = new Date(today); week.setDate(week.getDate() - 7);
   if (day >= today) return "Vandaag";
-  if (day >= yesterday) return "Gisteren";
-  return day >= week ? "Afgelopen week" : "Eerder";
+  return day >= week ? "Deze week" : "Eerder";
 }
 
 function speakerLabel(segment: Segment, detail?: MeetingDetail): string {
@@ -117,20 +117,42 @@ function transcript(ctx: Context, segments: Segment[], detail?: MeetingDetail, i
   for (const segment of segments) {
     const available = !!detail?.audio_tracks.some((track) => track.speaker === segment.speaker && track.available);
     const stamp = h("button", { class: "transcript-stamp text-button", disabled: !id || !available || play.status !== "available",
-      title: available ? play.reason ?? "Afspelen vanaf dit punt" : "Geen bewaard audiospoor beschikbaar" }, `[${formatClock(segment.start_ms / 1000)}]`);
+      title: available ? play.reason ?? "Afspelen vanaf dit punt" : "Geen bewaarde audio beschikbaar." }, formatClock(segment.start_ms / 1000));
     if (id) stamp.addEventListener("click", () => { void api.playMeetingAudio(id, segment.speaker, segment.start_ms).catch(ctx.report); });
-    const speaker = h("button", { class: "speaker text-button", disabled: !id || segment.voice === null || segment.speaker === "me" }, `${speakerLabel(segment, detail)}:`);
+    const speakerColor = segment.speaker === "me" ? "var(--accent)" : segment.voice === null ? "var(--foreground)" : `var(--voice-${(segment.voice + 3) % 4 + 1})`;
+    let speaker: HTMLElement = h("span", { class: "speaker", style: `color:${speakerColor}` }, speakerLabel(segment, detail));
     if (id && segment.voice !== null && segment.speaker === "others") {
-      speaker.addEventListener("click", async () => {
-        const value = await askText("Naam voor deze stem", detail?.speakers.find((item) => item.voice === segment.voice)?.name ?? "",
-          `Laat leeg om terug ‘Anderen’ te tonen.${detail?.attendees.length ? ` Deelnemers: ${detail.attendees.join(", ")}.` : ""}`);
-        if (value === null) return;
-        await api.renameSpeaker(id, segment.voice!, value);
-        ctx.rerender();
+      const currentName = detail?.speakers.find((item) => item.voice === segment.voice)?.name ?? "";
+      const names = detail?.attendees ?? [];
+      const chosen = names.indexOf(currentName);
+      const original = chosen >= 0 ? `name:${chosen}` : "current";
+      const picker = select([
+        ...chosen < 0 ? [["current", speakerLabel(segment, detail)] as [string, string]] : [],
+        ...names.map((name, index) => [`name:${index}`, name] as [string, string]), ["custom", "Andere naam…"],
+      ], original, (value) => {
+        void (async () => {
+          const name = value.startsWith("name:") ? names[Number(value.slice(5))]
+            : value === "custom" ? await askText("Naam voor deze stem", currentName, "Laat leeg om terug ‘Anderen’ te tonen.") : null;
+          if (name === null || name === undefined) { picker.value = original; return; }
+          try { await api.renameSpeaker(id, segment.voice!, name); ctx.rerender(); }
+          catch (error) { picker.value = original; ctx.report(error); }
+        })();
       });
+      picker.className = "speaker speaker-picker";
+      picker.style.color = speakerColor;
+      picker.setAttribute("aria-label", `Naam voor deze stem: ${speakerLabel(segment, detail)}`);
+      speaker = picker;
     }
-    result.append(h("p", { class: "transcript-line", "data-start-ms": segment.start_ms }, stamp, " ", speaker, " ",
-      segment.failed ? h("em", { class: "error" }, "transcriptie mislukt") : segment.text));
+    const body = h("div", { class: "transcript-copy" }, segment.failed ? h("span", { class: "muted" }, "Transcriptie mislukt") : segment.text);
+    if (segment.failed && id) {
+      const retry = h("button", { class: "text-button", onclick: async () => {
+        retry.disabled = true;
+        try { await api.retranscribeMeeting(id); ctx.rerender(); }
+        catch (error) { ctx.report(error); retry.disabled = false; }
+      } }, "Opnieuw proberen");
+      body.append(retry);
+    }
+    result.append(h("div", { class: "transcript-line", "data-start-ms": segment.start_ms }, stamp, speaker, body));
   }
   return result;
 }
@@ -182,6 +204,12 @@ function chat(ctx: Context, meetingId: string | null) {
 }
 
 export async function meetingsView(ctx: Context): Promise<HTMLElement> {
+  if (ctx.param === "__chat__") return h("div", { class: "meeting-selected" },
+    h("button", { class: "text-button meeting-back", onclick: () => ctx.navigate("meetings") }, icon("arrowLeft"), "Alle vergaderingen"), chat(ctx, null));
+  if (ctx.param) {
+    try { return h("div", { class: "meeting-selected" }, h("button", { class: "text-button meeting-back", onclick: () => ctx.navigate("meetings") }, icon("arrowLeft"), "Alle vergaderingen"), await meetingDetail(ctx, ctx.param)); }
+    catch (error) { return h("div", { class: "empty-state" }, h("p", { class: "error" }, errorText(error)), h("button", { class: "btn", onclick: () => ctx.navigate("meetings") }, "Terug naar meetings")); }
+  }
   const sidebar = h("aside", { class: "library-sidebar", "aria-label": "Meetingbibliotheek" });
   const input = h("input", { type: "search", value: query, placeholder: "Zoeken", "aria-label": "Zoeken in meetings" });
   const list = h("div", { class: "meeting-list" });
@@ -197,7 +225,11 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
   const load = () => requests.run(async () => query.trim() ? api.searchLibrary(query) : { meetings: await api.meetings(""), passages: [] as Passage[] }, (result) => {
     list.replaceChildren();
     shown = result.meetings;
-    if (!result.meetings.length) { list.append(h("p", { class: "help library-empty" }, query.trim() ? "Geen meetings gevonden." : "Nog geen meetings.")); return; }
+    if (!result.meetings.length) {
+      list.append(h("div", { class: "meeting-library-empty" }, icon("notebook"), h("h2", {}, query.trim() ? "Geen meetings gevonden." : "Nog geen vergaderingen."),
+        h("p", { class: "muted" }, query.trim() ? "Probeer een andere zoekterm." : "Start een opname. Je notities en transcript komen hier."),
+        !query.trim() ? h("button", { class: "btn primary", onclick: () => ctx.navigate("live") }, "Start je eerste opname") : null)); return;
+    }
     let group = "";
     for (const meeting of result.meetings) {
       const day = dayGroup(meeting.start_iso);
@@ -267,21 +299,10 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
   };
   await updateLive();
   schedule(ctx, 2000, updateLive);
-  sidebar.append(h("div", { class: "library-search" }, input),
-    h("button", { class: `library-chat text-button${ctx.param === "__chat__" ? " selected" : ""}`, onclick: () => ctx.navigate("chat") }, "Vraag het je meetings"), live, list,
-    h("footer", { class: "library-footer" },
-      h("button", { class: "btn primary", onclick: () => api.showWindow("live", "meeting") }, "Nieuwe opname"),
-      h("div", { class: "row" }, h("button", { class: "text-button", onclick: () => api.showWindow("settings", "providers") }, "Instellingen…"),
-        h("span", { class: "grow" }), h("button", { class: "text-button", onclick: () => api.showWindow("history") }, "Geschiedenis…")),
-      h("button", { class: "text-button", onclick: () => api.showWindow("settings", "dictation") }, "Dicteren…"),
-      ctx.info.preview ? h("span", { class: "help" }, "Preview · aparte testbibliotheek") : null));
-  const detail = h("div", { class: "library-detail" });
-  if (ctx.param === "__chat__") detail.append(chat(ctx, null));
-  else if (ctx.param) {
-    try { detail.append(await meetingDetail(ctx, ctx.param)); }
-    catch (error) { detail.append(h("div", { class: "empty-state" }, h("p", { class: "error" }, errorText(error)), h("button", { class: "btn", onclick: () => ctx.navigate("meetings") }, "Terug naar meetings"))); }
-  } else detail.append(h("div", { class: "empty-state muted" }, "Kies een meeting of start een opname."));
-  return h("div", { class: "library" }, sidebar, detail);
+  sidebar.append(h("div", { class: "page-heading" }, h("h1", {}, "Vergaderingen"), h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => ctx.navigate("live") }, "Nieuwe opname")),
+    h("div", { class: "library-controls row" }, h("div", { class: "library-search" }, input), h("span", { class: "grow" }),
+      h("button", { class: "text-button", onclick: () => ctx.navigate("chat") }, "Vraag het je meetings")), live, list);
+  return h("div", { class: "library library-overview" }, sidebar);
 }
 
 async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
@@ -291,7 +312,15 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const active = runtime.busy && runtime.id === id;
   let state = detailState.get(id);
   if (!state) { state = { tab: "notes", template: ctx.info.settings.default_template, working: false, message: "" }; detailState.set(id, state); }
+  const fixtureTab = fixtureClient()?.fixture?.meeting_tab;
+  if (["notes", "transcript", "ask"].includes(String(fixtureTab))) state.tab = fixtureTab as "notes" | "transcript" | "ask";
   const current = state;
+  const canSummarize = languageModelConfigured(ctx.info);
+  const playback = ctx.info.capabilities.audio_playback;
+  const audioAvailable = detail.audio_tracks.some((track) => track.available);
+  const audioReason = !audioAvailable ? "Geen bewaarde audio beschikbaar." : playback.status !== "available" ? playback.reason ?? "Audio afspelen is niet beschikbaar." : null;
+  let speakerModelReady = false;
+  try { speakerModelReady = (await api.modelState(ctx.info.diarizer_model_id)).kind === "downloaded"; } catch { /* The unavailable model remains actionable in Meetings settings. */ }
   if (ctx.jumpMs !== undefined) current.tab = "transcript";
   const templates = await api.meetingTemplates();
   if (!templates.some((template) => template.id === current.template)) current.template = templates[0]?.id ?? "algemeen";
@@ -313,16 +342,18 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const draw = () => {
     footer.hidden = current.tab === "ask";
     diarize.hidden = current.tab !== "transcript";
+    diarizeReason.hidden = current.tab !== "transcript" || !speakerReason;
     tabs.querySelectorAll("button").forEach((button) => {
       button.setAttribute("aria-selected", String(button.dataset.tab === current.tab));
       button.tabIndex = button.dataset.tab === current.tab ? 0 : -1;
     });
     if (current.tab === "ask") { panel.replaceChildren(chat(ctx, id)); return; }
     if (current.tab === "transcript") {
-      panel.replaceChildren(h("div", { class: "row" }, h("span", { class: "grow" }), h("button", { class: "text-button help", onclick: () => api.stopAudio() }, "Stop audio")), transcript(ctx, detail.transcript, detail, id));
+      panel.replaceChildren(h("div", { class: "transcript-tools" }, audioReason ? h("span", { class: "help" }, audioReason) : h("span", { class: "grow" }),
+        h("button", { class: "text-button", disabled: !!audioReason, title: audioReason, onclick: () => api.stopAudio() }, "Stop audio")), transcript(ctx, detail.transcript, detail, id));
       return;
     }
-    panel.replaceChildren(detail.summary ? enhanced : h("p", { class: "muted" }, detail.notes.trim() ? "Je notities" : "Nog geen samenvatting."));
+    panel.replaceChildren(detail.summary ? enhanced : detail.notes.trim() ? h("div", { class: "markdown" }, detail.notes) : h("p", { class: "muted" }, "Nog geen samenvatting."));
     panel.append(h("details", { class: "own-notes", open: !detail.summary }, h("summary", {}, "Je notities"), notes.input));
   };
   for (const [tab, label] of [["notes", "Notities"], ["transcript", "Transcript"], ["ask", "Vragen"]] as const) {
@@ -339,8 +370,8 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     tabs.append(button);
   }
   const message = h("p", { class: "meeting-message help", role: "status" }, current.message);
-  const regenerate = h("button", { class: "btn", disabled: current.working || runtime.busy,
-    title: runtime.busy ? "Wacht tot de opname is afgerond." : null }, current.working ? "Bezig…" : detail.summary ? "Opnieuw genereren" : "Samenvatten");
+  const regenerate = h("button", { class: "btn", disabled: current.working || runtime.busy || !canSummarize,
+    title: !canSummarize ? "Kies een taalmodel om een samenvatting te maken." : runtime.busy ? "Wacht tot de opname is afgerond." : null }, current.working ? "Bezig…" : detail.summary ? "Opnieuw genereren" : "Samenvatten");
   regenerate.addEventListener("click", async () => {
     current.working = true; regenerate.disabled = true; message.textContent = "Bezig…";
     try { await notes.flush(); await api.summarizeMeeting(id, current.template); current.message = ""; }
@@ -354,7 +385,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const copy = async (formatted: boolean, withTranscript = false) => {
     const exported = await api.exportMeeting(id, withTranscript);
     await api.copyText(exported.markdown, formatted ? exported.html : null);
-    copied.textContent = formatted ? "Gekopieerd" : "Markdown gekopieerd";
+    copied.textContent = withTranscript ? "Gekopieerd met transcript" : "Gekopieerd";
     share.open = false;
   };
   const rich = ctx.info.capabilities.rich_clipboard;
@@ -372,23 +403,24 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
       title: ctx.info.platform === "macos" ? "Open het deelmenu" : "Kopieer je notities of open de meetingmap om te delen.",
       onclick: () => api.shareMeeting(id, false, "share") }, "Deel…")));
   const diarization = ctx.info.capabilities.diarization;
-  const canDiarize = !runtime.busy && diarization.status === "available" && detail.audio_tracks.some((track) => track.speaker === "others" && track.available);
+  const speakerReason = runtime.busy || detail.info.duration_min <= 0 ? "Rond eerst de opname af."
+    : diarization.status !== "available" ? diarization.reason ?? "Sprekers herkennen is niet beschikbaar."
+    : !detail.audio_tracks.some((track) => track.speaker === "others" && track.available) ? "Geen bewaard ‘Anderen’-spoor beschikbaar."
+    : !detail.transcript.some((segment) => segment.speaker === "others" && !segment.failed) ? "Geen transcript van andere sprekers beschikbaar."
+    : !speakerModelReady ? "Download eerst het sprekermodel bij Instellingen → Meetings." : null;
+  const canDiarize = !speakerReason;
   const diarize = h("button", { class: "btn", disabled: !canDiarize || current.working,
-    title: runtime.busy ? "Wacht tot de opname is afgerond." : canDiarize ? "Herkent stemmen met het lokale sprekermodel" : diarization.reason ?? "Geen bewaard ‘Anderen’-spoor beschikbaar" }, "Sprekers herkennen");
+    title: speakerReason ?? "Herkent stemmen met het lokale sprekermodel" }, "Sprekers herkennen");
   diarize.addEventListener("click", async () => {
     current.working = true; diarize.disabled = true; message.textContent = "Sprekers herkennen…";
     try { const voices = await api.diarizeMeeting(id); current.message = `${voices} stemmen herkend.`; }
     catch (error) { current.message = errorText(error); }
     current.working = false; ctx.rerender();
   });
-  const retry = h("button", { class: "btn", disabled: current.working || runtime.busy, hidden: !detail.transcript.some((segment) => segment.failed) }, "Opnieuw proberen");
-  retry.addEventListener("click", async () => {
-    retry.disabled = true;
-    try { await api.retranscribeMeeting(id); ctx.rerender(); }
-    catch (error) { message.textContent = errorText(error); retry.disabled = false; }
-  });
-  const footer = h("footer", { class: "meeting-footer row" }, selected, regenerate, retry, h("span", { class: "grow" }), copied, diarize, share,
-    h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? "Toon in Finder" : "Open map"));
+  const diarizeReason = h("p", { class: "help meeting-control-reason", hidden: true }, speakerReason);
+  const footer = h("footer", { class: "meeting-footer" }, h("div", { class: "row" }, selected, regenerate, h("span", { class: "grow" }), copied, diarize, share,
+    h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? "Toon in Finder" : "Open map")), diarizeReason);
+  const summarySetup = !detail.summary && !canSummarize ? h("div", { class: "meeting-summary-setup help" }, "Kies een taalmodel om een samenvatting te maken.", h("button", { class: "text-button", onclick: () => ctx.navigate("models") }, "Modellen instellen")) : null;
   const conflicts = ctx.info.settings.cloud_sync === true ? await orFallback(() => api.meetingConflictFiles(id), [], ctx.report) : [];
   const banners = conflicts.map((name) => h("div", { class: "conflict-banner row", role: "status" },
     h("span", { class: "grow" }, "Er is een conflictversie van dit bestand."),
@@ -400,8 +432,8 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     } }, "Verwijderen")));
   const result = h("article", { class: "meeting-detail" },
     h("header", { class: "meeting-header" }, h("div", { class: "grow" }, h("h1", {}, detail.info.title),
-      h("p", { class: "help" }, [dateLabel(detail.info.start_iso), detail.info.duration_min ? `${detail.info.duration_min} min` : "", detail.attendees.join(", ")].filter(Boolean).join(" · "))), tabs),
-    ...banners, message, panel, footer);
+      h("p", { class: "help" }, [dateLabel(detail.info.start_iso), detail.info.duration_min ? `${detail.info.duration_min} min` : "", detail.attendees.join(", ")].filter(Boolean).join(" · ")))),
+    h("div", { class: "meeting-tabs" }, tabs), ...banners, summarySetup, message, panel, footer);
   draw();
   if (ctx.jumpMs !== undefined) {
     const jump = ctx.jumpMs;
@@ -468,7 +500,7 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
     title.disabled = status.phase !== "recording";
     clock.textContent = `Opname loopt · ${formatClock(status.elapsed_secs)}`;
     phase.textContent = status.phase === "starting" ? "Opname starten…" : status.phase === "finalizing" || status.phase === "stopping"
-      ? `Afronden…${status.pending ? ` ${status.pending} ${status.pending === 1 ? "stuk" : "stukken"} te transcriberen` : ""}` : "";
+      ? `Opname afronden…${status.pending ? ` ${status.pending} ${status.pending === 1 ? "stuk" : "stukken"} te transcriberen` : ""}` : "";
     warning.textContent = status.audio_warning ?? (!status.system_audio ? "Systeemgeluid niet beschikbaar — alleen je microfoon wordt opgenomen."
       : !status.heard_system_audio && status.elapsed_secs > 20 ? "Nog geen systeemgeluid gehoord." : "");
     stop.disabled = status.phase !== "recording";

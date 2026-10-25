@@ -24,7 +24,7 @@ final class RecordPromptPanel {
         panel.backgroundColor = .clear
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.appearance = NSAppearance(named: .aqua)
+        panel.appearance = NSApp.appearance
         let answer: (PromptAnswer) -> Void = { [weak self] choice in
             self?.dismiss()
             onAnswer(choice)

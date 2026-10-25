@@ -3,7 +3,7 @@ import AppKit
 import PennelKit
 import SwiftUI
 
-private let aiInk = Color(hex: 0x8C857B)
+private var aiInk: Color { Theme.muted }
 
 struct MeetingWindowView: View {
     @Bindable var state: AppState
@@ -13,19 +13,49 @@ struct MeetingWindowView: View {
         Group {
             switch meeting.phase {
             case .idle:
-                VStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("Je eerste meeting opnemen").font(.figtree(22, weight: .semibold))
+                    Text("Je microfoon en de andere deelnemers, in één opname.").font(.figtree(13)).foregroundStyle(Theme.muted)
+                    HStack {
+                        Text("Microfoon")
+                        Spacer()
+                        if Permissions.microphone == .authorized { Label("Beschikbaar", systemImage: "checkmark").foregroundStyle(Theme.muted) }
+                        else { Button("Geef toegang") { Task { _ = await Permissions.requestMicrophone(); state.workspace.permissionRevision += 1 } } }
+                    }.font(.figtree(12))
+                    Divider().overlay(Theme.line)
+                    HStack {
+                        Text("Systeemaudio")
+                        Spacer()
+                        Text("Wordt bij het starten gecontroleerd").foregroundStyle(Theme.muted)
+                    }.font(.figtree(12))
+                    Divider().overlay(Theme.line)
+                    HStack {
+                        Text("Spraakherkenning")
+                        Spacer()
+                        if state.meetingSetup.configured { Text("Klaar").foregroundStyle(Theme.muted) }
+                        else {
+                            Button("Kies een model") {
+                                state.workspace.destination = .settings
+                                state.workspace.settingsTab = .models
+                            }
+                        }
+                    }.font(.figtree(12))
+                    Text("Notities, transcript en audio worden in je meetingmap bewaard. Laat deelnemers weten dat je opneemt.")
+                        .font(.figtree(11)).foregroundStyle(Theme.muted)
                     if let error = meeting.error {
                         Text(error).foregroundStyle(Theme.accent)
                     }
-                    Button("Start opname") { meeting.start() }
+                    Button("Start opname") { meeting.start() }.disabled(!state.meetingSetup.canRecord)
+                    Spacer()
                 }
+                .padding(36).frame(maxWidth: 740, maxHeight: .infinity, alignment: .topLeading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .recording:
                 RecordingView(meeting: meeting)
             case .summarizing:
                 VStack(spacing: 10) {
                     ProgressView().controlSize(.small)
-                    Text("Bezig met samenvatten…").foregroundStyle(Theme.muted)
+                    Text(meeting.willSummarize ? "Bezig met samenvatten…" : "Opname afronden…").foregroundStyle(Theme.muted)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .finished:
@@ -34,7 +64,7 @@ struct MeetingWindowView: View {
                 }
             }
         }
-        .frame(minWidth: 620, minHeight: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.paper)
     }
 }
@@ -47,7 +77,7 @@ private struct RecordingView: View {
         VStack(alignment: .leading, spacing: 14) {
             TextField("Titel", text: $meeting.title)
                 .textFieldStyle(.plain)
-                .font(.custom("Instrument Serif", size: 30))
+                .font(.figtree(22, weight: .semibold))
             HStack(spacing: 8) {
                 Circle().fill(Theme.accent).frame(width: 8, height: 8)
                 Text("Opname loopt · \(Self.clock(meeting.elapsed))").foregroundStyle(Theme.muted)
@@ -102,8 +132,10 @@ struct MeetingDetailView: View {
     let meetingId: String
     var notice: String?
 
-    private enum Tab: Hashable { case notes, transcript, ask }
-    @State private var tab: Tab = .notes
+    private var tab: MeetingDetailTab {
+        get { state.workspace.meetingTabs[meetingId] ?? .notes }
+        nonmutating set { state.workspace.meetingTabs[meetingId] = newValue }
+    }
     @State private var info: MeetingInfo?
     @State private var markdown: String?
     @State private var notes = ""
@@ -118,23 +150,37 @@ struct MeetingDetailView: View {
     @State private var attendees: [String] = []
     @State private var renamingVoice: UInt32?
     @State private var speakerName = ""
+    @State private var editingAttendees = false
+    @State private var attendeesDraft = ""
     @State private var diarizing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(info?.title ?? meetingId).font(.custom("Instrument Serif", size: 30))
+                    Text(info?.title ?? meetingId).font(.figtree(22, weight: .semibold))
                     Text(meta).font(.figtree(12)).foregroundStyle(Theme.muted)
                 }
                 Spacer()
-                SegmentTabs(tabs: [(.notes, "Notities"), (.transcript, "Transcript"), (.ask, "Vragen")], selection: $tab)
             }
             .padding(.horizontal, 32)
             .padding(.top, 28)
             .padding(.bottom, 14)
+            UnderlineTabs(tabs: [(.notes, "Notities"), (.transcript, "Transcript"), (.ask, "Vragen")], selection: Binding(get: { tab }, set: { tab = $0 }))
+                .padding(.horizontal, 32).padding(.bottom, 11)
             if let text = message ?? notice {
                 Text(text).font(.figtree(12)).foregroundStyle(Theme.accent).padding(.horizontal, 32)
+            }
+            if markdown == nil && !state.canSummarize {
+                HStack(spacing: 10) {
+                    Text("Kies een taalmodel om een samenvatting te maken.")
+                    Button {
+                        state.workspace.destination = .settings
+                        state.workspace.settingsTab = .models
+                    } label: { Text("Modellen instellen").underline() }
+                    .buttonStyle(.plain)
+                }
+                .font(.figtree(11)).foregroundStyle(Theme.muted).padding(.horizontal, 32).padding(.bottom, 12)
             }
             if tab == .ask {
                 MeetingChatView(state: state, chat: state.chat(for: meetingId))
@@ -145,15 +191,24 @@ struct MeetingDetailView: View {
                             switch tab {
                             case .notes, .ask: notesView
                             case .transcript:
-                                TranscriptList(
-                                    segments: segments,
-                                    audioDir: audioDir,
-                                    onRetry: diarizing ? nil : Optional(retryFailed),
-                                    highlightMs: highlightMs,
-                                    names: speakers,
-                                    suggestions: attendees,
-                                    onRename: rename
-                                )
+                                VStack(alignment: .leading, spacing: 14) {
+                                    HStack(spacing: 12) {
+                                        if !hasAudio { Text("Geen bewaarde audio beschikbaar.").font(.figtree(11)).foregroundStyle(Theme.muted) }
+                                        Spacer(minLength: 0)
+                                        Button("Stop audio") { AudioScrubber.shared.stop() }
+                                            .buttonStyle(.plain).font(.figtree(11)).foregroundStyle(Theme.muted)
+                                            .disabled(!hasAudio)
+                                    }
+                                    TranscriptList(
+                                        segments: segments,
+                                        audioDir: audioDir,
+                                        onRetry: diarizing ? nil : Optional(retryFailed),
+                                        highlightMs: highlightMs,
+                                        names: speakers,
+                                        suggestions: attendees,
+                                        onRename: rename
+                                    )
+                                }
                             }
                         }
                         .padding(.horizontal, 32)
@@ -173,47 +228,62 @@ struct MeetingDetailView: View {
         .onChange(of: meetingId) { reload() }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in reload() }
         .onChange(of: state.transcriptJump, initial: true) { consumeJump() }
-        .alert("Naam voor deze stem", isPresented: Binding(get: { renamingVoice != nil }, set: { if !$0 { renamingVoice = nil } })) {
-            TextField("Naam", text: $speakerName)
+        .onDisappear { state.flushWorkspaceDrafts() }
+        .alert(editingAttendees ? "Deelnemers" : "Naam voor deze stem", isPresented: Binding(get: { renamingVoice != nil || editingAttendees }, set: { if !$0 { renamingVoice = nil; editingAttendees = false } })) {
+            TextField(editingAttendees ? "Deelnemers" : "Naam", text: editingAttendees ? $attendeesDraft : $speakerName)
             Button("Bewaar") {
-                if let voice = renamingVoice { rename(voice, speakerName) }
+                if editingAttendees { saveAttendees() }
+                else if let voice = renamingVoice { rename(voice, speakerName) }
             }
             Button("Annuleren", role: .cancel) {}
         } message: {
-            Text("Laat leeg om terug \"Anderen\" te tonen.")
+            Text(editingAttendees ? "Scheid de namen met een komma." : "Laat leeg om terug ‘Anderen’ te tonen.")
         }
     }
 
     private var footer: some View {
-            HStack(spacing: 10) {
-                TemplatePicker(state: state, selection: $template)
-                    .frame(width: 150)
-                Button(working ? "Bezig…" : (markdown == nil ? "Samenvatten" : "Opnieuw genereren"), action: regenerate)
-                    .disabled(working)
-                Spacer()
-                if let copied {
-                    Text(copied).font(.figtree(11)).foregroundStyle(Theme.muted)
-                }
-                if tab == .transcript && canDiarize {
-                    Button(diarizing ? "Bezig…" : "Sprekers herkennen", action: diarize).disabled(diarizing)
-                }
-                Menu("Delen") {
-                    Button("Kopieer opgemaakt") { share { MeetingShare.copyFormatted($0); confirm("Gekopieerd") } }
-                    Button("Kopieer als Markdown") { share { MeetingShare.copyMarkdown($0); confirm("Gekopieerd") } }
-                    Button("Kopieer met transcript") {
-                        share(transcript: true) { MeetingShare.copyFormatted($0); confirm("Gekopieerd met transcript") }
-                    }
-                    Divider()
-                    Button("Mail…") { share { MeetingShare.mail($0) } }
-                    Button("Deel…") { share { MeetingShare.share($0) } }
-                }
-                .fixedSize()
-                Button("Toon in Finder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: state.engine.meetingDir(id: meetingId))])
+        VStack(alignment: .leading, spacing: 9) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { summaryControls; Spacer(minLength: 0); secondaryControls }
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) { summaryControls; Spacer(minLength: 0) }
+                    HStack(spacing: 10) { secondaryControls; Spacer(minLength: 0) }
                 }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 14)
+            if tab == .transcript, let reason = diarizationReason {
+                Text(reason).font(.figtree(11)).foregroundStyle(Theme.muted)
+            }
+        }
+        .buttonStyle(PennelControlButtonStyle())
+        .padding(.horizontal, 32).padding(.vertical, 14)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
+    }
+
+    @ViewBuilder
+    private var summaryControls: some View {
+        TemplatePicker(state: state, selection: $template).frame(width: 150)
+        Button(working ? "Bezig…" : (markdown == nil ? "Samenvatten" : "Opnieuw genereren"), action: regenerate)
+            .disabled(working || !state.canSummarize).fixedSize()
+    }
+
+    @ViewBuilder
+    private var secondaryControls: some View {
+        if let copied { Text(copied).font(.figtree(11)).foregroundStyle(Theme.muted) }
+        if tab == .transcript {
+            Button(diarizing ? "Bezig…" : "Sprekers herkennen", action: diarize)
+                .disabled(diarizing || !canDiarize).help(diarizationReason ?? "Herkent stemmen met het lokale sprekermodel")
+                .fixedSize()
+        }
+        Menu("Delen") {
+            Button("Kopieer opgemaakt") { share { MeetingShare.copyFormatted($0); confirm("Gekopieerd") } }
+            Button("Kopieer als Markdown") { share { MeetingShare.copyMarkdown($0); confirm("Gekopieerd") } }
+            Button("Kopieer met transcript") { share(transcript: true) { MeetingShare.copyFormatted($0); confirm("Gekopieerd met transcript") } }
+            Divider()
+            Button("Deelnemers…") { attendeesDraft = attendees.joined(separator: ", "); editingAttendees = true }
+            Button("Mail…") { share { MeetingShare.mail($0) } }
+            Button("Deel…") { share { MeetingShare.share($0) } }
+        }.fixedSize()
+        Button("Toon in Finder") { NSWorkspace.shared.activateFileViewerSelecting([audioDir]) }.fixedSize()
     }
 
     @ViewBuilder
@@ -229,15 +299,29 @@ struct MeetingDetailView: View {
         } else {
             Text("Nog geen samenvatting.").foregroundStyle(Theme.muted)
         }
+        DisclosureGroup("Je notities") {
+            TextEditor(text: Binding(get: { notes }, set: { text in
+                notes = text
+                state.workspace.meetingNoteDrafts[meetingId] = text
+                if !state.flushWorkspaceDrafts() { message = "Notities bewaren mislukt. Je wijzigingen blijven hier staan." }
+            }))
+            .font(.figtree(14)).scrollContentBackground(.hidden).padding(10).frame(minHeight: 120)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Theme.field))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.line))
+        }
+        .font(.figtree(12)).foregroundStyle(Theme.muted).padding(.top, 20)
     }
 
     private var audioDir: URL { URL(fileURLWithPath: state.engine.meetingDir(id: meetingId)) }
+    private var hasAudio: Bool {
+        ["ik.m4a", "anderen.m4a"].contains { FileManager.default.fileExists(atPath: audioDir.appendingPathComponent($0).path) }
+    }
 
     private var meta: String {
         guard let info else { return "" }
         let date = ISO8601DateFormatter().date(from: info.startIso)
-        let when = date?.formatted(date: .complete, time: .shortened) ?? info.startIso
-        return info.durationMin > 0 ? "\(when) · \(info.durationMin) min" : when
+        let when = date.map(LibraryView.formattedDate) ?? info.startIso
+        return [when, info.durationMin > 0 ? "\(info.durationMin) min" : nil, attendees.isEmpty ? nil : attendees.joined(separator: ", ")].compactMap { $0 }.joined(separator: " · ")
     }
 
     private func rename(_ voice: UInt32, _ name: String?) {
@@ -254,12 +338,25 @@ struct MeetingDetailView: View {
         reload()
     }
 
+    private func saveAttendees() {
+        let names = attendeesDraft.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        do { try state.engine.setMeetingAttendees(id: meetingId, attendees: names) }
+        catch { message = "Deelnemers bewaren mislukt: \(error)" }
+        editingAttendees = false
+        reload()
+    }
+
     /// A meeting still being recorded has no duration yet, and its transcript is still being rewritten.
     private var canDiarize: Bool {
-        (info?.durationMin ?? 0) > 0
-            && segments.contains { $0.speaker == .others && !$0.failed }
-            && state.engine.modelState(id: state.engine.diarizerModelId()) == .downloaded
-            && FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("anderen.m4a").path)
+        diarizationReason == nil
+    }
+
+    private var diarizationReason: String? {
+        if (info?.durationMin ?? 0) <= 0 { return "Rond eerst de opname af." }
+        if !segments.contains(where: { $0.speaker == .others && !$0.failed }) { return "Geen transcript van andere sprekers beschikbaar." }
+        if !FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("anderen.m4a").path) { return "Geen bewaard ‘Anderen’-spoor beschikbaar." }
+        if state.engine.modelState(id: state.engine.diarizerModelId()) != .downloaded { return "Download eerst het sprekermodel bij Instellingen → Meetings." }
+        return nil
     }
 
     private func diarize() {
@@ -310,7 +407,7 @@ struct MeetingDetailView: View {
         let engine = state.engine
         info = engine.meetingInfo(id: meetingId)
         markdown = engine.meetingMarkdown(id: meetingId)
-        notes = engine.meetingNotes(id: meetingId)
+        notes = state.workspace.meetingNoteDrafts[meetingId] ?? engine.meetingNotes(id: meetingId)
         segments = engine.meetingTranscript(id: meetingId)
         speakers = engine.meetingSpeakers(id: meetingId)
         attendees = engine.meetingAttendees(id: meetingId)
@@ -396,9 +493,10 @@ struct TranscriptList: View {
             }
             ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(Self.stamp(segment.startMs)).font(.figtree(11)).foregroundStyle(Theme.muted).frame(width: 52, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { play(segment) }
+                    Button(Self.stamp(segment.startMs)) { play(segment) }
+                        .buttonStyle(.plain).font(.figtree(11)).foregroundStyle(Theme.muted)
+                        .frame(width: 52, alignment: .leading).disabled(!canPlay(segment))
+                        .accessibilityLabel("Speel audio vanaf \(Self.stamp(segment.startMs))")
                     speakerLabel(segment)
                         .frame(width: 84, alignment: .leading)
                     if segment.failed {
@@ -454,9 +552,15 @@ struct TranscriptList: View {
     }
 
     private func play(_ segment: Segment) {
-        guard let audioDir else { return }
+        guard canPlay(segment), let audioDir else { return }
         let file = segment.speaker == .me ? "ik.m4a" : "anderen.m4a"
         AudioScrubber.shared.play(audioDir.appendingPathComponent(file), fromMs: segment.startMs)
+    }
+
+    private func canPlay(_ segment: Segment) -> Bool {
+        guard let audioDir else { return false }
+        let file = segment.speaker == .me ? "ik.m4a" : "anderen.m4a"
+        return FileManager.default.fileExists(atPath: audioDir.appendingPathComponent(file).path)
     }
 
     static func stamp(_ ms: UInt64) -> String {

@@ -6,8 +6,11 @@
   </head>
   <body>
     <div id="pill" hidden>
-      <span id="indicator"></span>
-      <span id="label"></span>
+      <div id="preview" hidden><span id="preview-text"></span></div>
+      <div id="status" role="status" aria-live="polite">
+        <span id="indicator" aria-hidden="true"></span>
+        <span id="label"></span>
+      </div>
     </div>
     <script type="module" src="/src/pill.ts"></script>
   </body>

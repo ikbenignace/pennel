@@ -13,13 +13,15 @@ Targets: **Apple Silicon/macOS 14.4+**, **Windows 11 x64**, and **Linux x86-64**
 
 ## Build the shared app
 
-Prerequisites: Rust stable, Node 22+ and CMake. Mac builds also need Xcode with the macOS 26 SDK or newer; Windows needs the MSVC build tools. Linux build/runtime packages and desktop differences are documented in [desktop development](docs/desktop.md) and [Linux packaging](docs/linux-packaging.md).
+Prerequisites: Rust stable, Node 22+, Python 3 and CMake. Mac builds also need Xcode with the macOS 26 SDK or newer; Windows needs the MSVC build tools. Linux build/runtime packages and desktop differences are documented in [desktop development](docs/desktop.md) and [Linux packaging](docs/linux-packaging.md).
 
 ```sh
 make desktop-preview  # isolated preview installers; use this for migration QA
 make desktop-test     # frontend build and Tauri Rust tests
 (cd apps/desktop && npm test)
 ```
+
+On Mac, `make desktop-preview` also creates `build/Pennel Preview.dmg` without Finder layout automation. The native comparison preview is built with `make app-preview`. It creates `build/Pennel Native Preview.app`, with its own data directory and credential service. `make theme-check` verifies that both interfaces use the generated shared theme tokens. See [redesign acceptance](docs/redesign-acceptance.md) for automated, screenshot and device evidence.
 
 For a development session with hot reload:
 
@@ -48,9 +50,11 @@ swift test --package-path apps/macos-platform
 
 ## First run
 
-1. Open the permission/setup screen and grant the required OS access. On Mac, dictation needs Microphone and Accessibility; meeting audio and optional speech/calendar features have their own permission flow.
-2. Choose providers and models in **Instellingen**. Unavailable platform features remain visible with an explanation.
-3. On Mac, set **System Settings → Keyboard → Press 🌐 key to** *Do Nothing* when using `fn`.
+1. New profiles open the setup wizard: choose speech recognition and language, grant the required access, and try a real first dictation. New profiles default to local recognition in **Snel** mode. Existing profiles retain their configuration and open the workspace directly.
+2. Use **Dicteren** for the local editable pad, or the configured shortcut in another app. Automatic external paste from the pad is a separate preference, off by default. Microphone access is required for recording; global shortcuts, external placement, meeting audio and optional speech/calendar features have their own access requirements. Providers, models and appearance remain available in **Instellingen**, with unsupported platform controls visible and explained.
+3. On an Apple keyboard, set **System Settings → Keyboard → Press 🌐 key to** *Do Nothing* when using `fn`. Logitech MX keyboards do not send Apple's Fn/Globe keycode; choose **Rechter Option** under **Instellingen → Dicteren → Sneltoets** instead. [Logitech's explanation](https://support.logi.com/hc/en-us/articles/29752695205527-Logitech-keyboard-FN-key-behavior-on-macOS-or-iOS).
+
+The **Dicteren** page explains dictation in other apps; **Open dicteerpad** is optional. The small floating pill shows provisional text during Apple or local recognition. Cloud providers that return one final transcript show text after recording, before cleanup; preview never adds cloud requests or switches providers.
 
 On Wayland, bind a desktop keyboard shortcut to `pennel --toggle-dictation`: press once to start, again to finish, then paste the copied result with Ctrl+V. Bind `pennel --toggle-meeting` for manual meeting recording. For an AppImage, use its executable path in the shortcut command. See [Wayland behavior](docs/desktop.md#linux-x11-and-wayland).
 

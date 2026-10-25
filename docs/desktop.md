@@ -2,7 +2,31 @@
 
 `apps/desktop/` hosts one Tauri 2 application for Mac, Windows and Linux. Its TypeScript/Vite interface links through Rust commands to one `PennelEngine`. The native Mac presentation remains a comparison/recovery build during migration; it is not the shared application's host.
 
-The interface includes library/search/chat, live and completed meetings, notes/transcript/questions, speaker naming/recognition, templates, exports, history, onboarding, recording prompt and the dictation pill. Settings retain this order and Dutch copy: **Providers, Modellen, Dicteren, Meetings, Opnemen, Woordenlijst, Stijlen**. Platform-specific features remain visible with capability/permission explanations.
+The workspace brings **Dicteren, Vergaderingen, Geschiedenis and Instellingen** into one main window. Library/search/chat, live and completed meetings, notes/transcript/questions, speaker naming/recognition, templates, exports, history, the recording prompt and the dictation pill remain available. Settings retain this order and Dutch copy: **Providers, Modellen, Dicteren, Meetings, Opnemen, Woordenlijst, Stijlen**, followed by **Weergave**. Platform-specific features remain visible with capability/permission explanations.
+
+## Appearance and first use
+
+**Systeem, Licht and Donker** use the shared semantic tokens in `assets/brand/tokens.json`. `make theme` generates the CSS and native Swift values; `make theme-check` checks that the committed outputs match. The interface uses bundled Figtree. Instrument Serif remains the wordmark face. The floating pill has separate colors so changing the window appearance does not invert it.
+
+New profiles use local speech recognition in **Snel** mode and open a separate headerless wizard: welcome, language/speech recognition, access, and a real first dictation. The model download and provider credentials use the existing core and OS credential services. A saved wizard step is not proof that a model or permission remains available. Existing profiles keep their providers, model choices and dictation mode, enter the workspace directly, and can resume setup when necessary.
+
+The in-app dictation pad retains an editable local draft. **Dicteerpad ook extern plakken** is off by default and applies only to recordings made in that pad. Enabling it captures the previous external target when recording starts; it does not change normal shortcut dictation in other apps. If the captured target cannot be used, the text remains in the pad. Onboarding practice is a separate owned session: it transcribes with a temporary Fast setting and never uses external paste or clipboard delivery.
+
+Window closing and navigation invalidate pending owned external delivery. Meeting recording and the normal background runtime retain their existing lifetime. Real device and platform acceptance are recorded separately in [redesign acceptance](redesign-acceptance.md).
+
+## Dictation destinations and live text
+
+**Dicteren** opens the global workflow. Click a text field in another app, hold the configured shortcut and release to paste there. The main Pennel window does not need to be open. **Open dicteerpad** is an explicit secondary action; its existing local-draft and optional external-paste behavior remain separate from global dictation.
+
+Global dictation freezes an opaque external target when recording stops, before asynchronous transcription and cleanup. Provider, language, mode and dictionary are frozen at recording start; app-specific style context comes from the same stop target as delivery. A changed or unavailable target is never replaced with another recipient. The completed result remains in History with a recovery message. Mac additionally checks the captured Accessibility text-field identity; Windows/X11 currently guard the app, window and process-launch identity rather than exact field identity. Wayland retains its explicit copy-only behavior.
+
+`LiveDictationSession` owns preview IDs, monotonic revisions and cancellation in the shared core. Apple uses the existing selected system provider through `SpeechAnalyzer` with volatile results. Local models use one cancellable decode at a time over a bounded six-second audio tail. Cloud providers remain one final ASR request; their raw result can appear before cleanup, without extra preview requests. Preview cannot write history, run cleanup/commands, read selections or paste. The authoritative final pass uses the same frozen settings. Closing or cancelling an owned pad/practice session also cancels pending finalization, preventing later result/history commits.
+
+The non-activating pill shows up to two recent lines and keeps the last caption while processing. Session, revision and owner guards reject stale text and audio-level updates. Its dimensions and colors come from shared tokens. Apple preview stop closes and drains callbacks, then waits for analyzer cleanup off the UI thread before definitive recognition.
+
+Logitech MX keyboards do not transmit Apple's Fn/Globe keycode. They can use **Rechter Option** in **Instellingen → Dicteren → Sneltoets**; `fn` remains available for Apple keyboards. [Logitech's documentation](https://support.logi.com/hc/en-us/articles/29752695205527-Logitech-keyboard-FN-key-behavior-on-macOS-or-iOS).
+
+The delivery and caption behavior was compared with [FluidVoice's stop-target policy](https://github.com/altic-dev/FluidVoice/blob/0fccdeb014462e6f82889af38c7e9de92d87a130/Sources/Fluid/Services/DictationTargetPolicy.swift) and [live recognition loop](https://github.com/altic-dev/FluidVoice/blob/0fccdeb014462e6f82889af38c7e9de92d87a130/Sources/Fluid/Services/ASRService.swift#L6982-L7278). Provider limitations differ; Pennel does not claim that a batch cloud endpoint streams during recording.
 
 ## Architecture and lifetime
 
@@ -15,7 +39,7 @@ The interface includes library/search/chat, live and completed meetings, notes/t
 | Windows adapters | Win32 keyboard/clipboard/window services, WASAPI/audio sessions, Media Foundation AAC and endpoint-dependent echo processing |
 | Linux adapters | X11 hooks/context, PulseAudio/PipeWire metadata and monitor capture, fixed GStreamer AAC pipelines, Wayland clipboard delivery |
 
-The runtime survives window closing/reopening. Secondary windows are created on demand. Audio passes directly from native capture into Rust as 16 kHz mono Float32, with one recording timeline and interruption gaps. JavaScript receives state, levels, progress and transcript updates. The Swift library has no SwiftUI or embedded Rust core; [its bridge documentation](../apps/macos-platform/README.md) describes ownership and main-queue requirements.
+The runtime survives window closing/reopening. The main workspace handles the former library, settings, history and live-recording routes; onboarding, the recording prompt and pill retain their own presentation. Audio passes directly from native capture into Rust as 16 kHz mono Float32, with one recording timeline and interruption gaps. JavaScript receives state, levels, progress and targeted owned-session results. The Swift library has no SwiftUI or embedded Rust core; [its bridge documentation](../apps/macos-platform/README.md) describes ownership and main-queue requirements.
 
 Recording uses `idle → starting → recording → stopping → finalizing → idle/error`. The runtime rejects concurrent starts and meeting-folder changes while active, and session identifiers protect newer meetings from older completions. Automatic call detection samples activity every two seconds, requires a sustained five-second candidate, and ends after thirty seconds without microphone activity. It stops only recordings associated with that detected call. The recording prompt expires after sixty seconds.
 
@@ -98,7 +122,11 @@ Keys remain in Keychain, Windows Credential Manager or Secret Service. No API ke
 
 Canonical meetings use `~/Pennel` or the configured library. Previews pin their library to `<preview data>/Meetings`, reject external paths/symlink escapes, and do not migrate native credentials. `tauri.preview.conf.json` changes the bundle identity to `dev.pennel.Pennel.preview`; debug builds are also isolated.
 
-For permission-bearing Mac previews, use an existing development certificate consistently via `APPLE_SIGNING_IDENTITY` when building with Tauri. Updating an allowed preview with ad-hoc signing changes its designated requirement and can invalidate microphone, speech and Accessibility approvals. Preserve the preview's current signing identity on subsequent builds; do not generate or install a replacement certificate automatically. Debug/release bundles that share the preview identifier must not both remain registered with Launch Services when selecting the app in privacy settings.
+For permission-bearing Mac previews, both bundlers reuse an existing certificate through `scripts/preview-signing-identity.py`. Explicit `APPLE_SIGNING_IDENTITY` or `PENNEL_SIGN_IDENTITY` takes precedence; otherwise the selector retains a still-valid certificate SHA in ignored `build/preview-signing-identity.sha1`, then tries the known local certificates or an existing Apple Development identity. With no suitable certificate it reports the ad-hoc fallback. It never creates/imports a certificate or changes certificate trust. Canonical native signing selection is unchanged.
+
+Updating an allowed preview with ad-hoc signing changes its designated requirement and can invalidate microphone, speech and Accessibility approvals. macOS can show an old Accessibility switch as enabled while rejecting the new signature; the obsolete entry then needs to be replaced before granting the current app access. Preserve the preview's signing identity on subsequent builds. Debug/release bundles that share the preview identifier must not both remain registered with Launch Services when selecting the app in privacy settings.
+
+Mac shortcut readiness requires a healthy event tap, not just a non-null tap handle or saved permission. Both Mac monitors verify their own tap identity, full requested event mask, port validity and enabled state, then recover registration after permission changes or listener failure. A partially authorized tap is discarded. Native local previews accept `PENNEL_SIGN_IDENTITY` to reuse a stable existing signing certificate.
 
 Core startup obtains an exclusive data lease, validates the migration journal and takes a consistent settings/SQLite/failed-audio snapshot before normalization or retention. Existing data snapshots live under `migration-backup-v1`; `migration.json` records startup migration. Library leases and active-session guards prevent conflicting writers and folder moves. These files support recovery and are not a substitute for user backups.
 
@@ -108,7 +136,7 @@ Canonical Mac logs remain `~/Library/Logs/Pennel/pennel.log`; other builds keep 
 
 ## Build and test
 
-Use Rust stable, Node 22+ and CMake. Mac requires Xcode with the macOS 26 SDK or newer. Windows uses the MSVC toolchain and Windows SDK. Linux needs WebKitGTK/tray, X11/audio development libraries and the runtime helpers listed in [Linux packaging](linux-packaging.md).
+Use Rust stable, Node 22+, Python 3 and CMake. Mac requires Xcode with the macOS 26 SDK or newer. Windows uses the MSVC toolchain and Windows SDK. Linux needs WebKitGTK/tray, X11/audio development libraries and the runtime helpers listed in [Linux packaging](linux-packaging.md).
 
 ```sh
 make desktop-preview
@@ -116,7 +144,7 @@ make desktop-test
 (cd apps/desktop && npm test)
 ```
 
-`make desktop-preview` installs locked frontend dependencies and builds isolated preview packages. `make desktop-test` builds the frontend and runs backend tests; run `npm test` as well for frontend regression coverage. `make desktop` builds canonical packages. Installer output is under `apps/desktop/src-tauri/target[/<target>]/release/bundle/` unless a debug build was requested.
+`make desktop-preview` installs locked frontend dependencies and builds isolated preview packages. On Mac it builds the app-only Tauri package and creates `build/Pennel Preview.dmg` with `hdiutil`, so preview packaging also works without an interactive Finder session. `make desktop-test` builds the frontend and runs backend tests; run `npm test` as well for frontend regression coverage. `make desktop` builds canonical packages. Installer output is under `apps/desktop/src-tauri/target[/<target>]/release/bundle/` unless a debug build was requested.
 
 For hot reload:
 

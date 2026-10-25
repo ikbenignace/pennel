@@ -152,7 +152,15 @@ pub async fn copy_secret_text(text: String) -> Result<(), String> {
 pub fn show_window(kind: String, tab: Option<String>, app: AppHandle) -> Result<(), String> {
     if !matches!(
         kind.as_str(),
-        "library" | "settings" | "history" | "live" | "onboarding"
+        "library"
+            | "workspace"
+            | "dictation"
+            | "meetings"
+            | "settings"
+            | "history"
+            | "live"
+            | "recording"
+            | "onboarding"
     ) {
         return Err("Onbekend venster".into());
     }
@@ -161,8 +169,30 @@ pub fn show_window(kind: String, tab: Option<String>, app: AppHandle) -> Result<
 }
 
 #[tauri::command]
-pub fn dictation_state(app: AppHandle) -> pennel_core::PillState {
-    crate::pill::snapshot(&app)
+pub fn show_workspace(
+    route: crate::workspace::WorkspaceRoute,
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<(), String> {
+    if route
+        .meeting_id
+        .as_deref()
+        .is_some_and(|id| !crate::workspace::valid_meeting_id(id))
+    {
+        return Err("Ongeldige meeting".into());
+    }
+    crate::workspace::request(&app, "main", Some(route));
+    crate::show_window(&app, "workspace", None);
+    if window.label() == "onboarding" {
+        crate::owned_dictation::close_owner(&app, window.label());
+        let _ = window.hide();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn dictation_state(app: AppHandle) -> crate::pill::PillSnapshot {
+    crate::pill::content_snapshot(&app)
 }
 
 #[tauri::command]

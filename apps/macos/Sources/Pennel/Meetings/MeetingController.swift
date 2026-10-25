@@ -20,6 +20,8 @@ final class MeetingController {
     private(set) var liveTranscript: [Segment] = []
     private(set) var systemAudioMissing = false
     private(set) var error: String?
+    private(set) var summaryNotice: String?
+    private(set) var willSummarize = false
     private(set) var detectedApp: String?
     private(set) var consentCopied = false
     static let consentSentence = PennelCore.consentSentence()
@@ -36,6 +38,7 @@ final class MeetingController {
     private var defaultTitle = ""
     private var ticker: Timer?
     private var notesTask: Task<Void, Never>?
+    private var finalization: Task<Void, Never>?
 
     init(state: AppState) {
         self.state = state
@@ -46,12 +49,13 @@ final class MeetingController {
 
     /// `detectedApp` is set when a detected call started this recording; only then does the call's end stop it.
     func start(title eventTitle: String? = nil, attendees: [String] = [], detectedApp: String? = nil) {
-        guard phase != .recording else { return }
+        guard phase != .recording && phase != .summarizing else { return }
         defaultTitle = eventTitle ?? "Meeting \(Date().formatted(date: .omitted, time: .shortened))"
         title = defaultTitle
         notes = ""
         liveTranscript = []
         error = nil
+        summaryNotice = nil
         self.detectedApp = detectedApp
         do {
             let session = try state.engine.startMeetingWith(title: defaultTitle, attendees: attendees, keys: state.keys())
@@ -82,6 +86,7 @@ final class MeetingController {
         ticker?.invalidate()
         recorder.stop()
         saveNotesNow()
+        willSummarize = state.canSummarize
         phase = .summarizing
         let engine = state.engine
         let keys = state.keys()
@@ -89,7 +94,8 @@ final class MeetingController {
         let wantedTitle = title.trimmingCharacters(in: .whitespaces)
         let renameTo = wantedTitle.isEmpty || wantedTitle == defaultTitle ? nil : wantedTitle
         let diarize = state.settings.diarization
-        Task.detached(priority: .userInitiated) {
+        let summarize = willSummarize
+        finalization = Task.detached(priority: .userInitiated) {
             try? session.stop()
             var id = session.id()
             if let renameTo, let renamed = try? engine.renameMeeting(id: id, title: renameTo) { id = renamed }
@@ -100,7 +106,7 @@ final class MeetingController {
                     Diagnostics("meeting").error("sprekers herkennen mislukt: \(String(describing: error))")
                 }
             }
-            let summary = Result { try engine.summarizeMeeting(id: id, templateId: template, keys: keys) }
+            let summary: Result<String, Error>? = summarize ? Result { try engine.summarizeMeeting(id: id, templateId: template, keys: keys) } : nil
             await MainActor.run { self.finish(id: id, summary: summary) }
         }
     }
@@ -112,7 +118,7 @@ final class MeetingController {
         return try engine.diarizeMeeting(id: meetingId, samples: samples)
     }
 
-    private func finish(id: String, summary: Result<String, Error>) {
+    private func finish(id: String, summary: Result<String, Error>?) {
         // A back-to-back call may already be recording; only the library needs to learn about this one.
         guard phase == .summarizing else {
             onLibraryChanged?()
@@ -122,11 +128,12 @@ final class MeetingController {
         detectedApp = nil
         session = nil
         phase = .finished
-        if case .failure(let failure) = summary, (failure as? PennelError) != .NoSpeech {
+        if let summary, case .failure(let failure) = summary, (failure as? PennelError) != .NoSpeech {
             error = "Samenvatten mislukt: \(failure)"
             log.error("samenvatten mislukt voor \(id): \(failure)")
         } else {
             log.notice("meeting \(id) afgerond")
+            if case .none = summary { summaryNotice = "Kies een taalmodel om een samenvatting te maken." }
         }
         onLibraryChanged?()
     }
@@ -139,11 +146,20 @@ final class MeetingController {
 
     /// Quitting mid-meeting: close the audio files and transcribe what's left, but skip the summary.
     func stopForQuit() async {
+        if phase == .summarizing { await finalization?.value; return }
         guard phase == .recording, let session else { return }
         ticker?.invalidate()
         recorder.stop()
         saveNotesNow()
-        await Task.detached { try? session.stop() }.value
+        let wanted = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let renameTo = wanted.isEmpty || wanted == defaultTitle ? nil : wanted
+        let engine = state.engine
+        meetingId = await Task.detached {
+            try? session.stop()
+            let id = session.id()
+            if let renameTo, let renamed = try? engine.renameMeeting(id: id, title: renameTo) { return renamed }
+            return id
+        }.value
         self.session = nil
         phase = .finished
     }
@@ -152,6 +168,8 @@ final class MeetingController {
         guard phase == .finished else { return }
         phase = .idle
     }
+
+    func flushDrafts() { saveNotesNow() }
 
     private func startTicker() {
         var tick = 0

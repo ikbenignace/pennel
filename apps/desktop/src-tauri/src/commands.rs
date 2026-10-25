@@ -105,6 +105,7 @@ pub struct AppInfo {
     data_dir: String,
     capabilities: PlatformCapabilities,
     diarizer_model_id: String,
+    recording_app_ids: Vec<String>,
 }
 
 pub(crate) fn info(shared: &Shared) -> AppInfo {
@@ -129,6 +130,10 @@ pub(crate) fn info(shared: &Shared) -> AppInfo {
         data_dir: shared.data_dir.to_string_lossy().into_owned(),
         capabilities,
         diarizer_model_id: shared.engine.diarizer_model_id(),
+        recording_app_ids: pennel_core::known_call_apps()
+            .into_iter()
+            .chain(pennel_core::browser_apps())
+            .collect(),
     }
 }
 
@@ -180,6 +185,10 @@ pub fn save_settings(
         LOG.info(format!("sneltoets gewijzigd naar {hotkey:?}"));
     }
     crate::record_shortcut::refresh(&app, &shared);
+    crate::apply_appearance(&app);
+    if old_settings.dictation_pad_auto_paste && !shared.settings().dictation_pad_auto_paste {
+        crate::owned_dictation::invalidate_external(&app);
+    }
     let _ = app.emit("settings-changed", ());
     Ok(info(&shared))
 }

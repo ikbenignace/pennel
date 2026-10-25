@@ -277,12 +277,16 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    pub fn start(on_level: impl Fn(f32) + Send + 'static) -> Result<Self, CaptureError> {
+    pub fn start(
+        on_level: impl Fn(f32) + Send + 'static,
+        mut on_samples: impl FnMut(&[f32]) + Send + 'static,
+    ) -> Result<Self, CaptureError> {
         let samples = Arc::new(Mutex::new(Vec::with_capacity(16_000 * 30)));
         let sink_samples = samples.clone();
         let capture = Capture::start(Source::Microphone, move |chunk| {
             sink_samples.lock().unwrap().extend_from_slice(chunk);
             on_level(rms(chunk));
+            on_samples(chunk);
         })?;
         Ok(Self { capture, samples })
     }

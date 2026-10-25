@@ -1,6 +1,8 @@
 import { api, type HistoryEntry } from "../api";
-import { errorText, h, section } from "../dom";
+import { errorText, h } from "../dom";
 import type { Context } from "../main";
+import { applicationLabel } from "../presentation";
+import { icon } from "../icons";
 
 const retrying = new Set<string>();
 let message: string | null = null;
@@ -28,11 +30,13 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
     return h(
       "div",
       { class: "history-entry" },
-      h("div", { class: "muted" }, when(entry.created_at_ms), entry.app_bundle_id ? ` · ${entry.app_bundle_id}` : ""),
-      h("p", { class: failed ? "error" : "" }, failed ? `Mislukt: ${entry.error ?? "onbekende fout"}` : entry.text),
+      h("span", { class: "history-destination", "aria-hidden": true }, icon("laptop")),
+      h("div", { class: "history-content" },
+        h("p", { class: failed ? "error" : "" }, failed ? `Mislukt: ${entry.error ?? "onbekende fout"}` : entry.text),
+        h("div", { class: "history-metadata" }, when(entry.created_at_ms), entry.app_bundle_id ? ` · ${applicationLabel(entry.app_bundle_id)}` : "")),
       h(
         "div",
-        { class: "row" },
+        { class: "history-actions" },
         failed && entry.has_audio
           ? h(
               "button",
@@ -42,17 +46,18 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
           : null,
         failed
           ? null
-          : h("button", { class: "btn", onclick: () => api.copyText(entry.text) }, "Kopiëren"),
+          : h("button", { class: "button-icon", "aria-label": "Dictaat kopiëren", onclick: () => api.copyText(entry.text) }, icon("copy")),
         h(
           "button",
           {
-            class: "btn",
+            class: "button-icon",
+            "aria-label": "Dictaat verwijderen",
             onclick: async () => {
               await api.deleteHistory(entry.id);
               ctx.rerender();
             },
           },
-          "Verwijder",
+          icon("trash"),
         ),
       ),
     );
@@ -62,6 +67,6 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
     { class: "history-view" },
     h("h1", {}, "Geschiedenis"),
     message ? h("p", { class: "error" }, message) : null,
-    entries.length ? section("Dictaten", null, entries.map(row)) : h("div", { class: "empty-state muted" }, "Nog geen dictaten."),
+    entries.length ? h("div", { class: "history-list" }, entries.map(row)) : h("div", { class: "empty-state muted" }, "Nog geen dictaten."),
   );
 }

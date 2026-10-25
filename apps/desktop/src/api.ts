@@ -1,6 +1,31 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen, type Event } from "@tauri-apps/api/event";
 import type { LoginPoll } from "./cloud-login";
+import type { WorkspaceRoute } from "./workspace-state";
+
+interface PlatformClient {
+  invoke(command: string, args?: Record<string, unknown>): Promise<unknown>;
+  listen(event: string, handler: (event: { payload: unknown }) => void): Promise<() => void>;
+  fixture?: { name: string; [key: string]: unknown };
+}
+
+declare global {
+  interface Window { __PENNEL_PLATFORM__?: PlatformClient }
+}
+
+export function fixtureClient(): PlatformClient | undefined {
+  return import.meta.env.DEV ? window.__PENNEL_PLATFORM__ : undefined;
+}
+
+function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  const client = fixtureClient();
+  return client ? client.invoke(command, args) as Promise<T> : tauriInvoke<T>(command, args);
+}
+
+export function listen<T>(event: string, handler: (event: Event<T>) => void): Promise<() => void> {
+  const client = fixtureClient();
+  return client ? client.listen(event, (value) => handler({ event, id: 0, payload: value.payload as T })) : tauriListen<T>(event, handler);
+}
 
 export type ProviderKind =
   | "open_ai"
@@ -30,6 +55,34 @@ export type PermissionStatus = "granted" | "not_determined" | "denied" | "restri
 export type AppWindow = "library" | "settings" | "history" | "live" | "onboarding";
 export type MeetingPhase = "idle" | "starting" | "recording" | "stopping" | "finalizing" | "error";
 export type Speaker = "me" | "others";
+export type AppearancePreference = "system" | "light" | "dark";
+export type OnboardingStep = "welcome" | "engine" | "permissions" | "practice";
+
+export interface OnboardingProgress {
+  version: number;
+  status: "pending" | "skipped" | "completed";
+  resume_step: OnboardingStep;
+}
+
+export interface SetupReadiness {
+  configured: boolean;
+  can_record: boolean;
+  can_use_shortcut: boolean;
+  can_paste_externally: boolean;
+  reason: string | null;
+  resume_step: OnboardingStep;
+}
+
+export interface DictationSessionSnapshot {
+  session_id: string;
+  kind: "pad" | "practice";
+  phase: "idle" | "listening" | "working" | "done" | "error";
+  text: string;
+  error: string | null;
+  target_name: string | null;
+  external_paste_available: boolean;
+  external_paste_reason: string | null;
+}
 
 export interface Capability {
   status: CapabilityStatus;
@@ -42,6 +95,7 @@ export interface PermissionInfo {
 }
 
 export interface PlatformCapabilities {
+  pad_external_paste: Capability;
   global_hotkey: Capability;
   record_shortcut: Capability;
   microphone: Capability;
@@ -71,6 +125,9 @@ export interface ModelChoice {
 }
 
 export interface Settings {
+  appearance: AppearancePreference;
+  onboarding: OnboardingProgress;
+  dictation_pad_auto_paste: boolean;
   providers: ProviderAccount[];
   dictation_stt: ModelChoice;
   meeting_stt: ModelChoice;
@@ -114,6 +171,7 @@ export interface AppInfo {
   settings: Settings;
   keys: Record<string, boolean>;
   kinds: KindInfo[];
+  recording_app_ids: string[];
   platform: string;
   version: string;
   hotkey_error: string | null;
@@ -274,9 +332,16 @@ export interface RecordPrompt {
   expires_at_ms: number;
 }
 
-export type PillState =
+export interface PillPreview {
+  session_id: string;
+  revision: number;
+  text: string;
+}
+
+export type PillState = (
   | { state: "hidden" | "listening" | "hands_free" | "command" | "working" }
-  | { state: "error"; message: string };
+  | { state: "error"; message: string }
+) & { preview?: PillPreview | null };
 
 export interface UpdateInfo {
   available: boolean;
@@ -345,6 +410,7 @@ export const api = {
   chooseMeetingsDir: () => invoke<string | null>("choose_meetings_dir"),
   showWindow: (kind: AppWindow, tab: string | null = null) => invoke<void>("show_window", { kind, tab }),
   copySecretText: (text: string) => invoke<void>("copy_secret_text", { text }),
+  showWorkspace: (route: WorkspaceRoute) => invoke<void>("show_workspace", { route }),
   copyText: (text: string, html: string | null = null) => invoke<void>("copy_text", { text, html }),
   playMeetingAudio: (id: string, speaker: Speaker, startMs: number) =>
     invoke<void>("play_meeting_audio", { id, speaker, startMs }),
@@ -354,6 +420,15 @@ export const api = {
     invoke<void>("answer_record_prompt", { answer, promptId }),
   toggleDictation: (copyOnly = true) => invoke<void>("toggle_dictation", { copyOnly }),
   dictationState: () => invoke<PillState>("dictation_state"),
+  onboardingReadiness: (target: "dictation" | "global_dictation" | "dictation_pad" | "practice" | "meeting") =>
+    invoke<SetupReadiness>("onboarding_readiness", { target }),
+  openDictationSession: (kind: "pad" | "practice") => invoke<DictationSessionSnapshot>("open_dictation_session", { kind }),
+  getDictationSession: (sessionId: string) => invoke<DictationSessionSnapshot>("get_dictation_session", { sessionId }),
+  toggleDictationSession: (sessionId: string) => invoke<void>("toggle_dictation_session", { sessionId }),
+  cancelDictationSession: (sessionId: string) => invoke<void>("cancel_dictation_session", { sessionId }),
+  closeDictationSession: (sessionId: string) => invoke<void>("close_dictation_session", { sessionId }),
+  padText: () => invoke<string>("pad_text"),
+  savePadText: (text: string) => invoke<void>("save_pad_text", { text }),
   checkForUpdates: () => invoke<UpdateInfo>("check_for_updates"),
   installUpdate: () => invoke<void>("install_update"),
   frontendReady: () => invoke<void>("frontend_ready"),
@@ -363,6 +438,7 @@ export const api = {
     invoke<void>("share_meeting", { id, includeTranscript, action }),
   markLines: (enhanced: string, notes: string) => invoke<{ text: string; mine: boolean }[]>("mark_lines", { enhanced, notes }),
   detectCliAgents: () => invoke<DetectedAgent[]>("detect_cli_agents"),
+  pickStyleApplication: () => invoke<{ id: string; name: string } | null>("pick_style_application"),
   checkCliAgent: (id: string, model: string) => invoke<string>("check_cli_agent", { id, model }),
   providerModels: (id: string) => invoke<RemoteModel[]>("provider_models", { id }),
   localModels: (language: string | null, supportedOnly: boolean) =>
@@ -423,6 +499,6 @@ export const api = {
   deleteConflictCopy: (id: string, name: string) => invoke<void>("delete_conflict_copy", { id, name }),
   cloudFolderWarning: () => invoke<string | null>("cloud_folder_warning"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
-  onSyncChanged: (handler: (report: SyncReport) => void): Promise<UnlistenFn> =>
+  onSyncChanged: (handler: (report: SyncReport) => void): Promise<() => void> =>
     listen<SyncReport>("sync-changed", (event) => handler(event.payload)),
 };

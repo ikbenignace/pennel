@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, TryLockError};
 use std::time::{Duration, Instant};
 
-use transcribe_cpp::{Feature, Model, RunOptions, Session};
+use transcribe_cpp::{CancelToken, Feature, Model, RunOptions, Session};
 
 use crate::error::PennelError;
 
@@ -24,6 +24,66 @@ pub struct LocalEngine {
 fn engine_error(e: transcribe_cpp::Error) -> PennelError {
     PennelError::InvalidResponse {
         message: format!("lokaal model: {e}"),
+    }
+}
+
+fn loaded_model<'a>(
+    loaded: &'a mut Option<Loaded>,
+    path: &Path,
+) -> Result<&'a mut Loaded, PennelError> {
+    if loaded.as_ref().is_none_or(|model| model.path != path) {
+        *loaded = None;
+        static LOGGING: std::sync::Once = std::sync::Once::new();
+        LOGGING.call_once(transcribe_cpp::init_logging);
+        let model = Model::load(path).map_err(engine_error)?;
+        let languages = model.capabilities().map_err(engine_error)?.languages;
+        let supports_vocabulary = model.supports(Feature::Vocabulary);
+        let supports_context = model.supports(Feature::ContextPrompt);
+        let session = model.session().map_err(engine_error)?;
+        *loaded = Some(Loaded {
+            path: path.to_owned(),
+            session,
+            languages,
+            supports_vocabulary,
+            supports_context,
+            last_used: Instant::now(),
+        });
+    }
+    Ok(loaded.as_mut().expect("loaded above"))
+}
+
+fn run(
+    model: &mut Loaded,
+    samples: &[f32],
+    language: Option<&str>,
+    vocabulary: &[String],
+    cancel: Option<&CancelToken>,
+) -> Result<String, PennelError> {
+    if cancel.is_some_and(CancelToken::is_cancelled) {
+        return Err(PennelError::Cancelled);
+    }
+    let options = run_options(
+        language,
+        &model.languages,
+        vocabulary,
+        model.supports_vocabulary,
+        model.supports_context,
+    );
+    if let Some(cancel) = cancel {
+        model.session.set_cancel_token(cancel);
+    }
+    let result = model.session.run(samples, &options);
+    model.session.clear_cancel_token();
+    model.last_used = Instant::now();
+    if cancel.is_some_and(CancelToken::is_cancelled) {
+        return Err(PennelError::Cancelled);
+    }
+    match result {
+        Ok(transcript) => Ok(transcript.text.trim().to_owned()),
+        Err(error) => match error.partial() {
+            Some(partial) if !partial.text.trim().is_empty() => Ok(partial.text.trim().to_owned()),
+            _ => Err(engine_error(error)),
+        },
     }
 }
 
@@ -88,44 +148,36 @@ impl LocalEngine {
             return Err(PennelError::ModelNotDownloaded);
         }
         let mut loaded = self.loaded.lock().unwrap();
-        if loaded.as_ref().is_none_or(|m| m.path != model_path) {
-            *loaded = None;
-            static LOGGING: std::sync::Once = std::sync::Once::new();
-            LOGGING.call_once(transcribe_cpp::init_logging);
-            let model = Model::load(model_path).map_err(engine_error)?;
-            let languages = model.capabilities().map_err(engine_error)?.languages;
-            let supports_vocabulary = model.supports(Feature::Vocabulary);
-            let supports_context = model.supports(Feature::ContextPrompt);
-            let session = model.session().map_err(engine_error)?;
-            *loaded = Some(Loaded {
-                path: model_path.to_owned(),
-                session,
-                languages,
-                supports_vocabulary,
-                supports_context,
-                last_used: Instant::now(),
-            });
-        }
-        let model = loaded.as_mut().expect("loaded above");
-        let options = run_options(
+        run(
+            loaded_model(&mut loaded, model_path)?,
+            samples,
             language,
-            &model.languages,
             vocabulary,
-            model.supports_vocabulary,
-            model.supports_context,
-        );
-        let result = model.session.run(samples, &options);
-        model.last_used = Instant::now();
-        match result {
-            Ok(transcript) => Ok(transcript.text.trim().to_owned()),
-            // Repetition loops and truncation still carry the usable text decoded so far.
-            Err(e) => match e.partial() {
-                Some(partial) if !partial.text.trim().is_empty() => {
-                    Ok(partial.text.trim().to_owned())
-                }
-                _ => Err(engine_error(e)),
-            },
+            None,
+        )
+    }
+
+    pub(crate) fn preview(
+        &self,
+        model_path: &Path,
+        samples: &[f32],
+        language: Option<&str>,
+        vocabulary: &[String],
+        cancel: &CancelToken,
+    ) -> Result<Option<String>, PennelError> {
+        if cancel.is_cancelled() {
+            return Err(PennelError::Cancelled);
         }
+        if !model_path.exists() {
+            return Err(PennelError::ModelNotDownloaded);
+        }
+        let mut loaded = match self.loaded.try_lock() {
+            Ok(loaded) => loaded,
+            Err(TryLockError::WouldBlock) => return Ok(None),
+            Err(TryLockError::Poisoned(error)) => error.into_inner(),
+        };
+        let model = loaded_model(&mut loaded, model_path)?;
+        run(model, samples, language, vocabulary, Some(cancel)).map(Some)
     }
 }
 
@@ -156,6 +208,43 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(err, PennelError::ModelNotDownloaded);
+    }
+
+    #[test]
+    fn preview_does_not_wait_for_an_active_final_transcription() {
+        let engine = std::sync::Arc::new(LocalEngine::default());
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let held = engine.loaded.lock().unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let worker_engine = engine.clone();
+        let path = file.path().to_owned();
+        let worker = std::thread::spawn(move || {
+            sender
+                .send(worker_engine.preview(&path, &[0.1; 16_000], None, &[], &CancelToken::new()))
+                .unwrap();
+        });
+        let result = receiver.recv_timeout(Duration::from_secs(2));
+        drop(held);
+        worker.join().unwrap();
+        assert_eq!(result.unwrap(), Ok(None));
+    }
+
+    #[test]
+    fn cancelled_preview_never_loads_a_model() {
+        let engine = LocalEngine::default();
+        let token = CancelToken::new();
+        token.cancel();
+        assert_eq!(
+            engine.preview(
+                Path::new("/nonexistent/model.bin"),
+                &[0.1; 16_000],
+                None,
+                &[],
+                &token
+            ),
+            Err(PennelError::Cancelled)
+        );
+        assert!(!engine.is_loaded());
     }
 
     #[test]

@@ -5,7 +5,10 @@ import SwiftUI
 struct MeetingChatView: View {
     let state: AppState
     let chat: MeetingChat
-    @State private var draft = ""
+    private var draft: String {
+        get { state.workspace.chatDrafts[chat.meetingId ?? ""] ?? "" }
+        nonmutating set { state.workspace.chatDrafts[chat.meetingId ?? ""] = newValue }
+    }
     @FocusState private var focused: Bool
 
     private var meetingId: String? { chat.meetingId }
@@ -29,7 +32,7 @@ struct MeetingChatView: View {
                 }
             }
             HStack(spacing: 8) {
-                TextField(meetingId == nil ? "Vraag iets over al je meetings" : "Vraag iets over deze meeting", text: $draft)
+                TextField(meetingId == nil ? "Vraag iets over al je meetings" : "Vraag iets over deze meeting", text: Binding(get: { draft }, set: { draft = $0 }))
                     .textFieldStyle(.roundedBorder)
                     .focused($focused)
                     .onSubmit(ask)
@@ -45,7 +48,7 @@ struct MeetingChatView: View {
     private var placeholder: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(meetingId == nil ? "Vraag het je meetings" : "Vraag het deze meeting")
-                .font(.custom("Instrument Serif", size: 26))
+                .font(.figtree(22, weight: .semibold))
             Text(meetingId == nil
                  ? "Bijvoorbeeld: \"Wat hebben we beslist over het budget?\" of \"Wanneer sprak ik laatst met Jan?\""
                  : "Bijvoorbeeld: \"Wat zijn de actiepunten voor mij?\"")

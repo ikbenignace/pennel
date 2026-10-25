@@ -11,6 +11,7 @@ mod cloud;
 mod commands;
 mod diagnostics;
 mod dictation;
+mod external_paste;
 mod foreground;
 mod gesture;
 mod hotkey;
@@ -25,6 +26,7 @@ mod linux_meetings;
 mod macos;
 mod meeting;
 mod meeting_runtime;
+mod owned_dictation;
 mod paste_queue;
 mod pill;
 mod platform_audio;
@@ -35,8 +37,10 @@ mod resample;
 mod secrets;
 mod state;
 mod status;
+mod style_application;
 #[cfg(windows)]
 mod windows_meetings;
+mod workspace;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -44,7 +48,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use pennel_core::{PennelEngine, ProviderKind};
+use pennel_core::PennelEngine;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
@@ -75,39 +79,65 @@ pub fn show_main(app: &AppHandle, tab: Option<&str>) {
         Some("meeting") => "live",
         Some("history") => "history",
         Some("providers" | "models" | "dictation" | "dictionary" | "styles") => "settings",
-        _ => "library",
+        Some("meetings" | "library" | "chat") => "library",
+        _ => "workspace",
     };
     show_window(app, kind, tab);
 }
 
 pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
     let (label, mode, width, height) = match kind {
-        "settings" => ("settings", "settings", 720.0, 660.0),
-        "history" => ("history", "history", 760.0, 580.0),
-        "live" => ("live", "live", 920.0, 700.0),
-        "onboarding" => ("onboarding", "onboarding", 620.0, 560.0),
+        "onboarding" => ("onboarding", "onboarding", 850.0, 690.0),
         "prompt" => ("record-prompt", "prompt", 420.0, 210.0),
-        _ => ("main", "library", 920.0, 660.0),
+        _ => ("main", "workspace", 1040.0, 740.0),
     };
+    workspace::request(app, label, workspace::legacy_route(kind, tab));
+    if kind == "onboarding" {
+        workspace::request_onboarding(app, tab);
+    }
     let app = app.clone();
     let handle = app.clone();
-    let tab = tab.map(str::to_owned);
     let _ = app.run_on_main_thread(move || {
         let window = handle.get_webview_window(label).or_else(|| {
-            let url = format!(
-                "index.html?window={mode}{}",
-                tab.as_ref()
-                    .map(|tab| format!("&tab={tab}"))
-                    .unwrap_or_default()
-            );
+            let minimum = if mode == "onboarding" {
+                (520.0, 520.0)
+            } else {
+                (760.0, 520.0)
+            };
+            let fit = if mode == "prompt" {
+                None
+            } else {
+                preferred_monitor(&handle).map(|monitor| {
+                    let area = monitor.work_area();
+                    workspace::fit_window_size(
+                        (width, height),
+                        minimum,
+                        (area.size.width, area.size.height),
+                        monitor.scale_factor(),
+                    )
+                })
+            };
+            let url = format!("index.html?window={mode}");
             let mut builder = tauri::WebviewWindowBuilder::new(
                 &handle,
                 label,
                 tauri::WebviewUrl::App(url.into()),
             )
             .title("Pennel")
-            .inner_size(width, height)
+            .inner_size(
+                fit.map_or(width, |size| size.width),
+                fit.map_or(height, |size| size.height),
+            )
             .visible(false);
+            if mode == "onboarding" {
+                builder = builder
+                    .decorations(false)
+                    .min_inner_size(
+                        fit.map_or(520.0, |size| size.min_width),
+                        fit.map_or(520.0, |size| size.min_height),
+                    )
+                    .center();
+            }
             if mode == "prompt" {
                 builder = builder
                     .decorations(false)
@@ -120,9 +150,8 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
             builder.build().ok()
         });
         if let Some(window) = window {
-            if let Some(tab) = tab {
-                let _ = window.emit_to(label, "navigate", tab);
-            }
+            apply_appearance(&handle);
+            fit_window_to_work_area(&handle, &window);
             let _ = window.unminimize();
             if mode == "prompt" {
                 #[cfg(target_os = "macos")]
@@ -137,11 +166,130 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     crate::pill::show_without_focus(&window);
                 }
             } else {
-                let _ = window.show();
-                let _ = window.set_focus();
+                let ready = handle
+                    .state::<ExitState>()
+                    .sync
+                    .lock()
+                    .unwrap()
+                    .ready
+                    .contains(label);
+                if ready {
+                    if label == "main" {
+                        workspace::deliver(&handle);
+                    }
+                    if label == "onboarding" {
+                        workspace::deliver_onboarding(&handle);
+                    }
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
         }
     });
+}
+
+fn preferred_monitor(app: &AppHandle) -> Option<tauri::Monitor> {
+    let cursor = app.cursor_position().ok();
+    let monitors = app.available_monitors().unwrap_or_default();
+    cursor
+        .and_then(|cursor| {
+            monitors.into_iter().find(|monitor| {
+                let (position, size) = (monitor.position(), monitor.size());
+                cursor.x >= f64::from(position.x)
+                    && cursor.x < f64::from(position.x) + f64::from(size.width)
+                    && cursor.y >= f64::from(position.y)
+                    && cursor.y < f64::from(position.y) + f64::from(size.height)
+            })
+        })
+        .or_else(|| app.primary_monitor().ok().flatten())
+}
+
+fn fit_window_to_work_area(app: &AppHandle, window: &tauri::WebviewWindow) {
+    if !matches!(window.label(), "main" | "onboarding")
+        || window.is_maximized().unwrap_or(false)
+        || window.is_fullscreen().unwrap_or(false)
+    {
+        return;
+    }
+    let Some(monitor) = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| preferred_monitor(app))
+    else {
+        return;
+    };
+    let (Ok(inner), Ok(outer)) = (window.inner_size(), window.outer_size()) else {
+        return;
+    };
+    let area = monitor.work_area();
+    if area.size.width == 0 || area.size.height == 0 {
+        return;
+    }
+    let scale = monitor.scale_factor();
+    let window_scale = window.scale_factor().unwrap_or(scale);
+    let window_scale = if window_scale.is_finite() && window_scale > 0.0 {
+        window_scale
+    } else {
+        1.0
+    };
+    let frame_width = outer.width.saturating_sub(inner.width);
+    let frame_height = outer.height.saturating_sub(inner.height);
+    let minimum = if window.label() == "onboarding" {
+        (520.0, 520.0)
+    } else {
+        (760.0, 520.0)
+    };
+    let fit = workspace::fit_window_size(
+        (
+            f64::from(inner.width) / window_scale,
+            f64::from(inner.height) / window_scale,
+        ),
+        minimum,
+        (
+            area.size.width.saturating_sub(frame_width),
+            area.size.height.saturating_sub(frame_height),
+        ),
+        scale,
+    );
+    let _ = window.set_min_size(Some(tauri::LogicalSize::new(fit.min_width, fit.min_height)));
+    if f64::from(inner.width) / window_scale > fit.width + 0.5
+        || f64::from(inner.height) / window_scale > fit.height + 0.5
+    {
+        let _ = window.set_size(tauri::LogicalSize::new(fit.width, fit.height));
+    }
+    let (Ok(position), Ok(outer)) = (window.outer_position(), window.outer_size()) else {
+        return;
+    };
+    let margin = (workspace::WINDOW_MARGIN * scale) as i64;
+    let left = i64::from(area.position.x) + margin;
+    let top = i64::from(area.position.y) + margin;
+    let right =
+        (i64::from(area.position.x) + i64::from(area.size.width) - i64::from(outer.width) - margin)
+            .max(left);
+    let bottom = (i64::from(area.position.y) + i64::from(area.size.height)
+        - i64::from(outer.height)
+        - margin)
+        .max(top);
+    let x = i64::from(position.x).clamp(left, right) as i32;
+    let y = i64::from(position.y).clamp(top, bottom) as i32;
+    if x != position.x || y != position.y {
+        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
+pub fn apply_appearance(app: &AppHandle) {
+    let Some(shared) = app.try_state::<Arc<Shared>>() else {
+        return;
+    };
+    let theme = match shared.settings().appearance {
+        pennel_core::AppearancePreference::System => None,
+        pennel_core::AppearancePreference::Light => Some(tauri::Theme::Light),
+        pennel_core::AppearancePreference::Dark => Some(tauri::Theme::Dark),
+    };
+    for window in app.webview_windows().into_values() {
+        let _ = window.set_theme(theme);
+    }
 }
 
 fn hotkey_label(trigger: pennel_core::HotkeyTrigger) -> &'static str {
@@ -185,6 +333,20 @@ pub fn frontend_ready(app: &AppHandle, label: &str) {
         .unwrap()
         .ready
         .insert(label.to_owned());
+    if label == "main" {
+        workspace::deliver(app);
+    }
+    if label == "onboarding" {
+        workspace::deliver_onboarding(app);
+    }
+    if workspace::requested(app, label) {
+        apply_appearance(app);
+        if let Some(window) = app.get_webview_window(label) {
+            fit_window_to_work_area(app, &window);
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
 }
 
 pub fn frontend_flushed(app: &AppHandle, label: &str, sequence: u64, success: bool) {
@@ -366,7 +528,7 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
                     });
                 }
             }
-            "open" => show_main(app, Some("meetings")),
+            "open" => show_main(app, None),
             "meeting" => show_main(app, Some("meeting")),
             "settings" => show_main(app, Some("providers")),
             "history" => show_main(app, Some("history")),
@@ -380,43 +542,14 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
     Ok(())
 }
 
-fn needs_setup(shared: &Shared) -> bool {
-    let settings = shared.settings();
-    let Some((account, model)) = settings.resolve(&settings.dictation_stt) else {
-        return true;
-    };
-    if model.trim().is_empty()
-        || !pennel_core::supports(account.kind, pennel_core::ProviderTask::DictationStt)
-    {
-        return true;
-    }
-    if account.kind == ProviderKind::AppleSpeech {
-        #[cfg(target_os = "macos")]
-        {
-            let permissions = macos::permissions();
-            if !permissions
-                .get("apple_speech")
-                .and_then(|value| value.as_bool())
-                .unwrap_or(false)
-                || permissions.get("speech").and_then(|value| value.as_str()) != Some("granted")
-            {
-                return true;
-            }
-        }
-        #[cfg(not(target_os = "macos"))]
-        return true;
-    }
-    if account.kind == ProviderKind::Local {
-        return shared.engine.model_state(model) != pennel_core::ModelState::Downloaded;
-    }
-    pennel_core::requires_key(account.kind) && shared.secrets.get(&account.id).is_none()
-}
-
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
     let dir = data_dir(&handle)?;
     let preview = is_preview(&handle);
     app.manage(ExitState::default());
+    app.manage(workspace::Navigation::default());
+    app.manage(owned_dictation::Sessions::default());
+    external_paste::start_tracking();
     app.manage(call_detection::DetectionState::default());
     #[cfg(target_os = "macos")]
     {
@@ -560,9 +693,13 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     }
-    dispatch_cli(&handle, &std::env::args().collect::<Vec<_>>());
-    if needs_setup(&shared) {
-        show_window(&handle, "onboarding", None);
+    let handled_cli = dispatch_cli(&handle, &std::env::args().collect::<Vec<_>>());
+    if !handled_cli {
+        if shared.settings().onboarding.status == pennel_core::OnboardingStatus::Pending {
+            show_window(&handle, "onboarding", None);
+        } else {
+            show_main(&handle, None);
+        }
     }
     Ok(())
 }
@@ -608,6 +745,14 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .setup(setup)
         .on_window_event(|window, event| {
+            if let WindowEvent::ScaleFactorChanged { .. } = event
+                && let Some(webview) = window.app_handle().get_webview_window(window.label())
+            {
+                fit_window_to_work_area(window.app_handle(), &webview);
+            }
+            if let WindowEvent::Focused(false) = event {
+                owned_dictation::focus_lost(window.app_handle(), window.label());
+            }
             if let WindowEvent::CloseRequested { api, .. } = event
                 && matches!(
                     window.label(),
@@ -615,6 +760,16 @@ fn main() {
                 )
             {
                 api.prevent_close();
+                owned_dictation::close_owner(window.app_handle(), window.label());
+                if window.label() == "onboarding"
+                    && let Some(shared) = window.app_handle().try_state::<Arc<Shared>>()
+                {
+                    let mut settings = shared.settings();
+                    if settings.onboarding.status != pennel_core::OnboardingStatus::Completed {
+                        settings.onboarding.status = pennel_core::OnboardingStatus::Skipped;
+                        let _ = shared.engine.update_settings(settings);
+                    }
+                }
                 let _ = window.hide();
             }
         })
@@ -669,6 +824,7 @@ fn main() {
             platform_commands::copy_text,
             platform_commands::copy_secret_text,
             platform_commands::show_window,
+            platform_commands::show_workspace,
             platform_commands::record_prompt,
             platform_commands::answer_record_prompt,
             platform_commands::check_for_updates,
@@ -680,6 +836,7 @@ fn main() {
             platform_commands::mark_lines,
             platform_commands::share_meeting,
             platform_commands::choose_meetings_dir,
+            style_application::pick_style_application,
             commands::model_state,
             commands::show_main,
             commands::hide_window,
@@ -702,6 +859,14 @@ fn main() {
             cloud::meeting_sync_states,
             cloud::cloud_folder_warning,
             cloud::open_url,
+            owned_dictation::onboarding_readiness,
+            owned_dictation::pad_text,
+            owned_dictation::save_pad_text,
+            owned_dictation::open_dictation_session,
+            owned_dictation::get_dictation_session,
+            owned_dictation::toggle_dictation_session,
+            owned_dictation::cancel_dictation_session,
+            owned_dictation::close_dictation_session,
         ])
         .build(tauri::generate_context!())
         .expect("Pennel kon niet starten")
