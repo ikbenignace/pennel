@@ -2,7 +2,7 @@ import { api, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type
 import { LatestRequest, SerialQueue, orFallback, persistAll } from "../async";
 import { askText, confirmDialog, errorText, formatClock, h, markdown, select, snippet } from "../dom";
 import { MeetingDraft } from "../meeting-draft";
-import { badgeFor, resolveOpenMeeting, type SyncItemState } from "../sync-badge";
+import { badgeFor, resolveOpenMeeting, syncActive, type SyncItemState } from "../sync-badge";
 import type { Context } from "../main";
 
 let query = "";
@@ -187,7 +187,8 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
   const list = h("div", { class: "meeting-list" });
   const live = h("button", { class: "live-meeting text-button", hidden: true, onclick: () => api.showWindow("live") });
   const requests = new LatestRequest();
-  const syncOn = ctx.info.settings.cloud_sync === true;
+  let syncOn = ctx.info.settings.cloud_sync === true;
+  if (syncOn) syncOn = syncActive(true, (await api.cloudSyncLast().catch(() => null))?.status.kind);
   let syncStates = new Map<string, SyncItemState>();
   let shown: { id: string; title: string; start_iso: string }[] = [];
   const loadStates = async () => {
@@ -230,12 +231,19 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
   ctx.onDispose(() => { window.clearTimeout(searchTimer); requests.cancel(); });
   await loadStates().catch(ctx.report);
   await load();
-  if (syncOn) {
+  {
     const syncQueue = new SerialQueue();
     let disposed = false;
-    const unlisten = api.onSyncChanged(() => {
+    const unlisten = api.onSyncChanged((report) => {
       void syncQueue.run(async () => {
         if (disposed) return;
+        const wasOn = syncOn;
+        syncOn = syncActive(true, report.status.kind);
+        if (!syncOn) {
+          syncStates = new Map();
+          if (wasOn) await load();
+          return;
+        }
         const open = ctx.param && ctx.param !== "__chat__" ? ctx.param : null;
         const remembered = shown.find((meeting) => meeting.id === open) ?? null;
         const previous = open ? syncStates.get(open) : undefined;

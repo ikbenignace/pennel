@@ -10,6 +10,11 @@ export function badgeFor(state: SyncItemState | undefined, syncOn: boolean) {
   return syncOn && state ? badges[state] : null;
 }
 
+/** The setting can stay on after logout, account deletion or a revoked device; the report tells whether sync can still happen. */
+export function syncActive(settingOn: boolean, statusKind: string | undefined): boolean {
+  return settingOn && statusKind !== "off" && statusKind !== "signed_out";
+}
+
 interface MeetingKey { id: string; title: string; start_iso: string }
 
 // A remote rename moves the meeting folder, so the id the user had open can disappear.

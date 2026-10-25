@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { badgeFor, resolveOpenMeeting } from "../src/sync-badge.ts";
+import { badgeFor, resolveOpenMeeting, syncActive } from "../src/sync-badge.ts";
 
 test("sync off shows no badge whatever the state", () => {
   for (const state of ["synced", "pending", "conflict", undefined]) assert.equal(badgeFor(state, false), null);
@@ -45,4 +45,13 @@ test("meetings that share a start time are told apart by title", () => {
 test("a vanished meeting without a match falls back to the list", () => {
   assert.equal(resolveOpenMeeting("gone", meetings, null), undefined);
   assert.equal(resolveOpenMeeting("gone", meetings, { title: "X", start_iso: "2020-01-01T00:00:00" }), undefined);
+});
+
+test("sync counts as active only while the setting is on and the report is not off or signed out", () => {
+  assert.equal(syncActive(true, "synced"), true);
+  assert.equal(syncActive(true, "needs_recovery_code"), true);
+  assert.equal(syncActive(true, "signed_out"), false);
+  assert.equal(syncActive(true, "off"), false);
+  assert.equal(syncActive(false, "synced"), false);
+  assert.equal(syncActive(true, undefined), true);
 });
