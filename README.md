@@ -11,6 +11,17 @@ The desktop implementation now uses one **Tauri 2 interface and Rust core for ma
 
 Targets: **Apple Silicon/macOS 14.4+**, **Windows 11 x64**, and **Linux x86-64** with WebKitGTK 4.1. Apple Speech requires macOS 26+. Linux Wayland uses a configured desktop shortcut and clipboard delivery instead of a generic global keyboard hook or automatic paste. Real call, device, clipboard, installer and update acceptance remains required on each target.
 
+## Install
+
+Every push to `main` that changes the app publishes a [GitHub release](https://github.com/ikbenignace/pennel/releases) with the Mac `.dmg`, Windows `.exe`/`.msi` and Linux `.deb`/`.AppImage`. On a Mac with Apple Silicon:
+
+```sh
+brew install --cask ikbenignace/pennel/pennel
+brew upgrade --cask pennel   # later updates
+```
+
+Release builds are not yet signed with a Developer ID or Windows certificate, so the Homebrew cask removes the download quarantine and Windows SmartScreen asks for confirmation. macOS asks again for microphone, accessibility and input-monitoring permission after each update until releases are signed.
+
 ## Build the shared app
 
 Prerequisites: Rust stable, Node 22+, Python 3 and CMake. Mac builds also need Xcode with the macOS 26 SDK or newer; Windows needs the MSVC build tools. Linux build/runtime packages and desktop differences are documented in [desktop development](docs/desktop.md) and [Linux packaging](docs/linux-packaging.md).
@@ -64,7 +75,7 @@ Use **Logboek openen** from the tray/menu bar for troubleshooting. Canonical Mac
 
 [The migration record](docs/shared-app-migration.md) separates implemented behavior, automated checks, packaged-app inspection and outstanding device acceptance. Memory, installed-size and download-size figures need measurements of the actual release packages; no generic framework figure is used here.
 
-CI is configured to build the shared app for Mac, Windows and Linux. The manual signed-candidate workflow prepares packages using existing credentials and publishes no release. Release helpers preserve the legacy Sparkle upgrade path, and require acceptance of exact Mac, Windows and Linux updater artifacts before preparing the update manifest. Linux in-app updates use AppImage; Debian installations use a verified package or package manager. See [release preparation](docs/linux-packaging.md#candidate-and-update-artifacts) and the [native reference release process](docs/releasing.md).
+CI builds the shared app for Mac, Windows and Linux and publishes unsigned releases automatically (see [releasing](docs/releasing.md)). The manual signed-candidate workflow prepares packages using existing credentials and publishes no release. Release helpers preserve the legacy Sparkle upgrade path, and require acceptance of exact Mac, Windows and Linux updater artifacts before preparing the update manifest. Linux in-app updates use AppImage; Debian installations use a verified package or package manager. See [release preparation](docs/linux-packaging.md#candidate-and-update-artifacts) and the [native reference release process](docs/releasing.md).
 
 ## Local models
 

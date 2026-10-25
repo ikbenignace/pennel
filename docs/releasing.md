@@ -1,6 +1,18 @@
 # Releasing Pennel
 
-Releases are signed with a Developer ID, notarized by Apple, published as a GitHub release and announced to existing installs through [Sparkle](https://sparkle-project.org) (the app checks `https://pennel.app/appcast.xml` once a day and installs signed updates).
+## Automatic releases (shared app)
+
+The `release` job in `.github/workflows/desktop.yml` publishes the shared Tauri app. It runs after a push to `main` once every other job in that run passed, and only when `core/`, `apps/desktop/`, `apps/macos-platform/` or `assets/` changed since the newest `v*` tag.
+
+- **Version.** `scripts/desktop-auto-release.py plan` bumps the patch of the newest `v*` tag. For a minor or major release, raise `version` in `apps/desktop/src-tauri/tauri.conf.json` (and `package.json`, `Cargo.toml`); a configured version higher than the bump wins. The first release uses the configured version.
+- **Assets.** The tag `v<version>` and a GitHub release with `Pennel_<version>_aarch64.dmg`, the Windows NSIS `.exe` and `.msi`, the Linux `.deb` and `.AppImage`, and `SHA256SUMS.txt`.
+- **Homebrew.** The job rewrites `Casks/pennel.rb` in [`ikbenignace/homebrew-pennel`](https://github.com/ikbenignace/homebrew-pennel) through the `HOMEBREW_TAP_DEPLOY_KEY` secret (a write deploy key on that repository). Users install with `brew install --cask ikbenignace/pennel/pennel`.
+- **Signing.** Mac builds are ad-hoc signed and not notarized, so the cask removes the quarantine attribute after install; Windows installers are unsigned; no in-app updater manifest is published. Once a Developer ID, notarization credentials, a Windows certificate and the Tauri updater key exist, move the build onto the signed path of `scripts/desktop-release.py`.
+- Main runs queue instead of cancelling each other, so a release is never interrupted halfway.
+
+## Native reference app (frozen)
+
+Releases of the legacy Swift app were signed with a Developer ID, notarized by Apple, published as a GitHub release and announced to existing installs through [Sparkle](https://sparkle-project.org) (the app checks `https://pennel.app/appcast.xml` once a day and installs signed updates).
 
 ## One-time setup
 
