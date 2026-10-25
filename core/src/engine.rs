@@ -6,8 +6,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::cleanup::{
     accept_cleanup, cleanup_messages, cleanup_timeout_secs, resolve_style, strip_wrapping,
 };
-use crate::cloud::SecretStore;
 use crate::cloud::account::{CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart, Session};
+use crate::cloud::crypto::{self, VaultKey};
+use crate::cloud::sync::api::{HttpSyncApi, SyncApi};
+use crate::cloud::sync::state::SyncState;
+use crate::cloud::sync::{self, MeetingSyncState, PassInput, SyncReport, SyncStatus};
+use crate::cloud::{SecretStore, VAULT_KEY_ACCOUNT};
 use crate::error::PennelError;
 use crate::export::MeetingExport;
 use crate::history::{HistoryEntry, HistoryStore};
@@ -88,6 +92,12 @@ pub struct PennelEngine {
     meeting_gate: Mutex<()>,
     active_sessions: Mutex<Vec<Weak<MeetingSession>>>,
     library_lease: Mutex<Option<(PathBuf, DirectoryLease)>>,
+    /// Held for a whole sync pass and for every vault change, so they never interleave.
+    sync_gate: Mutex<()>,
+    sync_state: Mutex<Option<SyncState>>,
+    sync_last: Mutex<Option<SyncReport>>,
+    #[cfg(test)]
+    sync_api_override: Mutex<Option<Arc<dyn SyncApi>>>,
     preview: bool,
     _storage: StartupStorage,
 }
@@ -144,7 +154,9 @@ impl PennelEngine {
         device_name: String,
         platform: String,
     ) -> Result<CloudLoginStart, PennelError> {
-        self.cloud_session()?.login_start(&device_name, &platform)
+        let started = self.cloud_session()?.login_start(&device_name, &platform)?;
+        self.remember_device_name(&device_name);
+        Ok(started)
     }
 
     pub fn cloud_login_poll(&self, device_code: String) -> Result<CloudLoginPoll, PennelError> {
@@ -156,10 +168,12 @@ impl PennelEngine {
             .is_ok_and(|session| session.signed_in())
     }
 
+    /// Meeting files stay; only what this device knew about the cloud is forgotten.
     pub fn cloud_logout(&self) {
         if let Ok(session) = self.cloud_session() {
             session.logout();
         }
+        self.clear_sync_state();
     }
 
     pub fn cloud_account(&self) -> Result<CloudAccount, PennelError> {
@@ -179,7 +193,115 @@ impl PennelEngine {
     }
 
     pub fn cloud_delete_account(&self) -> Result<(), PennelError> {
-        self.cloud_session()?.delete_account()
+        self.cloud_session()?.delete_account()?;
+        self.clear_sync_state();
+        Ok(())
+    }
+
+    /// Creates the vault and returns the recovery code to show once. When the account already
+    /// has a vault this gives `VaultLocked`: ask for the recovery code instead.
+    pub fn cloud_sync_enable(&self) -> Result<String, PennelError> {
+        let _gate = self.sync_gate.lock().unwrap();
+        let api = self.signed_in_sync_api()?;
+        let vault = api.vault()?;
+        if vault.wrapped.is_some() {
+            return Err(PennelError::VaultLocked);
+        }
+        let key = VaultKey::generate();
+        let code = crypto::new_recovery_code();
+        let (wrapped, kdf) = crypto::wrap(&key, &code)?;
+        api.put_vault(vault.generation, &wrapped, &kdf, true)?;
+        self.adopt_vault(&key, vault.generation)?;
+        Ok(code)
+    }
+
+    pub fn cloud_sync_unlock(&self, code: String) -> Result<(), PennelError> {
+        let _gate = self.sync_gate.lock().unwrap();
+        let api = self.signed_in_sync_api()?;
+        let vault = api.vault()?;
+        let (Some(wrapped), Some(kdf)) = (vault.wrapped, vault.kdf) else {
+            return Err(PennelError::Cloud {
+                code: "vault_missing".into(),
+                message: "Er bestaat nog geen kluis.".into(),
+            });
+        };
+        let key = crypto::unwrap(&wrapped, &kdf, &code)?;
+        self.adopt_vault(&key, vault.generation)
+    }
+
+    /// Wraps the same vault key under a new code; the old code stops working.
+    pub fn cloud_sync_new_recovery_code(&self) -> Result<String, PennelError> {
+        let _gate = self.sync_gate.lock().unwrap();
+        let api = self.signed_in_sync_api()?;
+        let key = self.vault_key().ok_or(PennelError::VaultLocked)?;
+        let vault = api.vault()?;
+        if self.with_sync_state(|state| state.generation())? != Some(vault.generation) {
+            return Err(PennelError::Cloud {
+                code: "generation".into(),
+                message: "De kluis is opnieuw begonnen op een ander toestel.".into(),
+            });
+        }
+        let code = crypto::new_recovery_code();
+        let (wrapped, kdf) = crypto::wrap(&key, &code)?;
+        api.put_vault(vault.generation, &wrapped, &kdf, false)?;
+        Ok(code)
+    }
+
+    /// Wipes the cloud copy and starts a new vault; local files stay and upload again.
+    pub fn cloud_sync_reset(&self) -> Result<String, PennelError> {
+        let _gate = self.sync_gate.lock().unwrap();
+        let api = self.signed_in_sync_api()?;
+        let vault = api.vault()?;
+        let generation = api.reset_vault(vault.generation)?;
+        let key = VaultKey::generate();
+        let code = crypto::new_recovery_code();
+        let (wrapped, kdf) = crypto::wrap(&key, &code)?;
+        api.put_vault(generation, &wrapped, &kdf, true)?;
+        self.adopt_vault(&key, generation)?;
+        Ok(code)
+    }
+
+    /// Stops syncing; the vault key and sync state stay for when it is turned on again.
+    pub fn cloud_sync_disable(&self) -> Result<(), PennelError> {
+        let _gate = self.sync_gate.lock().unwrap();
+        self.set_cloud_sync(false)
+    }
+
+    /// One sync pass. Never fails: problems are the report's status.
+    pub fn cloud_sync_run(&self, recording_meeting_ids: Vec<String>) -> SyncReport {
+        let report = self.sync_pass(&recording_meeting_ids);
+        *self.sync_last.lock().unwrap() = Some(report.clone());
+        report
+    }
+
+    pub fn cloud_sync_last(&self) -> SyncReport {
+        if let Some(report) = self.sync_last.lock().unwrap().clone() {
+            return report;
+        }
+        let status = if !self.settings().cloud_sync {
+            SyncStatus::Off
+        } else if !self.cloud_signed_in() {
+            SyncStatus::SignedOut
+        } else if self.vault_key().is_none() {
+            SyncStatus::NeedsSetup
+        } else {
+            SyncStatus::Synced
+        };
+        self.report(status)
+    }
+
+    pub fn meeting_sync_states(&self) -> Vec<MeetingSyncState> {
+        let settings = self.settings();
+        if !settings.cloud_sync {
+            return Vec::new();
+        }
+        let root = library_root(&settings);
+        self.with_sync_state(|state| sync::item_states(&root, state))
+            .unwrap_or_default()
+    }
+
+    pub fn cloud_folder_warning(&self) -> Option<String> {
+        sync::folder_warning(&library_root(&self.settings()), &home_dir())
     }
 
     pub fn set_system_language_model(&self, model: Arc<dyn SystemLanguageModel>) {
@@ -948,6 +1070,145 @@ impl PennelEngine {
     pub(crate) fn cloud_base_url(&self) -> String {
         crate::cloud::base_url(self.preview)
     }
+
+    pub(crate) fn data_dir(&self) -> PathBuf {
+        self.settings_path
+            .parent()
+            .expect("data directory")
+            .to_path_buf()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn use_sync_api(&self, api: Arc<dyn SyncApi>) {
+        *self.sync_api_override.lock().unwrap() = Some(api);
+    }
+
+    fn sync_api(&self) -> Result<Arc<dyn SyncApi>, PennelError> {
+        #[cfg(test)]
+        if let Some(api) = self.sync_api_override.lock().unwrap().clone() {
+            return Ok(api);
+        }
+        Ok(Arc::new(HttpSyncApi::new(self.cloud_session()?)))
+    }
+
+    fn signed_in_sync_api(&self) -> Result<Arc<dyn SyncApi>, PennelError> {
+        if !self.cloud_signed_in() {
+            return Err(PennelError::NotSignedIn);
+        }
+        self.sync_api()
+    }
+
+    fn with_sync_state<T>(
+        &self,
+        query: impl FnOnce(&SyncState) -> Result<T, PennelError>,
+    ) -> Result<T, PennelError> {
+        let mut slot = self.sync_state.lock().unwrap();
+        if slot.is_none() {
+            *slot = Some(SyncState::open(&self.data_dir())?);
+        }
+        query(slot.as_ref().expect("opened above"))
+    }
+
+    fn clear_sync_state(&self) {
+        let _gate = self.sync_gate.lock().unwrap();
+        let _ = self.with_sync_state(SyncState::clear);
+        *self.sync_last.lock().unwrap() = None;
+    }
+
+    /// Names this device in the conflict copies it causes elsewhere.
+    pub(crate) fn remember_device_name(&self, name: &str) {
+        let _ = self.with_sync_state(|state| state.set_device(name));
+    }
+
+    fn vault_key(&self) -> Option<VaultKey> {
+        self.secret_store()?
+            .get(VAULT_KEY_ACCOUNT.into())
+            .and_then(|encoded| VaultKey::from_b64(&encoded))
+    }
+
+    fn adopt_vault(&self, key: &VaultKey, generation: u32) -> Result<(), PennelError> {
+        let secrets = self.secret_store().ok_or(PennelError::NotSignedIn)?;
+        secrets.set(VAULT_KEY_ACCOUNT.into(), Some(key.to_b64()));
+        self.with_sync_state(|state| state.set_generation(generation))?;
+        *self.sync_last.lock().unwrap() = None;
+        self.set_cloud_sync(true)
+    }
+
+    fn set_cloud_sync(&self, enabled: bool) -> Result<(), PennelError> {
+        let mut settings = self.settings();
+        if settings.cloud_sync == enabled {
+            return Ok(());
+        }
+        settings.cloud_sync = enabled;
+        self.update_settings(settings)
+    }
+
+    fn report(&self, status: SyncStatus) -> SyncReport {
+        SyncReport {
+            status,
+            uploaded: 0,
+            downloaded: 0,
+            conflicts: 0,
+            last_success_ms: self
+                .with_sync_state(|state| state.last_success_ms())
+                .ok()
+                .flatten(),
+        }
+    }
+
+    fn sync_pass(&self, recording: &[String]) -> SyncReport {
+        let _gate = self.sync_gate.lock().unwrap();
+        let settings = self.settings();
+        if !settings.cloud_sync {
+            return self.report(SyncStatus::Off);
+        }
+        if !self.cloud_signed_in() {
+            return self.report(SyncStatus::SignedOut);
+        }
+        if let Err(error) = self.claim_library() {
+            return self.report(SyncStatus::Error {
+                message: error.to_string(),
+            });
+        }
+        let api = match self.sync_api() {
+            Ok(api) => api,
+            Err(error) => return self.report(sync::status_for(error)),
+        };
+        let Some(key) = self.vault_key() else {
+            let status = match api.vault() {
+                Ok(vault) if vault.wrapped.is_some() => SyncStatus::NeedsRecoveryCode,
+                Ok(_) => SyncStatus::NeedsSetup,
+                Err(error) => sync::status_for(error),
+            };
+            return self.report(status);
+        };
+        let root = library_root(&settings);
+        let data_dir = self.data_dir();
+        let outcome = self.with_sync_state(|state| {
+            let device = state.device()?.unwrap_or_else(|| "Pennel".into());
+            let mut report = sync::run(PassInput {
+                api: api.as_ref(),
+                state,
+                key: &key,
+                root: &root,
+                data_dir: &data_dir,
+                device: &device,
+                recording,
+            });
+            if report.status == SyncStatus::Synced {
+                state.set_last_success_ms(now_ms())?;
+            }
+            report.last_success_ms = state.last_success_ms()?;
+            Ok(report)
+        });
+        let report = outcome.unwrap_or_else(|error| self.report(sync::status_for(error)));
+        if report.status == SyncStatus::VaultReset
+            && let Some(secrets) = self.secret_store()
+        {
+            secrets.set(VAULT_KEY_ACCOUNT.into(), None);
+        }
+        report
+    }
 }
 
 impl PennelEngine {
@@ -999,6 +1260,11 @@ impl PennelEngine {
             meeting_gate: Mutex::new(()),
             active_sessions: Mutex::new(Vec::new()),
             library_lease: Mutex::new(library_lease),
+            sync_gate: Mutex::new(()),
+            sync_state: Mutex::new(None),
+            sync_last: Mutex::new(None),
+            #[cfg(test)]
+            sync_api_override: Mutex::new(None),
             preview,
             _storage: storage,
         });

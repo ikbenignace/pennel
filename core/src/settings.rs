@@ -92,6 +92,8 @@ pub struct Settings {
     pub auto_detect: bool,
     #[serde(default)]
     pub diarization: bool,
+    #[serde(default)]
+    pub cloud_sync: bool,
 }
 
 fn enabled() -> bool {
@@ -161,6 +163,7 @@ pub fn default_settings() -> Settings {
         consent_enabled: false,
         auto_detect: true,
         diarization: false,
+        cloud_sync: false,
     }
 }
 

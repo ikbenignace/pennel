@@ -1,4 +1,6 @@
 pub mod api;
+#[cfg(test)]
+mod engine_tests;
 pub mod scan;
 pub mod state;
 pub mod trash;
@@ -818,6 +820,50 @@ impl Pass<'_> {
         }
         Ok(())
     }
+}
+
+fn has_conflict_copy(dir: &Path) -> bool {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .any(|entry| {
+            Path::new(&entry.file_name())
+                .file_stem()
+                .is_some_and(|stem| stem.to_string_lossy().contains(" (conflict "))
+        })
+}
+
+/// Per meeting: a conflict copy is present, something is not uploaded yet, or all is synced.
+pub fn item_states(root: &Path, state: &SyncState) -> Result<Vec<MeetingSyncState>, PennelError> {
+    let mut states = Vec::new();
+    for folder in scan::meeting_folders(root) {
+        let dir = root.join(&folder.name);
+        let item = if has_conflict_copy(&dir) {
+            SyncItemState::Conflict
+        } else {
+            let mut pending = folder.uid.is_none();
+            if let Some(uid) = folder.uid.as_deref() {
+                for (name, path) in scan::syncable_files(&dir) {
+                    let entry = state.entry(&scan::meeting_key(uid, &name))?;
+                    if entry.is_none_or(|e| hash_file(&path).as_deref() != Some(&e.synced_hash)) {
+                        pending = true;
+                        break;
+                    }
+                }
+            }
+            if pending {
+                SyncItemState::Pending
+            } else {
+                SyncItemState::Synced
+            }
+        };
+        states.push(MeetingSyncState {
+            id: folder.name,
+            state: item,
+        });
+    }
+    Ok(states)
 }
 
 fn provider_of(segment: &str) -> Option<&'static str> {
