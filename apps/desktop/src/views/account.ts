@@ -1,5 +1,5 @@
 import { api, type CloudAccount, type CloudDevice, type Settings, type SyncReport } from "../api";
-import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, pollLogin, recoveryNeedsConfirmation, relativeTime, type LoginPoll } from "../cloud-login";
+import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, planSyncRedraw, pollLogin, recoveryNeedsConfirmation, relativeTime, type LoginPoll } from "../cloud-login";
 import { confirmDialog, errorCode, errorText, h, section, toggle } from "../dom";
 import type { Context } from "../main";
 
@@ -30,15 +30,32 @@ let loginRun = 0;
 let syncingTimer: number | undefined;
 let redraw: (() => void) | null = null;
 let listening = false;
+let shownReport: SyncReport | null = null;
+let syncBlock: { element: HTMLElement; build: (report: SyncReport) => HTMLElement } | null = null;
 
 function update() { redraw?.(); }
+
+function renamingDevice(): boolean {
+  return [...document.querySelectorAll<HTMLInputElement>("input.device-name")]
+    .some((input) => input === document.activeElement || input.value !== input.dataset.original);
+}
 
 function listenForSync() {
   if (listening) return;
   listening = true;
-  void api.onSyncChanged(() => {
+  void api.onSyncChanged((report) => {
+    const wasSyncing = ui.syncing;
     ui.syncing = false;
     window.clearTimeout(syncingTimer);
+    const plan = planSyncRedraw(shownReport, report, wasSyncing, renamingDevice());
+    if (plan === "skip") return;
+    if (plan === "status" && syncBlock?.element.isConnected) {
+      shownReport = report;
+      const next = syncBlock.build(report);
+      syncBlock.element.replaceWith(next);
+      syncBlock.element = next;
+      return;
+    }
     update();
   }).catch(() => { listening = false; });
 }
@@ -96,6 +113,8 @@ export async function accountView(ctx: Context): Promise<HTMLElement> {
   redraw = mine;
   ctx.onDispose(() => { if (redraw === mine) redraw = null; });
 
+  syncBlock = null;
+  shownReport = null;
   if (ui.login.kind !== "idle") return signedOut(ctx);
 
   let account: CloudAccount | null = null;
@@ -111,13 +130,17 @@ export async function accountView(ctx: Context): Promise<HTMLElement> {
     api.cloudFolderWarning().catch(() => null),
   ]);
   const enabled = ctx.info.settings.cloud_sync === true;
+  const build = (current: SyncReport) => syncSection(ctx, current, enabled, warning, !unlockVisible(current, enabled));
+  const syncElement = build(report);
+  shownReport = report;
+  syncBlock = { element: syncElement, build };
 
   return h("div", {},
     heading(),
     cloudPrompt(ctx),
     accountSection(ctx, account, accountError),
     account ? usageSection(account) : null,
-    syncSection(ctx, report, enabled, warning, !unlockVisible(report, enabled)),
+    syncElement,
     ui.shownCode ? recoverySheet(ctx, ui.shownCode) : null,
     unlockSection(ctx, report, enabled),
     enabled && !ui.shownCode && !needsVault(report) ? recoverySection(ctx) : null,
@@ -190,9 +213,21 @@ function cloudPrompt(ctx: Context): HTMLElement | null {
 }
 
 function accountSection(ctx: Context, account: CloudAccount | null, error: unknown): HTMLElement {
-  const logout = h("button", { class: "btn", onclick: async () => {
-    try { await api.cloudLogout(); resetLocalState(); await ctx.refresh(); } catch (e) { ctx.report(e); }
-  } }, "Uitloggen");
+  const logout = h("button", { class: "btn" }, "Uitloggen");
+  logout.addEventListener("click", async () => {
+    const unconfirmed = recoveryNeedsConfirmation({ signedIn: true, syncOn: ctx.info.settings.cloud_sync === true, confirmed: confirmedFlag() });
+    if (unconfirmed && !await confirmDialog("Uitloggen?",
+      "Je hebt je herstelcode nog niet bevestigd. Na uitloggen heb je hem nodig om je meetings terug te krijgen. Toch uitloggen?",
+      "Uitloggen")) return;
+    logout.disabled = true;
+    logout.textContent = "Bezig met uitloggen…";
+    try { await api.cloudLogout(); resetLocalState(); await ctx.refresh(); }
+    catch (e) {
+      logout.disabled = false;
+      logout.textContent = "Uitloggen";
+      ctx.report(e);
+    }
+  });
   return section("Account", null,
     account ? h("p", {}, `Ingelogd als ${account.email}`) : h("p", { class: "error", role: "alert" }, errorText(error)),
     logout);
@@ -348,7 +383,8 @@ function seenText(device: CloudDevice): string {
 
 function devicesSection(ctx: Context, devices: CloudDevice[]): HTMLElement {
   return section("Toestellen", null, h("div", { class: "list" }, devices.map((device) => {
-    const name = h("input", { type: "text", value: device.name, "aria-label": "Naam van toestel" });
+    const name = h("input", { type: "text", class: "device-name", value: device.name, "aria-label": "Naam van toestel" });
+    name.dataset.original = device.name;
     name.addEventListener("change", () => {
       const next = name.value.trim();
       if (!next || next === device.name) { name.value = device.name; return; }

@@ -116,3 +116,22 @@ export function accountScreenFor(errorCode: string | null): "signed_out" | "sign
 export function recoveryNeedsConfirmation(state: { signedIn: boolean; syncOn: boolean; confirmed: boolean | null }): boolean {
   return state.signedIn && state.syncOn && state.confirmed === false;
 }
+
+type ReportView = { status: { kind: string }; brake: boolean; last_success_ms: number | null; uploaded: number; downloaded: number; conflicts: number };
+
+const LAYOUT_KINDS = ["signed_out", "off", "needs_setup", "needs_recovery_code", "vault_reset"];
+
+function layoutOf(report: ReportView): string {
+  return LAYOUT_KINDS.includes(report.status.kind) ? report.status.kind : "active";
+}
+
+/**
+ * What a sync-changed event needs from the account tab: nothing, only the status block, or everything.
+ * A half-typed device name is never thrown away, except when the account is signed out underneath it.
+ */
+export function planSyncRedraw(prev: ReportView | null, next: ReportView, wasSyncing: boolean, editing: boolean): "skip" | "status" | "full" {
+  if (!prev) return "full";
+  if (layoutOf(prev) !== layoutOf(next)) return next.status.kind === "signed_out" || !editing ? "full" : "status";
+  if (JSON.stringify(prev) === JSON.stringify(next)) return wasSyncing ? "status" : "skip";
+  return "status";
+}

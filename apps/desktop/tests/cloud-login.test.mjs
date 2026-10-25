@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, pollLogin, recoveryNeedsConfirmation } from "../src/cloud-login.ts";
+import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, pollLogin, planSyncRedraw, recoveryNeedsConfirmation } from "../src/cloud-login.ts";
 
 function clock(start = 0) {
   const state = { time: start, sleeps: [] };
@@ -103,4 +103,30 @@ test("not_signed_in leads to the signed-out screen, other errors do not", () => 
 test("a failed copy shows the error instead of the success text", () => {
   assert.equal(copyStatusText(null), "Gekopieerd");
   assert.equal(copyStatusText("Kopiëren is mislukt."), "Kopiëren is mislukt.");
+});
+
+const report = (kind, extra = {}) => ({ status: { kind }, brake: false, uploaded: 0, downloaded: 0, conflicts: 0, last_success_ms: null, ...extra });
+
+test("an unchanged report does not redraw the account tab", () => {
+  assert.equal(planSyncRedraw(report("synced"), report("synced"), false, false), "skip");
+});
+
+test("a report that stopped a manual sync updates the status part", () => {
+  assert.equal(planSyncRedraw(report("synced"), report("synced"), true, false), "status");
+});
+
+test("a new status or brake within the same layout only updates the status part", () => {
+  assert.equal(planSyncRedraw(report("pending"), report("synced", { last_success_ms: 5 }), false, false), "status");
+  assert.equal(planSyncRedraw(report("synced"), report("error", { brake: true }), false, false), "status");
+});
+
+test("a layout change redraws the tab unless a device name is being edited", () => {
+  assert.equal(planSyncRedraw(report("synced"), report("needs_recovery_code"), false, false), "full");
+  assert.equal(planSyncRedraw(report("synced"), report("signed_out"), false, false), "full");
+  assert.equal(planSyncRedraw(null, report("synced"), false, false), "full");
+  assert.equal(planSyncRedraw(report("synced"), report("needs_recovery_code"), false, true), "status");
+});
+
+test("signing out redraws even while a device name is being edited", () => {
+  assert.equal(planSyncRedraw(report("synced"), report("signed_out"), false, true), "full");
 });
