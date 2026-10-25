@@ -29,6 +29,8 @@ pub enum SyncStatus {
     NeedsRecoveryCode,
     /// The vault was restarted on another device; this device forgot its key.
     VaultReset,
+    /// Ready to sync, but no pass has finished since Pennel started.
+    Pending,
     Synced,
     Offline,
     StorageFull {

@@ -461,3 +461,69 @@ fn confirming_deletes_and_naming_the_device_do_not_wait_for_a_running_pass() {
     let state = SyncState::open(&a.engine.data_dir()).unwrap();
     assert_eq!(state.device().unwrap().as_deref(), Some("Werkplek"));
 }
+
+#[test]
+fn last_status_before_any_pass_is_not_synced() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    assert_eq!(a.engine.cloud_sync_last().status, SyncStatus::Off);
+    let mut settings = a.engine.settings();
+    settings.cloud_sync = true;
+    a.engine.update_settings(settings).unwrap();
+    assert_eq!(a.engine.cloud_sync_last().status, SyncStatus::NeedsSetup);
+    a.engine.cloud_sync_enable().unwrap();
+    assert_eq!(a.engine.cloud_sync_last().status, SyncStatus::Pending);
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    assert_eq!(a.engine.cloud_sync_last().status, SyncStatus::Synced);
+    revoke_session(&a);
+    assert_eq!(a.engine.cloud_sync_last().status, SyncStatus::SignedOut);
+}
+
+#[test]
+fn disabling_reports_off_at_once_even_during_a_pass() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    let b = host(&api, "Laptop");
+    let code = a.engine.cloud_sync_enable().unwrap();
+    b.engine.cloud_sync_unlock(code).unwrap();
+    store(&a).create("Onderweg", start()).unwrap();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    assert_eq!(b.engine.cloud_sync_run(vec![]).status, SyncStatus::Synced);
+    b.engine.cloud_sync_disable().unwrap();
+    assert_eq!(b.engine.cloud_sync_last().status, SyncStatus::Off);
+    let mut settings = b.engine.settings();
+    settings.cloud_sync = true;
+    b.engine.update_settings(settings).unwrap();
+    store(&a).create("Tweede", start()).unwrap();
+    a.engine.cloud_sync_run(vec![]);
+
+    let (entered, entered_rx) = mpsc::channel();
+    let (release, release_rx) = mpsc::channel::<()>();
+    let release_rx = std::sync::Mutex::new(release_rx);
+    api.on_get(move |_| {
+        let _ = entered.send(());
+        let _ = release_rx
+            .lock()
+            .unwrap()
+            .recv_timeout(Duration::from_secs(10));
+    });
+    let engine = b.engine.clone();
+    let pass = std::thread::spawn(move || engine.cloud_sync_run(vec![]));
+    entered_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    let engine = b.engine.clone();
+    let (done, done_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let disabled = engine.cloud_sync_disable();
+        let _ = done.send((disabled, engine.cloud_sync_last().status));
+    });
+    let answered = done_rx.recv_timeout(Duration::from_secs(2));
+    release.send(()).unwrap();
+    assert_eq!(
+        answered.expect("disable waited for the running pass"),
+        (Ok(()), SyncStatus::Off)
+    );
+    pass.join().unwrap();
+    assert_eq!(b.engine.cloud_sync_last().status, SyncStatus::Off);
+}

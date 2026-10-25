@@ -278,10 +278,12 @@ impl PennelEngine {
         Ok(code)
     }
 
-    /// Stops syncing; the vault key and sync state stay for when it is turned on again.
+    /// Stops syncing; the vault key and sync state stay for when it is turned on again. A pass
+    /// already running finishes, but its report no longer counts.
     pub fn cloud_sync_disable(&self) -> Result<(), PennelError> {
-        let _gate = self.sync_gate.lock().unwrap();
-        self.set_cloud_sync(false)
+        self.set_cloud_sync(false)?;
+        *self.sync_last.lock().unwrap() = None;
+        Ok(())
     }
 
     /// One sync pass. Never fails: problems are the report's status.
@@ -291,18 +293,19 @@ impl PennelEngine {
         report
     }
 
+    /// Without a pass since start-up, whether a vault exists is unknown: no key reads as
+    /// `NeedsSetup` until a pass asks the server.
     pub fn cloud_sync_last(&self) -> SyncReport {
-        if let Some(report) = self.sync_last.lock().unwrap().clone() {
-            return report;
-        }
         let status = if !self.settings().cloud_sync {
             SyncStatus::Off
         } else if !self.cloud_signed_in() {
             SyncStatus::SignedOut
+        } else if let Some(report) = self.sync_last.lock().unwrap().clone() {
+            return report;
         } else if self.vault_key().is_none() {
             SyncStatus::NeedsSetup
         } else {
-            SyncStatus::Synced
+            SyncStatus::Pending
         };
         self.report(status)
     }
