@@ -85,6 +85,8 @@ struct Frontmatter {
     start_iso: String,
     duration_min: u32,
     template: String,
+    /// `pennel_id`: the stable sync identity of the meeting, independent of its folder name.
+    uid: String,
     /// Lines the user added (tags, attendees, …), written back untouched.
     extra: Vec<String>,
 }
@@ -197,10 +199,48 @@ impl MeetingStore {
             start_iso: start.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
             duration_min: 0,
             template: String::new(),
+            uid: uuid::Uuid::now_v7().to_string(),
             extra: Vec::new(),
         };
         self.write_file(&id, "meeting.md", &render_meeting(&front, ""))?;
         Ok(id)
+    }
+
+    pub fn uid_of(&self, id: &str) -> Option<String> {
+        self.frontmatter(id)
+            .map(|(front, _)| front.uid)
+            .filter(|uid| valid_uid(uid))
+    }
+
+    pub fn ensure_uid(&self, id: &str) -> Result<String, PennelError> {
+        if let Some(uid) = self.uid_of(id) {
+            return Ok(uid);
+        }
+        let uid = uuid::Uuid::now_v7().to_string();
+        self.set_uid(id, &uid)?;
+        Ok(uid)
+    }
+
+    /// Only the `pennel_id` line changes, so the rest of a hand-edited file stays byte-identical
+    /// and two devices adding the same id to the same file produce the same bytes.
+    pub(crate) fn set_uid(&self, id: &str, uid: &str) -> Result<(), PennelError> {
+        let text = std::fs::read_to_string(self.dir_of(id).join("meeting.md"))
+            .map_err(|_| PennelError::NotFound)?;
+        let (head, body) = text
+            .strip_prefix("---\n")
+            .and_then(|rest| rest.split_once("\n---\n"))
+            .ok_or(PennelError::NotFound)?;
+        let mut lines: Vec<&str> = head
+            .lines()
+            .filter(|line| line.split(':').next().map(str::trim) != Some(UID_FIELD))
+            .collect();
+        let uid_line = format!("{UID_FIELD}: {uid}");
+        lines.push(&uid_line);
+        self.write_file(
+            id,
+            "meeting.md",
+            &format!("---\n{}\n---\n{body}", lines.join("\n")),
+        )
     }
 
     fn write_file(&self, id: &str, name: &str, content: &str) -> Result<(), PennelError> {
@@ -478,9 +518,14 @@ impl MeetingStore {
 }
 
 fn render_meeting(front: &Frontmatter, body: &str) -> String {
+    let uid = if front.uid.is_empty() {
+        String::new()
+    } else {
+        format!("{UID_FIELD}: {}\n", front.uid)
+    };
     let extra: String = front.extra.iter().map(|line| format!("{line}\n")).collect();
     format!(
-        "---\ntitle: {}\nstart: {}\nduration_min: {}\ntemplate: {}\n{extra}---\n\n{}\n",
+        "---\ntitle: {}\nstart: {}\nduration_min: {}\ntemplate: {}\n{uid}{extra}---\n\n{}\n",
         front.title,
         front.start_iso,
         front.duration_min,
@@ -489,7 +534,13 @@ fn render_meeting(front: &Frontmatter, body: &str) -> String {
     )
 }
 
-const KNOWN_FIELDS: &[&str] = &["title", "start", "duration_min", "template"];
+const UID_FIELD: &str = "pennel_id";
+const KNOWN_FIELDS: &[&str] = &["title", "start", "duration_min", "template", UID_FIELD];
+
+/// Uids become part of sync keys (`meeting/<uid>/…`), so only plain id characters are accepted.
+pub(crate) fn valid_uid(uid: &str) -> bool {
+    (1..=64).contains(&uid.len()) && uid.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
 
 fn parse_meeting(text: &str) -> Option<(Frontmatter, String)> {
     let rest = text.strip_prefix("---\n")?;
@@ -509,6 +560,7 @@ fn parse_meeting(text: &str) -> Option<(Frontmatter, String)> {
         start_iso: field("start"),
         duration_min: field("duration_min").parse().unwrap_or(0),
         template: field("template"),
+        uid: field(UID_FIELD),
         extra: head
             .lines()
             .filter(|l| {
@@ -773,7 +825,7 @@ mod tests {
             "{md}"
         );
         assert!(
-            md.contains("duration_min: 42\ntemplate: klantgesprek\n---\n"),
+            md.contains("duration_min: 42\ntemplate: klantgesprek\npennel_id: "),
             "{md}"
         );
         assert_eq!(
@@ -872,6 +924,68 @@ mod tests {
         assert_eq!(store.prune_audio(30, later), 1);
         assert!(!audio.exists());
         assert!(dir.path().join(&id).join("meeting.md").exists());
+    }
+
+    #[test]
+    fn create_writes_uid_that_survives_rewrites() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Uid", start()).unwrap();
+        let uid = store.uid_of(&id).expect("uid");
+        assert_eq!(uid.len(), 36);
+        let text = std::fs::read_to_string(dir.path().join(&id).join("meeting.md")).unwrap();
+        assert!(text.contains(&format!("pennel_id: {uid}\n")));
+        store.set_duration(&id, 12).unwrap();
+        store.set_attendees(&id, &["Els".into()]).unwrap();
+        let renamed = store.rename(&id, "Nieuw").unwrap();
+        assert_eq!(store.uid_of(&renamed).as_deref(), Some(uid.as_str()));
+        let text = std::fs::read_to_string(dir.path().join(&renamed).join("meeting.md")).unwrap();
+        assert_eq!(text.matches("pennel_id:").count(), 1);
+        assert_eq!(store.ensure_uid(&renamed).unwrap(), uid);
+    }
+
+    #[test]
+    fn ensure_uid_adds_one_line_and_keeps_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        std::fs::create_dir_all(dir.path().join("Oud")).unwrap();
+        let original =
+            "---\ntitle:Oud\nstart: 2026-01-01T10:00:00+01:00\ntags: [x]\n---\n\n  Inhoud\n\n";
+        std::fs::write(dir.path().join("Oud/meeting.md"), original).unwrap();
+        assert_eq!(store.uid_of("Oud"), None);
+        let uid = store.ensure_uid("Oud").unwrap();
+        let text = std::fs::read_to_string(dir.path().join("Oud/meeting.md")).unwrap();
+        assert_eq!(
+            text,
+            format!(
+                "---\ntitle:Oud\nstart: 2026-01-01T10:00:00+01:00\ntags: [x]\npennel_id: {uid}\n---\n\n  Inhoud\n\n"
+            )
+        );
+        assert_eq!(store.ensure_uid("Oud").unwrap(), uid);
+        assert_eq!(store.uid_of("Oud").as_deref(), Some(uid.as_str()));
+        std::fs::create_dir_all(dir.path().join("Kapot")).unwrap();
+        std::fs::write(dir.path().join("Kapot/meeting.md"), "geen frontmatter").unwrap();
+        assert_eq!(store.ensure_uid("Kapot"), Err(PennelError::NotFound));
+        assert_eq!(store.ensure_uid("Bestaat niet"), Err(PennelError::NotFound));
+    }
+
+    #[test]
+    fn invalid_uid_is_ignored_and_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        std::fs::create_dir_all(dir.path().join("M")).unwrap();
+        std::fs::write(
+            dir.path().join("M/meeting.md"),
+            "---\ntitle: M\npennel_id: ../x\n---\n\nBody\n",
+        )
+        .unwrap();
+        assert_eq!(store.uid_of("M"), None);
+        let uid = store.ensure_uid("M").unwrap();
+        let text = std::fs::read_to_string(dir.path().join("M/meeting.md")).unwrap();
+        assert_eq!(
+            text,
+            format!("---\ntitle: M\npennel_id: {uid}\n---\n\nBody\n")
+        );
     }
 
     #[test]
