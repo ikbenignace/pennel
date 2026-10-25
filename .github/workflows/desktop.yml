@@ -140,8 +140,11 @@ jobs:
         env:
           PENNEL_BUILD_TARGET: ${{ matrix.target }}
           PENNEL_BUNDLE_FORMATS: ${{ matrix.bundles }}
-        shell: ${{ runner.os == 'Windows' && 'python' || 'python3 {0}' }}
+        shell: bash
         run: |
+          py=python
+          command -v python3 >/dev/null && py=python3
+          "$py" - <<'PY'
           import importlib.util
           import os
           import shutil
@@ -155,6 +158,7 @@ jobs:
           if not npx:
               raise SystemExit("Node.js/npm is required to build desktop installers")
           release.build_distributable(npx, os.environ["PENNEL_BUILD_TARGET"], os.environ["PENNEL_BUNDLE_FORMATS"], None, os.environ, sys.platform)
+          PY
       - name: Inspect packaged Mac app without opening it
         if: runner.os == 'macOS'
         run: python3 ../../scripts/verify-desktop-bundle.py src-tauri/target/${{ matrix.target }}/release/bundle/macos/Pennel.app --output ../../build/mac-bundle-inspection.json
