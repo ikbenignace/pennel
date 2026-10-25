@@ -46,9 +46,10 @@ jobs:
         if: runner.os != 'Linux'
         with:
           components: clippy
-      # cache-bin: false, or the action's save step deletes cargo and rustc
-      # from the shared $CARGO_HOME/bin while other runners still use them.
+      # Self-hosted runners skip it: their cache archive holds absolute paths of
+      # another runner's directory, and each keeps a warm CARGO_HOME instead.
       - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
         with:
           workspaces: core
           cache-bin: "false"
@@ -125,6 +126,7 @@ jobs:
           components: rustfmt, clippy
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
         with:
           workspaces: apps/desktop/src-tauri
           cache-bin: "false"

@@ -10,6 +10,7 @@
 set -euo pipefail
 
 export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+SHARED_CARGO_HOME="$CARGO_HOME"
 # Same workaround dtolnay/rust-toolchain uses: copy when rename hits
 # "Directory not empty" on a toolchain dir.
 export RUSTUP_PERMIT_COPY_RENAME=1
@@ -22,6 +23,23 @@ if [ -n "${GITHUB_WORKSPACE:-}" ]; then
 fi
 runner_id=$(printf '%s' "$runner_id" | tr -c 'A-Za-z0-9._-' '-')
 export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup/runners/$runner_id}"
+
+if [ "${RUNNER_ENVIRONMENT:-}" = "self-hosted" ]; then
+  # The registry sources in a shared CARGO_HOME are extracted and pruned by
+  # whichever runner finishes first, which removed crate files (and
+  # `rustc` runs) from under a concurrent job. Each runner process gets its
+  # own CARGO_HOME; the rustup binary is only linked in as the proxies.
+  export CARGO_HOME="$HOME/.cargo-runners/$runner_id"
+  mkdir -p "$CARGO_HOME/bin"
+  if [ ! -x "$SHARED_CARGO_HOME/bin/rustup" ]; then
+    mkdir -p "$SHARED_CARGO_HOME/bin"
+    curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs \
+      | CARGO_HOME="$SHARED_CARGO_HOME" sh -s -- --default-toolchain none -y --no-modify-path
+  fi
+  for proxy in rustup cargo rustc rustdoc rustfmt cargo-fmt cargo-clippy clippy-driver rust-gdb rust-lldb cargo-miri; do
+    ln -sf "$SHARED_CARGO_HOME/bin/rustup" "$CARGO_HOME/bin/$proxy"
+  done
+fi
 
 mkdir -p "$CARGO_HOME/bin" "$RUSTUP_HOME"
 # Actions does not source .bashrc, so rustup at ~/.cargo/bin is invisible
