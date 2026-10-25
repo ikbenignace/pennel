@@ -44,3 +44,8 @@ export class LatestRequest {
     }
   }
 }
+
+export async function orFallback<T>(work: () => Promise<T>, fallback: T, report: (error: unknown) => void): Promise<T> {
+  try { return await work(); }
+  catch (error) { report(error); return fallback; }
+}

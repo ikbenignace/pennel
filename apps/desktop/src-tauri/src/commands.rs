@@ -754,18 +754,33 @@ fn is_conflict_copy_name(name: &str) -> bool {
             .is_some_and(|stem| stem.to_string_lossy().contains(" (conflict "))
 }
 
-#[tauri::command]
-pub fn meeting_conflict_files(id: String, shared: State<'_, Arc<Shared>>) -> Result<Vec<String>> {
-    let directory = checked_meeting_dir(&shared.engine, &id)?;
-    let mut names: Vec<String> = std::fs::read_dir(directory)
-        .map_err(err)?
+fn list_conflict_copies(directory: &Path) -> std::io::Result<Vec<String>> {
+    let mut names: Vec<String> = std::fs::read_dir(directory)?
         .filter_map(std::result::Result::ok)
-        .filter(|entry| entry.path().is_file())
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
         .filter_map(|entry| entry.file_name().into_string().ok())
         .filter(|name| is_conflict_copy_name(name))
         .collect();
     names.sort();
     Ok(names)
+}
+
+fn remove_conflict_copy(directory: &Path, name: &str) -> std::result::Result<(), String> {
+    if !is_conflict_copy_name(name) {
+        return Err("Alleen een conflictversie kan hier worden verwijderd.".into());
+    }
+    let file = directory.join(name);
+    let regular = std::fs::symlink_metadata(&file).is_ok_and(|meta| meta.file_type().is_file());
+    if !regular {
+        return Err("Conflictversie niet gevonden.".into());
+    }
+    std::fs::remove_file(file).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn meeting_conflict_files(id: String, shared: State<'_, Arc<Shared>>) -> Result<Vec<String>> {
+    let directory = checked_meeting_dir(&shared.engine, &id)?;
+    list_conflict_copies(&directory).map_err(err)
 }
 
 #[tauri::command]
@@ -775,16 +790,9 @@ pub fn delete_conflict_copy(
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
-    if !is_conflict_copy_name(&name) {
-        return Err("Alleen een conflictversie kan hier worden verwijderd.".into());
-    }
     let directory = checked_meeting_dir(&shared.engine, &id)?;
     require_inactive_meeting(&shared, &id)?;
-    let file = directory.join(&name).canonicalize().map_err(err)?;
-    if file.parent() != Some(directory.as_path()) || !file.is_file() {
-        return Err("Conflictversie niet gevonden.".into());
-    }
-    std::fs::remove_file(file).map_err(err)?;
+    remove_conflict_copy(&directory, &name)?;
     crate::cloud::poke(&app);
     Ok(())
 }
@@ -1020,6 +1028,28 @@ mod tests {
         ] {
             assert!(!is_conflict_copy_name(name), "{name}");
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_named_like_a_conflict_copy_is_neither_listed_nor_deleted() {
+        let dir = std::env::temp_dir().join(format!("pennel-conflict-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("notes.md"), "mine").unwrap();
+        std::os::unix::fs::symlink(dir.join("notes.md"), dir.join("x (conflict a).md")).unwrap();
+        std::fs::write(dir.join("y (conflict b).md"), "copy").unwrap();
+
+        assert_eq!(list_conflict_copies(&dir).unwrap(), ["y (conflict b).md"]);
+        assert!(remove_conflict_copy(&dir, "x (conflict a).md").is_err());
+        assert_eq!(
+            std::fs::read_to_string(dir.join("notes.md")).unwrap(),
+            "mine"
+        );
+        remove_conflict_copy(&dir, "y (conflict b).md").unwrap();
+        assert!(!dir.join("y (conflict b).md").exists());
+        assert!(remove_conflict_copy(&dir, "notes.md").is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

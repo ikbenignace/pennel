@@ -144,3 +144,12 @@ test("successful independent persistence waits for every task", async () => {
   await persistAll([async () => { saved.push("notes"); }, async () => { saved.push("title"); }]);
   assert.deepEqual(saved.sort(), ["notes", "title"]);
 });
+
+test("orFallback reports a failure once and returns the fallback", async () => {
+  const { orFallback } = await import("../src/async.ts");
+  const reported = [];
+  assert.deepEqual(await orFallback(async () => { throw new Error("read_dir"); }, [], (error) => reported.push(error.message)), []);
+  assert.deepEqual(reported, ["read_dir"]);
+  assert.deepEqual(await orFallback(async () => ["a"], [], () => reported.push("no")), ["a"]);
+  assert.equal(reported.length, 1);
+});

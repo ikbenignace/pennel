@@ -1,5 +1,5 @@
 import { api, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type Passage, type Segment } from "../api";
-import { LatestRequest, SerialQueue, persistAll } from "../async";
+import { LatestRequest, SerialQueue, orFallback, persistAll } from "../async";
 import { askText, confirmDialog, errorText, formatClock, h, markdown, select, snippet } from "../dom";
 import { MeetingDraft } from "../meeting-draft";
 import { badgeFor, resolveOpenMeeting, type SyncItemState } from "../sync-badge";
@@ -381,7 +381,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   });
   const footer = h("footer", { class: "meeting-footer row" }, selected, regenerate, retry, h("span", { class: "grow" }), copied, diarize, share,
     h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? "Toon in Finder" : "Open map"));
-  const conflicts = ctx.info.settings.cloud_sync === true ? await api.meetingConflictFiles(id) : [];
+  const conflicts = ctx.info.settings.cloud_sync === true ? await orFallback(() => api.meetingConflictFiles(id), [], ctx.report) : [];
   const banners = conflicts.map((name) => h("div", { class: "conflict-banner row", role: "status" },
     h("span", { class: "grow" }, "Er is een conflictversie van dit bestand."),
     h("button", { class: "btn", onclick: () => { void api.openPath(detail.dir).catch(ctx.report); } }, "Bekijken"),
