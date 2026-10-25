@@ -275,7 +275,8 @@ pub fn prepare(data_dir: &Path, home: &Path) -> Result<(), MigrationError> {
         file.try_lock().map_err(|_| MigrationError::Busy)?;
         canonical_lock = Some(file);
         let previous = parent.join(format!(".Pennel-before-musli-{}", nonce()));
-        // Windows refuses to rename a directory that contains an open file handle.
+        // Windows refuses to rename a directory that contains an open file handle. The lease was
+        // free just now; a process that opens it after this release makes the rename fail instead.
         #[cfg(windows)]
         drop(canonical_lock.take());
         fs::rename(data_dir, &previous)?;
@@ -403,7 +404,6 @@ mod tests {
         assert!(source.join("history.sqlite").exists());
     }
 
-    #[cfg(not(windows))]
     #[test]
     fn preexisting_logs_are_preserved_in_a_backup_directory() {
         let root = tempfile::tempdir().unwrap();
@@ -429,19 +429,24 @@ mod tests {
         assert!(destination.join("settings.json").exists());
     }
 
-    #[cfg(windows)]
     #[test]
-    fn open_canonical_lease_prevents_windows_promotion_without_changing_originals() {
+    fn open_canonical_lease_prevents_promotion_without_changing_originals() {
         let root = tempfile::tempdir().unwrap();
         let (source, destination, home) = legacy(root.path());
         fs::create_dir_all(destination.join("logs")).unwrap();
         fs::write(destination.join("logs/pennel.log"), b"existing log").unwrap();
+        let foreign = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(destination.join(".pennel.lock"))
+            .unwrap();
+        foreign.try_lock().unwrap();
 
-        // Migration ships on Mac. Windows refuses to rename a directory containing the held lease;
-        // the shared tests must verify safe refusal without weakening that lease for promotion.
         assert!(matches!(
             prepare(&destination, &home),
-            Err(MigrationError::Io(error)) if error.kind() == std::io::ErrorKind::PermissionDenied
+            Err(MigrationError::Busy)
         ));
         assert_eq!(
             fs::read(destination.join("logs/pennel.log")).unwrap(),
@@ -464,6 +469,7 @@ mod tests {
         validate_marker(&state, &source, &destination, &home).unwrap();
         assert!(staging.join(MARKER).exists());
         assert!(!destination.join(MARKER).exists());
+        drop(foreign);
         let lease = OpenOptions::new()
             .read(true)
             .write(true)
