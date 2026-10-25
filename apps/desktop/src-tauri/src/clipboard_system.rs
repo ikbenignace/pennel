@@ -73,7 +73,11 @@ mod portable {
             };
         }
 
-        fn try_set_transient_text(&mut self, text: &str) -> Result<(), String> {
+        fn try_set_transient_text(
+            &mut self,
+            text: &str,
+            _require_exclusion: bool,
+        ) -> Result<(), String> {
             #[cfg(target_os = "macos")]
             use arboard::SetExtApple;
             #[cfg(target_os = "linux")]
@@ -223,7 +227,11 @@ mod win {
             }
         }
 
-        fn try_set_transient_text(&mut self, text: &str) -> Result<(), String> {
+        fn try_set_transient_text(
+            &mut self,
+            text: &str,
+            require_exclusion: bool,
+        ) -> Result<(), String> {
             let Some(_open) = Open::new() else {
                 return Err("klembord is in gebruik".into());
             };
@@ -233,19 +241,25 @@ mod win {
                 .chain(std::iter::once(0))
                 .flat_map(u16::to_le_bytes)
                 .collect();
-            let written = unsafe {
+            if !unsafe { write_global(CF_UNICODETEXT, &wide) } {
+                let _ = unsafe { EmptyClipboard() };
+                return Err("klembord schrijven mislukt".into());
+            }
+            let excluded = unsafe {
                 let exclude =
                     RegisterClipboardFormatW(w!("ExcludeClipboardContentFromMonitorProcessing"));
-                write_global(CF_UNICODETEXT, &wide)
-                    && write_global(exclude, &[0])
-                    && [
-                        w!("CanIncludeInClipboardHistory"),
-                        w!("CanUploadToCloudClipboard"),
-                    ]
-                    .into_iter()
-                    .all(|name| write_global(RegisterClipboardFormatW(name), &0u32.to_le_bytes()))
+                let exclusion = write_global(exclude, &[0]);
+                let history = write_global(
+                    RegisterClipboardFormatW(w!("CanIncludeInClipboardHistory")),
+                    &0u32.to_le_bytes(),
+                );
+                let cloud = write_global(
+                    RegisterClipboardFormatW(w!("CanUploadToCloudClipboard")),
+                    &0u32.to_le_bytes(),
+                );
+                exclusion && history && cloud
             };
-            if written {
+            if excluded || !require_exclusion {
                 Ok(())
             } else {
                 let _ = unsafe { EmptyClipboard() };

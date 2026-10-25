@@ -17,9 +17,12 @@ pub trait Clipboard {
     fn snapshot(&mut self) -> Self::Snapshot;
     fn restore(&mut self, snapshot: &Self::Snapshot);
     /// Writes text marked so clipboard managers and Windows clipboard history skip it.
-    fn try_set_transient_text(&mut self, text: &str) -> Result<(), String>;
+    /// With `require_exclusion` the write fails (and leaves nothing behind) when the marking cannot
+    /// be applied; without it the text always lands and the marking is best effort.
+    fn try_set_transient_text(&mut self, text: &str, require_exclusion: bool)
+    -> Result<(), String>;
     fn set_transient_text(&mut self, text: &str) {
-        let _ = self.try_set_transient_text(text);
+        let _ = self.try_set_transient_text(text, false);
     }
     fn text(&mut self) -> Option<String>;
 }
@@ -28,7 +31,7 @@ pub trait Clipboard {
 #[cfg(any(windows, test))]
 pub fn copy_secret<C: Clipboard>(clipboard: &mut C, text: &str) -> Result<(), String> {
     clipboard
-        .try_set_transient_text(text)
+        .try_set_transient_text(text, true)
         .map_err(|_| COPY_FAILED.to_owned())
 }
 
@@ -130,6 +133,7 @@ mod tests {
         writes: u64,
         transient_writes: u64,
         fail_writes: bool,
+        required_exclusion: Vec<bool>,
         pending_copy: Rc<RefCell<Option<String>>>,
     }
 
@@ -160,8 +164,13 @@ mod tests {
             self.writes += 1;
         }
 
-        fn try_set_transient_text(&mut self, text: &str) -> Result<(), String> {
+        fn try_set_transient_text(
+            &mut self,
+            text: &str,
+            require_exclusion: bool,
+        ) -> Result<(), String> {
             self.transient_writes += 1;
+            self.required_exclusion.push(require_exclusion);
             if self.fail_writes {
                 return Err("boom".into());
             }
@@ -179,6 +188,14 @@ mod tests {
         let pending = c.pending_copy.clone();
         let selection = selection.to_owned();
         move || *pending.borrow_mut() = Some(selection)
+    }
+
+    #[test]
+    fn dictation_keeps_its_text_when_exclusion_is_best_effort_and_secrets_demand_it() {
+        let mut c = FakeClipboard::default();
+        begin(&mut c, "dictated");
+        assert_eq!(copy_secret(&mut c, "ABCD-EFGH"), Ok(()));
+        assert_eq!(c.required_exclusion, vec![false, true]);
     }
 
     #[test]
