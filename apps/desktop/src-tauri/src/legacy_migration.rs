@@ -275,6 +275,9 @@ pub fn prepare(data_dir: &Path, home: &Path) -> Result<(), MigrationError> {
         file.try_lock().map_err(|_| MigrationError::Busy)?;
         canonical_lock = Some(file);
         let previous = parent.join(format!(".Pennel-before-musli-{}", nonce()));
+        // Windows refuses to rename a directory that contains an open file handle.
+        #[cfg(windows)]
+        drop(canonical_lock.take());
         fs::rename(data_dir, &previous)?;
         backup = Some(previous);
     }
