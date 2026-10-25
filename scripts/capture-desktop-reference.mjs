@@ -32,6 +32,8 @@ const selected = options.cases.length ? cases.filter(item => options.cases.inclu
 if (!selected.length || options.cases.some(name => !cases.some(item => item.name === name))) throw new Error("Unknown or empty visual case selection");
 const appearances = options.appearance === "both" ? ["light", "dark"] : [options.appearance];
 const meetingId = "2026-10-24 0900 Projectoverleg";
+// Default sizes of the shared app's windows (apps/desktop/src-tauri/src/workspace.rs).
+const windowSizes = { workspace: [980, 640], settings: [760, 600], history: [560, 560], dictation: [640, 560], onboarding: [640, 660] };
 const urlFor = (base, item, appearance) => {
   const url = new URL(item.window === "pill" ? "/pill.html" : "/index.html", base);
   for (const [key, value] of Object.entries({ qa: item.name, theme: appearance, window: item.window, section: item.section, tab: item.tab, meeting_id: item.meeting_tab ? meetingId : undefined, meeting_tab: item.meeting_tab })) if (value) url.searchParams.set(key, value);
@@ -129,8 +131,7 @@ if (options.serve) {
       for (const item of selected) {
         currentCase = `${appearance}/${item.name}`;
         connection.events.length = 0;
-        const width = item.window === "pill" ? pillMetrics["window-width"] : item.window === "onboarding" ? 850 : 1040;
-        const height = item.window === "pill" ? pillMetrics["window-height"] : item.window === "onboarding" ? 690 : 740;
+        const [width, height] = item.window === "pill" ? [pillMetrics["window-width"], pillMetrics["window-height"]] : windowSizes[item.window];
         await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
         await send("Emulation.setDefaultBackgroundColorOverride", item.window === "pill" ? { color: { r: 0, g: 0, b: 0, a: 0 } } : {});
         const url = urlFor(base, item, appearance);

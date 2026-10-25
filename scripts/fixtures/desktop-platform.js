@@ -23,6 +23,12 @@
   const notes = "- Planning afronden\n- Volgende afspraak bevestigen";
   const summary = "## Besluiten\n- De planning wordt maandag afgerond.\n\n## Actiepunten\n- [ ] Volgende afspraak bevestigen.";
   const meeting = { id: meetingId, title: "Projectoverleg", start_iso: "2026-10-24T09:00:00+02:00", duration_min: 25, has_summary: true };
+  const library = [
+    { id: "2026-10-25 0830 Weekstart", title: "Weekstart", start_iso: "2026-10-25T08:30:00+01:00", duration_min: 18, has_summary: true },
+    meeting,
+    { id: "2026-10-14 1400 Klantgesprek Studio Noord", title: "Klantgesprek Studio Noord", start_iso: "2026-10-14T14:00:00+02:00", duration_min: 42, has_summary: true },
+  ];
+  const meetingInfo = id => library.find(item => item.id === id) || meeting;
   const transcript = [
     { start_ms: 0, end_ms: 8000, speaker: "others", text: "We ronden de planning maandag af.", failed: false, voice: 1 },
     { start_ms: 8000, end_ms: 14000, speaker: "me", text: "Ik bevestig de volgende afspraak.", failed: false, voice: null },
@@ -56,7 +62,7 @@
   let settings = {
     providers, dictation_stt: { provider_id: selectedProvider, model }, meeting_stt: { provider_id: "local", model: "whisper-large-v3-turbo" },
     llm: { provider_id: "groq", model: "llama-3.3-70b-versatile" }, mode: "fast", language: "nl", dictionary: ["Pennel", "Studio Noord"],
-    style_rules: [{ bundle_id: "com.apple.mail", style: "formal" }], history_retention_days: 30, hotkey: "fn", local_unload_minutes: 5,
+    style_rules: [{ bundle_id: "com.tinyspeck.slackmacgap", style: "casual" }, { bundle_id: "com.apple.MobileSMS", style: "casual" }, { bundle_id: "com.apple.mail", style: "formal" }, { bundle_id: "com.microsoft.Word", style: "formal" }, { bundle_id: "com.apple.Terminal", style: "literal" }, { bundle_id: "com.microsoft.VSCode", style: "literal" }], history_retention_days: 30, hotkey: "fn", local_unload_minutes: 5,
     meetings_dir: "/QA/Pennel Preview/Meetings", default_template: "algemeen", meeting_audio_retention_days: 30,
     app_rules: [], calendar_rules: [], event_rules: [], calendar_enabled: false, echo_cancellation: true,
     record_shortcut_enabled: true, consent_enabled: false, auto_detect: true, diarization: false,
@@ -99,6 +105,8 @@
   const history = [
     { id: "qa-dictation-2", created_at_ms: now - 15 * 60_000, app_bundle_id: "dev.pennel.Pennel.preview", raw: sentence, text: sentence, status: "done", error: null, has_audio: false },
     { id: "qa-dictation-1", created_at_ms: now - 60 * 60_000, app_bundle_id: "com.apple.mail", raw: "ik werk het voorstel bij en stuur het morgen door", text: "Ik werk het voorstel bij en stuur het morgen door.", status: "done", error: null, has_audio: false },
+    { id: "qa-dictation-0", created_at_ms: now - 26 * 60 * 60_000, app_bundle_id: "com.tinyspeck.slackmacgap", raw: "kan iemand de notities van gisteren delen", text: "Kan iemand de notities van gisteren delen?", status: "done", error: null, has_audio: false },
+    { id: "qa-dictation-failed", created_at_ms: now - 27 * 60 * 60_000, app_bundle_id: "com.apple.Notes", raw: "", text: "", status: "failed", error: "Geen verbinding met de provider.", has_audio: true },
   ];
   // `cloud` is unset (signed out), "synced" or "conflict"; all accounts, devices and codes are synthetic.
   const signedIn = Boolean(options.cloud);
@@ -185,9 +193,9 @@
       case "detect_cli_agents": return [];
       case "check_cli_agent": return "Niet uitgevoerd in deze fixture.";
       case "meeting_status": return { recording: options.section === "recording", phase: options.section === "recording" ? "recording" : "idle", busy: options.section === "recording", error: null, notes, session_id: options.section === "recording" ? "qa-recording" : null, id: options.section === "recording" ? meetingId : null, title: "Projectoverleg", elapsed_secs: 754, system_audio: true, heard_system_audio: true, audio_warning: null, pending: 0, transcript: options.section === "recording" ? clone(transcript) : [] };
-      case "meetings": return options.empty ? [] : [clone(meeting)];
-      case "meeting_detail": return { info: clone(meeting), notes, summary, transcript: clone(transcript), speakers: [{ voice: 1, name: "Noor" }], dir: `/QA/Pennel Preview/Meetings/${meetingId}`, attendees: ["Noor", "Sam"], audio_tracks: [{ speaker: "me", available: false }, { speaker: "others", available: false }] };
-      case "search_library": return { meetings: options.empty ? [] : [clone(meeting)], passages: [] };
+      case "meetings": return options.empty ? [] : clone(library);
+      case "meeting_detail": return { info: clone(meetingInfo(args.id)), notes, summary, transcript: clone(transcript), speakers: [{ voice: 1, name: "Noor" }], dir: `/QA/Pennel Preview/Meetings/${meetingId}`, attendees: ["Noor", "Sam"], audio_tracks: [{ speaker: "me", available: false }, { speaker: "others", available: false }] };
+      case "search_library": return { meetings: options.empty ? [] : clone(library), passages: [] };
       case "ask_meetings": return { text: "De planning wordt maandag afgerond. Jij bevestigt de volgende afspraak.", citations: [{ number: 1, passage: { meeting_id: meetingId, title: "Projectoverleg", start_iso: meeting.start_iso, kind: "transcript", start_ms: 0, text: transcript[0].text, snippet: transcript[0].text } }] };
       case "meeting_templates": return [["algemeen", "Algemeen"], ["een-op-een", "1-op-1"], ["klantgesprek", "Klantgesprek"], ["standup", "Standup"]].map(([id, name]) => ({ id, name, builtin: true, customized: false }));
       case "template_source": return "## Samenvatting\n## Beslissingen\n## Actiepunten";

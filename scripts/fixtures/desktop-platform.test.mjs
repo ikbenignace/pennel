@@ -18,7 +18,7 @@ test("every visual scenario has a unique stable identifier and valid entry", () 
   assert.equal(new Set(cases.map(item => item.name)).size, cases.length);
   for (const item of cases) {
     assert.match(item.name, /^[a-z][a-z0-9-]+$/);
-    assert.ok(["workspace", "onboarding", "pill"].includes(item.window));
+    assert.ok(["workspace", "settings", "history", "dictation", "onboarding", "pill"].includes(item.window));
     if (item.window === "pill") assert.ok(["listening", "working"].includes(item.pill_state));
     else assert.ok(item.section || item.step);
   }

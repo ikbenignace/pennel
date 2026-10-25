@@ -21,7 +21,7 @@ body {
   align-items: stretch;
   gap: var(--space-2);
   max-width: 100%;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
   box-sizing: border-box;
   border-radius: var(--radius-pill);
   background: var(--pill-background);
@@ -43,7 +43,7 @@ body {
 #status {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
 }
 
 #label {

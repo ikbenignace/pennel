@@ -2,6 +2,7 @@ import { api, listen, type Capability, type MeetingTemplate, type RecordAction }
 import { confirmDialog, errorText, h, section, select, toggle } from "../dom";
 import type { Context } from "../main";
 import { icon } from "../icons";
+import { appBadge } from "../app-icon";
 
 const actions: [RecordAction, string][] = [["ask", "Vragen"], ["always", "Altijd"], ["never", "Nooit"]];
 const apps: [string, string][] = [
@@ -152,7 +153,7 @@ export async function recordingSettingsView(ctx: Context): Promise<HTMLElement> 
       toggle("Toestemmingszin kopiëren bij de start van een opname", settings.consent_enabled,
         (value) => ctx.save((next) => { next.consent_enabled = value; }))),
     section("Per app", null,
-      [...appIds].map(([id, name]) => h("div", { class: "row rule-row" }, icon("laptop"), h("span", { class: "grow" }, name),
+      [...appIds].map(([id, name]) => h("div", { class: "row rule-row" }, appBadge(id).icon, h("span", { class: "grow" }, name),
         select(actions, settings.app_rules.find((rule) => rule.bundle_id === id)?.action ?? "ask", (action) => ctx.save((next) => {
           next.app_rules = next.app_rules.filter((rule) => rule.bundle_id !== id);
           if (action !== "ask") next.app_rules.push({ bundle_id: id, action });
