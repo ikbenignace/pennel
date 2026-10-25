@@ -1,9 +1,10 @@
 import { api, listen, type LocalModel } from "../api";
-import { confirmDialog, errorText, field, h, section, select } from "../dom";
+import { confirmDialog, errorCode, errorText, field, h, section, select } from "../dom";
 import type { Context } from "../main";
 
 const progress = new Map<string, { downloaded: number; total: number }>();
 const failures = new Map<string, string>();
+const attached = new Set<string>();
 let language: string | null = null;
 let languageInitialized = false;
 let supportedOnly = true;
@@ -14,16 +15,20 @@ async function listenOnce() {
   if (listening) return;
   listening = true;
   await listen<{ id: string; downloaded: number; total: number }>("download-progress", (e) => {
+    const appeared = !progress.has(e.payload.id);
     progress.set(e.payload.id, e.payload);
     const bar = document.querySelector<HTMLProgressElement>(`progress[data-model="${CSS.escape(e.payload.id)}"]`);
     if (bar) {
       bar.max = e.payload.total;
       bar.value = e.payload.downloaded;
     }
+    if (appeared) refresh?.();
   });
   await listen<{ id: string; error: string | null }>("download-done", (e) => {
     progress.delete(e.payload.id);
-    if (e.payload.error && e.payload.error !== "cancelled") failures.set(e.payload.id, e.payload.error);
+    attached.delete(e.payload.id);
+    if (e.payload.error && !e.payload.error.toLowerCase().includes("cancel")) failures.set(e.payload.id, e.payload.error);
+    else failures.delete(e.payload.id);
     refresh?.();
   });
 }
@@ -44,6 +49,21 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
   if (!languageInitialized) { language = ctx.info.settings.language ?? "nl"; languageInitialized = true; }
   await listenOnce();
   const models = await api.localModels(language, supportedOnly);
+  for (const id of ctx.info.active_model_downloads ?? []) {
+    if (attached.has(id)) continue;
+    attached.add(id);
+    const model = models.find((candidate) => candidate.id === id);
+    progress.set(id, { downloaded: model?.state.kind === "partial" ? model.state.bytes : 0, total: model?.size_bytes ?? 0 });
+    void api.joinModelDownload(id).then(async (joined) => {
+      if (joined) return;
+      attached.delete(id); progress.delete(id);
+      if (ctx.visible) await ctx.refresh();
+    }).catch((error) => {
+      attached.delete(id); progress.delete(id);
+      if (errorCode(error) !== "cancelled" && errorText(error).toLowerCase() !== "cancelled") failures.set(id, errorText(error));
+      ctx.rerender();
+    });
+  }
   const inUse = new Set(
     [ctx.info.settings.dictation_stt, ctx.info.settings.meeting_stt]
       .filter((c) => ctx.info.settings.providers.find((p) => p.id === c.provider_id)?.kind === "local")
@@ -149,6 +169,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     section(
       "Modellen",
       "Draaien volledig op je computer. Je audio verlaat je computer niet.",
+      h("p", { class: "help" }, "Opkuisen, samenvatten en vragen gebruiken het taalmodel dat je bij Modellen kiest. Dat kan een server zijn."),
       h("div", { class: "row model-filters" }, h("div", { class: "model-language" }, h("span", { "aria-hidden": "true" }, "Nauwkeurigheid voor"), languagePicker), h("label", { class: "row" }, onlyThis, "Alleen deze taal")),
       h("p", { class: "help model-benchmark-note" }, "Scores uit onafhankelijke benchmarks: snelheid op Apple Silicon, nauwkeurigheid in de gekozen taal (hoger is beter)."),
       models.filter((model) => model.recommended || model.state.kind === "downloaded").map(card),

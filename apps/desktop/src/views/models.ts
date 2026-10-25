@@ -1,21 +1,12 @@
 import { api, type ModelChoice, type RemoteModel, type Settings } from "../api";
-import { field, h, section, select } from "../dom";
+import { errorText, field, h, section, select } from "../dom";
 import type { Context } from "../main";
+import { processingSummary, providerDestination } from "../processing-state";
+import { ModelCatalogCache, providerFingerprint, providerVerification, taskFingerprint, type ProviderSlot } from "../provider-verification";
 
-type Slot = "dictation_stt" | "llm" | "meeting_stt";
+type Slot = ProviderSlot;
 
-const remoteCache = new Map<string, RemoteModel[]>();
-
-async function remoteModels(providerId: string): Promise<RemoteModel[]> {
-  if (!remoteCache.has(providerId)) {
-    try {
-      remoteCache.set(providerId, await api.providerModels(providerId));
-    } catch {
-      remoteCache.set(providerId, []);
-    }
-  }
-  return remoteCache.get(providerId)!;
-}
+const remoteCache = new ModelCatalogCache<RemoteModel>();
 
 export async function modelsView(ctx: Context): Promise<HTMLElement> {
   return h(
@@ -60,11 +51,24 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
   }
 
   let model: HTMLElement;
+  let repair = "Kies een provider.";
+  let repairTarget = "providers";
+  let catalogError: string | null = null;
   let ready = accountKind?.availability.status === "available" && (!accountKind.requires_key || !!ctx.info.keys[choice.provider_id]);
-  if (accountKind?.is_cli_agent) ready = ready && !!account?.base_url;
+  if (account) {
+    repair = accountKind?.availability.status !== "available" ? accountKind?.availability.reason ?? "Deze provider is niet beschikbaar."
+      : accountKind.requires_key && !ctx.info.keys[account.id] ? `Voeg de API-sleutel toe bij Providers → ${account.name}.`
+      : "Kies een model.";
+  }
+  if (accountKind?.is_cli_agent) {
+    ready = ready && !!account?.base_url;
+    if (!account?.base_url) repair = "Kies het CLI-programma bij Providers.";
+  } else ready = ready && !!choice.model.trim();
   if (account?.kind === "local") {
     const downloaded = (await api.localModels(null, false)).filter((m) => m.state.kind === "downloaded");
-    ready = downloaded.some((item) => item.id === choice.model);
+    const downloadedChoice = downloaded.some((item) => item.id === choice.model);
+    ready = ready && downloadedChoice;
+    if (!downloadedChoice) { repair = "Download eerst het gekozen spraakmodel."; repairTarget = "local"; }
     model = downloaded.length
       ? select(
           downloaded.map((m) => [m.id, m.name] as [string, string]),
@@ -79,8 +83,11 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
     model = h("span", { class: "help" }, "macOS beheert het ingebouwde taalmodel van Apple Intelligence.");
   } else {
     const listId = `models-${key}`;
-    const known = account && !accountKind?.is_cli_agent && (!accountKind?.requires_key || ctx.info.keys[account.id])
-      ? await remoteModels(account.id) : [];
+    let known: RemoteModel[] = [];
+    if (account && !accountKind?.is_cli_agent && (!accountKind?.requires_key || ctx.info.keys[account.id])) {
+      try { known = await remoteCache.get(account.id, providerFingerprint(ctx.info, account), () => api.providerModels(account.id)); }
+      catch (error) { catalogError = `Modellenlijst niet beschikbaar: ${errorText(error)}`; }
+    }
     const input = h("input", {
       type: "text",
       value: choice.model,
@@ -99,8 +106,38 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
       ),
     );
   }
-  return section(title, subtitle, field("Provider", h("div", { class: "row" }, provider,
-    h("span", { class: `status-dot${ready ? " ready" : ""}`, "aria-label": ready ? "In orde" : "Nog instellen" }))), field("Model", model),
-    accountKind?.availability.status !== "available" && accountKind?.availability.reason
-      ? h("p", { class: "help" }, accountKind.availability.reason) : null);
+  const configured = ready;
+  const readiness = h("span", { class: "help", role: "status" });
+  const outcome = h("p", { class: "help", role: "status" });
+  let testing = false;
+  let disposed = false;
+  ctx.onDispose(() => { disposed = true; });
+  const test = h("button", { class: "btn", disabled: !configured, onclick: async () => {
+    if (testing) return;
+    const fingerprint = taskFingerprint(ctx.info, key);
+    testing = true; draw();
+    try {
+      const result = await api.testProviderTask(key);
+      if (!disposed && taskFingerprint(ctx.info, key) === fingerprint) providerVerification.set(key, fingerprint, result);
+    } catch (error) {
+      if (!disposed && taskFingerprint(ctx.info, key) === fingerprint) providerVerification.set(key, fingerprint, { verified: false, message: errorText(error) });
+    } finally { testing = false; if (!disposed) draw(); }
+  } }, llm ? "Test tekstverwerking" : "Test spraakherkenning");
+  const draw = () => {
+    const result = providerVerification.get(key, taskFingerprint(ctx.info, key));
+    readiness.textContent = !configured ? "Nog instellen" : result?.verified ? "Test geslaagd" : "Ingesteld";
+    test.disabled = testing || !configured;
+    test.textContent = testing ? "Testen…" : llm ? "Test tekstverwerking" : "Test spraakherkenning";
+    outcome.textContent = testing ? "Voorbeeld verwerken…" : result?.message ?? "";
+    outcome.className = result && !result.verified ? "error" : "help";
+  };
+  draw();
+  const flow = key === "llm" ? `Tekst → ${providerDestination(account)}.`
+    : processingSummary(settings, key === "meeting_stt" ? "meeting" : "dictation").map((stage) => `${stage.label} → ${stage.destination}.`).join(" ");
+  return section(title, subtitle, field("Provider", h("div", { class: "row" }, provider, readiness)), field("Model", model),
+    h("p", { class: "help" }, flow),
+    !configured ? h("p", { class: "help" }, repair, " ", h("button", { class: "text-button", onclick: () => ctx.navigate(repairTarget) }, repairTarget === "local" ? "Lokale modellen openen" : "Providers openen")) : null,
+    catalogError ? h("div", { class: "row" }, h("p", { class: "help" }, catalogError), h("button", { class: "text-button", onclick: () => { if (account) remoteCache.invalidate(account.id); ctx.rerender(); } }, "Opnieuw laden")) : null,
+    h("p", { class: "help" }, `De test verwerkt alleen een voorbeeld met ${providerDestination(account)}. Er wordt geen eigen dictaat of meeting gebruikt.`),
+    h("div", { class: "row" }, test), outcome);
 }

@@ -1,5 +1,5 @@
 import { api, fixtureClient, listen, type DictationSessionSnapshot, type KindInfo, type LocalModel, type OnboardingStep, type PermissionInfo, type ProviderAccount, type ProviderKind, type SetupReadiness } from "../api";
-import { errorText, formatBytes, h, select } from "../dom";
+import { errorCode, errorText, formatBytes, h, select } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
 import { icon } from "../icons";
 import { manualPracticeAllowed, onboardingProgressChange, onboardingSteps, stepIndex } from "../onboarding-state";
@@ -48,6 +48,7 @@ class OnboardingWizard {
   private permissions: PermissionInfo[] = [];
   private readiness: SetupReadiness | null = null;
   private downloading = false;
+  private readonly attachedDownloads = new Set<string>();
   private downloadProgress = { downloaded: 0, total: 0 };
   private downloadError: string | null = null;
   private actionBusy = false;
@@ -121,10 +122,11 @@ class OnboardingWizard {
       this.downloading = true; this.downloadProgress = event.payload; this.updateDownload(); this.updateCommon();
     }));
     this.cleanup.push(await listen<{ id: string; error: string | null }>("download-done", (event) => {
+      this.attachedDownloads.delete(event.payload.id);
       if (event.payload.id !== this.localModelId || this.disposed) return;
       this.downloading = false;
       this.downloadError = event.payload.error && !event.payload.error.toLowerCase().includes("cancel") ? event.payload.error : null;
-      void this.loadModels().then(() => { if (this.index === 1 && this.engine === "local") this.renderEngineDetail(); this.updateCommon(); }).catch(this.fail);
+      void this.ctx.refresh().then(() => this.loadModels()).then(() => { if (this.index === 1 && this.engine === "local") this.renderEngineDetail(); this.updateCommon(); }).catch(this.fail);
     }));
     const route = (event: Event) => {
       const step = (event as CustomEvent<unknown>).detail;
@@ -220,6 +222,30 @@ class OnboardingWizard {
     if (this.disposed || generation !== this.modelsGeneration) return;
     this.models = models;
     if (!models.some((model) => model.id === this.localModelId)) this.localModelId = models.find((model) => model.recommended)?.id ?? models[0]?.id ?? this.localModelId;
+    await this.attachDownload();
+  }
+
+  private async attachDownload() {
+    const id = this.localModelId;
+    if (!this.ctx.info.active_model_downloads?.includes(id) || this.attachedDownloads.has(id)) return;
+    this.attachedDownloads.add(id);
+    const model = this.localModel();
+    this.downloading = true;
+    this.downloadProgress = { downloaded: model?.state.kind === "partial" ? model.state.bytes : 0, total: model?.size_bytes ?? 0 };
+    void api.joinModelDownload(id).then(async (joined) => {
+      if (this.disposed || joined) return;
+      this.attachedDownloads.delete(id);
+      if (id === this.localModelId) this.downloading = false;
+      await this.ctx.refresh();
+      await this.loadModels();
+      if (this.index === 1 && this.engine === "local") this.renderEngineDetail();
+      this.updateCommon();
+    }).catch((error) => {
+      this.attachedDownloads.delete(id);
+      if (id === this.localModelId) this.downloading = false;
+      if (errorCode(error) === "cancelled" || errorText(error).toLowerCase() === "cancelled") { this.updateCommon(); return; }
+      this.fail(error);
+    });
   }
 
   private localModel(): LocalModel | undefined { return this.models.find((model) => model.id === this.localModelId); }
@@ -255,7 +281,6 @@ class OnboardingWizard {
   }
 
   private async chooseEngine(engine: Engine) {
-    if (this.downloading && engine !== "local") { await api.cancelDownload(this.localModelId); this.downloading = false; }
     this.engine = engine; this.message.hidden = true; this.renderEngineDetail(); this.updateCommon();
   }
 
@@ -273,6 +298,7 @@ class OnboardingWizard {
         void api.cancelDownload(this.localModelId).then(() => { this.downloading = false; this.updateDownload(); this.updateCommon(); }).catch(this.fail);
       } }, "Annuleer"));
       this.engineDetail.replaceChildren(h("h2", {}, "Je audio blijft op je apparaat."), h("p", { class: "engine-description" }, "Pennel zet je spraak zelf om naar tekst. Daarvoor download je eenmalig een spraakmodel."),
+        h("p", { class: "help" }, "De eerste oefening gebruikt alleen spraakherkenning. Opkuisen kies je later bij Modellen; daarvoor kan een andere provider worden gebruikt."),
         h("div", { class: "engine-model" }, icon("download"), name, status), track, caption,
         ...(this.downloadError ? [h("div", { class: "engine-error", role: "alert" }, h("p", {}, this.downloadError),
           h("button", { class: "text-button", disabled: apple?.availability.status === "unsupported", onclick: () => { void this.chooseEngine("apple"); } }, "Gebruik Apple-dicteren"))] : []));
@@ -280,6 +306,7 @@ class OnboardingWizard {
     } else if (this.engine === "apple") {
       this.engineDetail.replaceChildren(h("h2", {}, "Met de spraakherkenning van macOS."),
         h("p", { class: "engine-description" }, "Laat Apple je spraak omzetten naar tekst. macOS beheert de benodigde taalmodellen."),
+        h("p", { class: "help" }, "De eerste oefening gebruikt alleen spraakherkenning. Opkuisen kies je later bij Modellen; daarvoor kan een andere provider worden gebruikt."),
         h("div", { class: "engine-model" }, icon("audioLines"), h("div", {}, h("strong", {}, "Apple-dicteren"), h("small", {}, "Beschikbaar vanaf macOS 26"))),
         ...(apple?.availability.reason ? [h("p", { class: "help" }, apple.availability.reason)] : []));
     } else this.renderProvider();
@@ -307,7 +334,7 @@ class OnboardingWizard {
       const optionKind = option.value.startsWith("new:") ? this.customKinds().find((item) => item.kind === option.value.slice(4)) : this.customKinds().find((item) => item.kind === this.customAccounts().find((item) => item.id === option.value)?.kind);
       option.disabled = optionKind?.availability.status === "unsupported";
     }
-    this.engineDetail.replaceChildren(h("h2", {}, "Gebruik de provider die je al kent."), h("p", { class: "engine-description" }, "Je audio wordt naar je gekozen provider gestuurd."),
+    this.engineDetail.replaceChildren(h("h2", {}, "Gebruik de provider die je al kent."), h("p", { class: "engine-description" }, "Je audio wordt naar je gekozen provider gestuurd. De eerste oefening gebruikt geen opkuisbeurt."),
       h("div", { class: "onboarding-provider-fields" }, h("label", { class: "preference-row" }, "Provider", picker),
         kind?.requires_key ? h("label", { class: "preference-row" }, "API-sleutel", key) : null,
         h("label", { class: "preference-row" }, "Model", model),

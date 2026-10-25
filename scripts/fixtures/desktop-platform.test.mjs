@@ -132,3 +132,126 @@ test("cloud scenarios are synthetic: signed out by default, signed in only when 
   assert.equal((await conflict.__PENNEL_PLATFORM__.invoke("meeting_conflict_files")).length, 1);
   for (const context of [signedOut, synced, conflict]) assert.equal(context.__PENNEL_FIXTURE__.unknown.length, 0);
 });
+
+test("unsaved history stays temporary until an explicit save and recovery never runs recognition", async () => {
+  const context = fixture("history-unsaved");
+  const api = context.__PENNEL_PLATFORM__;
+  const info = await api.invoke("app_info");
+  const entry = (await api.invoke("history")).find(entry => entry.status === "unsaved");
+  assert.ok(entry?.text);
+  assert.equal(info.unsaved_history_count, 1);
+  await api.invoke("copy_history", { id: entry.id });
+  assert.equal((await api.invoke("app_info")).unsaved_history_count, 1);
+  await assert.rejects(() => api.invoke("copy_history", { id: "not-a-fixture-entry" }), /Onbekend/);
+  await api.invoke("save_history", { id: entry.id });
+  const after = await api.invoke("history");
+  assert.equal(after.filter(value => value.id === entry.id).length, 1);
+  assert.equal(after.find(value => value.id === entry.id).status, "done");
+  assert.equal(after.find(value => value.id === entry.id).text, entry.text);
+  assert.equal((await api.invoke("app_info")).unsaved_history_count, 0);
+  assert.ok(!context.__PENNEL_FIXTURE__.calls.some(command => ["retry_history", "toggle_dictation", "download_model"].includes(command)));
+});
+
+test("credential revisions invalidate task verification even when key availability stays true", async () => {
+  const api = fixture("settings-models-mixed").__PENNEL_PLATFORM__;
+  const initial = await api.invoke("app_info");
+  assert.equal(initial.keys.groq, true);
+  await api.invoke("set_key", { account: "groq", key: "synthetic-first" });
+  const first = await api.invoke("app_info");
+  await api.invoke("set_key", { account: "groq", key: "synthetic-second" });
+  const second = await api.invoke("app_info");
+  assert.equal(second.keys.groq, true);
+  assert.ok(second.provider_revisions.groq > first.provider_revisions.groq);
+  assert.ok(first.provider_revisions.groq > initial.provider_revisions.groq);
+  assert.doesNotMatch(JSON.stringify(second), /synthetic-first|synthetic-second/);
+});
+
+test("recording storage failure retains the session and transcript until explicit persistence retry", async () => {
+  const context = fixture("recording-storage-error");
+  const api = context.__PENNEL_PLATFORM__;
+  const failed = await api.invoke("meeting_status");
+  assert.equal(failed.phase, "error");
+  assert.equal(failed.recording, false);
+  assert.equal(failed.busy, false);
+  assert.equal(failed.id, context.__PENNEL_FIXTURE__.options.meeting_id);
+  assert.ok(failed.session_id);
+  assert.ok(failed.persistence_error);
+  assert.ok(failed.terminal_error);
+  assert.equal(failed.can_retry_persistence, true);
+  assert.ok(failed.transcript.length > 0);
+  assert.equal(failed.recognition.provider_kind, "local");
+  assert.equal(failed.recognition.language, "nl");
+  await assert.rejects(() => api.invoke("retry_meeting_persistence", { sessionId: "stale-session" }), /sessie/);
+  await api.invoke("retry_meeting_persistence", { sessionId: failed.session_id });
+  const saved = await api.invoke("meeting_status");
+  assert.equal(saved.phase, "idle");
+  assert.equal(saved.can_retry_persistence, false);
+  assert.equal(saved.persistence_error, null);
+  assert.equal(saved.terminal_error, null);
+  assert.ok(!context.__PENNEL_FIXTURE__.calls.some(command => ["start_meeting", "retranscribe_meeting"].includes(command)));
+});
+
+test("paused transcription is nonfatal while recording and recovery audio stay available", async () => {
+  const context = fixture("recording-transcription-paused");
+  const status = await context.__PENNEL_PLATFORM__.invoke("meeting_status");
+  assert.equal(status.phase, "recording");
+  assert.equal(status.recording, true);
+  assert.equal(status.busy, true);
+  assert.ok(status.transcription_warning);
+  assert.equal(status.persistence_error, null);
+  assert.equal(status.terminal_error, null);
+  assert.equal(status.can_retry_persistence, false);
+  assert.ok(status.pending > 0);
+});
+
+test("active model fixtures join atomically, replay progress and do not restart after cancellation", async () => {
+  const context = fixture("onboarding-download-active");
+  const api = context.__PENNEL_PLATFORM__;
+  const info = await api.invoke("app_info");
+  const id = info.settings.dictation_stt.model;
+  assert.deepEqual(Array.from(info.active_model_downloads), [id]);
+  assert.equal((await api.invoke("model_state", { id })).kind, "partial");
+  const progress = [];
+  await api.listen("download-progress", event => progress.push(event.payload));
+  const joining = api.invoke("join_model_download", { id });
+  const cancelled = assert.rejects(joining, /cancelled/);
+  assert.equal(progress.length, 1);
+  assert.equal(progress[0].id, id);
+  assert.ok(progress[0].downloaded > 0 && progress[0].downloaded < progress[0].total);
+  await api.invoke("cancel_download", { id });
+  await cancelled;
+  assert.equal((await api.invoke("app_info")).active_model_downloads.length, 0);
+  assert.equal(await api.invoke("join_model_download", { id }), false);
+  assert.equal((await api.invoke("model_state", { id })).kind, "partial");
+  assert.ok(!context.__PENNEL_FIXTURE__.calls.includes("download_model"));
+});
+
+test("an active join stays pending and completion updates model ownership before the done event", async () => {
+  const context = fixture("onboarding-download-active");
+  const api = context.__PENNEL_PLATFORM__;
+  const id = (await api.invoke("app_info")).settings.dictation_stt.model;
+  let settled = false;
+  const joining = api.invoke("join_model_download", { id }).then(value => { settled = true; return value; });
+  await Promise.resolve();
+  assert.equal(settled, false);
+  const snapshots = [];
+  await api.listen("download-done", () => { snapshots.push(api.invoke("app_info")); });
+  assert.equal(context.__PENNEL_FIXTURE__.completeDownload(id), true);
+  assert.equal(await joining, true);
+  const done = await snapshots[0];
+  assert.equal(done.active_model_downloads.length, 0);
+  assert.equal((await api.invoke("model_state", { id })).kind, "downloaded");
+});
+
+test("task tests are explicit synthetic requests and reject unsupported task names", async () => {
+  const context = fixture("settings-models-mixed");
+  const api = context.__PENNEL_PLATFORM__;
+  await api.invoke("app_info");
+  await api.invoke("local_models", {});
+  assert.ok(!context.__PENNEL_FIXTURE__.calls.includes("test_provider_task"));
+  const result = await api.invoke("test_provider_task", { slot: "llm" });
+  assert.equal(result.verified, true);
+  assert.match(result.message, /voorbeeld/);
+  await assert.rejects(() => api.invoke("test_provider_task", { slot: "unexpected-service" }), /taak/);
+  assert.equal(context.__PENNEL_FIXTURE__.unknown.length, 0);
+});

@@ -61,7 +61,7 @@
   const model = selectedProvider === "apple-speech" ? "dictation" : selectedProvider === "openai" ? "gpt-4o-mini-transcribe" : "whisper-large-v3-turbo";
   let settings = {
     providers, dictation_stt: { provider_id: selectedProvider, model }, meeting_stt: { provider_id: "local", model: "whisper-large-v3-turbo" },
-    llm: { provider_id: "groq", model: "llama-3.3-70b-versatile" }, mode: "fast", language: "nl", dictionary: ["Pennel", "Studio Noord"],
+    llm: { provider_id: "groq", model: "llama-3.3-70b-versatile" }, mode: options.mode || "fast", language: "nl", dictionary: ["Pennel", "Studio Noord"],
     style_rules: [{ bundle_id: "com.tinyspeck.slackmacgap", style: "casual" }, { bundle_id: "com.apple.MobileSMS", style: "casual" }, { bundle_id: "com.apple.mail", style: "formal" }, { bundle_id: "com.microsoft.Word", style: "formal" }, { bundle_id: "com.apple.Terminal", style: "literal" }, { bundle_id: "com.microsoft.VSCode", style: "literal" }], history_retention_days: 30, hotkey: "fn", local_unload_minutes: 5,
     meetings_dir: "/QA/Pennel Preview/Meetings", default_template: "algemeen", meeting_audio_retention_days: 30,
     app_rules: [], calendar_rules: [], event_rules: [], calendar_enabled: false, echo_cancellation: true,
@@ -82,14 +82,18 @@
     capabilities.selection = { status: "permission_required", reason };
     capabilities.pad_external_paste = { status: "permission_required", reason };
   }
-  const keys = { groq: false, openai: false };
+  const keys = { groq: Boolean(options.configured_text_provider), openai: false };
+  const providerRevisions = Object.fromEntries(providers.map(provider => [provider.id, 0]));
   const models = (options.local_models || [{
     id: "whisper-large-v3-turbo", name: "Whisper Large v3 Turbo", description: "Spraakherkenning in meerdere talen.",
     size_bytes: 886381760, parameters: "809M", speed: 72, accuracy: 86, languages: ["nl", "en", "fr", "de"], recommended: true, legacy: false,
-  }]).map(model => ({ ...model, state: model.id === "whisper-large-v3-turbo" && !(options.window === "onboarding" && ["welcome", "engine"].includes(options.step)) ? { kind: "downloaded" } : { kind: "not_downloaded" } }));
-  const defaultLocalModel = () => models.find(model => model.id === "whisper-large-v3-turbo");
+  }]).map(model => ({ ...model, state: model.id === "whisper-large-v3-turbo" && options.download_active
+    ? { kind: "partial", bytes: Math.floor(model.size_bytes / 3) }
+    : model.id === "whisper-large-v3-turbo" && !(options.window === "onboarding" && ["welcome", "engine"].includes(options.step)) ? { kind: "downloaded" } : { kind: "not_downloaded" } }));
   const diarizer = { id: "diar_streaming_sortformer_4spk-v2.1", name: "Sortformer (sprekers)", size_bytes: 139310336, state: { kind: "not_downloaded" } };
   const modelFor = id => models.find(model => model.id === id) || (id === diarizer.id ? diarizer : undefined);
+  const activeDownloads = new Set(options.download_active ? ["whisper-large-v3-turbo"] : []);
+  const downloadWaiters = new Map();
   let pad = sentence;
   let sessionCounter = 0;
   const sessions = new Map();
@@ -99,10 +103,26 @@
   const emit = (name, payload) => {
     for (const handler of listeners.get(name) || []) handler({ payload: clone(payload) });
   };
+  const completeDownload = (id, error = null) => {
+    if (!activeDownloads.delete(id)) return false;
+    const model = modelFor(id);
+    if (!error && model) {
+      model.state = { kind: "downloaded" };
+      emit("download-progress", { id, downloaded: model.size_bytes, total: model.size_bytes });
+    }
+    const waiting = downloadWaiters.get(id) || [];
+    downloadWaiters.delete(id);
+    emit("download-done", { id, error });
+    for (const waiter of waiting) error ? waiter.reject(new Error(error)) : waiter.resolve(true);
+    return true;
+  };
   const shortcutDenied = () => permissions.find(permission => permission.kind === "accessibility")?.status !== "granted";
-  const info = () => ({ settings: clone(settings), keys: clone(keys), kinds: clone(kinds), platform: "macos", version: "0.1.0", hotkey_error: shortcutDenied() ? capabilities.global_hotkey.reason : null,
+  const info = () => ({ settings: clone(settings), keys: clone(keys), provider_revisions: clone(providerRevisions), active_model_downloads: [...activeDownloads],
+    unsaved_history_count: history.filter(entry => entry.status === "unsaved").length,
+    kinds: clone(kinds), platform: "macos", version: "0.1.0", hotkey_error: shortcutDenied() ? capabilities.global_hotkey.reason : null,
     log_path: "/QA/Pennel Preview/pennel.log", data_dir: "/QA/Pennel Preview", capabilities: clone(capabilities), recording_app_ids: options.recording_app_ids || [], diarizer_model_id: diarizer.id, preview: true, migration_warning: null });
   const history = [
+    ...(options.history_unsaved ? [{ id: "qa-dictation-unsaved", created_at_ms: now - 60_000, app_bundle_id: "com.apple.mail", raw: sentence, text: sentence, status: "unsaved", error: "De dicteergeschiedenis kon niet worden bewaard.", has_audio: false }] : []),
     { id: "qa-dictation-2", created_at_ms: now - 15 * 60_000, app_bundle_id: "dev.pennel.Pennel.preview", raw: sentence, text: sentence, status: "done", error: null, has_audio: false },
     { id: "qa-dictation-1", created_at_ms: now - 60 * 60_000, app_bundle_id: "com.apple.mail", raw: "ik werk het voorstel bij en stuur het morgen door", text: "Ik werk het voorstel bij en stuur het morgen door.", status: "done", error: null, has_audio: false },
     { id: "qa-dictation-0", created_at_ms: now - 26 * 60 * 60_000, app_bundle_id: "com.tinyspeck.slackmacgap", raw: "kan iemand de notities van gisteren delen", text: "Kan iemand de notities van gisteren delen?", status: "done", error: null, has_audio: false },
@@ -125,6 +145,24 @@
     phase: kind === "practice" && options.practice_error ? "error" : kind === "practice" && options.practice_text ? "done" : "idle", text: kind === "pad" ? pad : options.practice_text || "",
     error: kind === "practice" ? options.practice_error || null : null, target_name: null,
     external_paste_available: !shortcutDenied(), external_paste_reason: shortcutDenied() ? capabilities.pad_external_paste.reason : null });
+  let recordingStorageError = Boolean(options.recording_storage_error);
+  let recordingRecovered = false;
+  const meetingStatus = () => {
+    const retained = options.section === "recording" && !recordingRecovered;
+    const storageError = retained && recordingStorageError;
+    const paused = retained && Boolean(options.transcription_paused);
+    const persistenceError = storageError ? "Je opname kon niet volledig worden bewaard. Probeer opnieuw te bewaren." : null;
+    return {
+      recording: retained && !storageError, phase: storageError ? "error" : retained ? "recording" : "idle", busy: retained && !storageError,
+      error: persistenceError, notes, session_id: retained ? "qa-recording" : null, id: retained ? meetingId : null,
+      title: "Projectoverleg", elapsed_secs: 754, system_audio: true, heard_system_audio: true,
+      echo_cancellation_active: retained && !storageError, audio_warning: null, persistence_error: persistenceError,
+      transcription_warning: paused ? "Transcriptie is tijdelijk gepauzeerd. Je audio en herstelbestanden blijven lokaal bewaard." : null,
+      terminal_error: storageError ? "De opname is gestopt omdat bewaren niet lukt." : null, can_retry_persistence: storageError,
+      pending: storageError ? 1 : paused ? 3 : 0, transcript: retained ? clone(transcript) : [],
+      ...(retained ? { recognition: { provider_kind: "local", provider_name: "Lokaal", model: settings.meeting_stt.model, language: "nl" } } : {}),
+    };
+  };
 
   async function invoke(command, args = {}) {
     calls.push(command);
@@ -173,26 +211,72 @@
       case "frontend_ready": globalThis.__PENNEL_FIXTURE_READY__ = true; return null;
       case "frontend_flushed": return null;
       case "app_identity": return null;
-    case "history": return clone(history);
-      case "delete_history": return null;
+      case "history": return clone(history);
+      case "delete_history": {
+        const index = history.findIndex(entry => entry.id === args.id);
+        if (index !== -1) history.splice(index, 1);
+        emit("history-changed", null); emit("settings-changed", null); return null;
+      }
+      case "save_history": {
+        const entry = history.find(entry => entry.id === args.id);
+        if (!entry || entry.status === "failed") throw new Error("Onbekend tijdelijk QA-dictaat");
+        entry.status = "done"; entry.error = null;
+        emit("history-changed", null); emit("settings-changed", null); return null;
+      }
+      case "copy_history": {
+        if (!history.some(entry => entry.id === args.id)) throw new Error("Onbekend QA-dictaat");
+        return null;
+      }
       case "retry_history": return sentence;
       case "local_models": return clone(args.supportedOnly || args.supported_only ? models.filter(model => model.languages.some(language => language.split(/[-_]/)[0] === (args.language || "nl"))) : models);
       case "model_state": return clone(modelFor(args.id)?.state || { kind: "not_downloaded" });
       case "download_model": {
-        queueMicrotask(() => {
-          if (options.download_error) emit("download-done", { id: args.id, error: options.download_error });
-          else { const model = modelFor(args.id) || defaultLocalModel(); model.state = { kind: "downloaded" }; emit("download-progress", { id: args.id, downloaded: model.size_bytes, total: model.size_bytes }); emit("download-done", { id: args.id, error: null }); }
-        }); return null;
+        if (!modelFor(args.id)) throw new Error("Onbekend QA-model");
+        if (activeDownloads.has(args.id)) return null;
+        activeDownloads.add(args.id);
+        queueMicrotask(() => completeDownload(args.id, options.download_error || null));
+        return null;
       }
-      case "cancel_download": return null;
-      case "delete_model": { const model = modelFor(args.id); if (model) model.state = { kind: "not_downloaded" }; return info(); }
+      case "join_model_download": {
+        if (!activeDownloads.has(args.id)) return false;
+        const model = modelFor(args.id);
+        return new Promise((resolve, reject) => {
+          if (!downloadWaiters.has(args.id)) downloadWaiters.set(args.id, []);
+          downloadWaiters.get(args.id).push({ resolve, reject });
+          emit("download-progress", { id: args.id, downloaded: model?.state.bytes || 0, total: model?.size_bytes || 0 });
+        });
+      }
+      case "cancel_download": {
+        completeDownload(args.id, "cancelled");
+        return null;
+      }
+      case "delete_model": {
+        if (activeDownloads.has(args.id)) throw new Error("Dit model wordt nog gedownload.");
+        const model = modelFor(args.id); if (model) model.state = { kind: "not_downloaded" }; return info();
+      }
       case "add_provider": { const definition = kinds.find(kind => kind.kind === args.kind); settings.providers.push({ id: `qa-${args.kind}`, kind: args.kind, name: definition?.label || args.kind, base_url: definition?.default_base_url || "" }); return info(); }
       case "remove_provider": settings.providers = settings.providers.filter(provider => provider.id !== args.id); return info();
-      case "set_key": keys[args.account] = Boolean(args.key); return info();
+      case "set_key": keys[args.account] = Boolean(args.key); providerRevisions[args.account] = (providerRevisions[args.account] || 0) + 1; return info();
       case "provider_models": return [{ id: "gpt-4o-mini-transcribe", name: "GPT-4o mini Transcribe", audio_input: true, is_router: false }, { id: "llama-3.3-70b-versatile", name: "Llama 3.3", audio_input: false, is_router: false }];
+      case "test_provider_task": {
+        if (!["dictation_stt", "meeting_stt", "llm"].includes(args.slot)) throw new Error("Onbekende QA-taak");
+        const choice = settings[args.slot];
+        const provider = settings.providers.find(provider => provider.id === choice.provider_id);
+        const kind = kinds.find(kind => kind.kind === provider?.kind);
+        const configured = Boolean(provider && kind && (args.slot === "llm" ? kind.llm : kind.stt) && choice.model && (!kind.requires_key || keys[provider.id])
+          && (provider.kind !== "local" || modelFor(choice.model)?.state.kind === "downloaded"));
+        return { verified: configured, message: configured ? "Test geslaagd met uitsluitend synthetische voorbeelddata." : "Stel eerst het gekozen model en de provider in." };
+      }
       case "detect_cli_agents": return [];
       case "check_cli_agent": return "Niet uitgevoerd in deze fixture.";
-      case "meeting_status": return { recording: options.section === "recording", phase: options.section === "recording" ? "recording" : "idle", busy: options.section === "recording", error: null, notes, session_id: options.section === "recording" ? "qa-recording" : null, id: options.section === "recording" ? meetingId : null, title: "Projectoverleg", elapsed_secs: 754, system_audio: true, heard_system_audio: true, audio_warning: null, pending: 0, transcript: options.section === "recording" ? clone(transcript) : [] };
+      case "meeting_status": return meetingStatus();
+      case "retry_meeting_persistence": {
+        const status = meetingStatus();
+        if (!status.can_retry_persistence || args.sessionId !== status.session_id) throw new Error("Deze QA-opnamesessie is niet meer actief.");
+        recordingStorageError = false; recordingRecovered = true;
+        emit("meeting-finished", { id: meetingId, session_id: status.session_id, error: null, flush_warning: null });
+        emit("meeting-updated", null); return null;
+      }
       case "meetings": return options.empty ? [] : clone(library);
       case "meeting_detail": return { info: clone(meetingInfo(args.id)), notes, summary, transcript: clone(transcript), speakers: [{ voice: 1, name: "Noor" }], dir: `/QA/Pennel Preview/Meetings/${meetingId}`, attendees: ["Noor", "Sam"], audio_tracks: [{ speaker: "me", available: false }, { speaker: "others", available: false }] };
       case "search_library": return { meetings: options.empty ? [] : clone(library), passages: [] };
@@ -239,5 +323,5 @@
       return () => listeners.get(name)?.delete(handler);
     },
   };
-  globalThis.__PENNEL_FIXTURE__ = { options: fixture, calls, unknown, emit, info };
+  globalThis.__PENNEL_FIXTURE__ = { options: fixture, calls, unknown, emit, info, completeDownload };
 })();

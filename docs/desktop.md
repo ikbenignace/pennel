@@ -88,6 +88,14 @@ Apple Intelligence uses `FoundationModels.SystemLanguageModel.default` on the de
 
 The shared core applies a smaller prompt budget for Apple Intelligence. Long transcripts use repeated map/reduce, while meeting questions select relevant sources and preserve the numbering of the sources actually supplied. Oversized notes, templates or dictation receive an explicit length error instead of losing text. Native generation checks the exact token count on macOS 26.4 and newer, reserves response space and applies the request timeout. Existing cleanup recovery retains the raw dictation when processing fails.
 
+### Model setup and verification
+
+Models and recording surfaces distinguish the destination for audio from optional text processing. **Ingesteld** means the selected configuration is present; it does not claim that a provider request succeeded. **Test spraakherkenning** and **Test tekstverwerking** are explicit actions using bundled synthetic audio or fixed sample text, never a user's dictation, meeting, dictionary or pad. The destination is shown before the request. A result is marked **Test geslaagd** only for the configuration tested, and is invalidated after model, endpoint, language or credential changes. Catalog connection testing remains separate and failed catalog requests can be retried.
+
+Model downloads have one owner per model. Onboarding and Settings can attach to the same worker and replay its latest progress. Attaching is atomic and never starts a new download when the old snapshot is stale; only an explicit download action can do that. Cancelling keeps partial bytes, and changing the selected speech engine does not implicitly cancel another window's download.
+
+Meeting answers can open the exact transcript, summary or personal-note passage and return to the original conversation position. Changed or ambiguous passages are reported instead of selecting unrelated text. Dialogs, detail tabs and context menus retain names, keyboard operation and focus restoration. These shared-renderer behaviors do not establish screen-reader or platform-device acceptance; use the [pilot checklist](improvement-pilot.md).
+
 ### Pennel Cloud
 
 The shared app has an **Account** tab (last in Settings) with login, usage, meeting sync, the recovery code, devices and account deletion, plus a **Pennel Cloud** provider card. The native Mac reference app shows only a disabled **Account** tab and a disabled Pennel Cloud provider card, both reading "Beschikbaar in de nieuwe Pennel-app"; this is a recorded parity gap, not a hidden feature.

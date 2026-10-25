@@ -3,6 +3,8 @@ import { errorCode, errorText, field, h, menuButton, section } from "../dom";
 import { localView } from "./local";
 import type { Context } from "../main";
 import { VisibilityPoll } from "../window-lifecycle";
+import { providerDestination } from "../processing-state";
+import { providerVerification } from "../provider-verification";
 
 let selected: string | null = null;
 
@@ -18,9 +20,8 @@ export async function providersView(ctx: Context): Promise<HTMLElement> {
     const ready = kind?.availability.status === "available" && (!kind.requires_key || !!keys[provider.id])
       && (!kind.is_cli_agent || !!provider.base_url) && (provider.kind !== "local" || localReady);
     return h("button", { "aria-current": provider.id === selected ? "true" : null, onclick: () => { selected = provider.id; ctx.navigate("providers"); } },
-      h("span", { class: `status-dot${ready ? " ready" : ""}` }),
       h("span", { class: "grow" }, h("span", { class: "provider-name" }, provider.name),
-        h("span", { class: "provider-kind" }, kind?.label ?? provider.kind)));
+        h("span", { class: "provider-kind" }, `${kind?.label ?? provider.kind} · ${ready ? "Ingesteld" : "Nog instellen"}`)));
   }));
   const addable = kinds.filter((kind) => !((kind.kind === "local" || kind.kind === "apple_speech" || kind.kind === "apple_intelligence") && settings.providers.some((provider) => provider.kind === kind.kind)));
   const add = menuButton("Provider toevoegen…", addable.map((kind) => {
@@ -48,13 +49,21 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
   const kind = ctx.info.kinds.find((item) => item.kind === account.kind);
   if (!kind) return section(account.name, "Deze provider is niet beschikbaar in deze versie.");
   const status = h("p", { class: "help", role: "status" });
-  const saveAccount = (key: "name" | "base_url", value: string) => ctx.save((settings) => {
-    const provider = settings.providers.find((item) => item.id === account.id);
-    if (provider) provider[key] = value;
-  });
+  const saveAccount = (key: "name" | "base_url", value: string) => {
+    providerVerification.invalidate();
+    return ctx.save((settings) => {
+      const provider = settings.providers.find((item) => item.id === account.id);
+      if (provider) provider[key] = value;
+    });
+  };
+  const saveKey = (value: string) => {
+    providerVerification.invalidate();
+    return ctx.mutate(() => api.setKey(account.id, value));
+  };
   const name = h("input", { type: "text", value: account.name, "aria-label": "Naam" });
   name.addEventListener("change", () => { void saveAccount("name", name.value.trim() || account.name); });
   const body = section(kind.label, null, field("Naam", name));
+  body.append(h("p", { class: "help" }, `Verwerking: ${providerDestination(account)}.`));
   if (kind.availability.reason) body.append(h("p", { class: "help" }, kind.availability.reason));
   if (account.kind === "apple_speech") {
     body.append(h("p", { class: "help" }, "Het dicteermodel van macOS zelf. Gratis, volledig offline. macOS beheert de taalbestanden. Werkt voor dicteren en meetings vanaf macOS 26."));
@@ -117,19 +126,21 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
     body.append(field("Base URL", baseUrl));
     if (kind.requires_key) {
       const key = h("input", { type: "password", placeholder: ctx.info.keys[account.id] ? "•••••••• (bewaard)" : "Plak je sleutel", autocomplete: "off", class: "grow", "aria-label": "API-sleutel" });
-      key.addEventListener("change", () => { void ctx.mutate(() => api.setKey(account.id, key.value)); });
+      key.addEventListener("change", () => { void saveKey(key.value); });
       key.addEventListener("keydown", (event) => { if (event.key === "Enter") key.blur(); });
       body.append(field("API-sleutel", h("div", { class: "row" }, key,
-        ctx.info.keys[account.id] ? h("button", { class: "btn", onclick: () => ctx.mutate(() => api.setKey(account.id, "")) }, "Wis") : null)));
+        ctx.info.keys[account.id] ? h("button", { class: "btn", onclick: () => saveKey("") }, "Wis") : null)));
     }
     const test = h("button", { class: "btn", onclick: async () => {
       test.disabled = true; status.textContent = "Testen…";
-      try { const models = await api.providerModels(account.id); status.textContent = `✓ Verbonden · ${models.length} modellen`; }
+      try { const models = await api.providerModels(account.id); status.textContent = `Verbinding getest · ${models.length} modellen gevonden. Spraak en tekst zijn hiermee nog niet getest.`; }
       catch (error) { status.textContent = `Mislukt: ${errorText(error)}`; }
       test.disabled = false;
     } }, "Test verbinding");
     body.append(h("div", { class: "row" }, status, h("span", { class: "grow" }), test));
   }
+  body.append(h("p", { class: "help" }, "Kies bij Modellen welke provider je audio herkent en welke je tekst verwerkt. Daar kun je beide taken apart testen."),
+    h("button", { class: "text-button", onclick: () => ctx.navigate("models") }, "Modellen en taaktests openen"));
   return h("div", {}, body, account.kind === "local" ? await localView(ctx, true) : null,
     h("div", { class: "row" }, h("span", { class: "grow" }), h("button", {
       class: "btn danger", disabled: ctx.info.settings.providers.length < 2,

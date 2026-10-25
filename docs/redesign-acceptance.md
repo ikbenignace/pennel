@@ -167,3 +167,29 @@ Local integration checks passed:
 - Shared preview application and checksum-verified disk image built; strict bundle inspection passed with the isolated preview identity and a valid development signature (`build/merge-main-preview.log`, `build/merge-main-bundle.json`). The application was not launched.
 
 These checks cover integration and deterministic rendering. They do not establish new real-device, microphone, Cloud service, installer/update or Windows/Linux acceptance.
+
+## Daily-use implementation follow-up
+
+On 2026-10-25, recovery and usability work added process-local unsaved History entries, checked clipboard placement, durable meeting WAV spooling, commit-before-cleanup recovery, frozen speech configuration and Cloud identity, cached Mac capture health, bounded recognition failure handling and same-session save retry. Source navigation, note preservation, keyboard/dialog behavior and enlarged reading layouts were completed in the shared interface. Provider setup now separates audio/text destinations, configuration and explicit synthetic task verification, with atomic attachment to shared downloads. The frozen native interface receives only the unsaved-result compatibility guard.
+
+The recovery milestone was pushed as `5d7c7be`; `b6d1b46` preserves concurrent CI runner updates. Later runner-only main commits were incorporated before finishing the UI milestone.
+
+Local evidence:
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Core/native build and tests | 475 core tests passed, five existing hardware/network cases ignored; 76 native Swift tests; native reference bundle built | `build/improvements-native-final.log` |
+| macOS platform | 66 tests passed, including capture/archive health regressions | `build/improvements-platform-final.log` |
+| Shared backend | 159 tests, formatting and all-target Clippy passed | `build/improvements-desktop-rust-final.log` |
+| Frontend | Locked install; 110 tests and production build passed; the recovery commit's staged source was also independently exported and passed its 106 tests/build | `build/improvements-shared-final.log`, `build/improvements-recovery-snapshot.log` |
+| Core/theme/packaging | Core formatting/Clippy, theme reproducibility and 30 packaging tests passed | `build/improvements-quality-final.log` |
+| Synthetic fixture contracts | 16 tests passed, including active-download completion/cancellation ordering and recovery actions | `build/improvements-fixtures-final.log` |
+| Shared rendering | 41 cases in light/dark, 82 images; no unknown commands, runtime exceptions or layout failures | `build/improvements-visual/manifest.json` |
+| Owned browser interactions | Eight provider/History/download groups plus production-route completion/cancellation and save retry passed; source navigation, answer return, changed-source refusal, named dialogs and keyboard menus passed at normal size and 760×520 with doubled text | `build/provider-history-ui-interactions.json`, `build/improvement-meeting-interactions/`, `build/improvement-meeting-small/` |
+| Shared preview | Preview application and checksum-verified disk image built; strict identity/signature inspection passed; application was not launched | `build/improvements-shared-final.log`, `build/improvements-preview-image.log`, `build/improvements-bundle-final.json` |
+
+Recovery banners are intentionally visible product states. The capture manifest records them separately from unexpected application error banners. All fixture content, keys, identities and provider responses are synthetic; task tests and downloads are not started automatically by merely opening a surface.
+
+The Linux core CI job and packaging job on the recovery milestone passed. Hosted Mac/Windows jobs did not start, and subsequent runner updates cancelled the older Linux installer run; a complete successful CI matrix is not established by those partial results. Current CI results must be checked against the final pushed revision.
+
+The [pilot checklist](improvement-pilot.md) records the remaining human/device work, including receiving applications, permissions, headset switches, a real sixty-minute call, VoiceOver, upgrade/restore and signed updates. Local regression tests, development signatures and synthetic screenshots do not close those release gates.
