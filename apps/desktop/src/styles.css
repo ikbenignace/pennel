@@ -378,7 +378,7 @@ body[data-window="onboarding"] main { display: flex; overflow: hidden; }
 .onboarding-heading { margin-bottom: 18px; }
 .onboarding-heading h1 { margin: 0; font-size: var(--font-display-title); }
 .onboarding-heading p { max-width: 52ch; margin: 4px 0 0; font-size: var(--font-body); line-height: 1.45; }
-.onboarding-welcome { padding-top: 6px; }
+.onboarding-welcome { padding-top: 16px; }
 .onboarding-wordmark { height: 40px; margin: 0 0 4px; color: var(--foreground); }
 .onboarding-wordmark > svg { display: block; width: auto; height: 40px; }
 .onboarding-welcome > h1 { margin: 0; }
