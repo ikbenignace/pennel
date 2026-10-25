@@ -246,6 +246,7 @@ impl Pass<'_> {
             self.store = MeetingStore::new(&self.root);
         }
         trash::purge(self.data_dir, TRASH_DAYS);
+        self.state.use_vault(&crypto::vault_check(self.key))?;
         let root_id = self.root.to_string_lossy().into_owned();
         match self.state.root()? {
             Some(previous) if previous == root_id => {}

@@ -211,6 +211,12 @@ fn derive_wrapping_key(
     Some(out)
 }
 
+/// Names a vault key without revealing it, so a device can tell which vault its sync state
+/// belongs to.
+pub fn vault_check(key: &VaultKey) -> String {
+    object_id(key, "pennel/vault-check")
+}
+
 pub fn object_id(key: &VaultKey, object_key: &str) -> String {
     let normalised: String = object_key.nfc().collect();
     let digest = hmac_sha256(&subkey(key, ID_KEY_LABEL)[..], normalised.as_bytes());

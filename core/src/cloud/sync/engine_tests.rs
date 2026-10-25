@@ -326,3 +326,60 @@ fn delete_meeting_without_sync_creates_no_sync_state() {
     engine.delete_meeting(id).unwrap();
     assert!(!dir.path().join("data").join("sync.sqlite").exists());
 }
+
+/// The server ends this device's session the way a revoked device sees it: the refresh is refused.
+fn revoke_session(host: &Host) {
+    let mut server = mockito::Server::new();
+    let _refresh = server
+        .mock("POST", "/v1/auth/refresh")
+        .with_status(401)
+        .with_body(r#"{"error":"session_revoked","message":"Afgemeld."}"#)
+        .create();
+    host.engine
+        .use_cloud_session(Session::new(server.url(), host.secrets.clone()));
+    assert_eq!(host.engine.cloud_account(), Err(PennelError::NotSignedIn));
+    host.engine.use_cloud_session(Session::new(
+        "http://127.0.0.1:1".into(),
+        host.secrets.clone(),
+    ));
+}
+
+fn sign_in(host: &Host, api: &Arc<FakeApi>) {
+    host.secrets
+        .set(REFRESH_ACCOUNT.into(), Some("refresh-again".into()));
+    host.engine.use_sync_api(api.clone());
+}
+
+#[test]
+fn another_account_after_revocation_gets_a_full_compare() {
+    let first = Arc::new(FakeApi::new());
+    let a = host(&first, "Mac");
+    a.engine.cloud_sync_enable().unwrap();
+    for n in 0..2 {
+        store(&a).create(&format!("Eigen {n}"), start()).unwrap();
+    }
+    assert_eq!(a.engine.cloud_sync_run(vec![]).uploaded, 2);
+    revoke_session(&a);
+    assert_eq!(
+        a.engine.cloud_sync_run(vec![]).status,
+        SyncStatus::SignedOut
+    );
+
+    let second = Arc::new(FakeApi::new());
+    let other = host(&second, "Pc");
+    let code = other.engine.cloud_sync_enable().unwrap();
+    store(&other).create("Van de ander", start()).unwrap();
+    assert_eq!(other.engine.cloud_sync_run(vec![]).uploaded, 1);
+
+    sign_in(&a, &second);
+    assert_eq!(
+        a.engine.cloud_sync_run(vec![]).status,
+        SyncStatus::NeedsRecoveryCode
+    );
+    a.engine.cloud_sync_unlock(code).unwrap();
+    let report = a.engine.cloud_sync_run(vec![]);
+    assert_eq!(report.status, SyncStatus::Synced);
+    assert_eq!(report.uploaded, 2);
+    assert_eq!(report.downloaded, 1);
+    assert_eq!(second.live_objects(), 3);
+}

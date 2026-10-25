@@ -1173,7 +1173,10 @@ impl PennelEngine {
     fn adopt_vault(&self, key: &VaultKey, generation: u32) -> Result<(), PennelError> {
         let secrets = self.secret_store().ok_or(PennelError::NotSignedIn)?;
         secrets.set(VAULT_KEY_ACCOUNT.into(), Some(key.to_b64()));
-        self.with_sync_state(|state| state.set_generation(generation))?;
+        self.with_sync_state(|state| {
+            state.use_vault(&crypto::vault_check(key))?;
+            state.set_generation(generation)
+        })?;
         *self.sync_last.lock().unwrap() = None;
         self.set_cloud_sync(true)
     }

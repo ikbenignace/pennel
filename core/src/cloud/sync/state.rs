@@ -27,6 +27,7 @@ const ROOT: &str = "root";
 const LAST_SUCCESS: &str = "last_success_ms";
 const DEVICE: &str = "device";
 const CONFIRM_DELETES: &str = "confirm_deletes";
+const VAULT: &str = "vault";
 
 fn entry_from(row: &rusqlite::Row<'_>) -> rusqlite::Result<Entry> {
     Ok(Entry {
@@ -290,6 +291,19 @@ impl SyncState {
         self.set_meta(GENERATION, &generation.to_string())
     }
 
+    /// Ties the state to the vault key named by `check`. State from another vault (another
+    /// account, or from before this was recorded) is forgotten, so everything is compared again.
+    pub fn use_vault(&self, check: &str) -> Result<(), PennelError> {
+        if self.meta(VAULT)?.as_deref() == Some(check) {
+            return Ok(());
+        }
+        self.forget_progress()?;
+        self.conn
+            .execute("delete from meta where k = ?1", [GENERATION])
+            .map_err(PennelError::storage)?;
+        self.set_meta(VAULT, check)
+    }
+
     pub fn root(&self) -> Result<Option<String>, PennelError> {
         self.meta(ROOT)
     }
@@ -384,6 +398,23 @@ mod tests {
         state.put(&entry("templates/x.md", None)).unwrap();
         state.defer("abc").unwrap();
         state.set_device("Mac").unwrap();
+        state.clear().unwrap();
+        state.put(&entry("templates/x.md", None)).unwrap();
+        state.set_cursor(7).unwrap();
+        state.set_generation(1).unwrap();
+        state.use_vault("v1").unwrap();
+        assert!(state.entries().unwrap().is_empty());
+        assert_eq!(state.generation().unwrap(), None);
+        state.put(&entry("templates/x.md", None)).unwrap();
+        state.set_cursor(7).unwrap();
+        state.set_generation(1).unwrap();
+        state.use_vault("v1").unwrap();
+        assert_eq!(state.cursor().unwrap(), 7);
+        assert_eq!(state.generation().unwrap(), Some(1));
+        state.use_vault("v2").unwrap();
+        assert_eq!(state.cursor().unwrap(), 0);
+        assert!(state.entries().unwrap().is_empty());
+        assert_eq!(state.generation().unwrap(), None);
         state.clear().unwrap();
         assert!(state.entries().unwrap().is_empty());
         assert!(state.deferred().unwrap().is_empty());
