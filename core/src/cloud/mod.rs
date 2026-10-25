@@ -3,6 +3,7 @@
 
 pub mod account;
 pub mod crypto;
+pub mod diarize;
 pub mod http;
 pub mod sync;
 
