@@ -23,7 +23,7 @@ fn host(api: &Arc<FakeApi>, device: &str) -> Host {
     engine.update_settings(settings).unwrap();
     let secrets = Arc::new(MemorySecrets::default());
     secrets.set(REFRESH_ACCOUNT.into(), Some("refresh".into()));
-    engine.set_secret_store(secrets.clone());
+    engine.set_secret_store(secrets.clone()).unwrap();
     // Unreachable on purpose: only logout talks to the account API in these tests.
     engine.use_cloud_session(Session::new("http://127.0.0.1:1".into(), secrets.clone()));
     engine.use_sync_api(api.clone());
@@ -151,7 +151,7 @@ fn logout_clears_sync_state_and_keeps_meetings() {
     a.engine.cloud_sync_enable().unwrap();
     let id = store(&a).create("Blijft", start()).unwrap();
     assert_eq!(a.engine.cloud_sync_run(vec![]).uploaded, 1);
-    a.engine.cloud_logout();
+    a.engine.cloud_logout().unwrap();
     assert!(a.root.join(&id).join("meeting.md").exists());
     assert_eq!(
         a.engine.cloud_sync_run(vec![]).status,

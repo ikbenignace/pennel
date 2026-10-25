@@ -77,6 +77,12 @@ impl RecordingLifecycle {
         Ok(())
     }
 
+    pub fn retry_finalizing(&mut self, id: &str) -> Result<(), PennelError> {
+        self.advance(id, RecordingPhase::Error, RecordingPhase::Finalizing)?;
+        self.state.error = None;
+        Ok(())
+    }
+
     pub fn fail(&mut self, id: &str, message: String) -> Result<(), PennelError> {
         self.check_id(id)?;
         if !self.is_busy() {
@@ -112,6 +118,23 @@ impl RecordingLifecycle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn failed_session_can_retry_finalization_without_starting_capture() {
+        let mut lifecycle = RecordingLifecycle::default();
+        let id = lifecycle.begin(None).unwrap();
+        lifecycle.fail(&id, "bewaren mislukt".into()).unwrap();
+        assert_eq!(
+            lifecycle.retry_finalizing("stale"),
+            Err(PennelError::Cancelled)
+        );
+        assert_eq!(lifecycle.snapshot().phase, RecordingPhase::Error);
+        lifecycle.retry_finalizing(&id).unwrap();
+        assert!(lifecycle.is_busy());
+        assert_eq!(lifecycle.snapshot().error, None);
+        lifecycle.complete(&id).unwrap();
+        assert_eq!(lifecycle.snapshot(), RecordingState::default());
+    }
 
     #[test]
     fn recording_stays_busy_until_finalization_completes() {

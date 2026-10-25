@@ -1,3 +1,5 @@
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -95,6 +97,76 @@ pub struct MeetingStore {
     dir: PathBuf,
 }
 
+pub(crate) fn durable_write(path: &Path, bytes: &[u8]) -> Result<(), PennelError> {
+    let parent = path.parent().ok_or_else(|| PennelError::Storage {
+        message: "de opslagmap ontbreekt".into(),
+    })?;
+    let temporary = parent.join(format!(".pennel-{}.tmp", uuid::Uuid::now_v7()));
+    let result = (|| {
+        let mut options = OpenOptions::new();
+        options.create_new(true).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&temporary).map_err(PennelError::storage)?;
+        file.write_all(bytes).map_err(PennelError::storage)?;
+        file.sync_all().map_err(PennelError::storage)?;
+        drop(file);
+        fs::rename(&temporary, path).map_err(PennelError::storage)?;
+        #[cfg(unix)]
+        fs::File::open(parent)
+            .and_then(|directory| directory.sync_all())
+            .map_err(PennelError::storage)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+fn recovery_audio(path: &Path) -> Option<Segment> {
+    let stem = path.file_stem()?.to_str()?;
+    let (speaker, stamp) = if let Some(stamp) = stem.strip_prefix("me-") {
+        (Speaker::Me, stamp)
+    } else {
+        (Speaker::Others, stem.strip_prefix("others-")?)
+    };
+    let start_ms = stamp.parse::<u64>().ok()?;
+    // Recovery files use our fixed PCM header. Listing a long offline meeting must not decode every
+    // audio chunk, or allocate an arbitrary dropped-in file just to discover its duration.
+    let length = fs::metadata(path).ok()?.len();
+    if length > 16_000 * 2 * 31 + 44 {
+        return None;
+    }
+    let mut header = [0u8; 44];
+    fs::File::open(path).ok()?.read_exact(&mut header).ok()?;
+    if &header[0..4] != b"RIFF"
+        || &header[8..16] != b"WAVEfmt "
+        || &header[36..40] != b"data"
+        || u16::from_le_bytes(header[20..22].try_into().ok()?) != 1
+        || u16::from_le_bytes(header[22..24].try_into().ok()?) != 1
+        || u16::from_le_bytes(header[34..36].try_into().ok()?) != 16
+    {
+        return None;
+    }
+    let rate = u32::from_le_bytes(header[24..28].try_into().ok()?);
+    let data_length = u64::from(u32::from_le_bytes(header[40..44].try_into().ok()?));
+    if rate != 16_000 || data_length % 2 != 0 || data_length + 44 != length {
+        return None;
+    }
+    Some(Segment {
+        start_ms,
+        end_ms: start_ms.saturating_add(data_length / 2 * 1000 / u64::from(rate)),
+        speaker,
+        text: String::new(),
+        failed: true,
+        voice: None,
+    })
+}
+
 pub(crate) fn timestamp(ms: u64) -> String {
     let total = ms / 1000;
     let (h, m, s) = (total / 3600, (total % 3600) / 60, total % 60);
@@ -105,17 +177,38 @@ pub(crate) fn timestamp(ms: u64) -> String {
     }
 }
 
+fn transcript_timestamp(ms: u64) -> String {
+    let stamp = timestamp(ms);
+    if ms.is_multiple_of(1000) {
+        stamp
+    } else {
+        format!("{stamp}.{:03}", ms % 1000)
+    }
+}
+
 pub(crate) fn parse_timestamp(text: &str) -> Option<u64> {
+    let (text, fraction) = match text.split_once('.') {
+        Some((stamp, fraction))
+            if fraction.len() == 3 && fraction.bytes().all(|byte| byte.is_ascii_digit()) =>
+        {
+            (stamp, fraction.parse::<u64>().ok()?)
+        }
+        Some(_) => return None,
+        None => (text, 0),
+    };
     let parts: Vec<u64> = text
         .split(':')
         .map(|p| p.parse().ok())
         .collect::<Option<_>>()?;
     let seconds = match parts.as_slice() {
-        [m, s] => m * 60 + s,
-        [h, m, s] => h * 3600 + m * 60 + s,
+        [m, s] => m.checked_mul(60)?.checked_add(*s)?,
+        [h, m, s] => h
+            .checked_mul(3600)?
+            .checked_add(m.checked_mul(60)?)?
+            .checked_add(*s)?,
         _ => return None,
     };
-    Some(seconds * 1000)
+    seconds.checked_mul(1000)?.checked_add(fraction)
 }
 
 fn sanitize(title: &str) -> String {
@@ -234,7 +327,7 @@ impl MeetingStore {
         let uid_line = format!("{UID_FIELD}: {uid}");
         lines.push(&uid_line);
         let path = self.dir_of(id).join("meeting.md");
-        // Not `meeting.tmp`: that name belongs to `write_file`, which may be running right now.
+        // UID updates and ordinary edits must never share a temporary file.
         let tmp = path.with_file_name(format!(".meeting-{}.tmp", uuid::Uuid::now_v7()));
         let head = lines.join(newline);
         std::fs::write(
@@ -253,10 +346,31 @@ impl MeetingStore {
     }
 
     fn write_file(&self, id: &str, name: &str, content: &str) -> Result<(), PennelError> {
-        let path = self.dir_of(id).join(name);
-        let tmp = path.with_extension("tmp");
-        std::fs::write(&tmp, content).map_err(PennelError::storage)?;
-        std::fs::rename(&tmp, &path).map_err(PennelError::storage)
+        durable_write(&self.dir_of(id).join(name), content.as_bytes())
+    }
+
+    pub(crate) fn write_recovery(
+        &self,
+        id: &str,
+        speaker: Speaker,
+        start_ms: u64,
+        bytes: &[u8],
+    ) -> Result<PathBuf, PennelError> {
+        let meeting = self.dir_of(id);
+        if !meeting.is_dir() {
+            return Err(PennelError::Storage {
+                message: "de meetingmap is niet beschikbaar".into(),
+            });
+        }
+        let path = crate::session::failed_path(&meeting, speaker, start_ms);
+        fs::create_dir_all(path.parent().expect("recovery directory"))
+            .map_err(PennelError::storage)?;
+        #[cfg(unix)]
+        fs::File::open(&meeting)
+            .and_then(|directory| directory.sync_all())
+            .map_err(PennelError::storage)?;
+        durable_write(&path, bytes)?;
+        Ok(path)
     }
 
     /// Modification time (ns) and length, enough to notice any rewrite of a meeting file.
@@ -284,6 +398,23 @@ impl MeetingStore {
 
     pub fn write_transcript(&self, id: &str, segments: &[Segment]) -> Result<(), PennelError> {
         let mut sorted = segments.to_vec();
+        // Empty successful lines are completion markers for intentionally filtered audio. Keep them
+        // while cleanup is pending, so a crash cannot resurrect a private dictation as a failed chunk.
+        for previous in self
+            .read_file(id, "transcript.md")
+            .lines()
+            .filter_map(parse_segment)
+            .filter(|segment| !segment.failed && segment.text.trim().is_empty())
+        {
+            if crate::session::failed_path(&self.dir_of(id), previous.speaker, previous.start_ms)
+                .exists()
+                && !sorted.iter().any(|segment| {
+                    segment.speaker == previous.speaker && segment.start_ms == previous.start_ms
+                })
+            {
+                sorted.push(previous);
+            }
+        }
         sorted.sort_by_key(|s| s.start_ms);
         let body: String = sorted
             .iter()
@@ -297,7 +428,10 @@ impl MeetingStore {
                     (Speaker::Others, Some(voice)) => format!("Anderen {voice}"),
                     _ => s.speaker.label().to_owned(),
                 };
-                format!("[{}] **{label}:** {text}\n", timestamp(s.start_ms))
+                format!(
+                    "[{}] **{label}:** {text}\n",
+                    transcript_timestamp(s.start_ms)
+                )
             })
             .collect();
         self.write_file(id, "transcript.md", &body)
@@ -312,10 +446,84 @@ impl MeetingStore {
     }
 
     pub fn read_transcript(&self, id: &str) -> Vec<Segment> {
-        self.read_file(id, "transcript.md")
+        let mut segments: Vec<_> = self
+            .read_file(id, "transcript.md")
             .lines()
             .filter_map(parse_segment)
-            .collect()
+            .collect();
+        if let Ok(entries) = fs::read_dir(self.dir_of(id).join("failed")) {
+            for entry in entries.filter_map(Result::ok) {
+                if !entry.file_type().is_ok_and(|kind| kind.is_file())
+                    || entry.path().extension().and_then(|value| value.to_str()) != Some("wav")
+                {
+                    continue;
+                }
+                let Some(recovered) = recovery_audio(&entry.path()) else {
+                    continue;
+                };
+                if let Some(existing) = segments.iter_mut().find(|segment| {
+                    segment.speaker == recovered.speaker && segment.start_ms == recovered.start_ms
+                }) {
+                    existing.end_ms = recovered.end_ms;
+                } else {
+                    segments.push(recovered);
+                }
+            }
+        }
+        segments.retain(|segment| segment.failed || !segment.text.trim().is_empty());
+        segments.sort_by_key(|segment| segment.start_ms);
+        segments
+    }
+
+    pub(crate) fn restore_recovery_duration(&self, id: &str) -> Result<(), PennelError> {
+        let info = self.info(id).ok_or(PennelError::NotFound)?;
+        if info.duration_min > 0 {
+            return Ok(());
+        }
+        let mut longest = self
+            .read_transcript(id)
+            .iter()
+            .map(|segment| segment.end_ms)
+            .max()
+            .unwrap_or(0);
+        // Successful empty rows are intentionally hidden from the visible transcript. Their saved
+        // audio still proves the recording's duration when a crash interrupted finalization.
+        if let Ok(entries) = fs::read_dir(self.dir_of(id).join("failed")) {
+            for entry in entries.filter_map(Result::ok) {
+                if entry.file_type().is_ok_and(|kind| kind.is_file())
+                    && entry.path().extension().and_then(|value| value.to_str()) == Some("wav")
+                    && let Some(segment) = recovery_audio(&entry.path())
+                {
+                    longest = longest.max(segment.end_ms);
+                }
+            }
+        }
+        if longest > 0 {
+            self.set_duration(id, longest.div_ceil(60_000).min(u64::from(u32::MAX)) as u32)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn cleanup_committed_audio(&self, id: &str) -> Result<u32, PennelError> {
+        let mut removed = 0;
+        let mut failure = None;
+        let transcript = fs::read_to_string(self.dir_of(id).join("transcript.md"))
+            .map_err(PennelError::storage)?;
+        for segment in transcript.lines().filter_map(parse_segment) {
+            if segment.failed {
+                continue;
+            }
+            let path =
+                crate::session::failed_path(&self.dir_of(id), segment.speaker, segment.start_ms);
+            match fs::remove_file(path) {
+                Ok(()) => removed += 1,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    failure.get_or_insert_with(|| PennelError::storage(error));
+                }
+            }
+        }
+        failure.map_or(Ok(removed), Err)
     }
 
     fn frontmatter(&self, id: &str) -> Option<(Frontmatter, String)> {
@@ -633,6 +841,111 @@ fn parse_segment(line: &str) -> Option<Segment> {
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[test]
+    fn queued_recovery_audio_is_discovered_after_restart_without_a_transcript() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Niet verwerkt", start()).unwrap();
+        let path = crate::session::failed_path(&store.dir_of(&id), Speaker::Others, 12_000);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, crate::wav::encode_wav(&vec![0.25; 32_000], 16_000)).unwrap();
+        let recovered = MeetingStore::new(dir.path()).read_transcript(&id);
+        assert_eq!(recovered.len(), 1);
+        assert!(recovered[0].failed);
+        assert_eq!(recovered[0].speaker, Speaker::Others);
+        assert_eq!(
+            (recovered[0].start_ms, recovered[0].end_ms),
+            (12_000, 14_000)
+        );
+        assert!(recovered[0].text.is_empty());
+    }
+
+    #[test]
+    fn stored_subsecond_timestamps_preserve_legacy_display_and_parser_compatibility() {
+        assert_eq!(timestamp(400), "00:00");
+        assert_eq!(transcript_timestamp(400), "00:00.400");
+        assert_eq!(transcript_timestamp(60_000), "01:00");
+        assert_eq!(parse_timestamp("00:00.400"), Some(400));
+        assert_eq!(parse_timestamp("1:02:03.004"), Some(3_723_004));
+        assert_eq!(parse_timestamp("00:01"), Some(1_000));
+        assert_eq!(parse_timestamp("00:01.4"), None);
+        assert_eq!(parse_timestamp("18446744073709551615:01"), None);
+    }
+
+    #[test]
+    fn transcript_writes_do_not_replace_a_legacy_temporary_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Tijdelijk bestand", start()).unwrap();
+        let temporary = store.dir_of(&id).join("transcript.tmp");
+        fs::write(&temporary, b"ander werk").unwrap();
+        store
+            .write_transcript(&id, &[seg(0, Speaker::Me, "tekst")])
+            .unwrap();
+        assert_eq!(fs::read(temporary).unwrap(), b"ander werk");
+        assert_eq!(store.read_transcript(&id)[0].text, "tekst");
+    }
+
+    #[test]
+    fn committed_recovery_audio_restores_end_times_and_missing_duration() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Herstelde duur", start()).unwrap();
+        store
+            .write_recovery(
+                &id,
+                Speaker::Others,
+                60_400,
+                &crate::wav::encode_wav(&vec![0.25; 32_000], 16_000),
+            )
+            .unwrap();
+        store
+            .write_transcript(&id, &[seg(60_400, Speaker::Others, "hersteld")])
+            .unwrap();
+        assert_eq!(store.read_transcript(&id)[0].end_ms, 62_400);
+        store.restore_recovery_duration(&id).unwrap();
+        assert_eq!(store.info(&id).unwrap().duration_min, 2);
+        store.cleanup_committed_audio(&id).unwrap();
+        assert!(!crate::session::failed_path(&store.dir_of(&id), Speaker::Others, 60_400).exists());
+    }
+
+    #[test]
+    fn filtered_recovery_audio_still_proves_duration_before_cleanup() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Gefilterde duur", start()).unwrap();
+        store
+            .write_recovery(
+                &id,
+                Speaker::Me,
+                60_400,
+                &crate::wav::encode_wav(&vec![0.25; 32_000], 16_000),
+            )
+            .unwrap();
+        store
+            .write_transcript(&id, &[seg(60_400, Speaker::Me, "")])
+            .unwrap();
+        assert!(store.read_transcript(&id).is_empty());
+        store.restore_recovery_duration(&id).unwrap();
+        assert_eq!(store.info(&id).unwrap().duration_min, 2);
+    }
+
+    #[test]
+    fn committed_and_filtered_audio_is_not_reprocessed_after_cleanup_is_interrupted() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Bewaard", start()).unwrap();
+        let path = crate::session::failed_path(&store.dir_of(&id), Speaker::Me, 0);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, crate::wav::encode_wav(&vec![0.25; 16_000], 16_000)).unwrap();
+        store
+            .write_transcript(&id, &[seg(0, Speaker::Me, "")])
+            .unwrap();
+        assert!(store.read_transcript(&id).is_empty());
+        store.write_transcript(&id, &[]).unwrap();
+        assert!(store.read_transcript(&id).is_empty());
+    }
 
     fn start() -> DateTime<Local> {
         Local.with_ymd_and_hms(2026, 10, 23, 14, 0, 0).unwrap()

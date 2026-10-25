@@ -3,6 +3,7 @@
 use std::time::{Duration, Instant};
 
 /// Apps read the clipboard whenever they handle Ctrl+V; busy Electron apps can take several hundred ms.
+#[cfg(not(target_os = "macos"))]
 pub const RESTORE_DELAY: Duration = Duration::from_millis(700);
 const COPY_WAIT: Duration = Duration::from_millis(300);
 pub const LATE_COPY_WATCH: Duration = Duration::from_secs(2);
@@ -42,13 +43,18 @@ pub struct Token<S> {
     fingerprint_after_set: u64,
 }
 
-pub fn begin<C: Clipboard>(clipboard: &mut C, text: &str) -> Token<C::Snapshot> {
+pub fn try_begin<C: Clipboard>(
+    clipboard: &mut C,
+    text: &str,
+) -> Result<Token<C::Snapshot>, String> {
     let saved = clipboard.snapshot();
-    clipboard.set_transient_text(text);
-    Token {
+    clipboard
+        .try_set_transient_text(text, false)
+        .map_err(|_| COPY_FAILED.to_owned())?;
+    Ok(Token {
         saved,
         fingerprint_after_set: clipboard.fingerprint(),
-    }
+    })
 }
 
 /// Restores the user's clipboard unless they copied something new in the meantime.
@@ -193,7 +199,7 @@ mod tests {
     #[test]
     fn dictation_keeps_its_text_when_exclusion_is_best_effort_and_secrets_demand_it() {
         let mut c = FakeClipboard::default();
-        begin(&mut c, "dictated");
+        try_begin(&mut c, "dictated").unwrap();
         assert_eq!(copy_secret(&mut c, "ABCD-EFGH"), Ok(()));
         assert_eq!(c.required_exclusion, vec![false, true]);
     }
@@ -219,10 +225,23 @@ mod tests {
     }
 
     #[test]
+    fn failed_dictation_write_does_not_authorize_pasting_the_previous_clipboard() {
+        let mut clipboard = FakeClipboard {
+            fail_writes: true,
+            ..FakeClipboard::default()
+        };
+        clipboard.user_copies("previous user text");
+        let error = try_begin(&mut clipboard, "synthetic dictated text").err();
+        assert_eq!(error.as_deref(), Some(COPY_FAILED));
+        assert_eq!(clipboard.contents.as_deref(), Some("previous user text"));
+        assert_eq!(clipboard.required_exclusion, vec![false]);
+    }
+
+    #[test]
     fn restores_previous_contents() {
         let mut c = FakeClipboard::default();
         c.user_copies("mine");
-        let token = begin(&mut c, "dictated");
+        let token = try_begin(&mut c, "dictated").unwrap();
         assert_eq!(c.contents.as_deref(), Some("dictated"));
         end(&mut c, token);
         assert_eq!(c.contents.as_deref(), Some("mine"));
@@ -232,7 +251,7 @@ mod tests {
     fn keeps_what_the_user_copied_in_between() {
         let mut c = FakeClipboard::default();
         c.user_copies("mine");
-        let token = begin(&mut c, "dictated");
+        let token = try_begin(&mut c, "dictated").unwrap();
         c.user_copies("newer");
         end(&mut c, token);
         assert_eq!(c.contents.as_deref(), Some("newer"));
@@ -241,7 +260,7 @@ mod tests {
     #[test]
     fn empty_clipboard_is_restored_empty() {
         let mut c = FakeClipboard::default();
-        let token = begin(&mut c, "dictated");
+        let token = try_begin(&mut c, "dictated").unwrap();
         end(&mut c, token);
         assert_eq!(c.contents, None);
     }
@@ -275,6 +294,9 @@ mod tests {
         assert_eq!(read.text, None);
         assert_eq!(c.contents.as_deref(), Some("mine"));
         let watch = read.late_watch.unwrap();
+        let now = Instant::now();
+        assert!(!watch.expired(now));
+        assert!(watch.expired(now + LATE_COPY_WATCH));
         assert!(!watch.check(&mut c));
         c.user_copies("late selection");
         assert!(watch.check(&mut c));

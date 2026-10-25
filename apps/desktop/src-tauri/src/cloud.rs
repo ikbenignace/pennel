@@ -405,7 +405,7 @@ pub async fn cloud_login_poll(
 pub async fn cloud_logout(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
     let shared = shared.inner().clone();
     blocking(move || {
-        shared.engine.cloud_logout();
+        shared.engine.cloud_logout().map_err(err)?;
         Ok(())
     })
     .await?;

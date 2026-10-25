@@ -172,6 +172,9 @@ export interface KindInfo {
 export interface AppInfo {
   settings: Settings;
   keys: Record<string, boolean>;
+  provider_revisions?: Record<string, number>;
+  active_model_downloads?: string[];
+  unsaved_history_count?: number;
   kinds: KindInfo[];
   recording_app_ids: string[];
   platform: string;
@@ -214,7 +217,7 @@ export interface HistoryEntry {
   app_bundle_id: string | null;
   raw: string;
   text: string;
-  status: "done" | "failed";
+  status: "done" | "failed" | "unsaved";
   error: string | null;
   has_audio: boolean;
 }
@@ -237,6 +240,7 @@ export interface Segment {
 }
 
 export interface MeetingStatus {
+  recognition?: { provider_kind: ProviderKind | null; provider_name: string; model: string; language: string | null };
   recording: boolean;
   phase: MeetingPhase;
   busy: boolean;
@@ -248,7 +252,12 @@ export interface MeetingStatus {
   elapsed_secs: number;
   system_audio: boolean;
   heard_system_audio: boolean;
+  echo_cancellation_active?: boolean;
   audio_warning: string | null;
+  persistence_error?: string | null;
+  transcription_warning?: string | null;
+  terminal_error?: string | null;
+  can_retry_persistence?: boolean;
   consent_copied?: boolean;
   pending: number;
   transcript: Segment[];
@@ -448,16 +457,22 @@ export const api = {
     invoke<LocalModel[]>("local_models", { language, supportedOnly }),
   modelState: (id: string) => invoke<ModelState>("model_state", { id }),
   downloadModel: (id: string) => invoke<void>("download_model", { id }),
+  joinModelDownload: (id: string) => invoke<boolean>("join_model_download", { id }),
   cancelDownload: (id: string) => invoke<void>("cancel_download", { id }),
   deleteModel: (id: string) => invoke<AppInfo>("delete_model", { id }),
   history: (limit: number) => invoke<HistoryEntry[]>("history", { limit }),
   retryHistory: (id: string) => invoke<string>("retry_history", { id }),
+  saveHistory: (id: string) => invoke<void>("save_history", { id }),
+  copyHistory: (id: string) => invoke<void>("copy_history", { id }),
+  testProviderTask: (slot: "dictation_stt" | "meeting_stt" | "llm") =>
+    invoke<{ verified: boolean; message: string }>("test_provider_task", { slot }),
   deleteHistory: (id: string) => invoke<void>("delete_history", { id }),
   openLog: () => invoke<void>("open_log"),
   openPath: (path: string) => invoke<void>("open_path", { path }),
   meetingStatus: () => invoke<MeetingStatus>("meeting_status"),
   startMeeting: (title: string) => invoke<string>("start_meeting", { title }),
   stopMeeting: () => invoke<void>("stop_meeting"),
+  retryMeetingPersistence: (sessionId: string) => invoke<void>("retry_meeting_persistence", { sessionId }),
   setMeetingNotes: (text: string, sessionId: string) => invoke<void>("set_meeting_notes", { text, sessionId }),
   setMeetingTitle: (title: string, sessionId: string) => invoke<void>("set_meeting_title", { title, sessionId }),
   meetings: (query: string) => invoke<MeetingInfo[]>("meetings", { query }),

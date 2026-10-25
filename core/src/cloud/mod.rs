@@ -67,7 +67,9 @@ pub(crate) mod tests {
         let dir = tempfile::tempdir().unwrap();
         let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
         assert!(engine.secret_store().is_none());
-        engine.set_secret_store(Arc::new(MemorySecrets::default()));
+        engine
+            .set_secret_store(Arc::new(MemorySecrets::default()))
+            .unwrap();
         let store = engine.secret_store().unwrap();
         store.set(REFRESH_ACCOUNT.into(), Some("token".into()));
         assert_eq!(store.get(REFRESH_ACCOUNT.into()).as_deref(), Some("token"));

@@ -5,6 +5,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+#[cfg(target_os = "macos")]
+use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
+#[cfg(target_os = "macos")]
+use std::time::Duration;
+
 use pennel_core::{MeetingSession, Speaker};
 
 #[cfg(not(target_os = "macos"))]
@@ -19,12 +24,114 @@ const LOG: Log = Log::new("meeting");
 #[cfg(any(not(target_os = "macos"), test))]
 const BATCH: usize = 16_000;
 
+#[cfg(target_os = "macos")]
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct MacCaptureHealth {
+    microphone_active: bool,
+    microphone_error: Option<String>,
+    system_audio_available: bool,
+    system_audio_error: Option<String>,
+    echo_cancellation: bool,
+    archive_error: Option<String>,
+    capture_warning: Option<String>,
+    terminal_error: Option<String>,
+}
+
+#[cfg(target_os = "macos")]
+impl MacCaptureHealth {
+    fn from_status(status: serde_json::Value) -> Self {
+        serde_json::from_value(status).unwrap_or_else(|_| Self {
+            capture_warning: Some("De opnamestatus kon niet worden gecontroleerd.".into()),
+            ..Self::default()
+        })
+    }
+
+    fn warning(&self) -> Option<String> {
+        let mut warnings = Vec::new();
+        for warning in [
+            &self.microphone_error,
+            &self.system_audio_error,
+            &self.archive_error,
+            &self.capture_warning,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !warnings.contains(warning) {
+                warnings.push(warning.clone());
+            }
+        }
+        (!warnings.is_empty()).then(|| warnings.join(" "))
+    }
+}
+
+/// The status ABI marshals synchronously through AppKit. Its owner polls without Shared's locks;
+/// status consumers only read the cache and normal capture finalization runs on a worker.
+#[cfg(target_os = "macos")]
+struct MacCaptureMonitor {
+    health: Arc<Mutex<MacCaptureHealth>>,
+    stop: Option<SyncSender<()>>,
+    worker: Option<std::thread::JoinHandle<Result<(), String>>>,
+}
+
+#[cfg(target_os = "macos")]
+impl MacCaptureMonitor {
+    fn start(native: crate::macos::MeetingCapture) -> Self {
+        let health = Arc::new(Mutex::new(MacCaptureHealth::from_status(native.status())));
+        let next_health = health.clone();
+        let (stop, receiver) = mpsc::sync_channel(1);
+        let worker = std::thread::spawn(move || {
+            loop {
+                match receiver.recv_timeout(Duration::from_secs(1)) {
+                    Ok(()) | Err(RecvTimeoutError::Disconnected) => break native.stop(),
+                    Err(RecvTimeoutError::Timeout) => {
+                        let snapshot = MacCaptureHealth::from_status(native.status());
+                        *next_health.lock().unwrap() = snapshot;
+                    }
+                }
+            }
+        });
+        Self {
+            health,
+            stop: Some(stop),
+            worker: Some(worker),
+        }
+    }
+
+    fn snapshot(&self) -> MacCaptureHealth {
+        self.health.lock().unwrap().clone()
+    }
+
+    fn stop(mut self) -> Result<(), String> {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.try_send(());
+        }
+        self.worker.take().map_or(Ok(()), |worker| {
+            worker
+                .join()
+                .unwrap_or_else(|_| Err("De opnamestatus is onverwacht gestopt.".into()))
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Drop for MacCaptureMonitor {
+    fn drop(&mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.try_send(());
+        }
+        // Never join an AppKit-bound worker from a possible main-thread destruction path.
+        let _ = self.worker.take();
+    }
+}
+
 pub struct MeetingRecorder {
     pub session: Arc<MeetingSession>,
     pub title: String,
     started: Instant,
     #[cfg(target_os = "macos")]
-    native: Option<crate::macos::MeetingCapture>,
+    native: Option<MacCaptureMonitor>,
     #[cfg(not(target_os = "macos"))]
     mic: Option<Microphone>,
     #[cfg(not(target_os = "macos"))]
@@ -328,11 +435,8 @@ impl MeetingRecorder {
                     }
                 },
             )?;
-            let has_system = native
-                .status()
-                .get("system_audio_available")
-                .and_then(|value| value.as_bool())
-                .unwrap_or(false);
+            let native = MacCaptureMonitor::start(native);
+            let has_system = native.snapshot().system_audio_available;
             Ok(Self {
                 session,
                 title,
@@ -476,6 +580,10 @@ impl MeetingRecorder {
     }
 
     pub fn has_system_audio(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        if let Some(native) = &self.native {
+            return native.snapshot().system_audio_available;
+        }
         self.has_system
     }
 
@@ -483,20 +591,45 @@ impl MeetingRecorder {
         self.heard_system.load(Ordering::Relaxed)
     }
 
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub fn echo_cancellation_active(&self) -> bool {
-        self.echo_active
-            && self
-                .mic
+        #[cfg(target_os = "macos")]
+        {
+            self.native.as_ref().is_some_and(|native| {
+                let health = native.snapshot();
+                health.microphone_active && health.echo_cancellation
+            })
+        }
+        #[cfg(windows)]
+        {
+            self.echo_active
+                && self
+                    .mic
+                    .as_ref()
+                    .is_some_and(|capture| capture.error().is_none())
+        }
+    }
+
+    pub fn terminal_error(&self) -> Option<String> {
+        #[cfg(target_os = "macos")]
+        {
+            self.native
                 .as_ref()
-                .is_some_and(|capture| capture.error().is_none())
+                .and_then(|native| native.snapshot().terminal_error)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            None
+        }
     }
 
     /// All values are cached/atomic or ordinary Rust mutexes; this is safe under Shared's lock.
     pub fn audio_warning(&self) -> Option<String> {
         #[cfg(target_os = "macos")]
         {
-            None
+            self.native
+                .as_ref()
+                .and_then(|native| native.snapshot().warning())
         }
         #[cfg(not(target_os = "macos"))]
         {
@@ -578,6 +711,51 @@ impl MeetingRecorder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_status_exposes_actual_echo_and_degraded_system_audio() {
+        let status = MacCaptureHealth::from_status(serde_json::json!({
+            "microphone_active": true,
+            "system_audio_available": false,
+            "echo_cancellation": false,
+            "system_audio_error": "Alleen de microfoon wordt opgenomen.",
+            "capture_warning": "Echo-onderdrukking is niet actief.",
+            "terminal_error": null
+        }));
+        assert!(status.microphone_active);
+        assert!(!status.system_audio_available);
+        assert!(!status.echo_cancellation);
+        assert_eq!(status.terminal_error, None);
+        assert_eq!(
+            status.warning().as_deref(),
+            Some("Alleen de microfoon wordt opgenomen. Echo-onderdrukking is niet actief.")
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_archive_error_remains_actionable_in_cached_health() {
+        let failure = "Audio bewaren mislukt.";
+        let status = MacCaptureHealth::from_status(serde_json::json!({
+            "microphone_active": true,
+            "system_audio_available": true,
+            "archive_error": failure,
+            "terminal_error": failure
+        }));
+        assert_eq!(status.terminal_error.as_deref(), Some(failure));
+        assert_eq!(status.warning().as_deref(), Some(failure));
+        assert!(status.microphone_active);
+        assert!(status.system_audio_available);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn malformed_native_health_is_visible_without_claiming_a_terminal_capture_failure() {
+        let status = MacCaptureHealth::from_status(serde_json::Value::Null);
+        assert!(status.warning().is_some());
+        assert!(status.terminal_error.is_none());
+    }
 
     #[derive(Default)]
     struct Collected {

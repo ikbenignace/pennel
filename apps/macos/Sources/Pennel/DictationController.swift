@@ -534,6 +534,10 @@ final class DictationController: OwnedDictationManaging {
         let kind = isCommand ? "opdracht" : "dictaat"
         let elapsed = released.duration(to: .now).formatted(.units(allowed: [.milliseconds]))
         switch outcome {
+        case .success(let result) where !result.historySaved:
+            if let external { ExternalPasteCoordinator.shared.cancel(external.token) }
+            text = nil
+            notice = "Bewaren mislukt. Je tekst staat tijdelijk in Geschiedenis."
         case .success(let result):
             text = result.text
             notice = Self.notice(for: result.cleanup)

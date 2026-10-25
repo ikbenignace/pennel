@@ -153,6 +153,7 @@ function menuChoice<T extends string>(options: [T, string][], value: T, onChange
 export function menuButton(label: string, items: { label: string; disabled?: boolean; title?: string | null; run: () => unknown }[], className = ""): HTMLButtonElement {
   const button = h("button", { type: "button", class: `menu-button ${className}`.trim(), "aria-haspopup": "menu", "aria-expanded": "false" }, h("span", { class: "menu-button-label" }, label), chevron());
   button.addEventListener("click", () => openList(button, items.map((item, index) => ({ value: String(index), label: item.label, disabled: !!item.disabled, title: item.title ?? undefined })), null, (index) => { void items[Number(index)].run(); }, "menu"));
+  button.addEventListener("keydown", (event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); button.click(); } });
   return button;
 }
 
@@ -189,7 +190,8 @@ function openList(anchor: HTMLElement, items: { value: string; label: string; di
   list.addEventListener("keydown", (event) => {
     const enabled = entries.filter((entry) => !entry.disabled);
     const index = enabled.indexOf(document.activeElement as HTMLButtonElement);
-    if (event.key === "Escape" || event.key === "Tab") { event.preventDefault(); close(); return; }
+    if (event.key === "Escape") { event.preventDefault(); close(); return; }
+    if (event.key === "Tab") { close(); return; }
     const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
     if (event.key === "Home" || event.key === "End") { event.preventDefault(); (event.key === "Home" ? enabled[0] : enabled.at(-1))?.focus(); }
     if (step) { event.preventDefault(); enabled[(index + step + enabled.length) % enabled.length]?.focus(); }
@@ -288,26 +290,43 @@ export function snippet(text: string): HTMLElement {
   return result;
 }
 
+let dialogNumber = 0;
+
+function namedDialog(title: string, detail: string) {
+  const id = `dialog-${++dialogNumber}`;
+  const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const dialog = h("dialog", { class: "editor-dialog", "aria-modal": "true", "aria-labelledby": `${id}-title`, "aria-describedby": detail ? `${id}-detail` : null });
+  const heading = h("h2", { id: `${id}-title` }, title);
+  const description = detail ? h("p", { id: `${id}-detail`, class: "muted" }, detail) : null;
+  const close = () => {
+    dialog.close(); dialog.remove();
+    if (invoker?.isConnected) invoker.focus({ preventScroll: true });
+  };
+  return { dialog, heading, description, close };
+}
+
 export function confirmDialog(title: string, detail: string, action = "Verwijder"): Promise<boolean> {
   return new Promise((resolve) => {
-    const dialog = h("dialog", { class: "editor-dialog" });
-    const finish = (value: boolean) => { dialog.close(); dialog.remove(); resolve(value); };
-    dialog.append(h("h2", {}, title), h("p", { class: "muted" }, detail),
+    const { dialog, heading, description, close } = namedDialog(title, detail);
+    const finish = (value: boolean) => { close(); resolve(value); };
+    const cancel = h("button", { class: "btn", onclick: () => finish(false) }, "Annuleren");
+    dialog.append(heading, ...(description ? [description] : []),
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
-        h("button", { class: "btn", onclick: () => finish(false) }, "Annuleren"),
+        cancel,
         h("button", { class: "btn danger", onclick: () => finish(true) }, action)));
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(false); });
     document.body.append(dialog);
     dialog.showModal();
+    cancel.focus();
   });
 }
 
 export function askText(title: string, value: string, detail = ""): Promise<string | null> {
   return new Promise((resolve) => {
-    const dialog = h("dialog", { class: "editor-dialog" });
+    const { dialog, heading, description, close } = namedDialog(title, detail);
     const input = h("input", { type: "text", value, "aria-label": title });
-    const finish = (result: string | null) => { dialog.close(); dialog.remove(); resolve(result); };
-    const form = h("form", {}, h("h2", {}, title), detail ? h("p", { class: "muted" }, detail) : null, input,
+    const finish = (result: string | null) => { close(); resolve(result); };
+    const form = h("form", {}, heading, description, input,
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
         h("button", { class: "btn", type: "button", onclick: () => finish(null) }, "Annuleren"),
         h("button", { class: "btn primary", type: "submit" }, "Bewaar")));

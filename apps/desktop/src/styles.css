@@ -124,14 +124,14 @@ details > summary { cursor: default; }
   box-shadow: 0 0 0 .5px var(--control-edge), 0 8px 24px var(--shadow); z-index: 60;
 }
 .menu-panel { position: absolute; bottom: calc(100% + 4px); right: 0; }
-.context-menu { position: fixed; }
+.context-menu { position: fixed; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto; }
 .menu-panel button, .context-menu button { display: block; width: 100%; padding: 3px 10px; border: 0; border-radius: 5px; background: none; color: var(--foreground); font: 400 var(--font-body)/1.45 var(--ui); text-align: left; text-decoration: none; }
 .menu-panel button:hover:not(:disabled), .context-menu button:hover:not(:disabled), .context-menu button:focus-visible { background: var(--selection); outline: none; }
 .menu-panel button:disabled, .context-menu button:disabled { color: var(--muted); opacity: .6; }
 .context-menu hr { width: calc(100% - 20px); margin: 5px 10px; border: 0; border-top: 1px solid var(--border); }
 .context-menu > p { margin: 3px 10px; }
 .share-menu { position: relative; }
-.editor-dialog { width: min(440px, calc(100vw - 40px)); padding: 20px; border: 0; border-radius: 12px; background: var(--surface); color: var(--foreground); box-shadow: 0 0 0 .5px var(--control-edge), 0 18px 48px var(--shadow); }
+.editor-dialog { width: min(440px, calc(100vw - 40px)); max-height: calc(100vh - 40px); overflow-y: auto; padding: 20px; border: 0; border-radius: 12px; background: var(--surface); color: var(--foreground); box-shadow: 0 0 0 .5px var(--control-edge), 0 18px 48px var(--shadow); }
 .editor-dialog::backdrop { background: color-mix(in srgb, var(--foreground) 12%, transparent); }
 .editor-dialog h2 { font-size: var(--font-body); font-weight: 600; margin: 0 0 6px; }
 .editor-dialog form { display: flex; flex-direction: column; gap: 10px; }
@@ -177,7 +177,8 @@ mark { background: none; color: inherit; font-weight: 600; }
 
 /* Meeting detail */
 .meeting-selected, .meeting-detail { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.meeting-header { display: flex; flex-shrink: 0; align-items: flex-start; gap: 16px; padding: 28px 32px 14px; }
+.meeting-header { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: flex-start; gap: 16px; padding: 28px 32px 14px; }
+.meeting-header > .grow { flex: 1 1 auto; }
 .meeting-header h1 { margin: 0; }
 .meeting-header > .grow > .help { margin: 4px 0 0; }
 .detail-tabs { flex-shrink: 0; }
@@ -187,10 +188,18 @@ mark { background: none; color: inherit; font-weight: 600; }
 .meeting-summary-setup { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: 10px; padding: 0 32px 10px; }
 .meeting-message { margin: 0 32px; color: var(--accent); }
 .meeting-message:empty { display: none; }
+.source-back { flex-shrink: 0; align-self: flex-start; margin: var(--space-4) 32px 0; font-size: var(--font-label); }
+.source-highlight { background: color-mix(in srgb, var(--wave) 35%, transparent); border-radius: var(--radius-control); }
+.meeting-recovery:empty { display: none; }
+.meeting-recovery-notice { flex-shrink: 0; overflow-wrap: anywhere; }
+.processing-path { flex-shrink: 0; overflow-wrap: anywhere; }
+.meeting-detail > .processing-path { margin: 0 32px var(--space-2); }
+.meeting-recovery-notice > p { margin: 0 0 var(--space-2); }
+.meeting-detail > .meeting-recovery-notice { margin: 0 32px var(--space-2); }
 .meeting-panel { flex: 1; min-height: 0; overflow: auto; padding: 12px 32px; }
 .meeting-panel:has(> .chat) { padding: 0; overflow: hidden; }
 .meeting-footer { flex-shrink: 0; padding: 14px 32px; }
-.meeting-footer > .row { flex-wrap: nowrap; gap: 10px; }
+.meeting-footer > .row { flex-wrap: wrap; gap: 10px; }
 .meeting-footer .menu-button { max-width: 180px; }
 .meeting-control-reason { margin: 6px 0 0; text-align: right; }
 .markdown { font-size: var(--font-content); line-height: 1.45; overflow-wrap: anywhere; }
@@ -208,7 +217,7 @@ mark { background: none; color: inherit; font-weight: 600; }
 .own-notes textarea { min-height: 120px; }
 .transcript-tools { display: flex; align-items: center; gap: 12px; min-height: 20px; margin-bottom: 12px; }
 .transcript-tools > span { flex: 1; }
-.transcript { font-size: var(--font-body); line-height: 1.45; }
+.transcript { font-size: var(--font-content); line-height: 1.5; }
 .transcript-line { display: grid; grid-template-columns: 52px 84px minmax(0, 1fr); align-items: baseline; gap: 10px; margin: 0 -6px 8px; padding: 2px 6px; border-radius: 6px; }
 .transcript-line.highlight { background: color-mix(in srgb, var(--wave) 35%, transparent); }
 .transcript-stamp { color: var(--muted); font-size: var(--font-caption); font-variant-numeric: tabular-nums; }
@@ -472,6 +481,7 @@ body[data-window="onboarding"] main { display: flex; overflow: hidden; }
   .meeting-header, .meeting-panel, .meeting-footer, .meeting-summary-setup, .chat-history, .chat-composer { padding-left: 20px; padding-right: 20px; }
   .meeting-header { flex-wrap: wrap; }
   .conflict-banner, .meeting-message { margin-left: 20px; margin-right: 20px; }
+  .source-back, .meeting-detail > .meeting-recovery-notice, .meeting-detail > .processing-path { margin-left: 20px; margin-right: 20px; }
   .meeting-footer > .row { flex-wrap: wrap; }
   .transcript-line { grid-template-columns: 44px 68px minmax(0, 1fr); gap: 8px; }
 }
