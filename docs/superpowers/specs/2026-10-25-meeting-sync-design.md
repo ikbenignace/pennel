@@ -56,9 +56,10 @@ Het moet "super proper" blijven, dus in lijn met de productregels: privé als st
   Lokale bestanden gaan nooit verloren.
 - Een toestel afmelden trekt alleen zijn toegang in. Het behoudt wat het al had, en de sleutel wordt in v1 niet geroteerd. Wie een gestolen toestel vreest, gebruikt **Kluis opnieuw beginnen**. Dat staat zo in de app.
 - Elk bestand is een **object**:
-  - Het object-id is `HMAC-SHA256(kluissleutel, sleutel)`, zodat de server geen namen ziet. De sleutel is `meeting/<meeting-uid>/<bestandsnaam>` voor meetingbestanden en `templates/<bestandsnaam>` voor sjablonen.
+  - Uit de kluissleutel worden twee subsleutels afgeleid (domeinscheiding): `id-sleutel = HMAC-SHA256(kluissleutel, "pennel/object-id/v1")` en `inhoudssleutel = HMAC-SHA256(kluissleutel, "pennel/object-enc/v1")`.
+  - Het object-id is `HMAC-SHA256(id-sleutel, sleutel)`, zodat de server geen namen ziet. De sleutel is `meeting/<meeting-uid>/<bestandsnaam>` voor meetingbestanden en `templates/<bestandsnaam>` voor sjablonen.
   - Elke meeting krijgt daarvoor een **vaste uid** (UUIDv7), die als `pennel_id:` in de frontmatter van `meeting.md` staat. Bestaande meetings krijgen die bij de eerste sync. Zo is een hernoemde meeting geen "alles wissen en opnieuw aanmaken".
-  - De inhoud is `XChaCha20-Poly1305(kluissleutel, {sleutel, mapnaam, inhoud, gewijzigd-op})`, met het object-id en de kluisgeneratie als associated data. De mapnaam reist mee in de ciphertext. Een ontvanger zoekt de map op via de uid, en als de mapnaam verschilt, hernoemt hij de map.
+  - De inhoud is `XChaCha20-Poly1305(inhoudssleutel, {sleutel, mapnaam, inhoud, gewijzigd-op})`, met het object-id en de kluisgeneratie als associated data. De mapnaam reist mee in de ciphertext. Een ontvanger zoekt de map op via de uid, en als de mapnaam verschilt, hernoemt hij de map.
 - Wat de server wel ziet: aantal objecten, grootte, tijdstippen en welk toestel uploadt. Dat staat ook in de privacytekst.
 
 ### 3.3 Synchronisatie
