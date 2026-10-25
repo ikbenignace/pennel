@@ -5,6 +5,13 @@ import XCTest
 @testable import PennelMacPlatform
 
 final class PlatformTests: XCTestCase {
+    func testOverlaySitsBottomCentreOnTheGivenScreen() {
+        let secondary = NSRect(x: -1920, y: 200, width: 1920, height: 1055)
+        XCTAssertEqual(bottomOverlayFrame(visible: secondary, width: 420, height: 120), NSRect(x: -1170, y: 200, width: 420, height: 120))
+        let tiny = NSRect(x: 0, y: 25, width: 300, height: 80)
+        XCTAssertEqual(bottomOverlayFrame(visible: tiny, width: 420, height: 120), NSRect(x: 0, y: 25, width: 300, height: 80))
+    }
+
     func testPasteboardRestorePreservesRichFormats() {
         let original = [["public.utf8-plain-text": Data("original".utf8), "public.html": Data("<b>original</b>".utf8)]]
         let board = FakePasteboard(items: original)

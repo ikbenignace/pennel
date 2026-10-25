@@ -557,6 +557,30 @@ public func showPanel(_ pointer: UnsafeMutableRawPointer?) {
     }
 }
 
+/// Bottom-centre of a screen's visible area, shrunk to fit it.
+func bottomOverlayFrame(visible: NSRect, width: CGFloat, height: CGFloat) -> NSRect {
+    let size = NSSize(width: min(max(width, 1), visible.width), height: min(max(height, 1), visible.height))
+    return NSRect(x: (visible.midX - size.width / 2).rounded(), y: visible.minY, width: size.width, height: size.height)
+}
+
+/// Places the overlay on the screen under the pointer before it is ordered in. Tauri's position and
+/// size setters are applied asynchronously, so a first show would otherwise use the default centred frame.
+@_cdecl("pennel_mac_show_panel_at_bottom")
+public func showPanelAtBottom(_ pointer: UnsafeMutableRawPointer?, _ width: Double, _ height: Double) {
+    guard let pointer else { return }
+    onMain {
+        let window = Unmanaged<NSWindow>.fromOpaque(pointer).takeUnretainedValue()
+        let mouse = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main {
+            let frame = bottomOverlayFrame(visible: screen.visibleFrame, width: width, height: height)
+            window.setFrame(frame, display: false)
+        }
+        guard let host = overlayHost(window) else { window.orderFrontRegardless(); return }
+        host.panel.setFrame(window.frame, display: false)
+        host.panel.orderFrontRegardless()
+    }
+}
+
 @_cdecl("pennel_mac_hide_panel")
 public func hidePanel(_ pointer: UnsafeMutableRawPointer?) {
     guard let pointer else { return }

@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use pennel_core::DictationPreviewUpdate;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindow};
+#[cfg(not(target_os = "macos"))]
+use tauri::PhysicalPosition;
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow};
 
 use crate::status::PillState;
 
@@ -119,6 +121,7 @@ fn metrics() -> &'static PillMetrics {
     })
 }
 
+#[cfg(any(not(target_os = "macos"), test))]
 fn fitted_geometry(
     origin: (i32, i32),
     size: (u32, u32),
@@ -361,10 +364,9 @@ impl Pill {
             let _ = window.emit_to(LABEL, "pill-state", &latest);
             if latest.state == PillState::Hidden {
                 platform::hide(&window);
+            } else if position || is_new {
+                platform::show_at_bottom(&handle, &window);
             } else {
-                if position || is_new {
-                    Self::position(&handle, &window);
-                }
                 platform::show(&window);
             }
         });
@@ -380,6 +382,7 @@ impl Pill {
         let _ = self.app.emit_to(LABEL, "pill-level", level);
     }
 
+    #[cfg(not(target_os = "macos"))]
     fn position(app: &AppHandle, window: &WebviewWindow) {
         let cursor = app.cursor_position().ok();
         let monitors = app.available_monitors().unwrap_or_default();
@@ -442,6 +445,11 @@ mod platform {
         }
     }
 
+    pub fn show_at_bottom(app: &tauri::AppHandle, window: &WebviewWindow) {
+        super::Pill::position(app, window);
+        show(window);
+    }
+
     pub fn hide(window: &WebviewWindow) {
         if let Some(hwnd) = hwnd(window) {
             unsafe {
@@ -461,6 +469,21 @@ mod platform {
             }
         }
     }
+    /// Tauri applies position and size asynchronously on macOS, after the panel would already be
+    /// ordered in at the default centred frame; the panel is placed synchronously instead.
+    pub fn show_at_bottom(_app: &tauri::AppHandle, window: &WebviewWindow) {
+        if let Ok(pointer) = window.ns_window() {
+            let metrics = super::metrics();
+            unsafe {
+                crate::macos::show_panel_at_bottom(
+                    pointer,
+                    metrics.window_width,
+                    metrics.window_height,
+                );
+            }
+        }
+    }
+
     pub fn hide(window: &WebviewWindow) {
         if let Ok(pointer) = window.ns_window() {
             unsafe {
@@ -476,6 +499,11 @@ mod platform {
 
     pub fn show(window: &WebviewWindow) {
         let _ = window.show();
+    }
+
+    pub fn show_at_bottom(app: &tauri::AppHandle, window: &WebviewWindow) {
+        super::Pill::position(app, window);
+        show(window);
     }
 
     pub fn hide(window: &WebviewWindow) {

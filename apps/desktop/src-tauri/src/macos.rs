@@ -104,6 +104,7 @@ unsafe extern "C" {
     fn pennel_mac_stop_audio();
     fn pennel_mac_configure_panel(window: *mut c_void, interactive: bool);
     fn pennel_mac_show_panel(window: *mut c_void);
+    fn pennel_mac_show_panel_at_bottom(window: *mut c_void, width: f64, height: f64);
     fn pennel_mac_hide_panel(window: *mut c_void);
     fn pennel_mac_set_accessory();
 }
@@ -701,6 +702,12 @@ pub unsafe fn configure_panel(window: *mut c_void, interactive: bool) {
 /// `window` must be a live NSWindow obtained from this process's Tauri window.
 pub unsafe fn show_panel(window: *mut c_void) {
     unsafe { pennel_mac_show_panel(window) };
+}
+
+/// Shows the panel bottom-centre on the screen under the pointer, sized in points.
+/// `window` must be a live NSWindow obtained from this process's Tauri window.
+pub unsafe fn show_panel_at_bottom(window: *mut c_void, width: f64, height: f64) {
+    unsafe { pennel_mac_show_panel_at_bottom(window, width, height) };
 }
 
 /// `window` must be a live NSWindow obtained from this process's Tauri window.
