@@ -5,6 +5,7 @@ mod catalog;
 mod chunker;
 mod cleanup;
 mod cli_agent;
+mod cloud;
 mod command;
 mod diarize;
 mod engine;
@@ -39,6 +40,7 @@ mod wav;
 
 pub use call_detector::{CallDetector, CallEvent, CallObservation};
 pub use cli_agent::{DetectedAgent, check_cli_agent, detect_cli_agents};
+pub use cloud::SecretStore;
 pub use engine::{
     ApiKeys, CleanupStatus, DictationRequest, DictationResult, LibrarySearch, PennelEngine,
 };

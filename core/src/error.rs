@@ -18,6 +18,12 @@ pub enum PennelError {
     Cancelled,
     #[error("model not downloaded")]
     ModelNotDownloaded,
+    #[error("not signed in to Pennel Cloud")]
+    NotSignedIn,
+    #[error("cloud error {code}: {message}")]
+    Cloud { code: String, message: String },
+    #[error("vault locked")]
+    VaultLocked,
 }
 
 impl PennelError {

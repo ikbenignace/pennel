@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::cleanup::{
     accept_cleanup, cleanup_messages, cleanup_timeout_secs, resolve_style, strip_wrapping,
 };
+use crate::cloud::SecretStore;
 use crate::error::PennelError;
 use crate::export::MeetingExport;
 use crate::history::{HistoryEntry, HistoryStore};
@@ -81,6 +82,7 @@ pub struct PennelEngine {
     index: Mutex<Option<MeetingIndex>>,
     system_stt: RwLock<Option<Arc<dyn SystemTranscriber>>>,
     system_llm: RwLock<Option<Arc<dyn SystemLanguageModel>>>,
+    secrets: RwLock<Option<Arc<dyn SecretStore>>>,
     meeting_gate: Mutex<()>,
     active_sessions: Mutex<Vec<Weak<MeetingSession>>>,
     library_lease: Mutex<Option<(PathBuf, DirectoryLease)>>,
@@ -136,6 +138,10 @@ impl PennelEngine {
     /// Lets the app plug in the OS's on-device recognizer (Apple's dictation model) as a provider.
     pub fn set_system_transcriber(&self, transcriber: Arc<dyn SystemTranscriber>) {
         *self.system_stt.write().unwrap() = Some(transcriber);
+    }
+
+    pub fn set_secret_store(&self, store: Arc<dyn SecretStore>) {
+        *self.secrets.write().unwrap() = Some(store);
     }
 
     pub fn set_system_language_model(&self, model: Arc<dyn SystemLanguageModel>) {
@@ -850,6 +856,17 @@ fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
     })
 }
 
+#[allow(dead_code)] // used by the cloud modules that follow
+impl PennelEngine {
+    pub(crate) fn secret_store(&self) -> Option<Arc<dyn SecretStore>> {
+        self.secrets.read().unwrap().clone()
+    }
+
+    pub(crate) fn cloud_base_url(&self) -> String {
+        crate::cloud::base_url(self.preview)
+    }
+}
+
 impl PennelEngine {
     fn open(data_dir: String, preview: bool) -> Result<Arc<Self>, PennelError> {
         let dir = PathBuf::from(data_dir);
@@ -894,6 +911,7 @@ impl PennelEngine {
             index: Mutex::new(index),
             system_stt: RwLock::new(None),
             system_llm: RwLock::new(None),
+            secrets: RwLock::new(None),
             meeting_gate: Mutex::new(()),
             active_sessions: Mutex::new(Vec::new()),
             library_lease: Mutex::new(library_lease),
