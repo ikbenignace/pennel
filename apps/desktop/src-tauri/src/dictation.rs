@@ -141,6 +141,9 @@ fn failure_category(failure: &Failure) -> String {
         Failure::Core(PennelError::NotFound) => "not_found".into(),
         Failure::Core(PennelError::Cancelled) => "cancelled".into(),
         Failure::Core(PennelError::NoSpeech) => "no_speech".into(),
+        Failure::Core(PennelError::NotSignedIn) => "not_signed_in".into(),
+        Failure::Core(PennelError::Cloud { .. }) => "cloud".into(),
+        Failure::Core(PennelError::VaultLocked) => "vault_locked".into(),
     }
 }
 
