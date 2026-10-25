@@ -339,3 +339,24 @@ export function askText(title: string, value: string, detail = ""): Promise<stri
     input.select();
   });
 }
+
+/** A name dialog with one opt-in switch below the field, such as Onthoud deze stem. */
+export function askTextWithSwitch(title: string, value: string, detail: string, label: string, checked = false): Promise<{ text: string; on: boolean } | null> {
+  return new Promise((resolve) => {
+    const { dialog, heading, description, close } = namedDialog(title, detail);
+    const input = h("input", { type: "text", value, "aria-label": title });
+    const option = h("input", { type: "checkbox", role: "switch", checked });
+    const finish = (result: { text: string; on: boolean } | null) => { close(); resolve(result); };
+    const form = h("form", {}, heading, description, input, h("label", { class: "checkbox" }, option, label),
+      h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
+        h("button", { class: "btn", type: "button", onclick: () => finish(null) }, "Annuleren"),
+        h("button", { class: "btn primary", type: "submit" }, "Bewaar")));
+    form.addEventListener("submit", (event) => { event.preventDefault(); finish({ text: input.value.trim(), on: option.checked }); });
+    dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(null); });
+    dialog.append(form);
+    document.body.append(dialog);
+    dialog.showModal();
+    input.focus();
+    input.select();
+  });
+}
