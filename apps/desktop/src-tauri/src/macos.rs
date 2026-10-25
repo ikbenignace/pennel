@@ -22,6 +22,7 @@ unsafe extern "C" {
     fn pennel_mac_request_permission(kind: *const c_char) -> bool;
     fn pennel_mac_foreground() -> *mut c_char;
     fn pennel_mac_pick_style_application(error: *mut *mut c_char) -> *mut c_char;
+    fn pennel_mac_app_identity(id: *const c_char, points: i32) -> *mut c_char;
     fn pennel_mac_external_target_start();
     fn pennel_mac_external_target_capture() -> *mut c_char;
     fn pennel_mac_external_target_capture_current() -> *mut c_char;
@@ -161,6 +162,11 @@ pub struct ForegroundApp {
 
 pub fn foreground() -> Option<ForegroundApp> {
     serde_json::from_value(unsafe { take_json(pennel_mac_foreground()) }).ok()
+}
+
+pub fn app_identity(id: &str, points: i32) -> Option<crate::app_identity::AppIdentity> {
+    let id = CString::new(id).ok()?;
+    serde_json::from_value(unsafe { take_json(pennel_mac_app_identity(id.as_ptr(), points)) }).ok()
 }
 
 pub fn pick_style_application() -> Result<Option<crate::style_application::StyleApplication>, String>

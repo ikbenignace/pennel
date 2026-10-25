@@ -27,6 +27,8 @@ export function listen<T>(event: string, handler: (event: Event<T>) => void): Pr
   return client ? client.listen(event, (value) => handler({ event, id: 0, payload: value.payload as T })) : tauriListen<T>(event, handler);
 }
 
+export interface AppIdentity { name: string; icon: string }
+
 export type ProviderKind =
   | "open_ai"
   | "open_router"
@@ -438,6 +440,7 @@ export const api = {
     invoke<void>("share_meeting", { id, includeTranscript, action }),
   markLines: (enhanced: string, notes: string) => invoke<{ text: string; mine: boolean }[]>("mark_lines", { enhanced, notes }),
   detectCliAgents: () => invoke<DetectedAgent[]>("detect_cli_agents"),
+  appIdentity: (id: string) => invoke<AppIdentity | null>("app_identity", { id }),
   pickStyleApplication: () => invoke<{ id: string; name: string } | null>("pick_style_application"),
   checkCliAgent: (id: string, model: string) => invoke<string>("check_cli_agent", { id, model }),
   providerModels: (id: string) => invoke<RemoteModel[]>("provider_models", { id }),

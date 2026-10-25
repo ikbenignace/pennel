@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_identity;
 mod audio;
 mod call_detection;
 mod capabilities;
@@ -837,6 +838,7 @@ fn main() {
             platform_commands::share_meeting,
             platform_commands::choose_meetings_dir,
             style_application::pick_style_application,
+            app_identity::app_identity,
             commands::model_state,
             commands::show_main,
             commands::hide_window,

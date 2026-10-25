@@ -164,7 +164,8 @@
       case "dictation_state": return clone(pillSnapshot);
       case "frontend_ready": globalThis.__PENNEL_FIXTURE_READY__ = true; return null;
       case "frontend_flushed": return null;
-      case "history": return clone(history);
+      case "app_identity": return null;
+    case "history": return clone(history);
       case "delete_history": return null;
       case "retry_history": return sentence;
       case "local_models": return clone(args.supportedOnly || args.supported_only ? models.filter(model => model.languages.some(language => language.split(/[-_]/)[0] === (args.language || "nl"))) : models);
