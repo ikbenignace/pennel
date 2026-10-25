@@ -165,8 +165,8 @@ Doel: een nieuwe gebruiker kan dicteren, opkuisen en meetings samenvatten zonder
 7. UI alleen in de gedeelde app, uitgeschakeld in de native Mac-app.
 8. De Rust-server is het enige accountsysteem; better-auth komt er niet.
 9. Een vaste meeting-uid in de frontmatter, zodat hernoemen goed synct.
-11. Gehoste modellen standaard via Mistral (EU), upstream configureerbaar; de app vraagt `pennel-auto`.
 10. De herstelcode wordt nooit bewaard. "Nieuwe code" pakt de sleutel opnieuw in. De kluisgeneratie maakt "opnieuw beginnen" zichtbaar op alle toestellen. Geen sleutelrotatie bij afmelden in v1.
+11. Gehoste modellen standaard via Mistral (EU), upstream configureerbaar; de app vraagt `pennel-auto`.
 
 ## 7. Limieten in de beta
 - **Sync:** 1 GB versleutelde opslag per account, 5 MB per bestand en 10 toestellen.
