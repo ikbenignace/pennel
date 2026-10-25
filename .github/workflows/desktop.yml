@@ -102,6 +102,9 @@ jobs:
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Ad-hoc sign the development Mac bundle
+        if: runner.os == 'macOS'
+        run: echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
       - name: Installers with verified non-Mac x64 CPU baseline
         env:
           PENNEL_BUILD_TARGET: ${{ matrix.target }}

@@ -47,7 +47,9 @@ def main():
         architectures = subprocess.check_output(["lipo", "-archs", str(binary)], text=True).strip().split()
         if "arm64" not in architectures:
             raise ValueError("The initial Mac release must contain Apple Silicon code")
-        subprocess.run(["codesign", "--verify", "--deep", "--strict", str(args.app)], check=True, capture_output=True, text=True)
+        verification = subprocess.run(["codesign", "--verify", "--deep", "--strict", str(args.app)], capture_output=True, text=True)
+        if verification.returncode:
+            raise ValueError(f"Code signature is not valid: {verification.stderr.strip()}")
         signature = subprocess.run(["codesign", "-dv", "--verbose=4", str(args.app)], check=True, capture_output=True, text=True).stderr
         developer_id = "Authority=Developer ID Application:" in signature
         if args.require_developer_id and not developer_id:
