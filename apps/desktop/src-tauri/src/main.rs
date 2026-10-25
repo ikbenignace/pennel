@@ -124,15 +124,21 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                 label,
                 tauri::WebviewUrl::App(url.into()),
             )
-            .title("Pennel")
+            .title(if mode == "onboarding" {
+                "Welkom bij Pennel"
+            } else {
+                "Pennel"
+            })
             .inner_size(
                 fit.map_or(width, |size| size.width),
                 fit.map_or(height, |size| size.height),
             )
             .visible(false);
+            if mode != "prompt" {
+                builder = native_title_bar(builder);
+            }
             if mode == "onboarding" {
                 builder = builder
-                    .decorations(false)
                     .min_inner_size(
                         fit.map_or(520.0, |size| size.min_width),
                         fit.map_or(520.0, |size| size.min_height),
@@ -187,6 +193,18 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
             }
         }
     });
+}
+
+/// Product windows keep the system title bar and its title. On macOS the bar is transparent over the
+/// webview so the sidebar and paper colour run to the top edge, as in the native reference app.
+fn native_title_bar<'a, R: tauri::Runtime, M: Manager<R>>(
+    builder: tauri::WebviewWindowBuilder<'a, R, M>,
+) -> tauri::WebviewWindowBuilder<'a, R, M> {
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(false);
+    builder
 }
 
 fn preferred_monitor(app: &AppHandle) -> Option<tauri::Monitor> {

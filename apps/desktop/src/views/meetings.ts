@@ -432,8 +432,8 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     } }, "Verwijderen")));
   const result = h("article", { class: "meeting-detail" },
     h("header", { class: "meeting-header" }, h("div", { class: "grow" }, h("h1", {}, detail.info.title),
-      h("p", { class: "help" }, [dateLabel(detail.info.start_iso), detail.info.duration_min ? `${detail.info.duration_min} min` : "", detail.attendees.join(", ")].filter(Boolean).join(" · ")))),
-    h("div", { class: "meeting-tabs" }, tabs), ...banners, summarySetup, message, panel, footer);
+      h("p", { class: "help" }, [dateLabel(detail.info.start_iso), detail.info.duration_min ? `${detail.info.duration_min} min` : "", detail.attendees.join(", ")].filter(Boolean).join(" · "))), tabs),
+    ...banners, summarySetup, message, panel, footer);
   draw();
   if (ctx.jumpMs !== undefined) {
     const jump = ctx.jumpMs;

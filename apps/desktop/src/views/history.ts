@@ -3,6 +3,7 @@ import { errorText, h } from "../dom";
 import type { Context } from "../main";
 import { applicationLabel } from "../presentation";
 import { icon } from "../icons";
+import { appBadge } from "../app-icon";
 
 const retrying = new Set<string>();
 let message: string | null = null;
@@ -27,13 +28,15 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
   };
   const row = (entry: HistoryEntry) => {
     const failed = entry.status === "failed";
+    const source = entry.app_bundle_id ? appBadge(entry.app_bundle_id) : null;
+    if (source) source.icon.title = source.name.textContent ?? "";
     return h(
       "div",
       { class: "history-entry" },
-      h("span", { class: "history-destination", "aria-hidden": true }, icon("laptop")),
+      h("span", { class: "history-destination" }, source?.icon ?? h("span", { class: "app-icon", "aria-hidden": "true" })),
       h("div", { class: "history-content" },
         h("p", { class: failed ? "error" : "" }, failed ? `Mislukt: ${entry.error ?? "onbekende fout"}` : entry.text),
-        h("div", { class: "history-metadata" }, when(entry.created_at_ms), entry.app_bundle_id ? ` · ${applicationLabel(entry.app_bundle_id)}` : "")),
+        h("div", { class: "history-metadata" }, when(entry.created_at_ms), entry.app_bundle_id ? h("span", { class: "visually-hidden" }, ` · ${applicationLabel(entry.app_bundle_id)}`) : "")),
       h(
         "div",
         { class: "history-actions" },
@@ -46,7 +49,7 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
           : null,
         failed
           ? null
-          : h("button", { class: "button-icon", "aria-label": "Dictaat kopiëren", onclick: () => api.copyText(entry.text) }, icon("copy")),
+          : h("button", { class: "btn", "aria-label": "Dictaat kopiëren", onclick: () => api.copyText(entry.text) }, "Kopiëren"),
         h(
           "button",
           {

@@ -126,7 +126,7 @@ export function markdown(text: string): HTMLElement {
     const task = bullet?.[1].match(/^\[([ xX])\]\s+(.+)/);
     const node = heading ? h("h4", {}) : h("p", { class: bullet ? "bullet" : null });
     if (task) node.append(h("span", { class: "markdown-check", role: "img", "aria-label": task[1].trim() ? "Voltooid" : "Open actiepunt" }, task[1].trim() ? "☑ " : "□ "));
-    else if (bullet) node.append(document.createTextNode("• "));
+    else if (bullet) node.append(h("span", { class: "bullet-mark" }, "• "));
     node.append(inline(heading?.[1] ?? task?.[2] ?? bullet?.[1] ?? clean));
     block.append(node);
   }

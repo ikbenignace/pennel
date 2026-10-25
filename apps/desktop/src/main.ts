@@ -1,4 +1,5 @@
 import "./styles.css";
+import "./native.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, fixtureClient, listen, type AppInfo, type MeetingFinished, type Settings, type UpdateInfo } from "./api";
 import { LatestRequest, SerialQueue, persistAll } from "./async";
@@ -79,7 +80,8 @@ const app = document.getElementById("app")!;
 const content = h("main", { id: "content" });
 const banner = h("div", { class: "notice-banner", role: "status", hidden: true });
 const navButtons = new Map<WorkspaceSection, HTMLButtonElement>();
-const toolbarTitle = h("span", { class: "workspace-title" });
+const sectionTitles: Record<WorkspaceSection | "recording", string> = { dictation: "Pennel", meetings: "Pennel", recording: "Pennel", history: "Geschiedenis", settings: "Instellingen" };
+let windowTitle = "";
 const liveButton = h("button", { class: "workspace-live text-button", hidden: true, onclick: () => { void go(workspaceRoute("recording")); } });
 const recentList = h("div", { class: "workspace-recents" });
 
@@ -203,12 +205,12 @@ function contextFor(target: Mounted): Context {
 
 async function settingsView(ctx: Context): Promise<HTMLElement> {
   const current = navigation.current.tab === "local" ? "providers" : navigation.current.tab ?? "providers";
-  const nav = h("nav", { class: "settings-categories", "aria-label": "Instellingencategorieën" }, tabs.map(([id, label]) => h("button", {
+  const nav = h("nav", { class: "settings-categories segmented", "aria-label": "Instellingencategorieën" }, tabs.map(([id, label]) => h("button", {
     "aria-current": id === current ? "page" : null, onclick: () => navigate(id),
   }, label)));
   const selected = tabs.find(([id]) => id === current) ?? tabs[0];
-  const pane = h("section", { class: "settings-pane" }, await selected[2](ctx));
-  return h("div", { class: "settings-workspace" }, h("h1", {}, "Instellingen"), h("div", { class: "settings-layout" }, nav, pane), settingsFooter(ctx));
+  const pane = h("section", { class: "settings-pane" }, await selected[2](ctx), settingsFooter(ctx));
+  return h("div", { class: "settings-workspace" }, h("h1", { class: "visually-hidden" }, "Instellingen"), h("div", { class: "settings-layout" }, nav, pane));
 }
 
 function appearanceView(ctx: Context): HTMLElement {
@@ -253,11 +255,23 @@ async function render(allowed: () => boolean = () => true) {
 function updateNavigation() {
   const section = navigation.current.section === "recording" ? "meetings" : navigation.current.section;
   navButtons.forEach((button, key) => { if (key === section) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current"); });
-  toolbarTitle.textContent = ({ dictation: "Dicteren", meetings: "Vergaderingen", history: "Geschiedenis", settings: "Instellingen", recording: "Opname" })[navigation.current.section];
+  setWindowTitle(sectionTitles[navigation.current.section]);
+}
+
+function setWindowTitle(title: string) {
+  if (title === windowTitle) return;
+  windowTitle = title;
+  document.title = title;
+  if (fixtureClient()) return;
+  try { void getCurrentWindow().setTitle(title).catch(() => {}); } catch { /* Window APIs are unavailable in a browser-only preview. */ }
+}
+
+/** On macOS the transparent system title bar overlays the webview; this strip keeps it draggable. */
+function titlebarDragRegion(): HTMLElement {
+  return h("div", { class: "titlebar-drag", "data-tauri-drag-region": true, "aria-hidden": "true" });
 }
 
 function workspaceShell() {
-  const wordmark = h("div", { class: "workspace-wordmark", "aria-label": "Pennel" }, "pennel", h("span", { "aria-hidden": "true" }));
   const nav = h("nav", { class: "workspace-navigation", "aria-label": "Hoofdnavigatie" });
   for (const [section, label, glyph] of [["dictation", "Dicteren", "mic"], ["meetings", "Vergaderingen", "notebook"], ["history", "Geschiedenis", "history"]] as [WorkspaceSection, string, IconName][]) {
     const button = h("button", { class: "workspace-nav-button", onclick: () => { void go(navigation.select(section)); } }, icon(glyph), h("span", {}, label));
@@ -266,14 +280,13 @@ function workspaceShell() {
   const settings = h("button", { class: "workspace-nav-button", onclick: () => { void go(navigation.select("settings")); } }, icon("settings"), "Instellingen");
   navButtons.set("settings", settings);
   const shortcut = h("div", { class: "workspace-shortcut" }, h("div", {}, h("kbd", { "data-shortcut-label": true }, hotkeyLabel(info.settings.hotkey, info.platform)), h("strong", {}, "Hou in en spreek")), h("span", { class: "help" }, "Waar je cursor staat."));
-  const sidebar = h("aside", { class: "workspace-sidebar" }, wordmark, nav, liveButton, recentList,
-    h("div", { class: "workspace-sidebar-bottom" }, shortcut, settings));
   const theme = h("button", { class: "button-icon", "data-theme-toggle": true, "aria-label": "Weergave wijzigen", onclick: () => {
     pendingSettings.push((settings) => { settings.appearance = appearanceIsDark(settings.appearance, matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark"; });
     applyAppearance(); void settingsQueue.run(flushSettings).catch(report);
   } }, icon("moon"));
-  const toolbar = h("header", { class: "workspace-toolbar" }, toolbarTitle, theme);
-  app.replaceChildren(h("div", { class: "workspace-shell" }, sidebar, h("div", { class: "workspace-body" }, toolbar, banner, content)));
+  const sidebar = h("aside", { class: "workspace-sidebar" }, nav, liveButton, recentList,
+    h("div", { class: "workspace-sidebar-bottom" }, shortcut, h("div", { class: "workspace-sidebar-actions" }, settings, theme)));
+  app.replaceChildren(titlebarDragRegion(), h("div", { class: "workspace-shell" }, sidebar, h("div", { class: "workspace-body" }, banner, content)));
   applyAppearance();
 }
 
@@ -350,7 +363,8 @@ function focusChanged(focused: boolean) {
 async function boot() {
   document.body.dataset.window = mode;
   info = await api.info(); applyAppearance();
-  if (mode === "workspace") workspaceShell(); else app.replaceChildren(banner, content);
+  document.documentElement.dataset.platform = info.platform;
+  if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "onboarding" ? [titlebarDragRegion()] : []), banner, content);
   await listen("capabilities-changed", () => { if (!booted) capabilitiesDirty = true; else void refresh().catch(report); });
   await listen<unknown>("workspace-navigate", (event) => { const route = parseWorkspaceRoute(event.payload); if (route) void go(route); });
   await listen<string>("navigate", (event) => {

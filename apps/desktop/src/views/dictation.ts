@@ -2,6 +2,7 @@ import { api, type HotkeyTrigger, type Style } from "../api";
 import { errorText, h, section, select, toggle } from "../dom";
 import type { Context } from "../main";
 import { icon } from "../icons";
+import { appBadge } from "../app-icon";
 import { applicationLabel } from "../presentation";
 
 function hotkeys(platform: string): [HotkeyTrigger, string][] {
@@ -165,12 +166,14 @@ export function stylesView(ctx: Context): HTMLElement {
     section(
       "Stijl per app",
       "Andere apps gebruiken Neutraal. Pennel kijkt enkel naar welke app actief is, nooit naar je scherm.",
-      rules.map((rule) =>
-        h(
+      rules.map((rule) => {
+        const app = appBadge(rule.bundle_id);
+        app.name.classList.add("grow");
+        return h(
           "div",
           { class: "row style-rule" },
-          icon("laptop"),
-          h("span", { class: "grow" }, applicationLabel(rule.bundle_id)),
+          app.icon,
+          app.name,
           select(styles, rule.style, (style) =>
             ctx.save((n) => { const item = n.style_rules.find((r) => r.bundle_id === rule.bundle_id); if (item) item.style = style; }),
           ),
@@ -183,8 +186,8 @@ export function stylesView(ctx: Context): HTMLElement {
             },
             icon("close"),
           ),
-        ),
-      ),
+        );
+      }),
       h("div", { class: "row style-add" }, pick), pickerStatus,
       h("details", { class: "advanced-style" }, h("summary", {}, "App-ID handmatig toevoegen"),
         h("div", { class: "row" }, input, h("button", { class: "btn", disabled: unavailable, onclick: add }, "Toevoegen"))),

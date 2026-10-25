@@ -6,11 +6,19 @@ import { manualPracticeAllowed, onboardingProgressChange, onboardingSteps, stepI
 import { hotkeyLabel, hotkeyKeyLabel } from "../presentation";
 import { workspaceRoute } from "../workspace-state";
 import type { Context } from "../main";
-import appIcon from "../../../../assets/brand/app-icon.svg";
+import wordmarkSource from "../../../../assets/brand/wordmark.svg?raw";
 
 type Engine = "local" | "apple" | "custom";
 const languages: [string, string][] = [["", "Automatisch"], ["nl", "Nederlands"], ["en", "Engels"], ["fr", "Frans"], ["de", "Duits"]];
 const phrases: Record<string, string> = { nl: "Zullen we morgen om tien uur afspreken?", en: "Shall we meet tomorrow at ten?", fr: "On se retrouve demain à dix heures ?", de: "Treffen wir uns morgen um zehn Uhr?" };
+
+/** The wordmark follows the text colour so it stays legible in dark mode; the full stop keeps the brand orange. */
+function wordmark(): HTMLElement {
+  const node = h("div", { class: "onboarding-wordmark", role: "img", "aria-label": "Pennel" });
+  node.innerHTML = wordmarkSource.replace(/stroke="#2A2723"/gi, 'stroke="currentColor"').replace(/fill="#C2410C"/gi, 'fill="var(--accent)"');
+  node.querySelector("svg")?.setAttribute("aria-hidden", "true");
+  return node;
+}
 
 class OnboardingWizard {
   readonly root = h("div", { class: "onboarding-shell" });
@@ -78,7 +86,7 @@ class OnboardingWizard {
     if (fixture.includes("engine-custom")) this.engine = "custom";
     if (fixture.includes("download-error")) this.downloadError = "Het model kon niet worden gedownload. Controleer je verbinding en probeer opnieuw.";
     this.progress.append(...onboardingSteps.map(() => h("span")));
-    this.root.append(h("div", { class: "onboarding-drag", "data-tauri-drag-region": true }, h("span", { "data-tauri-drag-region": true }, "Pennel")), this.progress,
+    this.root.append(this.progress,
       this.body, this.message, h("footer", { class: "onboarding-footer" }, h("div", { class: "onboarding-footer-left" }, this.theme, this.back, this.skip, this.count), this.next));
     ctx.onInfoChange(() => { if (ctx.info.settings.onboarding.status !== "pending") this.fresh = false; this.updateCommon(); if (this.index === 2) void this.refreshPermissions().catch(this.fail); });
     ctx.onFocusChange((focused) => {
@@ -189,7 +197,7 @@ class OnboardingWizard {
   }
 
   private renderWelcome() {
-    this.body.replaceChildren(h("img", { class: "onboarding-app-icon", src: appIcon, alt: "Pennel" }),
+    this.body.replaceChildren(wordmark(),
       h("h1", {}, "Welkom bij Pennel"), h("p", { class: "onboarding-intro" }, "Spreek. Pennel schrijft waar je cursor staat."),
       h("div", { class: "onboarding-demo" }, h("div", { class: "keycap", "aria-hidden": "true" }, icon("globe"), h("span", {}, this.keyLabel())),
         h("div", { class: "onboarding-demo-document" }, h("span", { class: "help" }, "Je volgende bericht"), h("p", {}, phrases.nl, h("span", { class: "typing-caret", "aria-hidden": "true" })))),
