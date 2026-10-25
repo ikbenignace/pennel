@@ -210,3 +210,12 @@ body[data-window="settings"] main { padding-top: 0; }
 
 .live-recording .live-title { background: transparent; border: 0; padding: 0; font: 30px/1.1 var(--serif); letter-spacing: -.01em; width: 100%; flex-shrink: 0; }
 .live-recording .live-title:disabled { opacity: 1; }
+.login-code { font: 30px/1.1 var(--serif); letter-spacing: .08em; margin: 10px 0 14px; user-select: all; }
+.recovery-code { display: flex; flex-wrap: wrap; gap: 6px 14px; font-weight: 600; font-size: 15px; letter-spacing: .08em; margin: 10px 0 14px; user-select: all; }
+.device-row { padding: 4px 0; }
+#print-sheet { display: none; }
+@media print {
+  body.printing-sheet #app { display: none; }
+  body.printing-sheet #print-sheet { display: block; color: var(--ink); background: var(--paper); padding: 24px; }
+  body.printing-sheet .print-code { font-size: 15px; font-weight: 600; letter-spacing: .08em; }
+}

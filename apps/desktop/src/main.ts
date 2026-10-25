@@ -10,6 +10,7 @@ import { displayedMeetingSession, finishMeetingDrafts, flushMeetingDrafts, meeti
 import { FrontendBarrier, canShowFinished } from "./session-events";
 import { localNavigation } from "./navigation";
 import { modelsView } from "./views/models";
+import { accountView } from "./views/account";
 import { providersView } from "./views/providers";
 import { meetingSettingsView, recordingSettingsView } from "./views/settings";
 import { onboardingView, promptView } from "./views/welcome";
@@ -39,6 +40,7 @@ const tabs: [string, string, View][] = [
   ["recording", "Opnemen", recordingSettingsView],
   ["dictionary", "Woordenlijst", dictionaryView],
   ["styles", "Stijlen", stylesView],
+  ["account", "Account", accountView],
 ];
 const query = new URLSearchParams(location.search);
 const requested = query.get("window") as Mode;

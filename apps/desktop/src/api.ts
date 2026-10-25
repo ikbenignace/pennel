@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { LoginPoll } from "./cloud-login";
 
 export type ProviderKind =
   | "open_ai"
@@ -16,7 +18,8 @@ export type ProviderKind =
   | "open_code"
   | "copilot"
   | "cursor_agent"
-  | "gemini_cli";
+  | "gemini_cli"
+  | "pennel_cloud";
 
 export type HotkeyTrigger = "fn" | "right_option" | "right_command" | "right_control" | "control_super";
 export type Style = "casual" | "formal" | "literal" | "neutral";
@@ -281,6 +284,53 @@ export interface UpdateInfo {
   body: string | null;
 }
 
+export type SyncStatus =
+  | { kind: "off" | "signed_out" | "needs_setup" | "needs_recovery_code" | "vault_reset" | "pending" | "synced" | "offline" }
+  | { kind: "storage_full" | "error"; message: string };
+
+export interface SyncReport {
+  status: SyncStatus;
+  uploaded: number;
+  downloaded: number;
+  conflicts: number;
+  last_success_ms: number | null;
+}
+
+export interface CloudLoginStart {
+  user_code: string;
+  verification_uri: string;
+  device_code: string;
+  interval_secs: number;
+}
+
+export interface CloudAccount {
+  email: string;
+  audio_seconds: number;
+  tokens: number;
+  storage_bytes: number;
+  limit_audio_seconds: number;
+  limit_tokens: number;
+  limit_storage_bytes: number;
+}
+
+export interface CloudDevice {
+  id: string;
+  name: string;
+  platform: string;
+  last_seen_iso: string;
+  current: boolean;
+}
+
+export interface MeetingSyncState {
+  id: string;
+  state: "synced" | "pending" | "conflict";
+}
+
+export interface CloudError {
+  code: string;
+  message: string;
+}
+
 export const api = {
   info: () => invoke<AppInfo>("app_info"),
   saveSettings: (settings: Settings) => invoke<AppInfo>("save_settings", { settings }),
@@ -350,4 +400,25 @@ export const api = {
     invoke<MeetingExport>("export_meeting", { id, includeTranscript }),
   renameMeeting: (id: string, title: string) => invoke<string>("rename_meeting", { id, title }),
   deleteMeeting: (id: string) => invoke<void>("delete_meeting", { id }),
+  cloudLoginStart: () => invoke<CloudLoginStart>("cloud_login_start"),
+  cloudLoginPoll: (deviceCode: string) => invoke<LoginPoll>("cloud_login_poll", { deviceCode }),
+  cloudLogout: () => invoke<void>("cloud_logout"),
+  cloudAccount: () => invoke<CloudAccount>("cloud_account"),
+  cloudDevices: () => invoke<CloudDevice[]>("cloud_devices"),
+  cloudRenameDevice: (id: string, name: string) => invoke<void>("cloud_rename_device", { id, name }),
+  cloudRevokeDevice: (id: string) => invoke<void>("cloud_revoke_device", { id }),
+  cloudDeleteAccount: () => invoke<void>("cloud_delete_account"),
+  cloudSyncEnable: () => invoke<string>("cloud_sync_enable"),
+  cloudSyncUnlock: (code: string) => invoke<void>("cloud_sync_unlock", { code }),
+  cloudSyncNewRecoveryCode: () => invoke<string>("cloud_sync_new_recovery_code"),
+  cloudSyncReset: () => invoke<string>("cloud_sync_reset"),
+  cloudSyncDisable: () => invoke<void>("cloud_sync_disable"),
+  cloudSyncNow: () => invoke<SyncReport>("cloud_sync_now"),
+  cloudSyncLast: () => invoke<SyncReport>("cloud_sync_last"),
+  cloudSyncConfirmDeletes: () => invoke<void>("cloud_sync_confirm_deletes"),
+  meetingSyncStates: () => invoke<MeetingSyncState[]>("meeting_sync_states"),
+  cloudFolderWarning: () => invoke<string | null>("cloud_folder_warning"),
+  openUrl: (url: string) => invoke<void>("open_url", { url }),
+  onSyncChanged: (handler: (report: SyncReport) => void): Promise<UnlistenFn> =>
+    listen<SyncReport>("sync-changed", (event) => handler(event.payload)),
 };

@@ -75,7 +75,17 @@ export function formatClock(seconds: number): string {
 }
 
 export function errorText(e: unknown): string {
-  return typeof e === "string" ? e : e instanceof Error ? e.message : JSON.stringify(e);
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  if (typeof e === "object" && e !== null && typeof (e as { message?: unknown }).message === "string") {
+    return (e as { message: string }).message;
+  }
+  return JSON.stringify(e);
+}
+
+export function errorCode(e: unknown): string | null {
+  const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : null;
+  return typeof code === "string" ? code : null;
 }
 
 export function toggle(
