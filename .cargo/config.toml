@@ -1,0 +1,10 @@
+# sherpa-onnx (speaker recognition) only ships Windows libraries built against the static C runtime
+# (/MT). MSVC refuses to link C++ objects built for different runtimes, so on Windows every native
+# dependency, transcribe.cpp included, is built for the static runtime as well.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[env]
+# transcribe.cpp requires CMake >= 3.16, where the runtime comes from this variable rather than
+# from the /MT that the cc crate passes. Ignored by non-MSVC compilers.
+CMAKE_ARGS = { value = "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded", force = true }
