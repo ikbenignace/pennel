@@ -5,8 +5,8 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use pennel_core::{
-    CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart, MeetingSyncState, Settings,
-    SyncItemState, SyncReport, SyncStatus,
+    CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart, MeetingSyncState, PennelError,
+    Settings, SyncItemState, SyncReport, SyncStatus,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -18,10 +18,40 @@ use crate::state::Shared;
 const LOG: Log = Log::new("cloud");
 const SYNC_INTERVAL: Duration = Duration::from_secs(180);
 
-type Result<T> = std::result::Result<T, String>;
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct CloudError {
+    code: String,
+    message: String,
+}
 
-fn err(e: impl std::fmt::Display) -> String {
-    e.to_string()
+impl CloudError {
+    fn other(message: impl std::fmt::Display) -> Self {
+        Self {
+            code: "error".into(),
+            message: message.to_string(),
+        }
+    }
+}
+
+impl From<PennelError> for CloudError {
+    fn from(error: PennelError) -> Self {
+        let code = match &error {
+            PennelError::VaultLocked => "vault_locked".to_owned(),
+            PennelError::NotSignedIn => "not_signed_in".to_owned(),
+            PennelError::Cloud { code, .. } => code.clone(),
+            _ => "error".to_owned(),
+        };
+        Self {
+            code,
+            message: error.to_string(),
+        }
+    }
+}
+
+type Result<T> = std::result::Result<T, CloudError>;
+
+fn err(e: PennelError) -> CloudError {
+    e.into()
 }
 
 async fn blocking<T: Send + 'static>(
@@ -29,7 +59,7 @@ async fn blocking<T: Send + 'static>(
 ) -> Result<T> {
     tauri::async_runtime::spawn_blocking(work)
         .await
-        .map_err(err)?
+        .map_err(CloudError::other)?
 }
 
 #[derive(Default)]
@@ -96,7 +126,12 @@ impl SyncRunner {
                     signals.poked = false;
                     signals.running = true;
                 }
-                run(recording_ids());
+                let pass = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    run(recording_ids());
+                }));
+                if pass.is_err() {
+                    LOG.error("synchronisatie onverwacht gestopt; volgende ronde probeert opnieuw");
+                }
                 worker.signals.lock().unwrap().running = false;
             }
         });
@@ -505,14 +540,16 @@ pub async fn cloud_folder_warning(shared: State<'_, Arc<Shared>>) -> Result<Opti
 
 #[tauri::command]
 pub fn open_url(url: String, app: AppHandle) -> Result<()> {
-    let parsed = tauri::Url::parse(&url).map_err(err)?;
+    let parsed = tauri::Url::parse(&url).map_err(CloudError::other)?;
     if parsed.scheme() != "https" {
-        return Err("Alleen https-links kunnen worden geopend.".into());
+        return Err(CloudError::other(
+            "Alleen https-links kunnen worden geopend.",
+        ));
     }
     LOG.info("link geopend in de browser");
     app.opener()
         .open_url(parsed.to_string(), None::<&str>)
-        .map_err(err)
+        .map_err(CloudError::other)
 }
 
 #[cfg(test)]
@@ -652,5 +689,48 @@ mod tests {
         assert_eq!(kinds[3], "needs_recovery_code");
         assert_eq!(kinds[5], "pending");
         assert_eq!(kinds.len(), 10);
+    }
+
+    #[test]
+    fn a_panicking_pass_does_not_stop_the_runner() {
+        let runs = Arc::new(Mutex::new(0u32));
+        let counter = runs.clone();
+        let runner = SyncRunner::with_runner(Duration::from_secs(3600), Vec::new, move |_| {
+            let mut count = counter.lock().unwrap();
+            *count += 1;
+            if *count == 1 {
+                drop(count);
+                panic!("boom");
+            }
+        });
+        wait_until(|| *runs.lock().unwrap() >= 1);
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!runner.inner.signals.lock().unwrap().running);
+        runner.poke();
+        wait_until(|| *runs.lock().unwrap() >= 2);
+        runner.stop();
+    }
+
+    #[test]
+    fn errors_map_to_stable_codes() {
+        let map = |e: PennelError| CloudError::from(e);
+        let locked = map(PennelError::VaultLocked);
+        assert_eq!(locked.code, "vault_locked");
+        assert_eq!(
+            locked.message,
+            "Voer je herstelcode in om sync aan te zetten."
+        );
+        assert_eq!(map(PennelError::NotSignedIn).code, "not_signed_in");
+        let cloud = map(PennelError::Cloud {
+            code: "quota".into(),
+            message: "Je tegoed is op.".into(),
+        });
+        assert_eq!(
+            (cloud.code.as_str(), cloud.message.as_str()),
+            ("quota", "Je tegoed is op.")
+        );
+        assert_eq!(map(PennelError::NoSpeech).code, "error");
+        let json = serde_json::to_value(&locked).unwrap();
+        assert_eq!(json["code"], "vault_locked");
     }
 }

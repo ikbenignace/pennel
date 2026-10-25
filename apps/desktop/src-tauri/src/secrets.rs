@@ -6,11 +6,17 @@ use std::sync::Mutex;
 
 use pennel_core::{ApiKeys, ProviderAccount, SecretStore};
 
+use crate::diagnostics::Log;
+
+const LOG: Log = Log::new("secrets");
+
 pub struct Secrets {
     service: &'static str,
     cache: Mutex<HashMap<String, Option<String>>>,
     #[cfg(test)]
     in_memory: bool,
+    #[cfg(test)]
+    fail_writes: std::sync::atomic::AtomicBool,
 }
 
 impl Default for Secrets {
@@ -32,6 +38,8 @@ impl Secrets {
             cache: Mutex::new(HashMap::new()),
             #[cfg(test)]
             in_memory: false,
+            #[cfg(test)]
+            fail_writes: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -77,6 +85,9 @@ impl Secrets {
         let value = value.trim();
         #[cfg(test)]
         if self.in_memory {
+            if self.fail_writes.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err("simulated".into());
+            }
             self.cache.lock().unwrap().insert(
                 account.to_owned(),
                 (!value.is_empty()).then(|| value.to_owned()),
@@ -130,7 +141,9 @@ impl SecretStore for Secrets {
     }
 
     fn set(&self, account: String, value: Option<String>) {
-        let _ = Secrets::set(self, &account, value.as_deref().unwrap_or(""));
+        if Secrets::set(self, &account, value.as_deref().unwrap_or("")).is_err() {
+            LOG.error("opslaan in de sleutelhanger mislukt");
+        }
     }
 }
 
@@ -161,5 +174,19 @@ mod tests {
         assert_eq!(shared.secrets.get("a").as_deref(), Some("b"));
         store.set("a".into(), None);
         assert_eq!(shared.secrets.get("a"), None);
+    }
+
+    #[test]
+    fn failed_write_keeps_the_old_value_and_does_not_panic() {
+        let secrets = Secrets::in_memory();
+        secrets.set("acct", "old").unwrap();
+        secrets
+            .fail_writes
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        assert!(secrets.set("acct", "new").is_err());
+        let store: &dyn SecretStore = &secrets;
+        store.set("acct".into(), Some("new".into()));
+        store.set("acct".into(), None);
+        assert_eq!(secrets.get("acct").as_deref(), Some("old"));
     }
 }
