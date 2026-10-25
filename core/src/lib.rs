@@ -41,6 +41,7 @@ mod system_llm;
 mod system_stt;
 mod templates;
 mod transcript_filter;
+mod voices;
 mod wav;
 
 pub use call_detector::{CallDetector, CallEvent, CallObservation};
@@ -77,10 +78,13 @@ pub use rules::{
 pub use session::{MeetingHealth, MeetingRecognition, MeetingSession};
 pub use settings::{
     AppearancePreference, DictationMode, HotkeyTrigger, ModelChoice, OnboardingProgress,
-    OnboardingStatus, OnboardingStep, Settings, Style, StyleRule, default_settings,
+    OnboardingStatus, OnboardingStep, Settings, SpeakerRecognitionMode, Style, StyleRule,
+    default_settings,
 };
 pub use setup::{SetupAccess, SetupFacts, SetupReadiness, dictation_readiness, meeting_readiness};
+pub use speakers::{MeetingVoice, SpeakerRecognition};
 pub use status::{CommandIntent, DictationStatus, PillState};
 pub use system_llm::{LanguageModelMessage, SystemLanguageModel};
 pub use system_stt::SystemTranscriber;
 pub use templates::MeetingTemplate;
+pub use voices::{KnownVoice, VoiceProfile};
