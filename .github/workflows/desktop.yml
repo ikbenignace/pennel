@@ -28,6 +28,17 @@ jobs:
       # Not dtolnay/rust-toolchain on Linux: several self-hosted runner
       # processes share one Unix user, and a shared ~/.rustup lets one job
       # delete rustc from under another. The script isolates RUSTUP_HOME.
+      - name: Linux build packages
+        if: runner.os == 'Linux'
+        run: |
+          missing=""
+          for p in build-essential cmake pkg-config libasound2-dev libclang-dev; do
+            dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "install ok installed" || missing="$missing $p"
+          done
+          if [ -n "$missing" ]; then
+            sudo apt-get -o DPkg::Lock::Timeout=600 update
+            sudo apt-get -o DPkg::Lock::Timeout=600 install -y $missing
+          fi
       - name: Rust toolchain (Linux)
         if: runner.os == 'Linux'
         run: bash scripts/ci-rustup.sh clippy
@@ -120,7 +131,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
+          # The self-hosted boxes keep ~/.npm between jobs; the post-step cache save hung there.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
           cache-dependency-path: apps/desktop/package-lock.json
       - run: npm ci
       - name: Frontend
