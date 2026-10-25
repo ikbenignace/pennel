@@ -25,6 +25,7 @@ pub trait Clipboard {
 }
 
 /// Puts a secret on the clipboard marked so clipboard managers and Windows clipboard history skip it.
+#[cfg(any(windows, test))]
 pub fn copy_secret<C: Clipboard>(clipboard: &mut C, text: &str) -> Result<(), String> {
     clipboard
         .try_set_transient_text(text)
