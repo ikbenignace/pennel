@@ -226,12 +226,9 @@ impl MeetingStore {
     pub(crate) fn set_uid(&self, id: &str, uid: &str) -> Result<(), PennelError> {
         let text = std::fs::read_to_string(self.dir_of(id).join("meeting.md"))
             .map_err(|_| PennelError::NotFound)?;
-        let (head, body) = text
-            .strip_prefix("---\n")
-            .and_then(|rest| rest.split_once("\n---\n"))
-            .ok_or(PennelError::NotFound)?;
+        let (head, body, newline) = split_frontmatter(&text).ok_or(PennelError::NotFound)?;
         let mut lines: Vec<&str> = head
-            .lines()
+            .split(newline)
             .filter(|line| line.split(':').next().map(str::trim) != Some(UID_FIELD))
             .collect();
         let uid_line = format!("{UID_FIELD}: {uid}");
@@ -239,8 +236,12 @@ impl MeetingStore {
         let path = self.dir_of(id).join("meeting.md");
         // Not `meeting.tmp`: that name belongs to `write_file`, which may be running right now.
         let tmp = path.with_file_name(format!(".meeting-{}.tmp", uuid::Uuid::now_v7()));
-        std::fs::write(&tmp, format!("---\n{}\n---\n{body}", lines.join("\n")))
-            .map_err(PennelError::storage)?;
+        let head = lines.join(newline);
+        std::fs::write(
+            &tmp,
+            format!("---{newline}{head}{newline}---{newline}{body}"),
+        )
+        .map_err(PennelError::storage)?;
         // Sync adds the id in the background; an edit saved meanwhile must not be replaced.
         if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
             let _ = std::fs::remove_file(&tmp);
@@ -551,9 +552,20 @@ pub(crate) fn valid_uid(uid: &str) -> bool {
     (1..=64).contains(&uid.len()) && uid.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
+/// Head, body and the line ending the front matter uses: files edited on Windows use CRLF.
+fn split_frontmatter(text: &str) -> Option<(&str, &str, &'static str)> {
+    let newline = if text.starts_with("---\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let rest = text.strip_prefix("---")?.strip_prefix(newline)?;
+    let (head, body) = rest.split_once(&format!("{newline}---{newline}"))?;
+    Some((head, body, newline))
+}
+
 fn parse_meeting(text: &str) -> Option<(Frontmatter, String)> {
-    let rest = text.strip_prefix("---\n")?;
-    let (head, body) = rest.split_once("\n---\n")?;
+    let (head, body, _) = split_frontmatter(text)?;
     let field = |key: &str| {
         head.lines()
             .find_map(|l| {
@@ -976,6 +988,27 @@ mod tests {
         std::fs::write(dir.path().join("Kapot/meeting.md"), "geen frontmatter").unwrap();
         assert_eq!(store.ensure_uid("Kapot"), Err(PennelError::NotFound));
         assert_eq!(store.ensure_uid("Bestaat niet"), Err(PennelError::NotFound));
+    }
+
+    #[test]
+    fn crlf_meeting_gets_a_uid_and_keeps_its_line_endings() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        std::fs::create_dir_all(dir.path().join("Win")).unwrap();
+        let original =
+            "---\r\ntitle: Win\r\nstart: 2026-01-01T10:00:00+01:00\r\n---\r\n\r\nInhoud\r\n";
+        std::fs::write(dir.path().join("Win/meeting.md"), original).unwrap();
+        assert_eq!(store.frontmatter("Win").unwrap().0.title, "Win");
+        let uid = store.ensure_uid("Win").unwrap();
+        let text = std::fs::read_to_string(dir.path().join("Win/meeting.md")).unwrap();
+        assert_eq!(
+            text,
+            format!(
+                "---\r\ntitle: Win\r\nstart: 2026-01-01T10:00:00+01:00\r\npennel_id: {uid}\r\n---\r\n\r\nInhoud\r\n"
+            )
+        );
+        assert_eq!(store.uid_of("Win").as_deref(), Some(uid.as_str()));
+        assert_eq!(store.ensure_uid("Win").unwrap(), uid);
     }
 
     #[test]
