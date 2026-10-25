@@ -2,7 +2,7 @@ import PennelKit
 import SwiftUI
 
 enum SettingsTab: Hashable {
-    case providers, models, dictation, meetings, recording, dictionary, styles
+    case providers, models, dictation, meetings, recording, dictionary, styles, account
 }
 
 struct SettingsView: View {
@@ -13,7 +13,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             SegmentTabs(
-                tabs: [(.providers, "Providers"), (.models, "Modellen"), (.dictation, "Dicteren"), (.meetings, "Meetings"), (.recording, "Opnemen"), (.dictionary, "Woordenlijst"), (.styles, "Stijlen")],
+                tabs: [(.providers, "Providers"), (.models, "Modellen"), (.dictation, "Dicteren"), (.meetings, "Meetings"), (.recording, "Opnemen"), (.dictionary, "Woordenlijst"), (.styles, "Stijlen"), (.account, "Account")],
                 selection: $tab
             )
                 .padding(.top, 14)
@@ -28,6 +28,7 @@ struct SettingsView: View {
                     case .recording: RecordingPane(state: state, calendar: calendar)
                     case .dictionary: DictionaryPane(state: state)
                     case .styles: StylesPane(state: state)
+                    case .account: AccountPane()
                     }
                 }
                 .padding(.horizontal, 24)

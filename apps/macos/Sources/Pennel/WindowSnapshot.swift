@@ -61,6 +61,7 @@ final class WindowSnapshot: NSObject, NSApplicationDelegate {
         images.append(try await capture("library-empty", view: LibraryView(state: empty, meeting: MeetingController(state: empty), openRecording: {}), size: NSSize(width: 980, height: 640), output: output))
         images.append(try await capture("settings-providers", view: SettingsView(state: state, calendar: calendar), size: NSSize(width: 900, height: 620), output: output))
         images.append(try await capture("settings-models", view: SnapshotModelsView(state: state), size: NSSize(width: 900, height: 620), output: output))
+        images.append(try await capture("settings-account", view: SnapshotAccountView(), size: NSSize(width: 900, height: 620), output: output))
         images.append(try await capture("history-empty", view: HistoryView(state: state), size: NSSize(width: 560, height: 520), output: output))
         images.append(try await capture("live", view: MeetingWindowView(state: state, meeting: live), size: NSSize(width: 680, height: 600), output: output))
         images.append(try await capture("onboarding", view: OnboardingView(state: state), size: NSSize(width: 520, height: 560), output: output))
@@ -154,6 +155,19 @@ private struct SnapshotModelsView: View {
             SegmentTabs(tabs: [(.providers, "Providers"), (.models, "Modellen"), (.dictation, "Dicteren"), (.meetings, "Meetings"), (.recording, "Opnemen"), (.dictionary, "Woordenlijst"), (.styles, "Stijlen")], selection: $tab)
                 .padding(.top, 14).padding(.bottom, 10)
             ScrollView { ModelsPane(state: state).padding(.horizontal, 24).padding(.bottom, 24) }
+        }
+        .frame(minWidth: 760, minHeight: 520)
+        .background(Theme.paper)
+    }
+}
+
+private struct SnapshotAccountView: View {
+    @State private var tab = SettingsTab.account
+    var body: some View {
+        VStack(spacing: 0) {
+            SegmentTabs(tabs: [(.providers, "Providers"), (.models, "Modellen"), (.dictation, "Dicteren"), (.meetings, "Meetings"), (.recording, "Opnemen"), (.dictionary, "Woordenlijst"), (.styles, "Stijlen"), (.account, "Account")], selection: $tab)
+                .padding(.top, 14).padding(.bottom, 10)
+            ScrollView { AccountPane().padding(.horizontal, 24).padding(.bottom, 24) }
         }
         .frame(minWidth: 760, minHeight: 520)
         .background(Theme.paper)

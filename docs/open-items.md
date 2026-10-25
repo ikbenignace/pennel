@@ -16,6 +16,9 @@ Historische native Mac-baseline: 2026-10-24, na fase 3a–3f. De gedeelde Tauri-
 | T8 | Windows 11: echte calls, klembord/plakken, sneltoetsen, echoverwerking en installatie | Cross-checks en unit tests bewijzen geen uitvoering op een Windows-toestel |
 | T9 | Linux X11 én Wayland: call-audio, codecs, compositor-sneltoets en klembordfallback | Codec- en synthetische audioservertests bewijzen geen desktop-/toestelgedrag |
 | T10 | Bestaande installatie upgraden/herstellen, ondertekende update en een opname van zestig minuten | Vervanging van de native app en publieke uitrol wachten op deze pakketacceptatie |
+| T11 | Twee computers, zelfde account: meeting opnemen op de ene, verschijnt op de andere | Synchronisatie is alleen met tests en een gesimuleerde server geverifieerd |
+| T12 | Kluis opnieuw beginnen en herstelcode op een tweede toestel | Herstelflow is nog niet op twee echte toestellen doorlopen |
+| T13 | Dicteren en samenvatten via Pennel Cloud zonder eigen sleutel | Gehoste modellen zijn nog niet end-to-end op een toestel bevestigd |
 
 Tip: menu → **Logboek openen** toont het log van de actieve build. Canoniek Mac: `~/Library/Logs/Pennel/pennel.log`; preview/Windows/Linux: `logs/pennel.log` in de eigen gegevensmap.
 
@@ -47,6 +50,10 @@ Deze lijst beschrijft de native referentie en blijft bewaard als regressie-/acce
 - Ollama/LM Studio tonen een sleutelveld dat ze niet nodig hebben.
 - Oude v1-instellingen kunnen eigen servers samenvoegen.
 
+**Pennel Cloud**
+- Kluizen die op staging vóór de controlewaarde (key_check) zijn aangemaakt, moeten vóór de release opnieuw beginnen.
+- Linux-paden van het kopiëren van de herstelcode zijn nog niet op een Linux-toestel getest.
+
 **App**
 - Echte donkere modus (vensters staan nu vast op licht).
 - Instellingen worden bij elke toetsaanslag bewaard.
@@ -57,7 +64,8 @@ Deze lijst beschrijft de native referentie en blijft bewaard als regressie-/acce
 - **3g Microsoft 365-agenda** (Graph, device-code login) — vereist Azure app-registratie, mogelijk AE-admin-goedkeuring.
 - **Fase 4 – iPhone:** dicteertoetsenbord, Action Button/Shortcut, fysieke meetings opnemen, sync.
 - **Gedeelde desktopapp – Mac, Windows en Linux:** één Tauri-interface en Rust-runtime met native services zijn geïmplementeerd; echte pakket-/toestelacceptatie en publieke uitrol staan nog open. Zie [desktopgedrag](desktop.md) en [Linux-pakketten](linux-packaging.md).
-- **Commercialisatie** (zie het businessplan in de private repo pennel-cloud): licentie, Pennel Cloud-backend, accounts/licenties, betalingen, website, onboarding zonder eigen API-sleutels.
+- **Pennel Cloud, fase B en synchronisatie:** inloggen, end-to-end versleutelde meetingsynchronisatie en gehoste modellen zijn gebouwd in de gedeelde app (native referentie: uitgeschakeld tabblad); wachten op toestelacceptatie T11–T13.
+- **Commercialisatie** (zie het businessplan in de private repo pennel-cloud): licentie, accounts/licenties, betalingen, website, onboarding zonder eigen API-sleutels.
 
 ## 4. Distributie
 
