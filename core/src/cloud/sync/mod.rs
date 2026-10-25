@@ -886,7 +886,12 @@ impl Pass<'_> {
             scan::listable(dir) && !matches!(slot(dir, name), Slot::Existing(_))
         };
         Ok(match parse_key(&entry.key) {
-            Some(Key::Template { name }) => absent(&self.root.join(TEMPLATES_DIR), &name),
+            // A missing `.templates` folder (moved, or not synced into this root yet) is not
+            // a request to delete every template.
+            Some(Key::Template { name }) => {
+                let dir = self.root.join(TEMPLATES_DIR);
+                dir.is_dir() && absent(&dir, &name)
+            }
             Some(Key::Meeting { uid, name }) => match self.folders.get(&uid) {
                 // A folder renamed while this pass runs is found again next pass.
                 Some(folder) => {
@@ -1645,6 +1650,19 @@ mod tests {
             }
         );
         assert_eq!(api.live_objects(), 1);
+    }
+
+    #[test]
+    fn missing_templates_folder_deletes_no_templates() {
+        let (api, a, _) = setup();
+        a.store().create("Blijft", start()).unwrap();
+        a.write(".templates/sales.md", "# Sales\n");
+        a.write(".templates/intake.md", "# Intake\n");
+        synced(&a.sync(&api));
+        assert_eq!(api.live_objects(), 3);
+        std::fs::remove_dir_all(a.path(".templates")).unwrap();
+        synced(&a.sync(&api));
+        assert_eq!(api.live_objects(), 3);
     }
 
     const BRAKE_MESSAGE: &str = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
