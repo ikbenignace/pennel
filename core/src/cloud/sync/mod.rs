@@ -73,10 +73,11 @@ pub struct PassInput<'a> {
 
 const PAGE: u32 = 500;
 const TRASH_DAYS: u32 = 30;
-/// The server's per-object limit (5 MiB), checked on the sealed blob before uploading.
+/// The server's per-object limit (5 MiB), checked on the sealed blob before uploading. Content
+/// travels base64-encoded inside the sealed JSON, so files above roughly 3.75 MB do not fit.
 const MAX_OBJECT_BYTES: usize = 5_242_880;
 const MISSING_ROOT: &str = "De meetingmap is niet gevonden.";
-const TOO_LARGE: &str = "Dit bestand is groter dan 5 MB.";
+const TOO_LARGE: &str = "Dit bestand is te groot voor Pennel Cloud (maximaal ongeveer 3,5 MB).";
 const UNKNOWN_DEVICE: &str = "ander toestel";
 const UNEXPECTED_RESPONSE: &str = "Pennel Cloud gaf een onverwacht antwoord.";
 const CHANGED_DURING_SYNC: &str =
@@ -826,8 +827,8 @@ impl Pass<'_> {
         // A conflict is resolved and retried once; anything left over waits for the next pass.
         for _ in 0..3 {
             let result = match self.api.put(&id, base, self.generation, &blob) {
-                Err(PennelError::Cloud { code, message }) if code == "object_too_large" => {
-                    self.note_problem(message);
+                Err(PennelError::Cloud { code, .. }) if code == "object_too_large" => {
+                    self.note_problem(TOO_LARGE.into());
                     return Ok(());
                 }
                 other => other?,
@@ -1649,6 +1650,25 @@ mod tests {
                 message: scan::UNREADABLE_LIBRARY.into()
             }
         );
+        assert_eq!(api.live_objects(), 1);
+    }
+
+    #[test]
+    fn file_too_large_once_sealed_is_skipped_with_the_real_limit() {
+        let (api, a, _) = setup();
+        let id = a.store().create("Groot", start()).unwrap();
+        // Fits under 5 MiB as a file, not once base64-encoded inside the sealed payload.
+        let content: Vec<u8> = (0..4_000_000u32).map(|n| (n % 251) as u8).collect();
+        std::fs::write(a.path(&format!("{id}/bijlage.bin")), content).unwrap();
+        let report = a.sync(&api);
+        assert_eq!(
+            report.status,
+            SyncStatus::Error {
+                message: "Dit bestand is te groot voor Pennel Cloud (maximaal ongeveer 3,5 MB)."
+                    .into()
+            }
+        );
+        assert_eq!(report.uploaded, 1);
         assert_eq!(api.live_objects(), 1);
     }
 
