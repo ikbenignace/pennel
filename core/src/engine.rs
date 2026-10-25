@@ -1097,6 +1097,7 @@ impl PennelEngine {
     pub fn diarize_meeting(&self, id: String, samples: Vec<f32>) -> Result<u32, PennelError> {
         self.claim_library()?;
         self.ensure_meeting_inactive(&id)?;
+        crate::local_engine::ensure_available()?;
         let path = self
             .models
             .path(crate::models::DIARIZER_ID)
@@ -1954,6 +1955,7 @@ impl PennelEngine {
         if account.kind != ProviderKind::Local {
             return Ok(None);
         }
+        crate::local_engine::ensure_available()?;
         let path = self
             .models
             .path(&model)
@@ -2000,6 +2002,7 @@ impl PennelEngine {
                 .map(|text| text.trim().to_owned());
         }
         if account.kind == ProviderKind::Local {
+            crate::local_engine::ensure_available()?;
             let path = self
                 .models
                 .path(&model)
@@ -2695,6 +2698,39 @@ mod tests {
         mock.assert();
     }
 
+    #[cfg(not(feature = "local-models"))]
+    #[test]
+    fn local_calls_without_feature_are_the_dutch_error() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let mut settings = engine.settings();
+        settings.dictation_stt = crate::settings::ModelChoice {
+            provider_id: "local".into(),
+            model: "whisper-small-q5_1".into(),
+        };
+        engine.update_settings(settings.clone()).unwrap();
+        let unavailable = PennelError::local_models_unavailable();
+        assert_eq!(
+            engine.dictate(request(speech(), None)).unwrap_err(),
+            unavailable
+        );
+        assert_eq!(
+            engine.preview_local(
+                &settings,
+                &[0.1; 16_000],
+                &crate::local_engine::CancelToken::default()
+            ),
+            Err(unavailable.clone())
+        );
+        assert_eq!(
+            engine
+                .diarize_meeting("any".into(), vec![0.0; 16_000])
+                .unwrap_err(),
+            unavailable
+        );
+    }
+
+    #[cfg(feature = "local-models")]
     #[test]
     fn local_without_model_is_model_not_downloaded() {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
@@ -3427,6 +3463,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn diarize_without_model_is_model_not_downloaded() {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());

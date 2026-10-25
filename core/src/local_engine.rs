@@ -29,6 +29,14 @@ pub struct LocalEngine {
     loaded: Mutex<Option<Loaded>>,
 }
 
+pub(crate) fn ensure_available() -> Result<(), PennelError> {
+    if cfg!(feature = "local-models") {
+        Ok(())
+    } else {
+        Err(PennelError::local_models_unavailable())
+    }
+}
+
 /// Stands in for the native engine's token where local models are not built in.
 #[cfg(not(feature = "local-models"))]
 #[derive(Default)]
@@ -114,9 +122,9 @@ fn run(
     }
 }
 
-#[cfg(feature = "local-models")]
 /// Only passes options the loaded model can use: an unsupported language falls back to autodetect,
 /// and the dictionary goes wherever the model accepts custom terms.
+#[cfg(feature = "local-models")]
 pub(crate) fn run_options(
     language: Option<&str>,
     model_languages: &[String],
