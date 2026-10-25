@@ -236,11 +236,18 @@ impl MeetingStore {
             .collect();
         let uid_line = format!("{UID_FIELD}: {uid}");
         lines.push(&uid_line);
-        self.write_file(
-            id,
-            "meeting.md",
-            &format!("---\n{}\n---\n{body}", lines.join("\n")),
-        )
+        let path = self.dir_of(id).join("meeting.md");
+        let tmp = path.with_extension("tmp");
+        std::fs::write(&tmp, format!("---\n{}\n---\n{body}", lines.join("\n")))
+            .map_err(PennelError::storage)?;
+        // Sync adds the id in the background; an edit saved meanwhile must not be replaced.
+        if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(PennelError::Storage {
+                message: "meeting.md changed while adding its id".into(),
+            });
+        }
+        std::fs::rename(&tmp, &path).map_err(PennelError::storage)
     }
 
     fn write_file(&self, id: &str, name: &str, content: &str) -> Result<(), PennelError> {

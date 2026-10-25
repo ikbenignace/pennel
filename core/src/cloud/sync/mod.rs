@@ -657,7 +657,7 @@ impl Pass<'_> {
     /// into the trash.
     fn clean_up_folder(&mut self, uid: &str, folder: &str) -> Result<(), PennelError> {
         let dir = self.root.join(folder);
-        if !dir.is_dir() || !scan::syncable_files(&dir).is_empty() {
+        if !dir.is_dir() || !scan::listable(&dir) || !scan::syncable_files(&dir).is_empty() {
             return Ok(());
         }
         let empty = std::fs::read_dir(&dir)
@@ -783,15 +783,14 @@ impl Pass<'_> {
     /// Only a file whose meeting is still here, or a meeting folder that is gone entirely,
     /// counts as deleted. An unreadable `meeting.md` or a recording meeting never does.
     fn vanished(&self, entry: &Entry) -> bool {
+        let absent = |dir: &Path, name: &str| {
+            scan::listable(dir) && !matches!(slot(dir, name), Slot::Existing(_))
+        };
         match parse_key(&entry.key) {
-            Some(Key::Template { name }) => !matches!(
-                slot(&self.root.join(TEMPLATES_DIR), &name),
-                Slot::Existing(_)
-            ),
+            Some(Key::Template { name }) => absent(&self.root.join(TEMPLATES_DIR), &name),
             Some(Key::Meeting { uid, name }) => match self.folders.get(&uid) {
                 Some(folder) => {
-                    !self.is_recording(folder)
-                        && !matches!(slot(&self.root.join(folder), &name), Slot::Existing(_))
+                    !self.is_recording(folder) && absent(&self.root.join(folder), &name)
                 }
                 None => entry.folder.as_deref().is_some_and(|folder| {
                     !self.is_recording(folder) && find_dir(&self.root, folder).is_none()
@@ -1522,6 +1521,21 @@ mod tests {
             }
         );
         assert_eq!(b.read(&format!("{id}/notes.md")).as_deref(), Some("ok\n"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_templates_folder_deletes_nothing() {
+        use std::os::unix::fs::PermissionsExt;
+        let (api, a, _) = setup();
+        a.write(".templates/sales.md", "# Sales\n");
+        synced(&a.sync(&api));
+        let dir = a.path(".templates");
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let report = a.sync(&api);
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        synced(&report);
+        assert_eq!(api.live_objects(), 1);
     }
 
     #[test]

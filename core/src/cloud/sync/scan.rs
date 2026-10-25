@@ -232,6 +232,14 @@ pub fn scan(root: &Path, folders: &HashMap<String, String>) -> Result<Vec<LocalF
     Ok(files)
 }
 
+/// False when `dir` exists but cannot be listed: its files must not be taken for deleted.
+pub fn listable(dir: &Path) -> bool {
+    match std::fs::symlink_metadata(dir) {
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+        Ok(_) => std::fs::read_dir(dir).is_ok(),
+    }
+}
+
 /// The files sync carries in `dir`, under their on-disk names.
 pub fn syncable_files(dir: &Path) -> Vec<(String, PathBuf)> {
     files_in(dir, is_syncable)
