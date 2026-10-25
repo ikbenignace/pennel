@@ -1,6 +1,7 @@
 // Consumed by the sync and hosted-model modules that follow.
 #![allow(dead_code)]
 
+pub mod account;
 pub mod http;
 
 const RELEASE_URL: &str = "https://api.pennel.app";
@@ -25,14 +26,14 @@ pub fn base_url(preview: bool) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::engine::PennelEngine;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
     #[derive(Default)]
-    struct MemorySecrets(Mutex<HashMap<String, String>>);
+    pub(crate) struct MemorySecrets(Mutex<HashMap<String, String>>);
 
     impl SecretStore for MemorySecrets {
         fn get(&self, account: String) -> Option<String> {

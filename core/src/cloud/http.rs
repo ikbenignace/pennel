@@ -101,10 +101,14 @@ pub fn send_json(
     if text.trim().is_empty() {
         return Ok((status, Value::Null));
     }
-    let value = serde_json::from_str(&text).map_err(|_| PennelError::InvalidResponse {
-        message: format!("expected JSON (status {status}, {} bytes)", text.len()),
-    })?;
-    Ok((status, value))
+    match serde_json::from_str(&text) {
+        Ok(value) => Ok((status, value)),
+        // Proxies and gateways answer errors with HTML; callers turn Null into the generic message.
+        Err(_) if !(200..300).contains(&status) => Ok((status, Value::Null)),
+        Err(_) => Err(PennelError::InvalidResponse {
+            message: format!("expected JSON (status {status}, {} bytes)", text.len()),
+        }),
+    }
 }
 
 /// Returns the status, headers and raw body of any response; callers decide how to treat non-2xx.
@@ -169,6 +173,35 @@ mod tests {
         );
         ok.assert();
         failed.assert();
+    }
+
+    #[test]
+    fn non_json_error_body_maps_to_generic_cloud_error() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v1/z")
+            .with_status(502)
+            .with_body("<html>Bad Gateway</html>")
+            .create();
+        let _ok = server
+            .mock("GET", "/v1/w")
+            .with_status(200)
+            .with_body("<html>")
+            .create();
+        let agent = agent(5);
+        let (status, body) =
+            send_json(&agent, "GET", &format!("{}/v1/z", server.url()), None, None).unwrap();
+        assert_eq!(
+            error_from(status, &body),
+            PennelError::Cloud {
+                code: "unknown".into(),
+                message: "Pennel Cloud gaf een fout (502).".into()
+            }
+        );
+        assert!(matches!(
+            send_json(&agent, "GET", &format!("{}/v1/w", server.url()), None, None),
+            Err(PennelError::InvalidResponse { .. })
+        ));
     }
 
     #[test]

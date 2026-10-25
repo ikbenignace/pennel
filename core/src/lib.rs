@@ -41,6 +41,7 @@ mod wav;
 pub use call_detector::{CallDetector, CallEvent, CallObservation};
 pub use cli_agent::{DetectedAgent, check_cli_agent, detect_cli_agents};
 pub use cloud::SecretStore;
+pub use cloud::account::{CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart};
 pub use engine::{
     ApiKeys, CleanupStatus, DictationRequest, DictationResult, LibrarySearch, PennelEngine,
 };

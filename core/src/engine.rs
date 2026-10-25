@@ -7,6 +7,7 @@ use crate::cleanup::{
     accept_cleanup, cleanup_messages, cleanup_timeout_secs, resolve_style, strip_wrapping,
 };
 use crate::cloud::SecretStore;
+use crate::cloud::account::{CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart, Session};
 use crate::error::PennelError;
 use crate::export::MeetingExport;
 use crate::history::{HistoryEntry, HistoryStore};
@@ -83,6 +84,7 @@ pub struct PennelEngine {
     system_stt: RwLock<Option<Arc<dyn SystemTranscriber>>>,
     system_llm: RwLock<Option<Arc<dyn SystemLanguageModel>>>,
     secrets: RwLock<Option<Arc<dyn SecretStore>>>,
+    cloud_session: Mutex<Option<Arc<Session>>>,
     meeting_gate: Mutex<()>,
     active_sessions: Mutex<Vec<Weak<MeetingSession>>>,
     library_lease: Mutex<Option<(PathBuf, DirectoryLease)>>,
@@ -142,6 +144,50 @@ impl PennelEngine {
 
     pub fn set_secret_store(&self, store: Arc<dyn SecretStore>) {
         *self.secrets.write().unwrap() = Some(store);
+        *self.cloud_session.lock().unwrap() = None;
+    }
+
+    pub fn cloud_login_start(
+        &self,
+        device_name: String,
+        platform: String,
+    ) -> Result<CloudLoginStart, PennelError> {
+        self.cloud_session()?.login_start(&device_name, &platform)
+    }
+
+    pub fn cloud_login_poll(&self, device_code: String) -> Result<CloudLoginPoll, PennelError> {
+        self.cloud_session()?.login_poll(&device_code)
+    }
+
+    pub fn cloud_signed_in(&self) -> bool {
+        self.cloud_session()
+            .is_ok_and(|session| session.signed_in())
+    }
+
+    pub fn cloud_logout(&self) {
+        if let Ok(session) = self.cloud_session() {
+            session.logout();
+        }
+    }
+
+    pub fn cloud_account(&self) -> Result<CloudAccount, PennelError> {
+        self.cloud_session()?.account()
+    }
+
+    pub fn cloud_devices(&self) -> Result<Vec<CloudDevice>, PennelError> {
+        self.cloud_session()?.devices()
+    }
+
+    pub fn cloud_rename_device(&self, id: String, name: String) -> Result<(), PennelError> {
+        self.cloud_session()?.rename_device(&id, &name)
+    }
+
+    pub fn cloud_revoke_device(&self, id: String) -> Result<(), PennelError> {
+        self.cloud_session()?.revoke_device(&id)
+    }
+
+    pub fn cloud_delete_account(&self) -> Result<(), PennelError> {
+        self.cloud_session()?.delete_account()
     }
 
     pub fn set_system_language_model(&self, model: Arc<dyn SystemLanguageModel>) {
@@ -856,10 +902,25 @@ fn open_index(path: &std::path::Path) -> Option<MeetingIndex> {
     })
 }
 
-#[allow(dead_code)] // used by the cloud modules that follow
 impl PennelEngine {
     pub(crate) fn secret_store(&self) -> Option<Arc<dyn SecretStore>> {
         self.secrets.read().unwrap().clone()
+    }
+
+    pub(crate) fn cloud_session(&self) -> Result<Arc<Session>, PennelError> {
+        let mut slot = self.cloud_session.lock().unwrap();
+        if let Some(session) = slot.as_ref() {
+            return Ok(session.clone());
+        }
+        let secrets = self.secret_store().ok_or(PennelError::NotSignedIn)?;
+        let session = Arc::new(Session::new(self.cloud_base_url(), secrets));
+        *slot = Some(session.clone());
+        Ok(session)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn use_cloud_session(&self, session: Session) {
+        *self.cloud_session.lock().unwrap() = Some(Arc::new(session));
     }
 
     pub(crate) fn cloud_base_url(&self) -> String {
@@ -912,6 +973,7 @@ impl PennelEngine {
             system_stt: RwLock::new(None),
             system_llm: RwLock::new(None),
             secrets: RwLock::new(None),
+            cloud_session: Mutex::new(None),
             meeting_gate: Mutex::new(()),
             active_sessions: Mutex::new(Vec::new()),
             library_lease: Mutex::new(library_lease),
