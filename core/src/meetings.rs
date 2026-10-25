@@ -44,8 +44,9 @@ pub struct SpeakerName {
 }
 
 const SPEAKER_NAME_MAX: usize = 40;
-/// Sortformer tells at most four voices apart.
-pub const VOICES: std::ops::RangeInclusive<u32> = 1..=4;
+/// Voices per meeting. Sortformer told four apart; the speaker pipeline has no fixed limit, and
+/// more than twelve distinct voices in one recording is almost always over-splitting.
+pub const VOICES: std::ops::RangeInclusive<u32> = 1..=12;
 
 /// "Ik", a participant's name, "Anderen 2" or "Anderen".
 pub fn speaker_label(segment: &Segment, names: &[SpeakerName]) -> String {
@@ -611,11 +612,26 @@ impl MeetingStore {
         }
         let mut names = self.speaker_names(id);
         names.retain(|n| n.voice != voice);
-        let name = sanitize_speaker(name);
-        if !name.is_empty() {
-            names.push(SpeakerName { voice, name });
-        }
+        names.push(SpeakerName {
+            voice,
+            name: name.to_owned(),
+        });
+        self.set_speaker_names(id, &names)
+    }
+
+    /// Replaces every voice name; empty names and voices outside [`VOICES`] are dropped.
+    pub fn set_speaker_names(&self, id: &str, names: &[SpeakerName]) -> Result<(), PennelError> {
+        let mut names: Vec<SpeakerName> = names
+            .iter()
+            .filter(|n| VOICES.contains(&n.voice))
+            .map(|n| SpeakerName {
+                voice: n.voice,
+                name: sanitize_speaker(&n.name),
+            })
+            .filter(|n| !n.name.is_empty())
+            .collect();
         names.sort_by_key(|n| n.voice);
+        names.dedup_by_key(|n| n.voice);
         let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         front.extra.retain(|line| !line.starts_with("speakers:"));
         if !names.is_empty() {
@@ -989,11 +1005,42 @@ mod tests {
                 .contains("[00:05] **Anderen 2:** Klopt")
         );
         assert_eq!(parse_segment("[00:01] **Anderen 0:** x"), None);
-        assert_eq!(parse_segment("[00:01] **Anderen 9:** x"), None);
+        assert_eq!(parse_segment("[00:01] **Anderen 13:** x"), None);
+        assert_eq!(
+            parse_segment("[00:01] **Anderen 12:** x").unwrap().voice,
+            Some(12)
+        );
         assert_eq!(
             store.rename_speaker(&id, 0, "x"),
             Err(PennelError::NotFound)
         );
+    }
+
+    #[test]
+    fn set_speaker_names_replaces_all_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Namen", start()).unwrap();
+        store.rename_speaker(&id, 1, "Oud").unwrap();
+        let name = |voice, name: &str| SpeakerName {
+            voice,
+            name: name.into(),
+        };
+        store
+            .set_speaker_names(
+                &id,
+                &[
+                    name(3, "Jan"),
+                    name(2, " "),
+                    name(13, "Te veel"),
+                    name(10, "An;na"),
+                ],
+            )
+            .unwrap();
+        assert_eq!(store.speaker_names(&id), [name(3, "Jan"), name(10, "Anna")]);
+        store.set_speaker_names(&id, &[]).unwrap();
+        assert!(store.speaker_names(&id).is_empty());
+        assert!(!store.read_file(&id, "meeting.md").contains("speakers:"));
     }
 
     #[test]
