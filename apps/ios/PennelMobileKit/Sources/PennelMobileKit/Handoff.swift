@@ -138,10 +138,15 @@ public struct HandoffClient: Sendable {
     }
 
     @discardableResult
-    public func send(_ action: HandoffCommand.Action, now: Date = Date()) -> UUID {
+    public func send(_ action: HandoffCommand.Action, now: Date = Date()) throws -> UUID {
         let id = UUID()
         pending.set(id)
-        try? store.write(HandoffCommand(id: id, action: action, at: now), as: .command)
+        do {
+            try store.write(HandoffCommand(id: id, action: action, at: now), as: .command)
+        } catch {
+            pending.clear(ifMatching: id)
+            throw error
+        }
         HandoffSignal.command.post()
         return id
     }

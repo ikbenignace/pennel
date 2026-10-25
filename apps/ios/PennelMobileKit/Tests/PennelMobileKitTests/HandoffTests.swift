@@ -24,7 +24,7 @@ struct HandoffClientTests {
 
     @Test func result_is_taken_once_and_only_for_pending_id() throws {
         let client = client()
-        let id = client.send(.start, now: now)
+        let id = try client.send(.start, now: now)
         #expect(try #require(store.read(HandoffCommand.self, as: .command)).id == id)
 
         try store.write(HandoffResult(id: id, text: "hallo", error: nil, at: now), as: .result)
@@ -37,7 +37,7 @@ struct HandoffClientTests {
     @Test func foreign_result_is_ignored() throws {
         let mine = client()
         let other = client()
-        _ = mine.send(.start, now: now)
+        _ = try mine.send(.start, now: now)
         let foreign = HandoffResult(id: UUID(), text: "van iemand anders", error: nil, at: now)
         try store.write(foreign, as: .result)
 
@@ -49,8 +49,8 @@ struct HandoffClientTests {
     @Test func second_instance_never_takes_the_result_of_the_first() throws {
         let first = client()
         let second = client()
-        let id = first.send(.start, now: now)
-        _ = second.send(.cancel, now: now)
+        let id = try first.send(.start, now: now)
+        _ = try second.send(.cancel, now: now)
         try store.write(HandoffResult(id: id, text: "eerste", error: nil, at: now), as: .result)
         #expect(second.takeResult() == nil)
     }
@@ -58,7 +58,7 @@ struct HandoffClientTests {
     @Test func pending_id_survives_a_re_shown_keyboard_without_inserting_twice() throws {
         let slot = PendingHandoff()
         let shown = HandoffClient(store: store, pending: slot)
-        let id = shown.send(.start, now: now)
+        let id = try shown.send(.start, now: now)
 
         let reshown = HandoffClient(store: store, pending: slot)
         try store.write(HandoffResult(id: id, text: "eens", error: nil, at: now), as: .result)
@@ -70,9 +70,20 @@ struct HandoffClientTests {
     @Test func default_clients_in_one_process_share_the_pending_id() throws {
         let directory = tempDirectory()
         let store = HandoffStore(directory: directory)
-        let id = HandoffClient(store: store).send(.start, now: now)
+        let id = try HandoffClient(store: store).send(.start, now: now)
         try store.write(HandoffResult(id: id, text: "terug", error: nil, at: now), as: .result)
         #expect(HandoffClient(store: HandoffStore(directory: directory)).takeResult()?.text == "terug")
+    }
+
+    @Test func send_failure_throws_and_leaves_no_pending_id() throws {
+        let blocker = tempDirectory()
+        try Data().write(to: blocker)
+        let unwritable = HandoffStore(directory: blocker.appendingPathComponent("handoff"))
+        let slot = PendingHandoff()
+        let client = HandoffClient(store: unwritable, pending: slot)
+
+        #expect(throws: (any Error).self) { try client.send(.start, now: now) }
+        #expect(slot.current == nil)
     }
 
     @Test func stale_heartbeat_reads_as_off() throws {
