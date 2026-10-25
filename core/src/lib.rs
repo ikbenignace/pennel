@@ -31,6 +31,7 @@ mod rules;
 mod session;
 mod settings;
 mod setup;
+mod speakers;
 mod speech;
 mod status;
 mod storage;

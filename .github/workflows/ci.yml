@@ -33,6 +33,11 @@ jobs:
         run: cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
       - name: Rust tests
         run: cargo test --manifest-path core/Cargo.toml --lib
+      - name: Speaker pipeline
+        run: |
+          cargo fmt --manifest-path core/speakers/Cargo.toml -- --check
+          cargo clippy --manifest-path core/speakers/Cargo.toml --all-targets --features onnx -- -D warnings
+          cargo test --manifest-path core/speakers/Cargo.toml --features onnx
       - name: Core bindings
         run: make core
       - name: Swift tests
