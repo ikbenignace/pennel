@@ -20,7 +20,7 @@ pub enum PennelError {
     ModelNotDownloaded,
     #[error("Log in bij Pennel Cloud in Instellingen → Account.")]
     NotSignedIn,
-    #[error("cloud error {code}: {message}")]
+    #[error("{message}")]
     Cloud { code: String, message: String },
     #[error("Voer je herstelcode in om sync aan te zetten.")]
     VaultLocked,
@@ -37,6 +37,15 @@ impl PennelError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_error_displays_only_its_message() {
+        let error = PennelError::Cloud {
+            code: "quota".into(),
+            message: "Je tegoed is op.".into(),
+        };
+        assert_eq!(error.to_string(), "Je tegoed is op.");
+    }
 
     #[test]
     fn cloud_login_errors_display_in_dutch() {
