@@ -20,6 +20,8 @@ public enum PennelIcon: String, CaseIterable, Sendable {
     case keyboard = "keyboard"
     case audioLines = "audio-lines"
     case trash = "trash"
+    case chat = "chat"
+    case more = "more"
 
     var svgSource: String {
         switch self {
@@ -43,6 +45,8 @@ public enum PennelIcon: String, CaseIterable, Sendable {
         case .keyboard: #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01"/><path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/><path d="M7 16h10"/></svg>"#
         case .audioLines: #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4"/><path d="M8 6v12"/><path d="M12 3v18"/><path d="M16 7v10"/><path d="M20 10v4"/></svg>"#
         case .trash: #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M9 6V3h6v3"/><path d="M5 6l1 15h12l1-15"/><path d="M10 10v7"/><path d="M14 10v7"/></svg>"#
+        case .chat: #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M7 9h10"/><path d="M7 12.5h6"/></svg>"#
+        case .more: #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h.01"/><path d="M12 12h.01"/><path d="M19 12h.01"/></svg>"#
         }
     }
 }

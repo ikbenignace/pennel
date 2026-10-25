@@ -31,6 +31,7 @@ public enum ThemeTokens {
     public static let accent = ColorPair(light: 0xC2410C, dark: 0xF2B48E)
     public static let focusRing = ColorPair(light: 0xC2410C, dark: 0xF2B48E)
     public static let systemAccent = ColorPair(light: 0x007AFF, dark: 0x0A84FF)
+    public static let ready = ColorPair(light: 0x34C759, dark: 0x30D158, lightAlpha: 0.70196078, darkAlpha: 0.70196078)
     public static let controlEdge = ColorPair(light: 0x2A2723, dark: 0xFFFFFF, lightAlpha: 0.18039216, darkAlpha: 0.12156863)
     public static let disabled = ColorPair(light: 0xF1EDE6, dark: 0x2C2926)
     public static let disabledText = ColorPair(light: 0x6F675D, dark: 0xABA398)
@@ -102,7 +103,7 @@ public enum ThemePill {
 public enum ThemeTypography {
     public static let ui = "Figtree"
     public static let display = "Instrument Serif"
-    public static let usesSystemInterface = true
+    public static let usesSystemInterface = false
     public static let caption: CGFloat = 11
     public static let label: CGFloat = 12
     public static let body: CGFloat = 13

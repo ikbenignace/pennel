@@ -111,12 +111,18 @@ def scalar(value: int | float) -> str:
     return f"{value:g}"
 
 
-def popup_indicator(color: str) -> str:
-    """The pop-up button's accent box, drawn as a data URI because CSS variables cannot reach into one."""
+CHEVRONS = {
+    "popup": "M5 6.5 8 3.75 11 6.5M5 9.5 8 12.25 11 9.5",
+    "pulldown": "M5 6.75 8 9.75 11 6.75",
+}
+
+
+def popup_indicator(color: str, kind: str = "popup") -> str:
+    """A pop-up or pull-down button's accent box, drawn as a data URI because CSS variables cannot reach into one."""
     svg = (
         "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'>"
         f"<rect width='16' height='16' rx='4' fill='{color.lower()}'/>"
-        "<path d='M5 6.5 8 3.75 11 6.5M5 9.5 8 12.25 11 9.5' fill='none' stroke='white' stroke-width='1.5' "
+        f"<path d='{CHEVRONS[kind]}' fill='none' stroke='white' stroke-width='1.5' "
         "stroke-linecap='round' stroke-linejoin='round'/></svg>"
     )
     return 'url("data:image/svg+xml,' + svg.replace("#", "%23") + '")'
@@ -127,6 +133,7 @@ def render_css(tokens: dict) -> str:
     for name, pair in tokens["colors"].items():
         lines.append(f"  --{name}: {pair['light'].lower()};")
     lines.append(f"  --popup-indicator: {popup_indicator(tokens['colors']['system-accent']['light'])};")
+    lines.append(f"  --pulldown-indicator: {popup_indicator(tokens['colors']['system-accent']['light'], 'pulldown')};")
     for name, target in tokens["aliases"].items():
         lines.append(f"  --{name}: var(--{target});")
     for name, value in tokens["spacing"].items():
@@ -137,7 +144,7 @@ def render_css(tokens: dict) -> str:
         unit = "" if name in PILL_COUNTS else "px"
         lines.append(f"  --pill-{name}: {scalar(value)}{unit};")
     brand_ui = f"\"{tokens['typography']['ui']}\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", system-ui, sans-serif"
-    # The interface follows each platform's own UI font (SF, Segoe UI, Cantarell/Ubuntu) so controls read as native.
+    # "system" follows each platform's own UI font (SF, Segoe UI, Cantarell/Ubuntu); "brand" is Figtree, as in the original app.
     system_ui = "-apple-system, BlinkMacSystemFont, \"Segoe UI\", system-ui, Cantarell, Ubuntu, \"Noto Sans\", sans-serif"
     interface = system_ui if tokens["typography"].get("interface") == "system" else brand_ui
     lines.extend((
@@ -151,12 +158,14 @@ def render_css(tokens: dict) -> str:
     for name, pair in tokens["colors"].items():
         lines.append(f"    --{name}: {pair['dark'].lower()};")
     lines.append(f"    --popup-indicator: {popup_indicator(tokens['colors']['system-accent']['dark'])};")
+    lines.append(f"    --pulldown-indicator: {popup_indicator(tokens['colors']['system-accent']['dark'], 'pulldown')};")
     lines.extend(("  }", "}", ""))
     for appearance in ("light", "dark"):
         lines.extend((f':root[data-appearance="{appearance}"], :root[data-theme="{appearance}"] {{', f"  color-scheme: {appearance};"))
         for name, pair in tokens["colors"].items():
             lines.append(f"  --{name}: {pair[appearance].lower()};")
         lines.append(f"  --popup-indicator: {popup_indicator(tokens['colors']['system-accent'][appearance])};")
+        lines.append(f"  --pulldown-indicator: {popup_indicator(tokens['colors']['system-accent'][appearance], 'pulldown')};")
         lines.extend(("}", ""))
     return "\n".join(lines)
 
@@ -298,11 +307,14 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(css.count("--pill-background: #2a2723;"), 4)
         self.assertIn("lightAlpha: 0.10196078", swift)
 
-    def test_system_interface_font_keeps_the_brand_family_available(self) -> None:
+    def test_interface_font_follows_the_original_figtree_and_can_use_the_system_font(self) -> None:
         css = render_css(self.tokens)
-        self.assertIn('--ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui', css)
+        self.assertIn('--ui: "Figtree", -apple-system', css)
         self.assertIn('--brand-ui: "Figtree"', css)
-        self.assertIn("usesSystemInterface = true", render_swift(self.tokens))
+        self.assertIn("usesSystemInterface = false", render_swift(self.tokens))
+        system = copy.deepcopy(self.tokens)
+        system["typography"]["interface"] = "system"
+        self.assertIn('--ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui', render_css(system))
         invalid = copy.deepcopy(self.tokens)
         invalid["typography"]["interface"] = "comic"
         with self.assertRaisesRegex(ValueError, "interface"):
