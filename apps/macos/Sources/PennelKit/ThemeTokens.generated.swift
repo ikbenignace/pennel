@@ -30,7 +30,6 @@ public enum ThemeTokens {
     public static let buttonText = ColorPair(light: 0xFCFBF8, dark: 0x1E1C1A)
     public static let accent = ColorPair(light: 0xC2410C, dark: 0xF2B48E)
     public static let focusRing = ColorPair(light: 0xC2410C, dark: 0xF2B48E)
-    public static let systemAccent = ColorPair(light: 0x007AFF, dark: 0x0A84FF)
     public static let ready = ColorPair(light: 0x34C759, dark: 0x30D158, lightAlpha: 0.70196078, darkAlpha: 0.70196078)
     public static let controlEdge = ColorPair(light: 0x2A2723, dark: 0xFFFFFF, lightAlpha: 0.18039216, darkAlpha: 0.12156863)
     public static let disabled = ColorPair(light: 0xF1EDE6, dark: 0x2C2926)

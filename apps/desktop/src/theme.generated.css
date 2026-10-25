@@ -15,7 +15,6 @@
   --button-text: #fcfbf8;
   --accent: #c2410c;
   --focus-ring: #c2410c;
-  --system-accent: #007aff;
   --ready: #34c759b3;
   --control-edge: #2a27232e;
   --disabled: #f1ede6;
@@ -32,8 +31,6 @@
   --voice-2: #6d4c8f;
   --voice-3: #2f5d8a;
   --voice-4: #8a6a2f;
-  --popup-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%23007aff'/><path d='M5 6.5 8 3.75 11 6.5M5 9.5 8 12.25 11 9.5' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-  --pulldown-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%23007aff'/><path d='M5 6.75 8 9.75 11 6.75' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   --paper: var(--surface);
   --background: var(--subtle);
   --ink: var(--foreground);
@@ -103,7 +100,6 @@
     --button-text: #1e1c1a;
     --accent: #f2b48e;
     --focus-ring: #f2b48e;
-    --system-accent: #0a84ff;
     --ready: #30d158b3;
     --control-edge: #ffffff1f;
     --disabled: #2c2926;
@@ -120,8 +116,6 @@
     --voice-2: #b9a0db;
     --voice-3: #92bae3;
     --voice-4: #d7bb83;
-    --popup-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%230a84ff'/><path d='M5 6.5 8 3.75 11 6.5M5 9.5 8 12.25 11 9.5' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-    --pulldown-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%230a84ff'/><path d='M5 6.75 8 9.75 11 6.75' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   }
 }
 
@@ -141,7 +135,6 @@
   --button-text: #fcfbf8;
   --accent: #c2410c;
   --focus-ring: #c2410c;
-  --system-accent: #007aff;
   --ready: #34c759b3;
   --control-edge: #2a27232e;
   --disabled: #f1ede6;
@@ -158,8 +151,6 @@
   --voice-2: #6d4c8f;
   --voice-3: #2f5d8a;
   --voice-4: #8a6a2f;
-  --popup-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%23007aff'/><path d='M5 6.5 8 3.75 11 6.5M5 9.5 8 12.25 11 9.5' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-  --pulldown-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%23007aff'/><path d='M5 6.75 8 9.75 11 6.75' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
 }
 
 :root[data-appearance="dark"], :root[data-theme="dark"] {
@@ -178,7 +169,6 @@
   --button-text: #1e1c1a;
   --accent: #f2b48e;
   --focus-ring: #f2b48e;
-  --system-accent: #0a84ff;
   --ready: #30d158b3;
   --control-edge: #ffffff1f;
   --disabled: #2c2926;
@@ -195,6 +185,4 @@
   --voice-2: #b9a0db;
   --voice-3: #92bae3;
   --voice-4: #d7bb83;
-  --popup-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%230a84ff'/><path d='M5 6.5 8 3.75 11 6.5M5 9.5 8 12.25 11 9.5' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-  --pulldown-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%230a84ff'/><path d='M5 6.75 8 9.75 11 6.75' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
 }
