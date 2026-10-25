@@ -373,13 +373,37 @@ fn another_account_after_revocation_gets_a_full_compare() {
 
     sign_in(&a, &second);
     assert_eq!(
+        a.engine.cloud_sync_new_recovery_code(),
+        Err(PennelError::VaultLocked)
+    );
+    assert_eq!(
         a.engine.cloud_sync_run(vec![]).status,
         SyncStatus::NeedsRecoveryCode
     );
+    assert_eq!(a.secrets.get(VAULT_KEY_ACCOUNT.into()), None);
+    assert_eq!(second.live_objects(), 1);
     a.engine.cloud_sync_unlock(code).unwrap();
     let report = a.engine.cloud_sync_run(vec![]);
     assert_eq!(report.status, SyncStatus::Synced);
     assert_eq!(report.uploaded, 2);
     assert_eq!(report.downloaded, 1);
     assert_eq!(second.live_objects(), 3);
+}
+
+#[test]
+fn revoked_device_keeps_its_key_and_resumes_without_the_code() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    a.engine.cloud_sync_enable().unwrap();
+    let id = store(&a).create("Blijft", start()).unwrap();
+    assert_eq!(a.engine.cloud_sync_run(vec![]).uploaded, 1);
+    revoke_session(&a);
+    assert!(a.secrets.get(VAULT_KEY_ACCOUNT.into()).is_some());
+
+    sign_in(&a, &api);
+    std::fs::write(a.root.join(&id).join("notes.md"), "nieuw\n").unwrap();
+    let report = a.engine.cloud_sync_run(vec![]);
+    assert_eq!(report.status, SyncStatus::Synced);
+    assert_eq!(report.uploaded, 1);
+    assert_eq!(api.live_objects(), 2);
 }

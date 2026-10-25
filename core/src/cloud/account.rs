@@ -104,15 +104,18 @@ impl Session {
         self.secrets.get(REFRESH_ACCOUNT.into()).is_some()
     }
 
+    /// Signing out on purpose also forgets the vault key.
     fn clear_secrets(&self) {
         let mut access = self.access.lock().unwrap();
-        self.clear_locked(&mut access);
+        self.end_session_locked(&mut access);
+        self.secrets.set(super::VAULT_KEY_ACCOUNT.into(), None);
     }
 
     // Callers hold `access`, so an in-flight refresh cannot write a rotated token afterwards.
-    fn clear_locked(&self, access: &mut Option<AccessToken>) {
+    // The vault key stays: a revoked device keeps what it had, and sync checks the key against
+    // the account's vault before using it again.
+    fn end_session_locked(&self, access: &mut Option<AccessToken>) {
         self.secrets.set(REFRESH_ACCOUNT.into(), None);
-        self.secrets.set(super::VAULT_KEY_ACCOUNT.into(), None);
         *access = None;
     }
 
@@ -147,7 +150,7 @@ impl Session {
         if status == 401 {
             let code = body.get("error").and_then(Value::as_str).unwrap_or("");
             if code.is_empty() || is_revoked(code) {
-                self.clear_locked(&mut access);
+                self.end_session_locked(&mut access);
                 return Err(PennelError::NotSignedIn);
             }
         }
@@ -464,7 +467,7 @@ mod tests {
     }
 
     #[test]
-    fn revoked_session_signs_out() {
+    fn revoked_session_signs_out_and_keeps_the_vault_key() {
         for code in ["session_revoked", "unauthorized"] {
             let mut server = mockito::Server::new();
             let (secrets, session) = fixture(&server);
@@ -477,7 +480,12 @@ mod tests {
                 .create();
             assert_eq!(session.access_token(), Err(PennelError::NotSignedIn));
             assert_eq!(stored(&secrets), None);
-            assert_eq!(secrets.get(crate::cloud::VAULT_KEY_ACCOUNT.into()), None);
+            assert_eq!(
+                secrets
+                    .get(crate::cloud::VAULT_KEY_ACCOUNT.into())
+                    .as_deref(),
+                Some("key")
+            );
             assert!(!session.signed_in());
         }
     }
@@ -665,7 +673,7 @@ mod tests {
     }
 
     #[test]
-    fn forced_refresh_revoked_signs_out_and_clears_both_secrets() {
+    fn forced_refresh_revoked_signs_out_and_keeps_the_vault_key() {
         let mut server = mockito::Server::new();
         let (secrets, session) = fixture(&server);
         secrets.set(REFRESH_ACCOUNT.into(), Some("old".into()));
@@ -688,7 +696,12 @@ mod tests {
             .create();
         assert_eq!(session.account(), Err(PennelError::NotSignedIn));
         assert_eq!(stored(&secrets), None);
-        assert_eq!(secrets.get(crate::cloud::VAULT_KEY_ACCOUNT.into()), None);
+        assert_eq!(
+            secrets
+                .get(crate::cloud::VAULT_KEY_ACCOUNT.into())
+                .as_deref(),
+            Some("key")
+        );
     }
 
     #[test]

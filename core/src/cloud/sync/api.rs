@@ -845,6 +845,7 @@ mod tests {
             t: 1,
             p: 1,
             salt: "c2FsdHNhbHRzYWx0c2FsdA==".into(),
+            key_check: None,
         };
         let _get = server
             .mock("GET", "/v1/vault")

@@ -115,6 +115,10 @@ pub struct Kdf {
     pub t: u32,
     pub p: u32,
     pub salt: String,
+    /// [`vault_check`] of the wrapped key, so a device that kept a key can tell whether it
+    /// belongs to this vault without the recovery code. Absent on vaults made before it existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_check: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -159,6 +163,7 @@ fn wrap_with(key: &VaultKey, code: &str, params: KdfParams) -> Result<(Vec<u8>, 
         t: params.t,
         p: params.p,
         salt: B64.encode(salt),
+        key_check: Some(vault_check(key)),
     };
     let wrapping_key =
         derive_wrapping_key(code.as_bytes(), &salt, params).ok_or_else(vault_invalid)?;
@@ -452,8 +457,13 @@ mod tests {
         let json = serde_json::to_value(&kdf).unwrap();
         assert_eq!(
             json.as_object().unwrap().keys().collect::<Vec<_>>(),
-            ["alg", "m_kib", "p", "salt", "t"]
+            ["alg", "key_check", "m_kib", "p", "salt", "t"]
         );
+        assert_eq!(kdf.key_check, Some(vault_check(&key)));
+        let mut older = json.clone();
+        older.as_object_mut().unwrap().remove("key_check");
+        let older: Kdf = serde_json::from_value(older).unwrap();
+        assert_eq!(older.key_check, None);
         let unwrapped = unwrap(&wrapped, &kdf, CODE).expect("unwraps");
         assert_eq!(unwrapped.to_b64(), key.to_b64());
     }
@@ -553,6 +563,7 @@ mod tests {
             t,
             p,
             salt: salt.clone(),
+            key_check: None,
         };
         assert!(validate_kdf(&kdf(65536, 3, 1)).is_some());
         assert!(validate_kdf(&kdf(262_144, 8, 4)).is_some());

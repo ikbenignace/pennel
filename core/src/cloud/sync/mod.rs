@@ -246,7 +246,6 @@ impl Pass<'_> {
             self.store = MeetingStore::new(&self.root);
         }
         trash::purge(self.data_dir, TRASH_DAYS);
-        self.state.use_vault(&crypto::vault_check(self.key))?;
         let root_id = self.root.to_string_lossy().into_owned();
         match self.state.root()? {
             Some(previous) if previous == root_id => {}
@@ -259,6 +258,22 @@ impl Pass<'_> {
             None => self.state.set_root(&root_id)?,
         }
         let vault = self.api.vault()?;
+        let check = crypto::vault_check(self.key);
+        // A key kept from before a sign-out may belong to another account's vault.
+        if let Some(expected) = vault.kdf.as_ref().and_then(|kdf| kdf.key_check.as_deref())
+            && expected != check
+        {
+            let reset = self
+                .state
+                .generation()?
+                .is_some_and(|local| local < vault.generation);
+            return Err(Stop(if reset {
+                SyncStatus::VaultReset
+            } else {
+                SyncStatus::NeedsRecoveryCode
+            }));
+        }
+        self.state.use_vault(&check)?;
         match self.state.generation()? {
             None => self.state.set_generation(vault.generation)?,
             Some(local) if local < vault.generation => return Err(Stop(SyncStatus::VaultReset)),

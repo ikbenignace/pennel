@@ -237,6 +237,18 @@ impl PennelEngine {
         let api = self.signed_in_sync_api()?;
         let key = self.vault_key().ok_or(PennelError::VaultLocked)?;
         let vault = api.vault()?;
+        // Wrapping a key kept from another account would lock that account out of its vault.
+        if vault
+            .kdf
+            .as_ref()
+            .and_then(|kdf| kdf.key_check.as_deref())
+            .is_some_and(|expected| expected != crypto::vault_check(&key))
+        {
+            if let Some(secrets) = self.secret_store() {
+                secrets.set(VAULT_KEY_ACCOUNT.into(), None);
+            }
+            return Err(PennelError::VaultLocked);
+        }
         if self.with_sync_state(|state| state.generation())? != Some(vault.generation) {
             return Err(PennelError::Cloud {
                 code: "generation".into(),
@@ -1268,8 +1280,11 @@ impl PennelEngine {
             Ok(report)
         });
         let report = outcome.unwrap_or_else(|error| self.report(sync::status_for(error)));
-        if report.status == SyncStatus::VaultReset
-            && let Some(secrets) = self.secret_store()
+        // Both mean the stored key does not open the account's current vault.
+        if matches!(
+            report.status,
+            SyncStatus::VaultReset | SyncStatus::NeedsRecoveryCode
+        ) && let Some(secrets) = self.secret_store()
         {
             secrets.set(VAULT_KEY_ACCOUNT.into(), None);
         }
