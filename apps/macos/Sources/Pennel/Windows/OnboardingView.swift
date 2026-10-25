@@ -34,7 +34,7 @@ struct OnboardingView: View {
     }
     private var customAccount: ProviderAccount? { state.account(state.workspace.onboardingProvider) }
     private var customProviders: [ProviderAccount] {
-        state.settings.providers.filter { $0.kind != .local && $0.kind != .appleSpeech && supports(kind: $0.kind, task: .dictationStt) }
+        state.settings.providers.filter { $0.kind != .local && $0.kind != .appleSpeech && $0.kind != .pennelCloud && supports(kind: $0.kind, task: .dictationStt) }
     }
     private var customKinds: [ProviderKind] {
         [.openAi, .openRouter, .groq, .mistral, .ollama, .lmStudio, .custom].filter { supports(kind: $0, task: .dictationStt) }

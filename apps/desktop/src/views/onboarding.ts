@@ -64,7 +64,7 @@ class OnboardingWizard {
     this.engine = account?.kind === "apple_speech" ? "apple" : account?.kind === "local" || !account ? "local" : "custom";
     this.language = settings.language ?? "";
     this.localModelId = account?.kind === "local" ? settings.dictation_stt.model : ctx.info.kinds.find((kind) => kind.kind === "local")?.default_stt_model ?? "";
-    this.providerChoice = account && !["local", "apple_speech"].includes(account.kind) ? account.id
+    this.providerChoice = account && this.customAccounts().some((item) => item.id === account.id) ? account.id
       : this.customAccounts()[0]?.id ?? `new:${this.customKinds()[0]?.kind ?? "open_ai"}`;
     const providerKind = this.customKind();
     this.providerModel = this.engine === "custom" ? settings.dictation_stt.model : providerKind?.default_stt_model ?? "";
@@ -206,7 +206,7 @@ class OnboardingWizard {
   }
 
   private localModel(): LocalModel | undefined { return this.models.find((model) => model.id === this.localModelId); }
-  private customKinds(): KindInfo[] { return this.ctx.info.kinds.filter((kind) => kind.stt && !["local", "apple_speech"].includes(kind.kind)); }
+  private customKinds(): KindInfo[] { return this.ctx.info.kinds.filter((kind) => kind.stt && !["local", "apple_speech", "pennel_cloud"].includes(kind.kind)); }
   private customAccounts(): ProviderAccount[] { return this.ctx.info.settings.providers.filter((account) => this.customKinds().some((kind) => kind.kind === account.kind)); }
   private customAccount(): ProviderAccount | undefined { return this.customAccounts().find((account) => account.id === this.providerChoice); }
   private customKind(): KindInfo | undefined {
