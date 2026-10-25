@@ -138,6 +138,9 @@ pub struct Settings {
     pub diarization: bool,
     #[serde(default)]
     pub cloud_sync: bool,
+    /// Lets Claude ask this computer about its meetings through Pennel Cloud (off by default).
+    #[serde(default)]
+    pub claude_access: bool,
     #[serde(default)]
     pub appearance: AppearancePreference,
     #[serde(default)]
@@ -214,6 +217,7 @@ pub fn default_settings() -> Settings {
         auto_detect: true,
         diarization: false,
         cloud_sync: false,
+        claude_access: false,
         appearance: AppearancePreference::System,
         onboarding: OnboardingProgress {
             status: OnboardingStatus::Pending,

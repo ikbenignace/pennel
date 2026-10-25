@@ -308,15 +308,17 @@ impl PennelEngine {
     /// Meeting files stay; only what this device knew about the cloud is forgotten.
     pub fn cloud_logout(&self) -> Result<(), PennelError> {
         self.ensure_cloud_identity_mutable()?;
-        // Sync settings take these locks in this order too. Do not invert them during logout.
-        let _sync = self.sync_gate.lock().unwrap();
-        let _meeting = self.meeting_gate.lock().unwrap();
-        self.ensure_cloud_identity_mutable()?;
-        if let Ok(session) = self.cloud_session() {
-            session.logout();
+        {
+            // Sync settings take these locks in this order too. Do not invert them during logout.
+            let _sync = self.sync_gate.lock().unwrap();
+            let _meeting = self.meeting_gate.lock().unwrap();
+            self.ensure_cloud_identity_mutable()?;
+            if let Ok(session) = self.cloud_session() {
+                session.logout();
+            }
+            self.clear_sync_state_locked();
         }
-        self.clear_sync_state_locked();
-        Ok(())
+        self.set_claude_access(false)
     }
 
     pub fn cloud_account(&self) -> Result<CloudAccount, PennelError> {
@@ -337,12 +339,14 @@ impl PennelEngine {
 
     pub fn cloud_delete_account(&self) -> Result<(), PennelError> {
         self.ensure_cloud_identity_mutable()?;
-        let _sync = self.sync_gate.lock().unwrap();
-        let _meeting = self.meeting_gate.lock().unwrap();
-        self.ensure_cloud_identity_mutable()?;
-        self.cloud_session()?.delete_account()?;
-        self.clear_sync_state_locked();
-        Ok(())
+        {
+            let _sync = self.sync_gate.lock().unwrap();
+            let _meeting = self.meeting_gate.lock().unwrap();
+            self.ensure_cloud_identity_mutable()?;
+            self.cloud_session()?.delete_account()?;
+            self.clear_sync_state_locked();
+        }
+        self.set_claude_access(false)
     }
 
     /// Creates the vault and returns the recovery code to show once. When the account already
