@@ -49,7 +49,7 @@ pub struct KindInfo {
     availability: Capability,
 }
 
-const KINDS: [(ProviderKind, &str); 16] = [
+const KINDS: [(ProviderKind, &str); 17] = [
     (ProviderKind::OpenAi, "OpenAI"),
     (ProviderKind::OpenRouter, "OpenRouter"),
     (ProviderKind::Groq, "Groq"),
@@ -66,6 +66,7 @@ const KINDS: [(ProviderKind, &str); 16] = [
     (ProviderKind::Copilot, "GitHub Copilot"),
     (ProviderKind::CursorAgent, "Cursor"),
     (ProviderKind::GeminiCli, "Gemini CLI"),
+    (ProviderKind::PennelCloud, "Pennel Cloud"),
 ];
 
 fn provider_kinds(apple_speech: &Capability, apple_intelligence: &Capability) -> Vec<KindInfo> {
@@ -138,11 +139,12 @@ pub fn app_info(shared: State<'_, Arc<Shared>>) -> AppInfo {
 
 #[tauri::command]
 pub fn save_settings(
-    settings: Settings,
+    mut settings: Settings,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<AppInfo> {
     let old_settings = shared.settings();
+    crate::cloud::keep_stored_cloud_sync(&mut settings, &old_settings);
     if shared.preview && old_settings.meetings_dir != settings.meetings_dir {
         return Err(
             "Deze testversie gebruikt een eigen meetingmap om je bestaande gegevens te beschermen."
@@ -236,7 +238,10 @@ pub async fn provider_models(
         if account.kind.is_cli_agent()
             || matches!(
                 account.kind,
-                ProviderKind::AppleSpeech | ProviderKind::AppleIntelligence | ProviderKind::Local
+                ProviderKind::AppleSpeech
+                    | ProviderKind::AppleIntelligence
+                    | ProviderKind::Local
+                    | ProviderKind::PennelCloud
             )
         {
             return Ok(Vec::new());
@@ -678,10 +683,11 @@ pub fn meeting_templates(shared: State<'_, Arc<Shared>>) -> Vec<MeetingTemplate>
 pub async fn summarize_meeting(
     id: String,
     template_id: String,
+    app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<String> {
     let shared = shared.inner().clone();
-    blocking(move || {
+    let summary = blocking(move || {
         let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
         checked_meeting_dir(&shared.engine, &id)?;
         require_inactive_meeting(&shared, &id)?;
@@ -691,34 +697,51 @@ pub async fn summarize_meeting(
             .summarize_meeting(id, template_id, keys)
             .map_err(err)
     })
-    .await
+    .await?;
+    crate::cloud::poke(&app);
+    Ok(summary)
 }
 
 #[tauri::command]
-pub async fn retranscribe_meeting(id: String, shared: State<'_, Arc<Shared>>) -> Result<u32> {
+pub async fn retranscribe_meeting(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<u32> {
     let shared = shared.inner().clone();
-    blocking(move || {
+    let count = blocking(move || {
         let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
         checked_meeting_dir(&shared.engine, &id)?;
         require_inactive_meeting(&shared, &id)?;
         let keys = shared.keys();
         shared.engine.retranscribe_failed(id, keys).map_err(err)
     })
-    .await
+    .await?;
+    crate::cloud::poke(&app);
+    Ok(count)
 }
 
 #[tauri::command]
-pub fn rename_meeting(id: String, title: String, shared: State<'_, Arc<Shared>>) -> Result<String> {
+pub fn rename_meeting(
+    id: String,
+    title: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<String> {
     checked_meeting_dir(&shared.engine, &id)?;
     require_inactive_meeting(&shared, &id)?;
-    shared.engine.rename_meeting(id, title).map_err(err)
+    let renamed = shared.engine.rename_meeting(id, title).map_err(err)?;
+    crate::cloud::poke(&app);
+    Ok(renamed)
 }
 
 #[tauri::command]
-pub fn delete_meeting(id: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
+pub fn delete_meeting(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
     checked_meeting_dir(&shared.engine, &id)?;
     require_inactive_meeting(&shared, &id)?;
-    shared.engine.delete_meeting(id).map_err(err)
+    shared.engine.delete_meeting(id).map_err(err)?;
+    crate::cloud::poke(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -768,17 +791,22 @@ pub fn save_template(
     id: Option<String>,
     name: String,
     body: String,
+    app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<String> {
     if name.trim().is_empty() {
         return Err("Geef het sjabloon een naam.".into());
     }
-    shared.engine.save_template(id, name, body).map_err(err)
+    let saved = shared.engine.save_template(id, name, body).map_err(err)?;
+    crate::cloud::poke(&app);
+    Ok(saved)
 }
 
 #[tauri::command]
-pub fn delete_template(id: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
-    shared.engine.delete_template(id).map_err(err)
+pub fn delete_template(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    shared.engine.delete_template(id).map_err(err)?;
+    crate::cloud::poke(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -786,17 +814,24 @@ pub fn rename_speaker(
     id: String,
     voice: u32,
     name: String,
+    app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
     checked_meeting_dir(&shared.engine, &id)?;
     require_inactive_meeting(&shared, &id)?;
-    shared.engine.rename_speaker(id, voice, name).map_err(err)
+    shared.engine.rename_speaker(id, voice, name).map_err(err)?;
+    crate::cloud::poke(&app);
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn diarize_meeting(id: String, shared: State<'_, Arc<Shared>>) -> Result<u32> {
+pub async fn diarize_meeting(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<u32> {
     let shared = shared.inner().clone();
-    blocking(move || {
+    let count = blocking(move || {
         let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
         let dir = checked_meeting_dir(&shared.engine, &id)?;
         require_inactive_meeting(&shared, &id)?;
@@ -807,7 +842,9 @@ pub async fn diarize_meeting(id: String, shared: State<'_, Arc<Shared>>) -> Resu
         let samples = crate::platform_audio::decode_audio(&audio)?;
         shared.engine.diarize_meeting(id, samples).map_err(err)
     })
-    .await
+    .await?;
+    crate::cloud::poke(&app);
+    Ok(count)
 }
 
 #[tauri::command]
@@ -829,22 +866,32 @@ pub async fn export_meeting(
 }
 
 #[tauri::command]
-pub fn save_meeting_notes(id: String, text: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
+pub fn save_meeting_notes(
+    id: String,
+    text: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
     checked_meeting_dir(&shared.engine, &id)?;
-    shared.engine.set_meeting_notes(id, text).map_err(err)
+    shared.engine.set_meeting_notes(id, text).map_err(err)?;
+    crate::cloud::poke(&app);
+    Ok(())
 }
 
 #[tauri::command]
 pub fn set_meeting_attendees(
     id: String,
     attendees: Vec<String>,
+    app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
     checked_meeting_dir(&shared.engine, &id)?;
     shared
         .engine
         .set_meeting_attendees(id, attendees)
-        .map_err(err)
+        .map_err(err)?;
+    crate::cloud::poke(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -939,7 +986,8 @@ mod tests {
                 "ollama",
                 "open_ai",
                 "open_code",
-                "open_router"
+                "open_router",
+                "pennel_cloud"
             ]
         );
         for cli in kinds.iter().filter(|kind| kind["is_cli_agent"] == true) {
@@ -1050,7 +1098,7 @@ mod tests {
             migration_warning: None,
             data_dir,
             dictation,
-            secrets: crate::secrets::Secrets::default(),
+            secrets: Arc::new(crate::secrets::Secrets::in_memory()),
             hotkey: std::sync::Mutex::new(None),
             hotkey_error: std::sync::Mutex::new(None),
             meeting: std::sync::Mutex::new(None),

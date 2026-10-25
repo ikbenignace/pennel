@@ -350,6 +350,7 @@ pub fn stop(
             flush_warning,
         };
         let _ = app.emit("meeting-finished", finished);
+        crate::cloud::poke(&app);
         let _ = app.emit("meeting-stopped", result.clone().ok());
         let _ = app.emit("recording-flush-complete", flush.request_id);
         if let Ok(id) = result
@@ -397,6 +398,7 @@ fn postprocess(app: AppHandle, shared: Arc<Shared>, id: String) {
         LOG.error("Automatisch samenvatten mislukt; transcript en notities blijven bewaard.");
     }
     let _ = app.emit("meeting-updated", id);
+    crate::cloud::poke(&app);
 }
 
 /// Worker-only shutdown path. The host keeps its event loop alive while native audio is released.
@@ -507,7 +509,7 @@ mod tests {
             version: "0.2.0-test".into(),
             preview: true,
             migration_warning: None,
-            secrets: crate::secrets::Secrets::default(),
+            secrets: Arc::new(crate::secrets::Secrets::in_memory()),
             data_dir,
             dictation,
             hotkey: Mutex::new(None),

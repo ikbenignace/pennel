@@ -7,6 +7,7 @@ mod capabilities;
 mod clipboard;
 #[cfg(not(target_os = "macos"))]
 mod clipboard_system;
+mod cloud;
 mod commands;
 mod diagnostics;
 mod dictation;
@@ -452,7 +453,8 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         engine.set_system_language_model(Arc::new(AppleLanguageModel));
     }
     let (tx, rx) = mpsc::channel();
-    let secrets = secrets::Secrets::new(preview);
+    let secrets = Arc::new(secrets::Secrets::new(preview));
+    engine.set_secret_store(secrets.clone());
     #[cfg(target_os = "macos")]
     let migration_warning = if preview {
         None
@@ -487,6 +489,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         paste_jobs: std::sync::atomic::AtomicUsize::new(0),
     });
     app.manage(shared.clone());
+    app.manage(cloud::SyncRunner::start(shared.clone(), handle.clone()));
     app.manage(platform_commands::UpdateState::default());
     if handle
         .config()
@@ -677,6 +680,25 @@ fn main() {
             commands::model_state,
             commands::show_main,
             commands::hide_window,
+            cloud::cloud_login_start,
+            cloud::cloud_login_poll,
+            cloud::cloud_logout,
+            cloud::cloud_account,
+            cloud::cloud_devices,
+            cloud::cloud_rename_device,
+            cloud::cloud_revoke_device,
+            cloud::cloud_delete_account,
+            cloud::cloud_sync_enable,
+            cloud::cloud_sync_unlock,
+            cloud::cloud_sync_new_recovery_code,
+            cloud::cloud_sync_reset,
+            cloud::cloud_sync_disable,
+            cloud::cloud_sync_now,
+            cloud::cloud_sync_last,
+            cloud::cloud_sync_confirm_deletes,
+            cloud::meeting_sync_states,
+            cloud::cloud_folder_warning,
+            cloud::open_url,
         ])
         .build(tauri::generate_context!())
         .expect("Pennel kon niet starten")
@@ -743,6 +765,7 @@ fn main() {
                             {
                                 let _ = done.recv();
                             }
+                            app.state::<cloud::SyncRunner>().stop();
                             platform_audio::stop();
                             let listener = shared.hotkey.lock().unwrap().take();
                             drop(listener);

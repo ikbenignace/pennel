@@ -4,11 +4,13 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use pennel_core::{ApiKeys, ProviderAccount};
+use pennel_core::{ApiKeys, ProviderAccount, SecretStore};
 
 pub struct Secrets {
     service: &'static str,
     cache: Mutex<HashMap<String, Option<String>>>,
+    #[cfg(test)]
+    in_memory: bool,
 }
 
 impl Default for Secrets {
@@ -28,6 +30,16 @@ impl Secrets {
         Self {
             service,
             cache: Mutex::new(HashMap::new()),
+            #[cfg(test)]
+            in_memory: false,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn in_memory() -> Self {
+        Self {
+            in_memory: true,
+            ..Self::new(true)
         }
     }
 
@@ -41,6 +53,10 @@ impl Secrets {
         }
         if let Some(cached) = self.cache.lock().unwrap().get(account) {
             return cached.clone();
+        }
+        #[cfg(test)]
+        if self.in_memory {
+            return None;
         }
         let value = self
             .entry(account)
@@ -58,8 +74,16 @@ impl Secrets {
         if account.is_empty() {
             return Err("geen account".into());
         }
-        let entry = self.entry(account)?;
         let value = value.trim();
+        #[cfg(test)]
+        if self.in_memory {
+            self.cache.lock().unwrap().insert(
+                account.to_owned(),
+                (!value.is_empty()).then(|| value.to_owned()),
+            );
+            return Ok(());
+        }
+        let entry = self.entry(account)?;
         if value.is_empty() {
             match entry.delete_credential() {
                 Ok(()) | Err(keyring::Error::NoEntry) => {}
@@ -97,5 +121,45 @@ impl Secrets {
         #[cfg(not(target_os = "macos"))]
         let _ = providers;
         Ok(())
+    }
+}
+
+impl SecretStore for Secrets {
+    fn get(&self, account: String) -> Option<String> {
+        Secrets::get(self, &account)
+    }
+
+    fn set(&self, account: String, value: Option<String>) {
+        let _ = Secrets::set(self, &account, value.as_deref().unwrap_or(""));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn secrets_impl_roundtrip() {
+        let secrets = Secrets::in_memory();
+        let store: &dyn SecretStore = &secrets;
+        store.set("pennel-cloud-refresh".into(), Some("token".into()));
+        assert_eq!(
+            store.get("pennel-cloud-refresh".into()).as_deref(),
+            Some("token")
+        );
+        store.set("pennel-cloud-refresh".into(), None);
+        assert_eq!(store.get("pennel-cloud-refresh".into()), None);
+    }
+
+    #[test]
+    fn shared_testing_secrets_are_a_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = crate::state::Shared::testing(dir.path().to_path_buf());
+        let store: Arc<dyn SecretStore> = shared.secrets.clone();
+        store.set("a".into(), Some("b".into()));
+        assert_eq!(shared.secrets.get("a").as_deref(), Some("b"));
+        store.set("a".into(), None);
+        assert_eq!(shared.secrets.get("a"), None);
     }
 }
