@@ -402,7 +402,7 @@ function copyField(label: string, value: string): HTMLElement {
   return h("div", {},
     h("p", { class: "help" }, label),
     h("div", { class: "row" },
-      h("input", { type: "text", readonly: true, value, "aria-label": label, spellcheck: "false" }),
+      h("input", { type: "text", class: "grow", readonly: true, value, "aria-label": label, spellcheck: "false" }),
       h("button", { class: "btn", onclick: async () => {
         try { await api.copyText(value); status.textContent = copyStatusText(null); }
         catch (error) { status.textContent = copyStatusText(errorText(error)); }

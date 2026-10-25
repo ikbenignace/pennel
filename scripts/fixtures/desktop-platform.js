@@ -66,7 +66,7 @@
     meetings_dir: "/QA/Pennel Preview/Meetings", default_template: "algemeen", meeting_audio_retention_days: 30,
     app_rules: [], calendar_rules: [], event_rules: [], calendar_enabled: false, echo_cancellation: true,
     record_shortcut_enabled: true, consent_enabled: false, auto_detect: true, diarization: false,
-    appearance: options.appearance, dictation_pad_auto_paste: false, cloud_sync: Boolean(options.cloud),
+    appearance: options.appearance, dictation_pad_auto_paste: false, cloud_sync: Boolean(options.cloud), claude_access: Boolean(options.claude),
     onboarding: { version: 1, status: options.window === "onboarding" ? "pending" : options.shortcut_denied ? "skipped" : "completed", resume_step: options.step || "welcome" },
   };
   const capabilities = Object.fromEntries(["pad_external_paste", "global_hotkey", "record_shortcut", "microphone", "system_audio", "echo_cancellation", "call_detection", "calendar", "apple_speech", "apple_intelligence", "selection", "rich_clipboard", "audio_playback", "diarization"].map(name => [name, available()]));
@@ -298,6 +298,7 @@
       case "diarize_meeting": return 1;
       case "cloud_account": if (!signedIn) throw notSignedIn(); return clone(cloudAccount);
       case "cloud_devices": if (!signedIn) throw notSignedIn(); return clone(cloudDevices);
+      case "claude_access": case "set_claude_access": return { enabled: Boolean(options.claude), status: options.claude ? { kind: "connected", last_request_ms: now - 2 * 60_000 } : { kind: "off" }, mcp_url: "https://api.pennel.app/mcp" };
       case "cloud_sync_last": return syncReport();
       case "cloud_folder_warning": return null;
       case "meeting_sync_states": return signedIn && !options.empty ? [{ id: meetingId, state: options.cloud === "conflict" ? "conflict" : "synced" }] : [];
