@@ -11,7 +11,7 @@ Pennel ships one product on three platforms from one Rust core:
 
 ## UI parity and look (mandatory)
 
-The shared application must look and behave **near-identically** on every platform, and must look and feel native: real system window chrome (no in-content title bar), system UI font with Instrument Serif for large titles, one calm warm background with a barely darker sidebar, no bordered panels, native-looking controls, real app icons where apps are listed. The visual reference is the original Swift app at commit `91775c1`.
+The shared application must look and behave **near-identically** on every platform, and must look and feel native: real system window chrome (no in-content title bar), Figtree for UI text and Instrument Serif for large titles, one calm warm background with a barely darker sidebar, no bordered panels, native-looking controls, real app icons where apps are listed. The visual reference is the original Swift app at commit `91775c1`.
 
 - Same windows, tabs, sections, order, labels and empty/error states on every platform. Platform differences are limited to what the OS forces (window chrome, hotkey names: `fn` on Mac, Right Ctrl on Windows/Linux, system permission prompts).
 - Same visual system: palette, typography (Figtree + Instrument Serif), spacing, radii, component shapes, pill, icons. Values come from the brand guide `assets/brand/brand.md`; never hard-code a new colour or size in only one app.
