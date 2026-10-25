@@ -14,19 +14,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: windows-latest
+            runner: windows-latest
+          - os: ubuntu-latest
+            runner: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - name: Shared theme tokens
-        run: python scripts/generate-theme.py --check
+        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} scripts/generate-theme.py --check
+      # Not dtolnay/rust-toolchain on Linux: several self-hosted runner
+      # processes share one Unix user, and a shared ~/.rustup lets one job
+      # delete rustc from under another. The script isolates RUSTUP_HOME.
+      - name: Rust toolchain (Linux)
+        if: runner.os == 'Linux'
+        run: bash scripts/ci-rustup.sh clippy
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.os != 'Linux'
         with:
           components: clippy
+      # cache-bin: false, or the action's save step deletes cargo and rustc
+      # from the shared $CARGO_HOME/bin while other runners still use them.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core
+          cache-bin: "false"
       - name: Rust lint
         run: cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
       - name: Rust tests
@@ -38,26 +52,31 @@ jobs:
       matrix:
         include:
           - os: macos-15
+            runner: macos-15
             target: aarch64-apple-darwin
             bundles: app,dmg
           - os: windows-latest
+            runner: windows-latest
             target: x86_64-pc-windows-msvc
             bundles: nsis,msi
           - os: ubuntu-22.04
+            runner: ${{ vars.LINUX_RUNNER || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             bundles: deb,appimage
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     env:
       TRANSCRIBE_CMAKE_ARGS: ${{ vars.TRANSCRIBE_CMAKE_ARGS }}
       CMAKE_ARGS: ${{ vars.CMAKE_ARGS }}
+      # linuxdeploy is itself an AppImage; self-hosted boxes may lack FUSE.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
     defaults:
       run:
         working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v5
       - name: Shared theme tokens
-        run: python ../../scripts/generate-theme.py --check
+        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} ../../scripts/generate-theme.py --check
       - uses: maxim-lobanov/setup-xcode@v1
         if: runner.os == 'macOS'
         with:
@@ -65,11 +84,18 @@ jobs:
       - name: Linux packages
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
-            libasound2-dev libx11-dev libxtst-dev libxi-dev libdbus-1-dev patchelf cmake file \
-            gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
-            pulseaudio-utils x11-utils wl-clipboard
+          packages="libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+            libasound2-dev libx11-dev libxtst-dev libxi-dev libdbus-1-dev patchelf cmake file
+            gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav
+            pulseaudio-utils x11-utils wl-clipboard build-essential curl pkg-config"
+          missing=""
+          for p in $packages; do
+            dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "install ok installed" || missing="$missing $p"
+          done
+          if [ -n "$missing" ]; then
+            sudo apt-get -o DPkg::Lock::Timeout=600 update
+            sudo apt-get -o DPkg::Lock::Timeout=600 install -y $missing
+          fi
       - name: Check Linux media and desktop integration prerequisites
         if: runner.os == 'Linux'
         run: |
@@ -79,13 +105,18 @@ jobs:
           command -v pactl
           command -v xprop
           command -v wl-copy
+      - name: Rust toolchain (Linux)
+        if: runner.os == 'Linux'
+        run: bash ../../scripts/ci-rustup.sh clippy rustfmt
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.os != 'Linux'
         with:
           components: rustfmt, clippy
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
+          cache-bin: "false"
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -109,7 +140,7 @@ jobs:
         env:
           PENNEL_BUILD_TARGET: ${{ matrix.target }}
           PENNEL_BUNDLE_FORMATS: ${{ matrix.bundles }}
-        shell: python
+        shell: ${{ runner.os == 'Windows' && 'python' || 'python3 {0}' }}
         run: |
           import importlib.util
           import os
@@ -139,8 +170,13 @@ jobs:
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             build/mac-bundle-inspection.json
 
+      # Installers are large; do not leave them on a shared runner's disk.
+      - name: Remove bundles from the runner
+        if: always() && runner.os == 'Linux'
+        run: rm -rf "src-tauri/target/${{ matrix.target }}/release/bundle"
+
   packaging-tools:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v5
       - name: Release configuration, manifest gates and bundle metadata tests
