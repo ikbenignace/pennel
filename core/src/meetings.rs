@@ -237,7 +237,8 @@ impl MeetingStore {
         let uid_line = format!("{UID_FIELD}: {uid}");
         lines.push(&uid_line);
         let path = self.dir_of(id).join("meeting.md");
-        let tmp = path.with_extension("tmp");
+        // Not `meeting.tmp`: that name belongs to `write_file`, which may be running right now.
+        let tmp = path.with_file_name(format!(".meeting-{}.tmp", uuid::Uuid::now_v7()));
         std::fs::write(&tmp, format!("---\n{}\n---\n{body}", lines.join("\n")))
             .map_err(PennelError::storage)?;
         // Sync adds the id in the background; an edit saved meanwhile must not be replaced.
@@ -974,6 +975,25 @@ mod tests {
         std::fs::write(dir.path().join("Kapot/meeting.md"), "geen frontmatter").unwrap();
         assert_eq!(store.ensure_uid("Kapot"), Err(PennelError::NotFound));
         assert_eq!(store.ensure_uid("Bestaat niet"), Err(PennelError::NotFound));
+    }
+
+    #[test]
+    fn set_uid_leaves_the_store_temp_file_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Tmp", start()).unwrap();
+        let tmp = dir.path().join(&id).join("meeting.tmp");
+        std::fs::write(&tmp, "schrijven bezig").unwrap();
+        store.set_uid(&id, "0190-aa").unwrap();
+        assert_eq!(std::fs::read_to_string(&tmp).unwrap(), "schrijven bezig");
+        assert_eq!(store.uid_of(&id).as_deref(), Some("0190-aa"));
+        let leftovers: Vec<_> = std::fs::read_dir(dir.path().join(&id))
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".tmp") && n != "meeting.tmp")
+            .collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
     }
 
     #[test]
