@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { WorkspaceNavigation, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, workspaceRoute } from "../src/workspace-state.ts";
+import { WorkspaceNavigation, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, windowForSection, windowMode, workspaceRoute } from "../src/workspace-state.ts";
+
+test("settings, history and dictation have their own windows; the main window is the meeting library", () => {
+  assert.equal(windowForSection("settings"), "settings");
+  assert.equal(windowForSection("history"), "history");
+  assert.equal(windowForSection("dictation"), "dictation");
+  assert.equal(windowForSection("meetings"), "workspace");
+  assert.equal(windowForSection("recording"), "workspace");
+  assert.equal(windowMode("settings"), "settings");
+  assert.equal(windowMode("library"), "workspace");
+  assert.equal(windowMode(null), "workspace");
+  assert.deepEqual(legacyWorkspaceRoute("workspace"), workspaceRoute("meetings"));
+  assert.deepEqual(legacyWorkspaceRoute("dictation", "pad"), workspaceRoute("dictation", "pad"));
+  assert.deepEqual(new WorkspaceNavigation(workspaceRoute("history")).current, workspaceRoute("history"));
+});
 
 test("legacy windows and settings aliases now land in one workspace", () => {
   assert.deepEqual(legacyWorkspaceRoute("settings", "meetings"), workspaceRoute("settings", "meeting-settings"));

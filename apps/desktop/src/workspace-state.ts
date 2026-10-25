@@ -6,6 +6,18 @@ export interface WorkspaceRoute {
   jump_ms: number | null;
 }
 
+/** The original Pennel windows: the meeting library is the main window; the rest open in their own window. */
+export type WindowMode = "workspace" | "settings" | "history" | "dictation";
+export const windowTitles: Record<WindowMode, string> = { workspace: "Pennel", settings: "Instellingen", history: "Geschiedenis", dictation: "Dicteren" };
+
+export function windowForSection(section: WorkspaceSection): WindowMode {
+  return section === "meetings" || section === "recording" ? "workspace" : section;
+}
+
+export function windowMode(value: string | null): WindowMode {
+  return value === "settings" || value === "history" || value === "dictation" ? value : "workspace";
+}
+
 export const settingTabs = ["providers", "models", "dictation", "meeting-settings", "recording", "dictionary", "styles", "appearance", "account"] as const;
 const settings = new Set<string>([...settingTabs, "local"]);
 const reserved = new Set<string>([...settings, "workspace", "settings", "history", "meeting", "live", "onboarding", "prompt", "record-prompt", "pill", "library", "meetings", "chat"]);
@@ -36,10 +48,11 @@ export function parseWorkspaceRoute(value: unknown): WorkspaceRoute | null {
 export function legacyWorkspaceRoute(kind: string, route?: string | null): WorkspaceRoute | null {
   if (kind === "settings") return workspaceRoute("settings", route === "meetings" ? "meeting-settings" : settings.has(route ?? "") ? route! : "providers");
   if (kind === "history") return workspaceRoute("history");
+  if (kind === "dictation") return workspaceRoute("dictation", route === "pad" ? "pad" : null);
   if (kind === "live" || kind === "meeting") return workspaceRoute("recording", null, validMeetingId(route) ? route : null);
   if (kind === "library" || kind === "meetings") return workspaceRoute("meetings", route === "chat" ? "chat" : null, validMeetingId(route) ? route : null);
   if (kind === "workspace") {
-    if (!route) return workspaceRoute("dictation");
+    if (!route) return workspaceRoute("meetings");
     if (route === "history") return workspaceRoute("history");
     if (route === "meeting" || route === "live") return workspaceRoute("recording");
     if (route === "chat") return workspaceRoute("meetings", "chat");
@@ -59,7 +72,8 @@ export function samePadRoute(current: WorkspaceRoute, next: WorkspaceRoute): boo
 }
 
 export class WorkspaceNavigation {
-  current = workspaceRoute("dictation");
+  current: WorkspaceRoute;
+  constructor(initial: WorkspaceRoute = workspaceRoute("meetings")) { this.current = { ...initial }; }
   private readonly remembered = new Map<WorkspaceSection, WorkspaceRoute>();
 
   set(route: WorkspaceRoute): void {

@@ -4,12 +4,10 @@
   "description": "Pennel application windows",
   "windows": [
     "main",
-    "library",
     "settings",
     "history",
-    "meeting",
-    "onboarding",
-    "live"
+    "dictation",
+    "onboarding"
   ],
   "permissions": [
     "core:default",

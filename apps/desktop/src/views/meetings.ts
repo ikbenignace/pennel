@@ -1,13 +1,11 @@
 import { api, fixtureClient, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type Passage, type Segment } from "../api";
-import { LatestRequest, SerialQueue, orFallback, persistAll } from "../async";
-import { askText, confirmDialog, errorText, formatClock, h, markdown, select, snippet } from "../dom";
+import { SerialQueue, orFallback, persistAll } from "../async";
+import { askText, confirmDialog, errorText, formatClock, h, markdown, select } from "../dom";
 import { MeetingDraft } from "../meeting-draft";
-import { badgeFor, resolveOpenMeeting, syncActive, type SyncItemState } from "../sync-badge";
 import type { Context } from "../main";
 import { icon } from "../icons";
 import { languageModelConfigured } from "../presentation";
 
-let query = "";
 const notesQueue = new SerialQueue();
 const drafts = new Map<string, MeetingDraft>();
 const liveDraft = new MeetingDraft();
@@ -22,14 +20,6 @@ const conversations = new Map<string, { exchanges: Exchange[]; draft: string }>(
 function dateLabel(date: string) {
   const parsed = new Date(date);
   return Number.isNaN(parsed.valueOf()) ? date : parsed.toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" });
-}
-
-function dayGroup(date: string) {
-  const day = new Date(date);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const week = new Date(today); week.setDate(week.getDate() - 7);
-  if (day >= today) return "Vandaag";
-  return day >= week ? "Deze week" : "Eerder";
 }
 
 function speakerLabel(segment: Segment, detail?: MeetingDetail): string {
@@ -204,105 +194,16 @@ function chat(ctx: Context, meetingId: string | null) {
 }
 
 export async function meetingsView(ctx: Context): Promise<HTMLElement> {
-  if (ctx.param === "__chat__") return h("div", { class: "meeting-selected" },
-    h("button", { class: "text-button meeting-back", onclick: () => ctx.navigate("meetings") }, icon("arrowLeft"), "Alle vergaderingen"), chat(ctx, null));
+  if (ctx.param === "__chat__") return h("div", { class: "meeting-selected" }, chat(ctx, null));
   if (ctx.param) {
-    try { return h("div", { class: "meeting-selected" }, h("button", { class: "text-button meeting-back", onclick: () => ctx.navigate("meetings") }, icon("arrowLeft"), "Alle vergaderingen"), await meetingDetail(ctx, ctx.param)); }
+    try { return h("div", { class: "meeting-selected" }, await meetingDetail(ctx, ctx.param)); }
     catch (error) { return h("div", { class: "empty-state" }, h("p", { class: "error" }, errorText(error)), h("button", { class: "btn", onclick: () => ctx.navigate("meetings") }, "Terug naar meetings")); }
   }
-  const sidebar = h("aside", { class: "library-sidebar", "aria-label": "Meetingbibliotheek" });
-  const input = h("input", { type: "search", value: query, placeholder: "Zoeken", "aria-label": "Zoeken in meetings" });
-  const list = h("div", { class: "meeting-list" });
-  const live = h("button", { class: "live-meeting text-button", hidden: true, onclick: () => api.showWindow("live") });
-  const requests = new LatestRequest();
-  let syncOn = ctx.info.settings.cloud_sync === true;
-  if (syncOn) syncOn = syncActive(true, (await api.cloudSyncLast().catch(() => null))?.status.kind);
-  let syncStates = new Map<string, SyncItemState>();
-  let shown: { id: string; title: string; start_iso: string }[] = [];
-  const loadStates = async () => {
-    syncStates = syncOn ? new Map((await api.meetingSyncStates()).map((item) => [item.id, item.state])) : new Map();
-  };
-  const load = () => requests.run(async () => query.trim() ? api.searchLibrary(query) : { meetings: await api.meetings(""), passages: [] as Passage[] }, (result) => {
-    list.replaceChildren();
-    shown = result.meetings;
-    if (!result.meetings.length) {
-      list.append(h("div", { class: "meeting-library-empty" }, icon("notebook"), h("h2", {}, query.trim() ? "Geen meetings gevonden." : "Nog geen vergaderingen."),
-        h("p", { class: "muted" }, query.trim() ? "Probeer een andere zoekterm." : "Start een opname. Je notities en transcript komen hier."),
-        !query.trim() ? h("button", { class: "btn primary", onclick: () => ctx.navigate("live") }, "Start je eerste opname") : null)); return;
-    }
-    let group = "";
-    for (const meeting of result.meetings) {
-      const day = dayGroup(meeting.start_iso);
-      if (day !== group) { group = day; list.append(h("h3", { class: "meeting-day" }, day)); }
-      const badge = badgeFor(syncStates.get(meeting.id), syncOn);
-      const selectMeeting = h("button", { class: "meeting-select", "aria-current": ctx.param === meeting.id ? "true" : null,
-        onclick: () => ctx.navigate("meetings", meeting.id) },
-        h("span", { class: "meeting-name" }, meeting.title,
-          badge ? h("span", { class: `sync-badge ${syncStates.get(meeting.id)}`, title: badge.label, role: "img", "aria-label": badge.label }, icon(badge.icon)) : null),
-        h("span", { class: "help" }, `${dateLabel(meeting.start_iso)}${meeting.duration_min ? ` · ${meeting.duration_min} min` : ""}`),
-        result.passages.filter((passage) => passage.meeting_id === meeting.id).slice(0, 2).map((passage) => snippet(passage.snippet)));
-      const rename = async () => {
-        const title = await askText("Meeting hernoemen", meeting.title);
-        if (!title) return;
-        const id = await api.renameMeeting(meeting.id, title);
-        ctx.navigate("meetings", id);
-      };
-      const remove = async () => {
-        if (!await confirmDialog(`${meeting.title} verwijderen?`, "Notities, transcript en audio worden verwijderd.", "Verwijder")) return;
-        await api.deleteMeeting(meeting.id);
-        if (ctx.param === meeting.id) ctx.navigate("meetings"); else ctx.rerender();
-      };
-      const menu = h("details", { class: "meeting-menu" }, h("summary", { "aria-label": `Acties voor ${meeting.title}` }, "⋯"),
-        h("div", { class: "menu-panel" }, h("button", { class: "text-button", onclick: rename }, "Hernoemen…"),
-          h("button", { class: "text-button danger", onclick: remove }, "Verwijder…")));
-      list.append(h("div", { class: `meeting-row${ctx.param === meeting.id ? " selected" : ""}` }, selectMeeting, menu));
-    }
-  }, ctx.report);
-  let searchTimer: number | undefined;
-  input.addEventListener("input", () => { query = input.value; window.clearTimeout(searchTimer); searchTimer = window.setTimeout(() => { void load(); }, 180); });
-  ctx.onDispose(() => { window.clearTimeout(searchTimer); requests.cancel(); });
-  await loadStates().catch(ctx.report);
-  await load();
-  {
-    const syncQueue = new SerialQueue();
-    let disposed = false;
-    const unlisten = api.onSyncChanged((report) => {
-      void syncQueue.run(async () => {
-        if (disposed) return;
-        const wasOn = syncOn;
-        syncOn = syncActive(ctx.info.settings.cloud_sync === true, report.status.kind);
-        if (!syncOn) {
-          syncStates = new Map();
-          if (wasOn) await load();
-          return;
-        }
-        const open = ctx.param && ctx.param !== "__chat__" ? ctx.param : null;
-        const remembered = shown.find((meeting) => meeting.id === open) ?? null;
-        const previous = open ? syncStates.get(open) : undefined;
-        await loadStates();
-        const all = await api.meetings("");
-        if (disposed) return;
-        if (open) {
-          const resolved = resolveOpenMeeting(open, all, remembered);
-          if (resolved !== open) { ctx.navigate("meetings", resolved); return; }
-          if ((previous === "conflict") !== (syncStates.get(open) === "conflict")) { ctx.rerender(); return; }
-        }
-        await load();
-      }).catch(ctx.report);
-    });
-    ctx.onDispose(() => { disposed = true; void unlisten.then((stop) => stop()).catch(() => undefined); });
-  }
-  const updateLive = async () => {
-    const status = await api.meetingStatus();
-    live.hidden = !status.busy;
-    live.textContent = `● ${status.title ?? "Meeting"}${status.phase === "finalizing" ? " · Afronden…" : ""}`;
-  };
-  await updateLive();
-  schedule(ctx, 2000, updateLive);
-  sidebar.append(h("div", { class: "page-heading" }, h("h1", {}, "Vergaderingen"), h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => ctx.navigate("live") }, "Nieuwe opname")),
-    h("div", { class: "library-controls row" }, h("div", { class: "library-search" }, input), h("span", { class: "grow" }),
-      h("button", { class: "text-button", onclick: () => ctx.navigate("chat") }, "Vraag het je meetings")), live, list);
-  return h("div", { class: "library library-overview" }, sidebar);
+  const meetings = await api.meetings("");
+  if (meetings.length) return h("div", { class: "empty-state library-placeholder" }, h("p", { class: "muted" }, "Kies een meeting of start een opname."));
+  return h("div", { class: "empty-state meeting-library-empty" }, icon("notebook"), h("h2", {}, "Nog geen meetings."),
+    h("p", { class: "muted" }, "Start een opname. Je notities en transcript komen hier."),
+    h("button", { class: "btn primary", onclick: () => ctx.navigate("live") }, "Start je eerste opname"));
 }
 
 async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {

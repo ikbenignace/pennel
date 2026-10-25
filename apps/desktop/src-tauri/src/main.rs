@@ -4,6 +4,8 @@ mod app_identity;
 mod audio;
 mod call_detection;
 mod capabilities;
+#[cfg(target_os = "macos")]
+mod capture;
 #[cfg(not(target_os = "macos"))]
 mod clipboard;
 #[cfg(not(target_os = "macos"))]
@@ -79,20 +81,32 @@ pub fn show_main(app: &AppHandle, tab: Option<&str>) {
     let kind = match tab {
         Some("meeting") => "live",
         Some("history") => "history",
-        Some("providers" | "models" | "dictation" | "dictionary" | "styles") => "settings",
+        Some("pad" | "dictation-home") => "dictation",
+        Some(
+            "providers" | "models" | "dictation" | "dictionary" | "styles" | "meeting-settings"
+            | "recording" | "appearance" | "account" | "local",
+        ) => "settings",
         Some("meetings" | "library" | "chat") => "library",
         _ => "workspace",
+    };
+    let tab = match tab {
+        Some("pad") => Some("pad"),
+        Some("dictation-home") => None,
+        other => other,
     };
     show_window(app, kind, tab);
 }
 
 pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
-    let (label, mode, width, height) = match kind {
-        "onboarding" => ("onboarding", "onboarding", 850.0, 690.0),
-        "prompt" => ("record-prompt", "prompt", 420.0, 210.0),
-        _ => ("main", "workspace", 1040.0, 740.0),
-    };
-    workspace::request(app, label, workspace::legacy_route(kind, tab));
+    let spec = workspace::window_spec(kind);
+    let (label, mode) = (spec.label, spec.mode);
+    // Reopening settings, history or dictation keeps the category the window already shows.
+    let keeps_place = tab.is_none() && matches!(mode, "settings" | "history" | "dictation");
+    if !keeps_place {
+        workspace::request(app, label, workspace::legacy_route(kind, tab));
+    } else {
+        workspace::request(app, label, None);
+    }
     if kind == "onboarding" {
         workspace::request_onboarding(app, tab);
     }
@@ -100,19 +114,15 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         let window = handle.get_webview_window(label).or_else(|| {
-            let minimum = if mode == "onboarding" {
-                (520.0, 520.0)
-            } else {
-                (760.0, 520.0)
-            };
+            let (width, height) = spec.size;
             let fit = if mode == "prompt" {
                 None
             } else {
                 preferred_monitor(&handle).map(|monitor| {
                     let area = monitor.work_area();
                     workspace::fit_window_size(
-                        (width, height),
-                        minimum,
+                        spec.size,
+                        spec.minimum,
                         (area.size.width, area.size.height),
                         monitor.scale_factor(),
                     )
@@ -124,24 +134,17 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                 label,
                 tauri::WebviewUrl::App(url.into()),
             )
-            .title(if mode == "onboarding" {
-                "Welkom bij Pennel"
-            } else {
-                "Pennel"
-            })
+            .title(spec.title)
             .inner_size(
                 fit.map_or(width, |size| size.width),
                 fit.map_or(height, |size| size.height),
             )
             .visible(false);
             if mode != "prompt" {
-                builder = native_title_bar(builder);
-            }
-            if mode == "onboarding" {
-                builder = builder
+                builder = native_title_bar(builder)
                     .min_inner_size(
-                        fit.map_or(520.0, |size| size.min_width),
-                        fit.map_or(520.0, |size| size.min_height),
+                        fit.map_or(spec.minimum.0, |size| size.min_width),
+                        fit.map_or(spec.minimum.1, |size| size.min_height),
                     )
                     .center();
             }
@@ -158,6 +161,8 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
         });
         if let Some(window) = window {
             apply_appearance(&handle);
+            #[cfg(target_os = "macos")]
+            capture::prepare(&handle, &window);
             fit_window_to_work_area(&handle, &window);
             let _ = window.unminimize();
             if mode == "prompt" {
@@ -181,11 +186,10 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     .ready
                     .contains(label);
                 if ready {
-                    if label == "main" {
-                        workspace::deliver(&handle);
-                    }
                     if label == "onboarding" {
                         workspace::deliver_onboarding(&handle);
+                    } else {
+                        workspace::deliver(&handle, label);
                     }
                     let _ = window.show();
                     let _ = window.set_focus();
@@ -224,10 +228,11 @@ fn preferred_monitor(app: &AppHandle) -> Option<tauri::Monitor> {
 }
 
 fn fit_window_to_work_area(app: &AppHandle, window: &tauri::WebviewWindow) {
-    if !matches!(window.label(), "main" | "onboarding")
-        || window.is_maximized().unwrap_or(false)
-        || window.is_fullscreen().unwrap_or(false)
-    {
+    let Some(spec) = workspace::label_spec(window.label()).filter(|spec| spec.mode != "prompt")
+    else {
+        return;
+    };
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
         return;
     }
     let Some(monitor) = window
@@ -254,11 +259,7 @@ fn fit_window_to_work_area(app: &AppHandle, window: &tauri::WebviewWindow) {
     };
     let frame_width = outer.width.saturating_sub(inner.width);
     let frame_height = outer.height.saturating_sub(inner.height);
-    let minimum = if window.label() == "onboarding" {
-        (520.0, 520.0)
-    } else {
-        (760.0, 520.0)
-    };
+    let minimum = spec.minimum;
     let fit = workspace::fit_window_size(
         (
             f64::from(inner.width) / window_scale,
@@ -352,11 +353,10 @@ pub fn frontend_ready(app: &AppHandle, label: &str) {
         .unwrap()
         .ready
         .insert(label.to_owned());
-    if label == "main" {
-        workspace::deliver(app);
-    }
     if label == "onboarding" {
         workspace::deliver_onboarding(app);
+    } else {
+        workspace::deliver(app, label);
     }
     if workspace::requested(app, label) {
         apply_appearance(app);
@@ -435,6 +435,10 @@ pub fn clipboard_mode() -> bool {
 }
 
 fn dispatch_cli(app: &AppHandle, arguments: &[String]) -> bool {
+    #[cfg(target_os = "macos")]
+    if capture::dispatch(app, arguments) {
+        return true;
+    }
     let Some(shared) = app.try_state::<Arc<Shared>>() else {
         return false;
     };
@@ -526,8 +530,10 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
                 None::<&str>,
             )?,
             &MenuItem::with_id(app, "meeting", "Meeting opnemen…", true, None::<&str>)?,
-            &MenuItem::with_id(app, "settings", "Instellingen…", true, None::<&str>)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "pad", "Dicteren…", true, None::<&str>)?,
             &MenuItem::with_id(app, "history", "Geschiedenis…", true, None::<&str>)?,
+            &MenuItem::with_id(app, "settings", "Instellingen…", true, None::<&str>)?,
             &MenuItem::with_id(app, "log", "Logboek openen", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "quit", "Stop Pennel", true, None::<&str>)?,
@@ -549,8 +555,9 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             }
             "open" => show_main(app, None),
             "meeting" => show_main(app, Some("meeting")),
-            "settings" => show_main(app, Some("providers")),
-            "history" => show_main(app, Some("history")),
+            "pad" => show_window(app, "dictation", None),
+            "settings" => show_window(app, "settings", None),
+            "history" => show_window(app, "history", None),
             "log" => {
                 let _ = commands::open_log_file(app);
             }
@@ -775,7 +782,7 @@ fn main() {
             if let WindowEvent::CloseRequested { api, .. } = event
                 && matches!(
                     window.label(),
-                    "main" | "live" | "settings" | "history" | "onboarding"
+                    "main" | "live" | "settings" | "history" | "dictation" | "onboarding"
                 )
             {
                 api.prevent_close();

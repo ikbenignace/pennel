@@ -181,8 +181,9 @@ pub fn show_workspace(
     {
         return Err("Ongeldige meeting".into());
     }
-    crate::workspace::request(&app, "main", Some(route));
-    crate::show_window(&app, "workspace", None);
+    let kind = route.window_kind();
+    crate::workspace::request(&app, crate::workspace::window_spec(kind).label, Some(route));
+    crate::show_window(&app, kind, None);
     if window.label() == "onboarding" {
         crate::owned_dictation::close_owner(&app, window.label());
         let _ = window.hide();

@@ -111,9 +111,9 @@ pub fn focused_session(app: &AppHandle) -> Option<String> {
 pub fn own_app_foreground(app: &AppHandle) -> bool {
     crate::foreground::current().map_or_else(
         || {
-            ["main", "onboarding"].iter().any(|label| {
-                app.get_webview_window(label)
-                    .is_some_and(|window| window.is_focused().unwrap_or(false))
+            app.webview_windows().iter().any(|(label, window)| {
+                crate::workspace::label_spec(label).is_some_and(|spec| spec.mode != "prompt")
+                    && window.is_focused().unwrap_or(false)
             })
         },
         |foreground| foreground.pid == std::process::id(),
@@ -621,7 +621,7 @@ pub fn open_dictation_session(
     let owner = window.label();
     if !matches!(
         (kind, owner),
-        (SessionKind::Pad, "main") | (SessionKind::Practice, "onboarding")
+        (SessionKind::Pad, "dictation") | (SessionKind::Practice, "onboarding")
     ) {
         return Err("Dit venster kan geen dicteersessie openen".into());
     }
@@ -916,7 +916,7 @@ mod tests {
         sessions.entries.lock().unwrap().insert(
             "pad".into(),
             Session {
-                owner: "main".into(),
+                owner: "dictation".into(),
                 metadata_query: 0,
                 snapshot: DictationSessionSnapshot {
                     session_id: "pad".into(),
@@ -943,7 +943,7 @@ mod tests {
 
     fn metadata_session(kind: SessionKind, phase: SessionPhase) -> Session {
         Session {
-            owner: "main".into(),
+            owner: "dictation".into(),
             snapshot: DictationSessionSnapshot {
                 session_id: "pad-metadata".into(),
                 kind,

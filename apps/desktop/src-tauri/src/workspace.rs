@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -38,6 +38,81 @@ pub fn fit_window_size(
     }
 }
 
+/// Each product window, as in the original Pennel: the library is the main window and settings,
+/// history and dictation open in their own titled windows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowSpec {
+    pub label: &'static str,
+    pub mode: &'static str,
+    pub title: &'static str,
+    pub size: (f64, f64),
+    pub minimum: (f64, f64),
+}
+
+pub fn window_spec(kind: &str) -> WindowSpec {
+    let (label, mode, title, size, minimum) = match kind {
+        "onboarding" => (
+            "onboarding",
+            "onboarding",
+            "Welkom bij Pennel",
+            (640.0, 660.0),
+            (520.0, 520.0),
+        ),
+        "prompt" => (
+            "record-prompt",
+            "prompt",
+            "Pennel",
+            (420.0, 210.0),
+            (420.0, 210.0),
+        ),
+        "settings" => (
+            "settings",
+            "settings",
+            "Instellingen",
+            (760.0, 600.0),
+            (640.0, 460.0),
+        ),
+        "history" => (
+            "history",
+            "history",
+            "Geschiedenis",
+            (560.0, 560.0),
+            (440.0, 360.0),
+        ),
+        "dictation" => (
+            "dictation",
+            "dictation",
+            "Dicteren",
+            (640.0, 560.0),
+            (480.0, 420.0),
+        ),
+        _ => (
+            "main",
+            "workspace",
+            "Pennel",
+            (980.0, 640.0),
+            (760.0, 520.0),
+        ),
+    };
+    WindowSpec {
+        label,
+        mode,
+        title,
+        size,
+        minimum,
+    }
+}
+
+pub fn label_spec(label: &str) -> Option<WindowSpec> {
+    let kind = match label {
+        "main" => "workspace",
+        "record-prompt" => "prompt",
+        other => other,
+    };
+    let spec = window_spec(kind);
+    (spec.label == label).then_some(spec)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WorkspaceSection {
@@ -57,6 +132,16 @@ pub struct WorkspaceRoute {
 }
 
 impl WorkspaceRoute {
+    /// The window kind that shows this route.
+    pub fn window_kind(&self) -> &'static str {
+        match self.section {
+            WorkspaceSection::Dictation => "dictation",
+            WorkspaceSection::History => "history",
+            WorkspaceSection::Settings => "settings",
+            WorkspaceSection::Meetings | WorkspaceSection::Recording => "workspace",
+        }
+    }
+
     fn section(section: WorkspaceSection) -> Self {
         Self {
             section,
@@ -69,7 +154,7 @@ impl WorkspaceRoute {
 
 #[derive(Default)]
 pub struct Navigation {
-    pending: Mutex<Option<WorkspaceRoute>>,
+    pending: Mutex<HashMap<String, WorkspaceRoute>>,
     onboarding: Mutex<Option<String>>,
     requested: Mutex<HashSet<String>>,
 }
@@ -105,6 +190,7 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
         _ => return None,
     });
     match route.section {
+        Dictation if tab == Some("pad") => route.tab = Some("pad".into()),
         Settings => {
             route.tab = Some(
                 match tab.unwrap_or("providers") {
@@ -153,14 +239,24 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
 pub fn request(app: &AppHandle, label: &str, route: Option<WorkspaceRoute>) {
     let navigation = app.state::<Navigation>();
     navigation.requested.lock().unwrap().insert(label.into());
-    if route.is_some() {
-        *navigation.pending.lock().unwrap() = route;
+    if let Some(route) = route {
+        navigation
+            .pending
+            .lock()
+            .unwrap()
+            .insert(label.into(), route);
     }
 }
 
-pub fn deliver(app: &AppHandle) {
-    if let Some(route) = app.state::<Navigation>().pending.lock().unwrap().take() {
-        let _ = app.emit_to("main", "workspace-navigate", route);
+pub fn deliver(app: &AppHandle, label: &str) {
+    let route = app
+        .state::<Navigation>()
+        .pending
+        .lock()
+        .unwrap()
+        .remove(label);
+    if let Some(route) = route {
+        let _ = app.emit_to(label, "workspace-navigate", route);
     }
 }
 
@@ -229,6 +325,41 @@ mod tests {
         assert_eq!(
             fit_window_size((850.0, 690.0), (520.0, 520.0), (1200, 900), 0.0),
             fit_window_size((850.0, 690.0), (520.0, 520.0), (1200, 900), 1.0)
+        );
+    }
+
+    #[test]
+    fn settings_history_and_dictation_open_their_own_titled_windows() {
+        for (kind, label, title) in [
+            ("settings", "settings", "Instellingen"),
+            ("history", "history", "Geschiedenis"),
+            ("dictation", "dictation", "Dicteren"),
+            ("onboarding", "onboarding", "Welkom bij Pennel"),
+            ("library", "main", "Pennel"),
+            ("live", "main", "Pennel"),
+            ("workspace", "main", "Pennel"),
+        ] {
+            let spec = window_spec(kind);
+            assert_eq!((spec.label, spec.title), (label, title));
+            assert_eq!(label_spec(label), Some(spec));
+        }
+        assert_eq!(label_spec("pill"), None);
+        assert_eq!(
+            legacy_route("settings", Some("styles"))
+                .unwrap()
+                .window_kind(),
+            "settings"
+        );
+        assert_eq!(
+            legacy_route("live", None).unwrap().window_kind(),
+            "workspace"
+        );
+        assert_eq!(
+            legacy_route("dictation", Some("pad"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("pad")
         );
     }
 

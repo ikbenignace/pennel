@@ -1,15 +1,14 @@
 import "./styles.css";
-import "./native.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, fixtureClient, listen, type AppInfo, type MeetingFinished, type Settings, type UpdateInfo } from "./api";
 import { LatestRequest, SerialQueue, persistAll } from "./async";
-import { errorText, h, select } from "./dom";
-import { icon, type IconName } from "./icons";
+import { errorText, h, section, select } from "./dom";
 import { dictationView, dictionaryView, stylesView } from "./views/dictation";
 import { historyView } from "./views/history";
 import { displayedMeetingSession, finishMeetingDrafts, flushMeetingDrafts, meetingView, meetingsView } from "./views/meetings";
 import { FrontendBarrier, canShowFinished } from "./session-events";
-import { legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, workspaceRoute, type WorkspaceRoute, type WorkspaceSection } from "./workspace-state";
+import { legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, windowForSection, windowMode, windowTitles, workspaceRoute, type WorkspaceRoute } from "./workspace-state";
+import { LibrarySidebar } from "./views/library";
 import { modelsView } from "./views/models";
 import { accountView } from "./views/account";
 import { providersView } from "./views/providers";
@@ -17,7 +16,7 @@ import { meetingSettingsView, recordingSettingsView } from "./views/settings";
 import { promptView } from "./views/welcome";
 import { onboardingView } from "./views/onboarding";
 import { padView } from "./views/pad";
-import { appInfoContentEqual, appearanceIsDark, hotkeyLabel } from "./presentation";
+import { appInfoContentEqual } from "./presentation";
 
 export interface Context {
   info: AppInfo;
@@ -55,13 +54,13 @@ const tabs: [string, string, View][] = [
   ["account", "Account", accountView],
 ];
 const query = new URLSearchParams(location.search);
-const mode = query.get("window") === "onboarding" ? "onboarding" : ["prompt", "record-prompt"].includes(query.get("window") ?? "") ? "prompt" : "workspace";
-const navigation = new WorkspaceNavigation();
-const initial = legacyWorkspaceRoute(query.get("window") ?? "workspace", query.get("tab"));
-if (initial) navigation.set(initial);
+const requestedWindow = query.get("window") ?? "workspace";
+const mode = requestedWindow === "onboarding" ? "onboarding" : ["prompt", "record-prompt"].includes(requestedWindow) ? "prompt" : windowMode(requestedWindow);
+const windowKind = mode === "onboarding" || mode === "prompt" ? "workspace" : mode;
+const navigation = new WorkspaceNavigation(legacyWorkspaceRoute(windowKind, query.get("tab")) ?? workspaceRoute("meetings"));
 if (fixtureClient() && query.has("section")) {
   const route = parseWorkspaceRoute({ section: query.get("section"), tab: query.get("tab"), meeting_id: query.get("meeting_id"), jump_ms: query.has("jump_ms") ? Number(query.get("jump_ms")) : null });
-  if (route) navigation.set(route);
+  if (route && windowForSection(route.section) === windowKind) navigation.set(route);
 }
 let info: AppInfo;
 let mounted: Mounted | null = null;
@@ -79,11 +78,7 @@ const finishedRequests = new LatestRequest();
 const app = document.getElementById("app")!;
 const content = h("main", { id: "content" });
 const banner = h("div", { class: "notice-banner", role: "status", hidden: true });
-const navButtons = new Map<WorkspaceSection, HTMLButtonElement>();
-const sectionTitles: Record<WorkspaceSection | "recording", string> = { dictation: "Pennel", meetings: "Pennel", recording: "Pennel", history: "Geschiedenis", settings: "Instellingen" };
-let windowTitle = "";
-const liveButton = h("button", { class: "workspace-live text-button", hidden: true, onclick: () => { void go(workspaceRoute("recording")); } });
-const recentList = h("div", { class: "workspace-recents" });
+let library: LibrarySidebar | null = null;
 
 function report(error: unknown) {
   banner.textContent = errorText(error);
@@ -99,14 +94,10 @@ function visibleInfo(): AppInfo {
 
 function applyAppearance() {
   document.documentElement.dataset.appearance = visibleInfo().settings.appearance ?? "system";
-  const button = app.querySelector("[data-theme-toggle]");
-  if (button) button.replaceChildren(icon(appearanceIsDark(visibleInfo().settings.appearance, matchMedia("(prefers-color-scheme: dark)").matches) ? "sun" : "moon"));
 }
 
 function notifyInfo() {
   applyAppearance();
-  const shortcut = app.querySelector("[data-shortcut-label]");
-  if (shortcut) shortcut.textContent = hotkeyLabel(visibleInfo().settings.hotkey, info.platform);
   mounted?.info.forEach((listener) => listener(visibleInfo()));
 }
 
@@ -151,13 +142,18 @@ function navigate(tab: string, param?: string, jumpMs?: number) {
   }
   if (tab === "meeting" || tab === "live") { void go(workspaceRoute("recording", null, param ?? null)); return; }
   if (tab === "history") { void go(workspaceRoute("history")); return; }
+  if (tab === "settings") { void go(workspaceRoute("settings", null)); return; }
   if (tab === "dictation-home") { void go(workspaceRoute("dictation")); return; }
   if (tab === "dictation-pad") { void go(workspaceRoute("dictation", "pad")); return; }
   if (settingTabs.includes(tab as typeof settingTabs[number]) || tab === "local") void go(workspaceRoute("settings", tab));
 }
 
 async function go(route: WorkspaceRoute) {
-  if (mode !== "workspace") { await api.showWorkspace(route).catch(report); return; }
+  if (mode === "onboarding" || mode === "prompt" || windowForSection(route.section) !== mode) {
+    // Settings opened without a category keeps the category its window already shows.
+    if (route.section === "settings" && route.tab === null) { await api.showWindow("settings").catch(report); return; }
+    await api.showWorkspace(route).catch(report); return;
+  }
   if (samePadRoute(navigation.current, route)) { ++navigationGeneration; content.inert = false; return; }
   const mine = ++navigationGeneration;
   try {
@@ -219,14 +215,24 @@ function appearanceView(ctx: Context): HTMLElement {
   });
   picker.setAttribute("aria-label", "Weergave");
   ctx.onInfoChange((next) => { picker.value = next.settings.appearance; });
-  return h("div", {}, h("h2", {}, "Weergave"), h("label", { class: "preference-row" }, h("span", {}, "Weergave"), picker),
-    h("p", { class: "help" }, "Volg systeem past de lichte of donkere weergave aan met je apparaat."),
-    h("button", { class: "text-button onboarding-replay", onclick: () => api.showWindow("onboarding", "welcome") }, "Introductie opnieuw openen"));
+  return h("div", {}, section("Weergave", "Volg systeem past de lichte of donkere weergave aan met je apparaat.", h("label", { class: "preference-row" }, h("span", {}, "Weergave"), picker)),
+    section("Introductie", "Toon de eerste stappen opnieuw: spraakherkenning, toegang en een oefendictaat.",
+      h("button", { class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "welcome") }, "Introductie opnieuw openen")));
+}
+
+/** As in the original library, the main window opens on the newest meeting when none is chosen. */
+async function chooseMeeting() {
+  const route = navigation.current;
+  if (mode !== "workspace" || route.section !== "meetings" || route.meeting_id || route.tab === "chat") return;
+  const first = (await api.meetings(""))[0];
+  if (first && navigation.current === route) navigation.set(workspaceRoute("meetings", null, first.id));
 }
 
 async function render(allowed: () => boolean = () => true) {
   if (!allowed()) return;
   const mine = ++generation;
+  await chooseMeeting().catch(report);
+  if (mine !== generation) return;
   const route = navigation.current;
   const target: Mounted = { key: routeKey(route), cleanup: [], flush: [], leave: [], info: [], focus: [] };
   const ctx = contextFor(target);
@@ -253,17 +259,7 @@ async function render(allowed: () => boolean = () => true) {
 }
 
 function updateNavigation() {
-  const section = navigation.current.section === "recording" ? "meetings" : navigation.current.section;
-  navButtons.forEach((button, key) => { if (key === section) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current"); });
-  if (mode === "workspace") setWindowTitle(sectionTitles[navigation.current.section]);
-}
-
-function setWindowTitle(title: string) {
-  if (title === windowTitle) return;
-  windowTitle = title;
-  document.title = title;
-  if (fixtureClient()) return;
-  try { void getCurrentWindow().setTitle(title).catch(() => {}); } catch { /* Window APIs are unavailable in a browser-only preview. */ }
+  library?.highlight();
 }
 
 /** On macOS the transparent system title bar overlays the webview; this strip keeps it draggable. */
@@ -272,33 +268,12 @@ function titlebarDragRegion(): HTMLElement {
 }
 
 function workspaceShell() {
-  const nav = h("nav", { class: "workspace-navigation", "aria-label": "Hoofdnavigatie" });
-  for (const [section, label, glyph] of [["dictation", "Dicteren", "mic"], ["meetings", "Vergaderingen", "notebook"], ["history", "Geschiedenis", "history"]] as [WorkspaceSection, string, IconName][]) {
-    const button = h("button", { class: "workspace-nav-button", onclick: () => { void go(navigation.select(section)); } }, icon(glyph), h("span", {}, label));
-    navButtons.set(section, button); nav.append(button);
-  }
-  const settings = h("button", { class: "workspace-nav-button", onclick: () => { void go(navigation.select("settings")); } }, icon("settings"), "Instellingen");
-  navButtons.set("settings", settings);
-  const shortcut = h("div", { class: "workspace-shortcut" }, h("div", {}, h("kbd", { "data-shortcut-label": true }, hotkeyLabel(info.settings.hotkey, info.platform)), h("strong", {}, "Hou in en spreek")), h("span", { class: "help" }, "Waar je cursor staat."));
-  const theme = h("button", { class: "button-icon", "data-theme-toggle": true, "aria-label": "Weergave wijzigen", onclick: () => {
-    pendingSettings.push((settings) => { settings.appearance = appearanceIsDark(settings.appearance, matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark"; });
-    applyAppearance(); void settingsQueue.run(flushSettings).catch(report);
-  } }, icon("moon"));
-  const sidebar = h("aside", { class: "workspace-sidebar" }, nav, liveButton, recentList,
-    h("div", { class: "workspace-sidebar-bottom" }, shortcut, h("div", { class: "workspace-sidebar-actions" }, settings, theme)));
-  app.replaceChildren(titlebarDragRegion(), h("div", { class: "workspace-shell" }, sidebar, h("div", { class: "workspace-body" }, banner, content)));
-  applyAppearance();
+  library = new LibrarySidebar({ info: visibleInfo, current: () => navigation.current, go: (route) => { void go(route); }, report });
+  app.replaceChildren(titlebarDragRegion(), h("div", { class: "workspace-shell" }, library.element, h("div", { class: "workspace-body" }, banner, content)));
 }
 
 async function refreshSidebar() {
-  if (mode !== "workspace") return;
-  const [meetings, status] = await Promise.all([api.meetings(""), api.meetingStatus()]);
-  recentList.replaceChildren();
-  if (meetings.length) recentList.append(h("p", { class: "help" }, "Recente meetings"), ...meetings.slice(0, 3).map((meeting) => h("button", {
-    class: "text-button", onclick: () => { void go(workspaceRoute("meetings", null, meeting.id)); },
-  }, meeting.title)));
-  liveButton.hidden = !status.busy;
-  liveButton.textContent = status.busy ? `● ${status.title ?? "Opname"}${status.phase === "finalizing" ? " · Afronden…" : ""}` : "";
+  await library?.refresh();
 }
 
 function lockInterface() {
@@ -360,11 +335,25 @@ function focusChanged(focused: boolean) {
   if (focused) void refresh(() => true, true).catch(report);
 }
 
+function windowShortcuts() {
+  window.addEventListener("keydown", (event) => {
+    if (!(info.platform === "macos" ? event.metaKey : event.ctrlKey) || event.altKey || event.shiftKey) return;
+    const key = event.key.toLowerCase();
+    if (key === ",") { event.preventDefault(); void api.showWindow("settings").catch(report); }
+    if (key === "w" && !fixtureClient()) {
+      event.preventDefault();
+      try { void getCurrentWindow().close().catch(report); } catch { /* Window APIs are unavailable in a browser-only preview. */ }
+    }
+  });
+}
+
 async function boot() {
   document.body.dataset.window = mode;
+  document.title = mode === "onboarding" ? "Welkom bij Pennel" : mode === "prompt" ? "Pennel" : windowTitles[mode];
   info = await api.info(); applyAppearance();
   document.documentElement.dataset.platform = info.platform;
-  if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "onboarding" ? [titlebarDragRegion()] : []), banner, content);
+  if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "prompt" ? [] : [titlebarDragRegion()]), banner, content);
+  if (mode !== "prompt") windowShortcuts();
   await listen("capabilities-changed", () => { if (!booted) capabilitiesDirty = true; else void refresh().catch(report); });
   await listen<unknown>("workspace-navigate", (event) => { const route = parseWorkspaceRoute(event.payload); if (route) void go(route); });
   await listen<string>("navigate", (event) => {
@@ -400,10 +389,12 @@ async function boot() {
     } catch { /* Window events are unavailable in a browser-only preview. */ }
   }
   if (capabilitiesDirty) { capabilitiesDirty = false; await refresh(); }
-  if (mode === "workspace") {
-    void refreshSidebar().catch(report);
+  if (mode === "workspace" && library) {
+    const sidebar = library;
+    await sidebar.start().catch(report);
+    sidebar.highlight();
     let reading = false;
-    window.setInterval(() => { if (reading) return; reading = true; void refreshSidebar().catch(report).finally(() => { reading = false; }); }, 2000);
+    window.setInterval(() => { if (reading) return; reading = true; void sidebar.refresh().catch(report).finally(() => { reading = false; }); }, 2000);
   }
 }
 
