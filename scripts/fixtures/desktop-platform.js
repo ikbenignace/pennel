@@ -45,6 +45,7 @@
     ["ollama", "Ollama (lokaal)", false, "http://localhost:11434", false, true, "", "gemma3:4b"],
     ["lm_studio", "LM Studio (lokaal)", false, "http://localhost:1234/v1", false, true, "", ""],
     ["custom", "Eigen server", true, "", true, true, "", ""],
+    ["pennel_cloud", "Pennel Cloud", false, "https://api.pennel.app/v1", true, true, "pennel-auto", "pennel-auto"],
   ];
   const kinds = providerDefinitions.map(([kind, label, requires_key, default_base_url, stt, llm, default_stt_model, default_llm_model]) => ({
     kind, label, requires_key, default_base_url, stt, llm, default_stt_model, default_llm_model,
@@ -59,7 +60,7 @@
     meetings_dir: "/QA/Pennel Preview/Meetings", default_template: "algemeen", meeting_audio_retention_days: 30,
     app_rules: [], calendar_rules: [], event_rules: [], calendar_enabled: false, echo_cancellation: true,
     record_shortcut_enabled: true, consent_enabled: false, auto_detect: true, diarization: false,
-    appearance: options.appearance, dictation_pad_auto_paste: false,
+    appearance: options.appearance, dictation_pad_auto_paste: false, cloud_sync: Boolean(options.cloud),
     onboarding: { version: 1, status: options.window === "onboarding" ? "pending" : options.shortcut_denied ? "skipped" : "completed", resume_step: options.step || "welcome" },
   };
   const capabilities = Object.fromEntries(["pad_external_paste", "global_hotkey", "record_shortcut", "microphone", "system_audio", "echo_cancellation", "call_detection", "calendar", "apple_speech", "apple_intelligence", "selection", "rich_clipboard", "audio_playback", "diarization"].map(name => [name, available()]));
@@ -99,6 +100,15 @@
     { id: "qa-dictation-2", created_at_ms: now - 15 * 60_000, app_bundle_id: "dev.pennel.Pennel.preview", raw: sentence, text: sentence, status: "done", error: null, has_audio: false },
     { id: "qa-dictation-1", created_at_ms: now - 60 * 60_000, app_bundle_id: "com.apple.mail", raw: "ik werk het voorstel bij en stuur het morgen door", text: "Ik werk het voorstel bij en stuur het morgen door.", status: "done", error: null, has_audio: false },
   ];
+  // `cloud` is unset (signed out), "synced" or "conflict"; all accounts, devices and codes are synthetic.
+  const signedIn = Boolean(options.cloud);
+  const notSignedIn = () => ({ code: "not_signed_in", message: "Je bent niet ingelogd bij Pennel Cloud." });
+  const cloudAccount = { email: "noor@example.com", audio_seconds: 5400, tokens: 120000, storage_bytes: 52_428_800, limit_audio_seconds: 36000, limit_tokens: 2_000_000, limit_storage_bytes: 5_368_709_120 };
+  const cloudDevices = [
+    { id: "qa-device-mac", name: "MacBook van Noor", platform: "macos", last_seen_iso: "2026-10-25T08:55:00Z", current: true },
+    { id: "qa-device-windows", name: "Werklaptop", platform: "windows", last_seen_iso: "2026-10-24T16:10:00Z", current: false },
+  ];
+  const syncReport = () => ({ status: { kind: signedIn ? "synced" : "signed_out" }, brake: false, uploaded: 0, downloaded: 0, conflicts: options.cloud === "conflict" ? 1 : 0, last_success_ms: signedIn ? now - 4 * 60_000 : null });
   const fixture = {
     ...options, now: new ActualDate(now).toISOString(), meeting_id: meetingId,
     onboarding: { step: options.step, engine: options.engine || "local", download_error: options.download_error || null, practice_error: options.practice_error || null },
@@ -193,6 +203,17 @@
       case "summarize_meeting": return summary;
       case "retranscribe_meeting": return 0;
       case "diarize_meeting": return 1;
+      case "cloud_account": if (!signedIn) throw notSignedIn(); return clone(cloudAccount);
+      case "cloud_devices": if (!signedIn) throw notSignedIn(); return clone(cloudDevices);
+      case "cloud_sync_last": return syncReport();
+      case "cloud_folder_warning": return null;
+      case "meeting_sync_states": return signedIn && !options.empty ? [{ id: meetingId, state: options.cloud === "conflict" ? "conflict" : "synced" }] : [];
+      case "meeting_conflict_files": return options.cloud === "conflict" ? ["Notities (conflict MacBook van Noor).md"] : [];
+      case "cloud_login_start": return { user_code: "QAFX-2026", verification_uri: "https://example.com/qa-login", device_code: "qa-device-code", interval_secs: 5 };
+      case "cloud_login_poll": return { kind: "pending" };
+      case "cloud_sync_now": return syncReport();
+      case "cloud_logout": case "cloud_rename_device": case "cloud_revoke_device": case "cloud_sync_disable": case "cloud_sync_confirm_deletes":
+      case "delete_conflict_copy": case "open_url": case "copy_secret_text": return null;
       case "show_window": case "show_workspace": case "copy_text": case "play_meeting_audio": case "stop_audio":
       case "answer_record_prompt": case "toggle_dictation": case "install_update": case "share_meeting": case "open_log": case "open_path":
       case "set_meeting_notes": case "set_meeting_title": case "save_meeting_notes": case "set_meeting_attendees": case "rename_speaker":

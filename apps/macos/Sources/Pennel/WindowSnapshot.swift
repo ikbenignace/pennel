@@ -140,8 +140,8 @@ final class WindowSnapshot: NSObject, NSApplicationDelegate {
             state.workspace.dictationPadOpen = name == "dictation-pad-shortcut-denied"
             state.settings.onboarding.status = .skipped
             Permissions.accessibilityTrusted = false
-        case "meetings-empty": state.workspace.destination = .meetings
-        case "meeting-notes", "meeting-transcript", "meeting-questions":
+        case "meetings-empty", "meetings-sync": state.workspace.destination = .meetings
+        case "meeting-notes", "meeting-transcript", "meeting-questions", "meeting-sync-conflict":
             state.workspace.selectMeeting(Self.meetingId)
             state.workspace.meetingTabs[Self.meetingId] = name == "meeting-transcript" ? .transcript : name == "meeting-questions" ? .ask : .notes
         case "recording": state.workspace.destination = .meetings; state.workspace.showingRecording = true
@@ -156,6 +156,7 @@ final class WindowSnapshot: NSObject, NSApplicationDelegate {
             case "settings-dictionary": state.workspace.settingsTab = .dictionary
             case "settings-styles": state.workspace.settingsTab = .styles
             case "settings-appearance": state.workspace.settingsTab = .appearance
+            case "settings-account", "settings-account-synced": state.workspace.settingsTab = .account
             default: state.workspace.settingsTab = .providers
             }
         case let value where value.hasPrefix("onboarding-"):

@@ -118,3 +118,17 @@ test("pill snapshots provide only synthetic display text with no capture or tran
   assert.match(long.preview_text, /日本語/);
   assert.match(long.preview_text, /👨‍👩‍👧‍👦/);
 });
+
+test("cloud scenarios are synthetic: signed out by default, signed in only when requested", async () => {
+  const signedOut = fixture("settings-account");
+  await assert.rejects(() => signedOut.__PENNEL_PLATFORM__.invoke("cloud_account"), (error) => error.code === "not_signed_in");
+  assert.equal((await signedOut.__PENNEL_PLATFORM__.invoke("cloud_sync_last")).status.kind, "signed_out");
+  assert.equal((await signedOut.__PENNEL_PLATFORM__.invoke("app_info")).settings.cloud_sync, false);
+  const synced = fixture("settings-account-synced");
+  assert.match((await synced.__PENNEL_PLATFORM__.invoke("cloud_account")).email, /@example\.com$/);
+  assert.equal((await synced.__PENNEL_PLATFORM__.invoke("app_info")).settings.cloud_sync, true);
+  const conflict = fixture("meeting-sync-conflict");
+  assert.equal((await conflict.__PENNEL_PLATFORM__.invoke("meeting_sync_states"))[0].state, "conflict");
+  assert.equal((await conflict.__PENNEL_PLATFORM__.invoke("meeting_conflict_files")).length, 1);
+  for (const context of [signedOut, synced, conflict]) assert.equal(context.__PENNEL_FIXTURE__.unknown.length, 0);
+});
