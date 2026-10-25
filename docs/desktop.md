@@ -8,7 +8,7 @@ As in the original Pennel, the main window **Pennel** is the meeting library: it
 
 **Systeem, Licht and Donker** use the shared semantic tokens in `assets/brand/tokens.json`. `make theme` generates the CSS and native Swift values; `make theme-check` checks that the committed outputs match. The interface uses bundled Figtree. Instrument Serif remains the wordmark face. The floating pill has separate colors so changing the window appearance does not invert it.
 
-New profiles use local speech recognition in **Snel** mode and open a separate headerless wizard: welcome, language/speech recognition, access, and a real first dictation. The model download and provider credentials use the existing core and OS credential services. A saved wizard step is not proof that a model or permission remains available. Existing profiles keep their providers, model choices and dictation mode and can resume setup when necessary. Windows and Linux open the workspace at launch; Mac uses the menu bar lifecycle below.
+New profiles use local speech recognition in **Snel** mode and open a separate headerless wizard: welcome, language/speech recognition, access, a real first dictation and an optional **Leer je stem** step. A successful practice resumes at that step; finishing or skipping it completes the wizard. The model download and provider credentials use the existing core and OS credential services. A saved wizard step is not proof that a model or permission remains available. Existing profiles keep their providers, model choices and dictation mode and can resume setup when necessary. Windows and Linux open the workspace at launch; Mac uses the menu bar lifecycle below.
 
 The in-app dictation pad retains an editable local draft. **Dicteerpad ook extern plakken** is off by default and applies only to recordings made in that pad. Enabling it captures the previous external target when recording starts; it does not change normal shortcut dictation in other apps. If the captured target cannot be used, the text remains in the pad. Onboarding practice is a separate owned session: it transcribes with a temporary Fast setting and never uses external paste or clipboard delivery.
 
@@ -135,7 +135,13 @@ Linux M4A services use fixed GStreamer pipelines and bounded subprocesses; audio
 
 Meetings retain `ik.m4a` and `anderen.m4a` and local Markdown. System-capture failure can leave microphone-only recording with a visible reason. Mac preserves voice-processing/device-change recovery and silent-capture fallbacks. A microphone/device failure, archive overflow/write failure or missing codec must not be interpreted as a successful complete recording.
 
-Dictation during a meeting suppresses the microphone's transcript input and marks the interval. This is **not raw-audio redaction**: archives can still contain the dictated audio. Diarization decodes are bounded to the existing three-hour limit and still need the selected local speaker model.
+Dictation during a meeting suppresses the microphone's transcript input and marks the interval. This is **not raw-audio redaction**: archives can still contain the dictated audio. Diarization decodes are bounded to the existing three-hour limit.
+
+### Speaker recognition
+
+**Sprekers herkennen** runs after a meeting (opt-in) or from the meeting's transcript. It uses the two speaker models (34 MB, one download in Settings → Meetings or the onboarding) or, with **Via Pennel Cloud**, the signed-in account, which processes audio in memory and does not store it. The desktop decodes `anderen.m4a` first and `ik.m4a` only when the core will split the microphone track (no usable system track and a trained voice), so an hour-long call never holds both tracks in memory. An older Sortformer download still splits voices, but cannot recognise them across meetings.
+
+**Leer je stem** records the microphone for at most 60 seconds through the same capture path as dictation (Swift capture on Mac, CPAL elsewhere). Samples stay in memory and only the voiceprint is stored; it cannot start while a meeting records or a dictation runs. Every platform offers the same controls. A build without local recognition shows **Op dit toestel** disabled with its reason and offers Pennel Cloud.
 
 Keys remain in Keychain, Windows Credential Manager or Secret Service. No API key is returned in an application snapshot. Logs contain timings, lengths and errors rather than dictated text, meeting content or browser titles. Chosen remote providers receive the audio/text needed for the selected task; local mode does not add a cloud account or telemetry.
 
