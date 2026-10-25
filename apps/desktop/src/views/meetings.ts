@@ -270,7 +270,7 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
       void syncQueue.run(async () => {
         if (disposed) return;
         const wasOn = syncOn;
-        syncOn = syncActive(true, report.status.kind);
+        syncOn = syncActive(ctx.info.settings.cloud_sync === true, report.status.kind);
         if (!syncOn) {
           syncStates = new Map();
           if (wasOn) await load();
