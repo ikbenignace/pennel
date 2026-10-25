@@ -98,6 +98,12 @@ fn enrollment_voiceprint(diarization: &Diarization) -> Result<(Vec<f32>, u64), P
 }
 
 impl PennelEngine {
+    /// Whether [`PennelEngine::recognize_speakers`] would use the microphone track, so a caller can
+    /// skip decoding it (an hour of 16 kHz audio is 230 MB as samples).
+    pub fn wants_microphone_track(&self, system: Option<&[f32]>) -> bool {
+        system.is_none_or(mostly_silent) && self.voice_store().my_voiceprint().is_some()
+    }
+
     pub(crate) fn voice_store(&self) -> VoiceStore {
         VoiceStore::new(&self.data_dir())
     }
@@ -566,6 +572,15 @@ mod tests {
             .write_transcript(&id, &[line(0, Speaker::Me, "hallo")])
             .unwrap();
         let untouched = server.mock("POST", "/v1/audio/diarize").expect(0).create();
+        assert!(!engine.wants_microphone_track(None));
+        engine
+            .voice_store()
+            .set_my_voiceprint(vec![1.0], 12_000)
+            .unwrap();
+        assert!(engine.wants_microphone_track(None));
+        assert!(engine.wants_microphone_track(Some(&[0.0; 16_000])));
+        assert!(!engine.wants_microphone_track(Some(&speech(2))));
+        engine.forget_voice_profile().unwrap();
         assert_eq!(
             engine
                 .recognize_speakers(id.clone(), Some(speech(5)), None)
