@@ -2,7 +2,9 @@ import { api, fixtureClient, listen, type DictationSessionSnapshot, type KindInf
 import { errorCode, errorText, formatBytes, h, select } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
 import { icon } from "../icons";
-import { defaultModelId, manualPracticeAllowed, modelOptionLabel, onboardingProgressChange, onboardingSteps, stepIndex } from "../onboarding-state";
+import { defaultModelId, manualPracticeAllowed, modelOptionLabel, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex } from "../onboarding-state";
+import { trainedLabel } from "../speaker-state";
+import { EnrollmentPanel, SpeakerModels, enrollmentBlocker, enrollmentIntro, speakerDownload } from "./voices";
 import { hotkeyLabel, hotkeyKeyLabel } from "../presentation";
 import { workspaceRoute } from "../workspace-state";
 import type { Context } from "../main";
@@ -67,6 +69,8 @@ class OnboardingWizard {
   private practiceButton: HTMLButtonElement | null = null;
   private practiceKey: HTMLButtonElement | null = null;
   private fresh: boolean;
+  private voicePanel: EnrollmentPanel | null = null;
+  private voiceModels: SpeakerModels | null = null;
 
   constructor(private readonly ctx: Context) {
     const settings = ctx.info.settings;
@@ -141,7 +145,7 @@ class OnboardingWizard {
   private async resume() {
     const readiness = await api.onboardingReadiness("practice");
     this.readiness = readiness;
-    await this.move(stepIndex(readiness.resume_step));
+    await this.move(stepIndex(resumeStep(readiness.resume_step, this.ctx.info.settings.onboarding.resume_step)));
   }
 
   private async persist(step: OnboardingStep, status?: "skipped" | "completed") {
@@ -154,7 +158,7 @@ class OnboardingWizard {
 
   private async move(index: number) {
     if (this.actionBusy || this.disposed) return;
-    await this.closePractice();
+    await this.closePractice(); this.closeVoice();
     await this.persist(onboardingSteps[index]);
     this.index = index; this.message.hidden = true;
     await this.renderStep();
@@ -166,10 +170,17 @@ class OnboardingWizard {
     await this.practice?.close(); this.practice = null;
   }
 
+  private closeVoice() {
+    this.voicePanel?.dispose(); this.voicePanel = null;
+    this.voiceModels?.dispose(); this.voiceModels = null;
+  }
+
   private async leave() {
     this.fresh = false;
     this.actionBusy = true; this.updateCommon();
-    try { await this.closePractice(); await this.persist(onboardingSteps[this.index], "skipped"); await api.showWorkspace(workspaceRoute("dictation")); }
+    // The voice step is optional, so skipping it still completes the onboarding.
+    const status = onboardingSteps[this.index] === "voice" ? "completed" : "skipped";
+    try { await this.closePractice(); this.closeVoice(); await this.persist(onboardingSteps[this.index], status); await api.showWorkspace(workspaceRoute("dictation")); }
     finally { this.actionBusy = false; this.updateCommon(); }
   }
 
@@ -188,6 +199,7 @@ class OnboardingWizard {
       this.poll.setVisible(this.ctx.visible, false);
     }
     if (this.index === 3) await this.renderPractice();
+    if (this.index === 4) { await this.renderVoice(generation); if (generation !== this.renderGeneration || this.disposed) return; }
     this.updateCommon();
   }
 
@@ -424,7 +436,7 @@ class OnboardingWizard {
         this.body.querySelector("h1")!.textContent = "Precies. Zo werkt Pennel.";
         const introduction = this.body.querySelector(".onboarding-heading p");
         if (introduction) introduction.textContent = "Dezelfde sneltoets werkt waar je ook typt.";
-        void this.persist("practice", "completed").catch(this.fail);
+        void this.persist("voice").catch(this.fail);
       }
       this.updateCommon();
     };
@@ -451,6 +463,41 @@ class OnboardingWizard {
           ? "Zet bij Systeeminstellingen → Toetsenbord de fn-toets op ‘Doe niets’. Je kunt ook een andere sneltoets kiezen bij Dicteren."
           : this.ctx.info.capabilities.global_hotkey.reason ?? "Gebruik de knop om te oefenen. Je kunt je sneltoets later instellen."))));
     try { await this.practice.open(); } catch (error) { this.fail(error); }
+  }
+
+  private async renderVoice(generation: number) {
+    const setup = await api.speakerSetup();
+    if (generation !== this.renderGeneration || this.disposed) return;
+    const mode = this.ctx.info.settings.speaker_recognition === "cloud" ? "cloud" : "local";
+    const detail = h("div", { class: "voice-step" });
+    const models = new SpeakerModels(setup.model_ids, () => draw());
+    const download = speakerDownload(models);
+    let shown = "";
+    const draw = () => {
+      if (this.disposed || this.voiceModels !== models) return;
+      download.update(); this.updateCommon();
+      const needsModels = mode === "local" && setup.local_available && !models.ready;
+      const blocker = needsModels ? null : enrollmentBlocker(setup, mode, models);
+      const view = needsModels ? "download" : blocker ? "blocked" : "record";
+      if (view === shown) return;
+      shown = view;
+      if (view === "download") {
+        detail.replaceChildren(h("section", { class: "onboarding-engine-detail" }, h("h2", {}, "Eerst de sprekermodellen."),
+          h("p", { class: "engine-description" }, "Pennel herkent stemmen op je computer. Daarvoor download je eenmalig twee kleine modellen; je audio verlaat je toestel niet."),
+          download.element));
+      } else if (view === "blocked") {
+        detail.replaceChildren(h("section", { class: "onboarding-engine-detail" }, h("h2", {}, mode === "cloud" ? "Via Pennel Cloud." : "Niet op dit toestel."),
+          h("p", { class: "engine-description" }, mode === "cloud" ? "Je koos om sprekers via Pennel Cloud te herkennen. Log in bij Instellingen → Account om je stem te leren." : blocker),
+          h("p", { class: "help" }, "Sla deze stap gerust over. Je kunt je stem later leren bij Instellingen → Meetings.")));
+      } else {
+        this.voicePanel ??= new EnrollmentPanel(setup.enrollment_text, () => { this.fresh = false; }, () => this.updateCommon());
+        detail.replaceChildren(this.voicePanel.element,
+          ...setup.profile ? [h("p", { class: "help voice-step-note" }, `${trainedLabel(setup.profile)}. Neem opnieuw op om bij te werken.`)] : []);
+      }
+    };
+    this.voiceModels = models;
+    this.body.replaceChildren(this.title("Leer je stem", enrollmentIntro), detail);
+    await models.start(this.ctx.info.active_model_downloads ?? []);
   }
 
   private async commitEngine() {
@@ -505,9 +552,10 @@ class OnboardingWizard {
         }
         await this.commitEngine();
       }
-      if (this.index === 3) {
-        if (!this.practiceDone) return;
-        await this.closePractice(); await this.persist("practice", "completed"); await api.showWorkspace(workspaceRoute("dictation")); return;
+      if (this.index === 3 && !this.practiceDone) return;
+      if (this.index === 4) {
+        if (this.voicePanel?.busy) return;
+        this.closeVoice(); await this.persist("voice", "completed"); await api.showWorkspace(workspaceRoute("dictation")); return;
       }
       const next = this.index + 1;
       await this.closePractice(); await this.persist(onboardingSteps[next]); this.index = next; await this.renderStep();
@@ -518,14 +566,15 @@ class OnboardingWizard {
     if (this.disposed) return;
     this.body.inert = this.actionBusy;
     this.progress.hidden = this.index === 0;
-    this.progress.setAttribute("aria-label", `Stap ${this.index + 1} van 4`);
+    this.progress.setAttribute("aria-label", `Stap ${this.index + 1} van ${onboardingSteps.length}`);
     [...this.progress.children].forEach((segment, index) => segment.setAttribute("data-active", String(index <= this.index)));
     this.back.hidden = this.index === 0; this.back.disabled = this.actionBusy;
-    this.skip.textContent = this.index === 3 ? "Later proberen" : "Later instellen"; this.skip.disabled = this.actionBusy;
-    this.count.textContent = `${this.index + 1} van 4`;
+    this.skip.textContent = this.index === 3 ? "Later proberen" : this.index === 4 ? "Overslaan" : "Later instellen";
+    this.skip.disabled = this.actionBusy || !!this.voicePanel?.busy;
+    this.count.textContent = `${this.index + 1} van ${onboardingSteps.length}`;
     const dark = this.ctx.info.settings.appearance === "dark" || (this.ctx.info.settings.appearance === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
     this.theme.replaceChildren(icon(dark ? "sun" : "moon"));
-    let label = this.index === 0 ? "Aan de slag" : this.index === 3 ? "Open Pennel" : "Verder";
+    let label = this.index === 0 ? "Aan de slag" : this.index === 4 ? "Klaar" : "Verder";
     let disabled = this.actionBusy;
     if (this.index === 1 && this.engine === "local") {
       const model = this.localModel(); disabled ||= !model || this.downloading;
@@ -542,11 +591,12 @@ class OnboardingWizard {
       if (manualAllowed && this.ctx.info.platform === "macos" && this.readiness?.can_use_shortcut === false) label = `Verder zonder ${this.hotkey()}`;
     }
     if (this.index === 3) disabled ||= !this.practiceDone;
+    if (this.index === 4) disabled ||= !!this.voicePanel?.busy || !!this.voiceModels?.downloading;
     this.next.disabled = disabled; this.next.replaceChildren(label, icon("arrowRight"));
   }
 
   private dispose() {
-    this.disposed = true; ++this.renderGeneration; this.poll?.dispose();
+    this.disposed = true; ++this.renderGeneration; this.poll?.dispose(); this.closeVoice();
     this.cleanup.forEach((cleanup) => cleanup());
     void this.closePractice().catch(this.ctx.report);
   }

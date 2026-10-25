@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { manualPracticeAllowed, onboardingProgressChange, stepIndex } from "../src/onboarding-state.ts";
+import { manualPracticeAllowed, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex } from "../src/onboarding-state.ts";
 
 const settings = { providers: [{ id: "local", kind: "local" }], dictation_stt: { provider_id: "local", model: "whisper" } };
 
@@ -47,4 +47,22 @@ test("model chooser keeps a valid selection and defaults to the recommended mode
   const size = (bytes) => `${bytes / 1e6} MB`;
   assert.equal(modelOptionLabel(models[1], size), "Groot · 1200 MB · Aanbevolen");
   assert.equal(modelOptionLabel(models[0], size), "Klein · 150 MB");
+});
+
+test("learning your voice is the optional last step, after the practice", () => {
+  assert.deepEqual(onboardingSteps.slice(-2), ["practice", "voice"]);
+  assert.equal(stepIndex("voice"), 4);
+});
+
+test("resume returns to the voice step once the practice is done", () => {
+  assert.equal(resumeStep("practice", "voice"), "voice");
+  assert.equal(resumeStep("practice", "practice"), "practice");
+  assert.equal(resumeStep("engine", "voice"), "engine");
+  assert.equal(resumeStep("permissions", undefined), "permissions");
+});
+
+test("finishing or skipping the voice step completes the onboarding", () => {
+  const pending = { version: 1, status: "pending", resume_step: "voice" };
+  assert.deepEqual(onboardingProgressChange(pending, "voice", "completed"), { version: 1, status: "completed", resume_step: "voice" });
+  assert.deepEqual(onboardingProgressChange({ ...pending, resume_step: "practice" }, "voice"), pending);
 });
