@@ -30,9 +30,9 @@ condition `PENNEL_APP` so shared intents only perform their action in the app.
 | Target | Bundle id | Contents |
 | --- | --- | --- |
 | `Pennel` | `app.pennel.ios` | The app: one `PennelEngine` (`AppModel.shared`), the bindings from `PennelCore/`, `PennelCoreFFI.xcframework`, `PennelMobileKit` |
-| `PennelKeyboard` | `app.pennel.ios.keyboard` | Dictation keyboard. Links `PennelMobileKit` only, never the core; no network, no logging, no Keychain access group; Figtree Medium/SemiBold. It writes only `command.json` and reads `session.json` / `result.json` |
+| `PennelKeyboard` | `app.pennel.ios.keyboard` | Dictation keyboard. Links `PennelMobileKit` only, never the core; no network, no logging, no Keychain access group; Figtree Medium/SemiBold. It writes only `command.json` (plus the boolean `keyboardFullAccessSeen` flag in the App Group defaults, so the app can tell that Full Access is on) and reads `session.json` / `result.json` |
 | `PennelKeyboardTests` | | Logic tests of `KeyboardModel`; `PennelKeyboard/Model/` (no UIKit) is compiled into both the extension and this hostless bundle, because an extension cannot host tests |
-| `PennelWidgets` | `app.pennel.ios.widgets` | Session Live Activity; links `PennelMobileKit` and Figtree Medium/SemiBold |
+| `PennelWidgets` | `app.pennel.ios.widgets` | Session and recording Live Activities; links `PennelMobileKit` and Figtree Medium/SemiBold |
 | `PennelTests` | | Swift Testing, hosted by the app on the simulator |
 
 - Data: the core runs only in the app, with its data in `<app container>/Library/Application Support/Pennel`.
@@ -81,7 +81,7 @@ desktop reads it unchanged. `MeetingRecorder` places the 16 kHz samples on the m
 `MeetingSession::push_audio_at(Speaker::Others, …)` in whole seconds that start on a millisecond. It also writes `anderen.m4a`
 (AAC, 16 kHz mono, 32 kbit/s), with silence in the gaps, so **Afspelen vanaf dit punt** lands on the right moment. Recording
 continues with the screen locked (background mode `audio`). The Live Activity shows the time and **Stop opname**
-(`StopRecordingIntent` in `Shared/`).
+(`StopMeetingIntent` in `Shared/`).
 
 - **One microphone:** `SharedMicrophone` runs one `AVAudioEngine` for the meeting, the keyboard session and in-app
   dictation. `SharedAudioSession` reference-counts the `AVAudioSession`, so whichever stops first never cuts the others.
@@ -212,12 +212,17 @@ Text for the App Review notes field in App Store Connect (English, for the revie
 > dictation start and stop on the keyboard; while the session waits, every sample is discarded. Meeting recordings started
 > by the user also continue with the screen locked, with their own Live Activity and Stop button.
 >
-> **Pennel Cloud (optional).** Signing in uses a link sent by e-mail. Review account: an e-mail address with a mailbox
+> **Pennel Cloud (optional).** Signing in shows a short code in the app and opens the Pennel Cloud verification page
+> in the browser, where the user confirms that code; the app checks every few seconds until the sign-in is confirmed. Review account: an e-mail address with a mailbox
 > shared with App Review, given in the App Review "Sign-in information" fields of App Store Connect.
 
 The review Cloud account itself (a mailbox to share, or a fixed test code on the server in `pennel-cloud`, spec R9) does
 not exist yet: create it before the first TestFlight review and fill in the sign-in fields. A screen recording of the
 keyboard session (spec R3) is also still to be made on a device.
+
+**Export compliance.** `Info.plist` declares `ITSAppUsesNonExemptEncryption = false`, while the Cloud vault uses
+end-to-end encryption. Whether that encryption qualifies for the exemption must be confirmed by the owner before the
+first TestFlight upload; change the key (and file the documentation App Store Connect asks for) if it does not.
 
 ## Privacy label answers
 
