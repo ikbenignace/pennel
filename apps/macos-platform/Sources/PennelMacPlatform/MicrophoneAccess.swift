@@ -27,11 +27,57 @@ enum MicrophoneStartError: LocalizedError, Equatable {
         }
     }
 
-    /// AVAudioEngine fails with kAudioUnitErr_FailedInitialization (-10875) when macOS withholds the
-    /// microphone, e.g. after an approval stopped matching the app's signature.
+    /// Initialization can fail when permission is withheld or voice-processing formats disagree.
+    /// Check access separately so device failures never look like missing permission.
     static func forEngineFailure(access: MicrophoneAccessState) -> MicrophoneStartError {
         access == .granted ? .failed : .permissionDenied
     }
+}
+
+enum MeetingMicrophoneStartup {
+    static func start(
+        echoCancellation: Bool,
+        attempt: (Bool) throws -> Void,
+        reset: () -> Void
+    ) throws -> Bool {
+        do {
+            try attempt(echoCancellation)
+            return echoCancellation
+        } catch {
+            guard echoCancellation, error as? MicrophoneStartError == .failed else { throw error }
+            reset()
+            try attempt(false)
+            return false
+        }
+    }
+}
+
+final class MeetingMicrophoneConfigurationObserver {
+    private let center: NotificationCenter
+    private var observer: NSObjectProtocol?
+    private var generation = 0
+
+    init(center: NotificationCenter = .default) { self.center = center }
+
+    func observe(_ engine: AVAudioEngine, onChange: @escaping () -> Void) {
+        stop()
+        let expectedGeneration = generation
+        observer = center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in
+            // Never block CoreAudio or reenter startup while it changes the engine's devices.
+            DispatchQueue.main.async { [weak self] in
+                guard self?.generation == expectedGeneration else { return }
+                onChange()
+            }
+        }
+    }
+
+    func stop() {
+        generation += 1
+        if let observer { center.removeObserver(observer) }
+        observer = nil
+    }
+
+    deinit { stop() }
 }
 
 enum MicrophoneAccess {

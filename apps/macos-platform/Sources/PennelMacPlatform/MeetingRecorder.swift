@@ -156,12 +156,12 @@ struct MeetingCaptureHealth {
 
 final class NativeMeetingRecorder {
     private let log = Diagnostics("meeting")
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
     private let tap = SystemAudioTap()
     private var me: TrackWriter?
     private var others: TrackWriter?
     private var startedAt: Date?
-    private var configObserver: NSObjectProtocol?
+    private let microphoneConfiguration = MeetingMicrophoneConfigurationObserver()
     private var outputListener: AudioObjectPropertyListenerBlock?
     private let silence = SilenceProbe()
     private let micSilence = SilenceProbe(threshold: 5)
@@ -191,14 +191,10 @@ final class NativeMeetingRecorder {
         let started = ProcessInfo.processInfo.systemUptime
         me = try TrackWriter(track: 0, sink: sink, context: context, started: started, url: directory.appendingPathComponent("ik.m4a"))
         others = try TrackWriter(track: 1, sink: sink, context: context, started: started, url: directory.appendingPathComponent("anderen.m4a"))
+        // Device setup can stop the engine before system-audio initialization returns.
+        observeMicrophoneConfiguration()
         do { try startMicrophone() } catch { _ = stop(); throw error }
         startSystemAudio()
-        // AirPods connecting or switching profile reconfigures the engine and silently stops its tap.
-        configObserver = NotificationCenter.default.addObserver(
-            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.restartMicrophone() }
-        }
         outputListener = SystemAudioTap.observeOutputChanges { [weak self] in
             Task { @MainActor in self?.restartSystemAudio() }
         }
@@ -206,9 +202,8 @@ final class NativeMeetingRecorder {
     }
 
     func stop() -> String? {
-        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+        microphoneConfiguration.stop()
         if let outputListener { SystemAudioTap.stopObserving(outputListener) }
-        configObserver = nil
         outputListener = nil
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
@@ -227,7 +222,24 @@ final class NativeMeetingRecorder {
         guard let me else { return }
         try MicrophoneAccess.ensureGranted()
         health.microphoneStarting()
+        echoCancellation = try MeetingMicrophoneStartup.start(
+            echoCancellation: echoCancellation,
+            attempt: { try self.startMicrophone(echoCancellation: $0, writer: me) },
+            reset: {
+                self.log.notice("echo-enabled microphone start failed; retrying with a fresh engine without voice processing")
+                self.replaceMicrophoneEngine()
+            }
+        )
+        health.microphoneStarted(echoActive: engine.inputNode.isVoiceProcessingEnabled)
+    }
+
+    private func startMicrophone(echoCancellation: Bool, writer: TrackWriter) throws {
         let input = engine.inputNode
+        // Voice-processing reconfiguration can temporarily clear the hardware-side format.
+        let hardwareFormat = input.inputFormat(forBus: 0)
+        guard AudioInput.isUsable(sampleRate: hardwareFormat.sampleRate, channels: hardwareFormat.channelCount) else {
+            throw NoInputDevice()
+        }
         if echoCancellation {
             // Apple's echo canceller removes what the speakers play from the mic; keep other audio at full volume.
             do {
@@ -242,17 +254,15 @@ final class NativeMeetingRecorder {
         } else {
             disableVoiceProcessing()
         }
-        let format = input.outputFormat(forBus: 0)
-        guard AudioInput.isUsable(sampleRate: format.sampleRate, channels: format.channelCount) else {
-            throw NoInputDevice()
-        }
-        let resampler = MonoResampler(from: format)
+        log.notice("microphone tap starting: hardware=\(hardwareFormat.sampleRate) Hz, channels=\(hardwareFormat.channelCount), echo=\(input.isVoiceProcessingEnabled)")
+        let resampler = MonoResampler(from: hardwareFormat)
         let micSilence = micSilence
         micSilence.reset()
         input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+        // After a Bluetooth switch the cached client/output format can differ from the hardware.
+        input.installTap(onBus: 0, bufferSize: 4096, format: hardwareFormat) { [weak self] buffer, _ in
             guard let converted = resampler.convert(buffer) else { return }
-            me.append(converted)
+            writer.append(converted)
             if micSilence.feed(converted.monoSamples) {
                 Task { @MainActor in self?.microphoneSilent() }
             }
@@ -260,7 +270,22 @@ final class NativeMeetingRecorder {
         engine.prepare()
         try MicrophoneAccess.start(engine)
         guard engine.isRunning else { throw NoInputDevice() }
-        health.microphoneStarted(echoActive: input.isVoiceProcessingEnabled)
+    }
+
+    private func observeMicrophoneConfiguration() {
+        microphoneConfiguration.observe(engine) { [weak self] in
+            MainActor.assumeIsolated { self?.restartMicrophone() }
+        }
+    }
+
+    private func replaceMicrophoneEngine() {
+        microphoneConfiguration.stop()
+        engine.stop()
+        engine.inputNode.removeTap(onBus: 0)
+        disableVoiceProcessing()
+        // A failed voice-processing unit can leave the engine unusable even after it is disabled.
+        engine = AVAudioEngine()
+        observeMicrophoneConfiguration()
     }
 
     private func disableVoiceProcessing() {
@@ -282,8 +307,7 @@ final class NativeMeetingRecorder {
         }
         log.error("microphone silent with voice processing; restarting without echo cancellation")
         echoCancellation = false
-        engine.stop()
-        disableVoiceProcessing()
+        replaceMicrophoneEngine()
         do {
             try startMicrophone()
         } catch {
