@@ -155,7 +155,12 @@ pub struct PlatformCapabilities {
     pub rich_clipboard: Capability,
     pub audio_playback: Capability,
     pub diarization: Capability,
+    pub local_models: Capability,
     pub local_acceleration: &'static str,
+}
+
+fn local_models_capability(unavailable_reason: Option<String>) -> Capability {
+    unavailable_reason.map_or_else(Capability::available, Capability::unsupported)
 }
 
 #[cfg(any(target_os = "macos", test))]
@@ -305,6 +310,7 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
         diarization: Capability::unsupported(
             "Sprekers herkennen vereist een bewaard audiospoor en een lokaal sprekermodel.",
         ),
+        local_models: local_models_capability(pennel_core::local_models_unavailable_reason()),
         local_acceleration: if cfg!(target_os = "macos") {
             "metal"
         } else if cfg!(feature = "vulkan") {
@@ -416,6 +422,17 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_old_processor_makes_local_models_unsupported_with_the_core_reason() {
+        assert_eq!(local_models_capability(None), Capability::available());
+        let old = local_models_capability(Some(pennel_core::UNSUPPORTED_PROCESSOR.into()));
+        assert_eq!(old.status, CapabilityStatus::Unsupported);
+        assert_eq!(
+            old.reason.as_deref(),
+            Some("Deze processor is te oud voor lokale modellen. Kies een cloudprovider.")
+        );
+    }
 
     #[test]
     fn apple_model_availability_is_native_and_fail_closed() {

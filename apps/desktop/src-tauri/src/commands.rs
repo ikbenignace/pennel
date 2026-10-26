@@ -70,7 +70,11 @@ const KINDS: [(ProviderKind, &str); 17] = [
     (ProviderKind::PennelCloud, "Pennel Cloud"),
 ];
 
-fn provider_kinds(apple_speech: &Capability, apple_intelligence: &Capability) -> Vec<KindInfo> {
+fn provider_kinds(
+    apple_speech: &Capability,
+    apple_intelligence: &Capability,
+    local_models: &Capability,
+) -> Vec<KindInfo> {
     KINDS
         .iter()
         .map(|(kind, label)| KindInfo {
@@ -86,6 +90,7 @@ fn provider_kinds(apple_speech: &Capability, apple_intelligence: &Capability) ->
             availability: match *kind {
                 ProviderKind::AppleSpeech => apple_speech.clone(),
                 ProviderKind::AppleIntelligence => apple_intelligence.clone(),
+                ProviderKind::Local => local_models.clone(),
                 _ => Capability::available(),
             },
         })
@@ -131,7 +136,11 @@ pub(crate) fn info(shared: &Shared) -> AppInfo {
         active_model_downloads: shared.engine.active_model_downloads(),
         unsaved_history_count: shared.engine.unsaved_history_count(),
         settings,
-        kinds: provider_kinds(&capabilities.apple_speech, &capabilities.apple_intelligence),
+        kinds: provider_kinds(
+            &capabilities.apple_speech,
+            &capabilities.apple_intelligence,
+            &capabilities.local_models,
+        ),
         platform: std::env::consts::OS,
         version: shared.version.clone(),
         preview: shared.preview,
@@ -1309,6 +1318,7 @@ mod tests {
         let kinds = provider_kinds(
             &Capability::unsupported("macOS vereist"),
             &Capability::unavailable("Schakel Apple Intelligence in."),
+            &Capability::unsupported(pennel_core::UNSUPPORTED_PROCESSOR),
         );
         let json = serde_json::to_value(kinds).unwrap();
         let kinds = json.as_array().unwrap();
@@ -1367,6 +1377,12 @@ mod tests {
         assert_eq!(intelligence["requires_key"], false);
         assert_eq!(intelligence["default_llm_model"], "system");
         assert_eq!(intelligence["availability"]["status"], "unavailable");
+        let local = kinds.iter().find(|kind| kind["kind"] == "local").unwrap();
+        assert_eq!(local["availability"]["status"], "unsupported");
+        assert_eq!(
+            local["availability"]["reason"],
+            pennel_core::UNSUPPORTED_PROCESSOR
+        );
     }
 
     #[test]

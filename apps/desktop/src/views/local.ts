@@ -77,6 +77,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       s.dictation_stt = { provider_id: localId, model: model.id };
     });
 
+  const unsupported = ctx.info.capabilities.local_models.status === "unsupported" ? ctx.info.capabilities.local_models.reason : null;
   const card = (model: LocalModel) => {
     const active = progress.get(model.id);
     let actions: (Node | string)[];
@@ -86,7 +87,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       ];
     } else if (model.state.kind === "downloaded") {
       actions = [
-        ...inUse.has(model.id) ? [] : [h("button", { class: "btn", onclick: () => use(model) }, "Gebruik")],
+        ...inUse.has(model.id) ? [] : [h("button", { class: "btn", disabled: !!unsupported, onclick: () => use(model) }, "Gebruik")],
         h(
           "button",
           {
@@ -110,10 +111,10 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       actions =
         model.state.kind === "partial"
           ? [
-              h("button", { class: "btn", onclick: start }, "Verder downloaden"),
+              h("button", { class: "btn", disabled: !!unsupported, onclick: start }, "Verder downloaden"),
               h("button", { class: "btn danger", onclick: async () => await ctx.mutate(() => api.deleteModel(model.id)) }, "Verwijder"),
             ]
-          : [h("button", { class: "btn", onclick: start }, "Downloaden")];
+          : [h("button", { class: "btn", disabled: !!unsupported, onclick: start }, "Downloaden")];
     }
     const inUseHere = inUse.has(model.id);
     const metadata = [model.description, `${Math.floor(model.size_bytes / 1e6)} MB`, model.parameters ? `${model.parameters} parameters` : null].filter(Boolean).join(" · ");
@@ -169,6 +170,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     section(
       "Modellen",
       "Draaien volledig op je computer. Je audio verlaat je computer niet.",
+      unsupported ? h("p", { class: "help" }, unsupported) : null,
       h("p", { class: "help" }, "Opkuisen, samenvatten en vragen gebruiken het taalmodel dat je bij Modellen kiest. Dat kan een server zijn."),
       h("div", { class: "row model-filters" }, h("div", { class: "model-language" }, h("span", { "aria-hidden": "true" }, "Nauwkeurigheid voor"), languagePicker), h("label", { class: "row" }, onlyThis, "Alleen deze taal")),
       h("p", { class: "help model-benchmark-note" }, "Scores uit onafhankelijke benchmarks: snelheid op Apple Silicon, nauwkeurigheid in de gekozen taal (hoger is beter)."),

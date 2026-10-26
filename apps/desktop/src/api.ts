@@ -124,6 +124,7 @@ export interface PlatformCapabilities {
   rich_clipboard: Capability;
   audio_playback: Capability;
   diarization: Capability;
+  local_models: Capability;
   local_acceleration: "metal" | "vulkan" | "cpu";
 }
 
