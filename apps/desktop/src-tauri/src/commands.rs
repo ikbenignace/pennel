@@ -1145,9 +1145,11 @@ pub async fn finish_voice_enrollment(shared: State<'_, Arc<Shared>>) -> Result<V
     .await
 }
 
+/// Off the main thread: closing the microphone hops onto it, and the one-minute limit can be
+/// closing it at the same moment while holding the enrollment.
 #[tauri::command]
-pub fn cancel_voice_enrollment() {
-    speakers::cancel_enrollment();
+pub async fn cancel_voice_enrollment() {
+    let _ = tauri::async_runtime::spawn_blocking(speakers::cancel_enrollment).await;
 }
 
 #[tauri::command]
