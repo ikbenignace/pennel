@@ -158,8 +158,8 @@ struct MeetingListView: View {
         }
         .task(id: query) { await load() }
         .task { prune() }
-.task { showRequestedLiveMeeting() }
-.onChange(of: AppRouter.shared.liveMeetingRequests) { showRequestedLiveMeeting() }
+        .task { showRequestedLiveMeeting() }
+        .onChange(of: AppRouter.shared.liveMeetingRequests) { showRequestedLiveMeeting() }
         .onChange(of: runtime.phase) { reload() }
         .onChange(of: syncRunner.report) { loadSyncStates() }
     }
