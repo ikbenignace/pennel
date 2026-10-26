@@ -36,6 +36,27 @@ async fn blocking<T: Send + 'static>(
         .map_err(err)?
 }
 
+/// From this duration a command the interface waits on is worth a line in the log.
+const SLOW: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// Off the main thread, so the webview keeps painting, with its duration logged once noticeable.
+/// Synchronous Tauri commands run on the main thread and freeze every window while they work.
+async fn off_main<T: Send + 'static>(
+    name: &'static str,
+    work: impl FnOnce() -> Result<T> + Send + 'static,
+) -> Result<T> {
+    blocking(move || {
+        let started = std::time::Instant::now();
+        let result = work();
+        let elapsed = started.elapsed();
+        if elapsed >= SLOW {
+            LOG.info(format!("{name} duurde {} ms", elapsed.as_millis()));
+        }
+        result
+    })
+    .await
+}
+
 #[derive(Serialize)]
 pub struct KindInfo {
     kind: ProviderKind,
@@ -149,16 +170,25 @@ pub(crate) fn info(shared: &Shared) -> AppInfo {
 }
 
 #[tauri::command]
-pub fn app_info(shared: State<'_, Arc<Shared>>) -> AppInfo {
-    info(&shared)
+pub async fn app_info(shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
+    let shared = shared.inner().clone();
+    off_main("app_info", move || Ok(info(&shared))).await
 }
 
 #[tauri::command]
-pub fn save_settings(
-    mut settings: Settings,
+pub async fn save_settings(
+    settings: Settings,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<AppInfo> {
+    let shared = shared.inner().clone();
+    off_main("save_settings", move || {
+        apply_settings(settings, &app, &shared)
+    })
+    .await
+}
+
+fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> Result<AppInfo> {
     let old_settings = shared.settings();
     crate::cloud::keep_stored_cloud_sync(&mut settings, &old_settings);
     if shared.preview && old_settings.meetings_dir != settings.meetings_dir {
@@ -191,17 +221,17 @@ pub fn save_settings(
         }
         let _ = shared.dictation.send(Msg::TriggerChanged);
         if let Some(hint) = app.try_state::<crate::TrayHint>() {
-            let _ = hint.0.set_text(crate::hotkey_hint(&shared));
+            let _ = hint.0.set_text(crate::hotkey_hint(shared));
         }
         LOG.info(format!("sneltoets gewijzigd naar {hotkey:?}"));
     }
-    crate::record_shortcut::refresh(&app, &shared);
-    crate::apply_appearance(&app);
+    crate::record_shortcut::refresh(app, shared);
+    crate::apply_appearance(app);
     if old_settings.dictation_pad_auto_paste && !shared.settings().dictation_pad_auto_paste {
-        crate::owned_dictation::invalidate_external(&app);
+        crate::owned_dictation::invalidate_external(app);
     }
     let _ = app.emit("settings-changed", ());
-    Ok(info(&shared))
+    Ok(info(shared))
 }
 
 #[tauri::command]
@@ -229,24 +259,32 @@ pub async fn add_provider(kind: ProviderKind, shared: State<'_, Arc<Shared>>) ->
 }
 
 #[tauri::command]
-pub fn remove_provider(id: String, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
-    let mut settings = shared.settings();
-    settings.providers.retain(|p| p.id != id);
-    shared.engine.update_settings(settings).map_err(err)?;
-    let _ = shared.secrets.set(&id, "");
-    Ok(info(&shared))
+pub async fn remove_provider(id: String, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
+    let shared = shared.inner().clone();
+    off_main("remove_provider", move || {
+        let mut settings = shared.settings();
+        settings.providers.retain(|p| p.id != id);
+        shared.engine.update_settings(settings).map_err(err)?;
+        let _ = shared.secrets.set(&id, "");
+        Ok(info(&shared))
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn set_key(
+pub async fn set_key(
     account: String,
     key: String,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<AppInfo> {
-    shared.secrets.set(&account, &key)?;
-    let _ = app.emit("settings-changed", ());
-    Ok(info(&shared))
+    let shared = shared.inner().clone();
+    off_main("set_key", move || {
+        shared.secrets.set(&account, &key)?;
+        let _ = app.emit("settings-changed", ());
+        Ok(info(&shared))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -409,14 +447,19 @@ pub async fn join_model_download(
 }
 
 #[tauri::command]
-pub fn delete_model(id: String, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
-    shared.engine.delete_model(id).map_err(err)?;
-    Ok(info(&shared))
+pub async fn delete_model(id: String, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
+    let shared = shared.inner().clone();
+    off_main("delete_model", move || {
+        shared.engine.delete_model(id).map_err(err)?;
+        Ok(info(&shared))
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn history(limit: u32, shared: State<'_, Arc<Shared>>) -> Result<Vec<HistoryEntry>> {
-    shared.engine.history(limit).map_err(err)
+pub async fn history(limit: u32, shared: State<'_, Arc<Shared>>) -> Result<Vec<HistoryEntry>> {
+    let shared = shared.inner().clone();
+    off_main("history", move || shared.engine.history(limit).map_err(err)).await
 }
 
 #[tauri::command]
@@ -760,12 +803,16 @@ pub fn set_meeting_title(
 }
 
 #[tauri::command]
-pub fn meetings(query: String, shared: State<'_, Arc<Shared>>) -> Vec<MeetingInfo> {
-    if query.trim().is_empty() {
-        shared.engine.meetings()
-    } else {
-        shared.engine.search_meetings(query)
-    }
+pub async fn meetings(query: String, shared: State<'_, Arc<Shared>>) -> Result<Vec<MeetingInfo>> {
+    let shared = shared.inner().clone();
+    off_main("meetings", move || {
+        Ok(if query.trim().is_empty() {
+            shared.engine.meetings()
+        } else {
+            shared.engine.search_meetings(query)
+        })
+    })
+    .await
 }
 
 #[derive(Serialize)]
@@ -805,24 +852,32 @@ fn audio_tracks(dir: &Path) -> Vec<AudioTrack> {
 }
 
 #[tauri::command]
-pub fn meeting_detail(id: String, shared: State<'_, Arc<Shared>>) -> Result<MeetingDetail> {
-    let engine = &shared.engine;
-    let directory = checked_meeting_dir(engine, &id)?;
-    Ok(MeetingDetail {
-        info: engine.meeting_info(id.clone()),
-        notes: engine.meeting_notes(id.clone()),
-        summary: engine.meeting_markdown(id.clone()),
-        transcript: engine.meeting_transcript(id.clone()),
-        speakers: engine.meeting_speakers(id.clone()),
-        attendees: engine.meeting_attendees(id.clone()),
-        dir: directory.to_string_lossy().into_owned(),
-        audio_tracks: audio_tracks(&directory),
+pub async fn meeting_detail(id: String, shared: State<'_, Arc<Shared>>) -> Result<MeetingDetail> {
+    let shared = shared.inner().clone();
+    off_main("meeting_detail", move || {
+        let engine = &shared.engine;
+        let directory = checked_meeting_dir(engine, &id)?;
+        Ok(MeetingDetail {
+            info: engine.meeting_info(id.clone()),
+            notes: engine.meeting_notes(id.clone()),
+            summary: engine.meeting_markdown(id.clone()),
+            transcript: engine.meeting_transcript(id.clone()),
+            speakers: engine.meeting_speakers(id.clone()),
+            attendees: engine.meeting_attendees(id.clone()),
+            dir: directory.to_string_lossy().into_owned(),
+            audio_tracks: audio_tracks(&directory),
+        })
     })
+    .await
 }
 
 #[tauri::command]
-pub fn meeting_templates(shared: State<'_, Arc<Shared>>) -> Vec<MeetingTemplate> {
-    shared.engine.meeting_templates()
+pub async fn meeting_templates(shared: State<'_, Arc<Shared>>) -> Result<Vec<MeetingTemplate>> {
+    let shared = shared.inner().clone();
+    off_main("meeting_templates", move || {
+        Ok(shared.engine.meeting_templates())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -1073,19 +1128,28 @@ pub async fn speaker_setup(shared: State<'_, Arc<Shared>>) -> Result<SpeakerSetu
 }
 
 #[tauri::command]
-pub fn start_voice_enrollment(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
-    speakers::start_enrollment(&app, shared.inner())
+pub async fn start_voice_enrollment(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("start_voice_enrollment", move || {
+        speakers::start_enrollment(&app, &shared)
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn finish_voice_enrollment(shared: State<'_, Arc<Shared>>) -> Result<VoiceProfile> {
     let shared = shared.inner().clone();
-    blocking(move || speakers::finish_enrollment(&shared)).await
+    off_main("finish_voice_enrollment", move || {
+        speakers::finish_enrollment(&shared)
+    })
+    .await
 }
 
+/// Off the main thread: closing the microphone hops onto it, and the one-minute limit can be
+/// closing it at the same moment while holding the enrollment.
 #[tauri::command]
-pub fn cancel_voice_enrollment() {
-    speakers::cancel_enrollment();
+pub async fn cancel_voice_enrollment() {
+    let _ = tauri::async_runtime::spawn_blocking(speakers::cancel_enrollment).await;
 }
 
 #[tauri::command]

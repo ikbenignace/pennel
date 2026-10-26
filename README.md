@@ -13,10 +13,10 @@ Targets: **Apple Silicon/macOS 14.4+**, **Windows 11 x64**, and **Linux x86-64**
 
 ## Install
 
-Every push to `main` that changes the app publishes a [GitHub release](https://github.com/ikbenignace/pennel/releases) with the Mac `.dmg`, Windows `.exe`/`.msi` and Linux `.deb`/`.AppImage`. On a Mac with Apple Silicon:
+Every push to `main` that changes the app publishes a [GitHub release](https://github.com/pennel-app/pennel/releases) with the Mac `.dmg`, Windows `.exe`/`.msi` and Linux `.deb`/`.AppImage`. On a Mac with Apple Silicon:
 
 ```sh
-brew install --cask ikbenignace/pennel/pennel
+brew install --cask pennel-app/pennel/pennel
 brew upgrade --cask pennel   # later updates
 ```
 
