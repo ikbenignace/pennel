@@ -7,11 +7,13 @@ on:
       - "core/**"
       - "apps/ios/**"
       - "scripts/build-core-ios.sh"
+      - "scripts/with-toolchain.sh"
       - "Makefile"
       - "assets/brand/**"
       - ".github/workflows/ios.yml"
   pull_request:
     paths: *paths
+  workflow_dispatch:
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -19,13 +21,22 @@ concurrency:
 
 jobs:
   build-and-test:
-    runs-on: macos-15
+    # The app targets iOS 26.0, so it needs Xcode 26 or later; macos-26 is the first image that ships it.
+    runs-on: macos-26
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+      - name: Require the iOS 26 SDK
+        run: |
+          sdk=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "Xcode $(xcodebuild -version | head -n 1), iOS SDK $sdk"
+          if [ "${sdk%%.*}" -lt 26 ]; then
+            echo "::error::iOS SDK $sdk is older than 26.0; this runner image cannot build Pennel for iPhone."
+            exit 1
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin, aarch64-apple-ios, aarch64-apple-ios-sim
