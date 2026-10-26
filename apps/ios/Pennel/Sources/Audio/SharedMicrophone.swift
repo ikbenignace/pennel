@@ -112,12 +112,20 @@ final class SharedMicrophone: @unchecked Sendable {
 }
 
 /// Reference-counted `AVAudioSession` activation, so a meeting ending does not cut the keyboard session's
-/// microphone and the other way round. The first holder's category stays until the last one leaves.
+/// microphone and the other way round. A recording category always wins over playback: recording that starts
+/// during playback switches the category, and playback during a recording goes to the loudspeaker.
 final class SharedAudioSession: @unchecked Sendable {
     static let shared = SharedAudioSession()
 
+    private let backend: AudioSessionBackend
     private let lock = NSLock()
-    private var holders = 0
+    private var holders: [SystemAudioSession.Purpose: Int] = [:]
+    private var category: SystemAudioSession.Purpose?
+    private var speaker = false
+
+    init(backend: AudioSessionBackend = SystemAudioSessionBackend()) {
+        self.backend = backend
+    }
 
     func client(_ purpose: SystemAudioSession.Purpose) -> AudioSessionControlling {
         Client(shared: self, purpose: purpose)
@@ -125,19 +133,34 @@ final class SharedAudioSession: @unchecked Sendable {
 
     fileprivate func acquire(_ purpose: SystemAudioSession.Purpose) throws {
         try lock.withLock {
-            let system = SystemAudioSession(purpose: purpose)
+            let playing = (holders[.playback] ?? 0) > 0
+            if category == nil {
+                try backend.configure(purpose, speaker: false)
+                category = purpose
+                speaker = false
+            } else if category == .playback, purpose != .playback {
+                try backend.configure(purpose, speaker: playing)
+                category = purpose
+                speaker = playing
+            } else if purpose == .playback, category != .playback, !speaker, let recording = category {
+                try backend.configure(recording, speaker: true)
+                speaker = true
+            }
             // After an interruption iOS has deactivated the session even while holders remain, so activating
-            // again is always needed; only the category is left alone when someone else already set it.
-            if holders == 0 { try system.configure() }
-            try system.setActive()
-            holders += 1
+            // again is always needed.
+            try backend.setActive()
+            holders[purpose, default: 0] += 1
         }
     }
 
-    fileprivate func release() {
+    fileprivate func release(_ purpose: SystemAudioSession.Purpose) {
         lock.withLock {
-            holders = max(0, holders - 1)
-            if holders == 0 { SystemAudioSession(purpose: .dictation).deactivate() }
+            holders[purpose] = max(0, (holders[purpose] ?? 0) - 1)
+            guard holders.values.allSatisfy({ $0 == 0 }) else { return }
+            holders = [:]
+            category = nil
+            speaker = false
+            backend.deactivate()
         }
     }
 
@@ -164,7 +187,7 @@ final class SharedAudioSession: @unchecked Sendable {
             lock.withLock {
                 guard holding else { return }
                 holding = false
-                shared.release()
+                shared.release(purpose)
             }
         }
     }

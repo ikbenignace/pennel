@@ -38,24 +38,54 @@ struct SystemAudioSession: AudioSessionControlling {
     }
 
     func configure() throws {
+        try Self.configure(purpose, speaker: false)
+    }
+
+    /// `speaker` routes output to the loudspeaker under `.playAndRecord`, which otherwise plays through the earpiece.
+    static func configure(_ purpose: Purpose, speaker: Bool) throws {
         let session = AVAudioSession.sharedInstance()
+        let route: AVAudioSession.CategoryOptions = speaker ? [.defaultToSpeaker] : []
         switch purpose {
         case .dictation:
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [.allowBluetoothHFP])
+            try session.setCategory(.playAndRecord, mode: .measurement, options: route.union([.allowBluetoothHFP]))
         case .keyboardSession, .meeting:
-            try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetoothHFP])
+            try session.setCategory(.playAndRecord, mode: .default, options: route.union([.mixWithOthers, .allowBluetoothHFP]))
         case .playback:
             try session.setCategory(.playback, mode: .spokenAudio)
         }
     }
 
     func setActive() throws {
+        try Self.setActive()
+    }
+
+    static func setActive() throws {
         try AVAudioSession.sharedInstance().setActive(true)
     }
 
     func deactivate() {
+        Self.deactivate()
+    }
+
+    static func deactivate() {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
+}
+
+/// The calls `SharedAudioSession` makes on the system session, so its category rules can be tested.
+protocol AudioSessionBackend: Sendable {
+    func configure(_ purpose: SystemAudioSession.Purpose, speaker: Bool) throws
+    func setActive() throws
+    func deactivate()
+}
+
+struct SystemAudioSessionBackend: AudioSessionBackend {
+    func configure(_ purpose: SystemAudioSession.Purpose, speaker: Bool) throws {
+        try SystemAudioSession.configure(purpose, speaker: speaker)
+    }
+
+    func setActive() throws { try SystemAudioSession.setActive() }
+    func deactivate() { SystemAudioSession.deactivate() }
 }
 
 /// Captures the microphone as 16 kHz mono Float32 chunks. The tap exists only between `start` and `stop`; with an

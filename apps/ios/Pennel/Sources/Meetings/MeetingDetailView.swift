@@ -362,7 +362,7 @@ private struct TranscriptLine: View {
 /// "Afspelen vanaf dit punt" on `anderen.m4a`, which keeps the transcript's timeline (gaps are silence).
 @MainActor
 @Observable
-final class MeetingPlayer {
+final class MeetingPlayer: NSObject, AVAudioPlayerDelegate {
     private(set) var playing = false
     @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private let audioSession = SharedAudioSession.shared.client(.playback)
@@ -372,6 +372,7 @@ final class MeetingPlayer {
         do {
             if player?.url != url {
                 player = try AVAudioPlayer(contentsOf: url)
+                player?.delegate = self
             }
             try audioSession.activate()
             player?.currentTime = Double(fromMs) / 1000
@@ -386,5 +387,10 @@ final class MeetingPlayer {
         player?.stop()
         playing = false
         audioSession.deactivate()
+    }
+
+    /// A finished playback must let go of the session, or its category would block a recording started later.
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in self.stop() }
     }
 }

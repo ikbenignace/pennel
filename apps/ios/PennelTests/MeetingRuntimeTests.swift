@@ -45,6 +45,19 @@ private final class Received: @unchecked Sendable {
     func add(_ samples: [Float]) { lock.withLock { total += samples.count } }
 }
 
+private final class FakeSessionBackend: AudioSessionBackend, @unchecked Sendable {
+    private let lock = NSLock()
+    private var log: [String] = []
+    var calls: [String] { lock.withLock { log } }
+
+    func configure(_ purpose: SystemAudioSession.Purpose, speaker: Bool) throws {
+        lock.withLock { log.append("configure \(purpose)\(speaker ? " speaker" : "")") }
+    }
+
+    func setActive() throws { lock.withLock { log.append("active") } }
+    func deactivate() { lock.withLock { log.append("inactive") } }
+}
+
 @MainActor
 struct MeetingRuntimeTests {
     /// iOS only grants continued processing to a request made from the user's action in the foreground, so the
@@ -216,6 +229,47 @@ struct MeetingRuntimeTests {
         #expect(capture.starts == 3)
         capture.feed([0.1])
         #expect(received.count == 1)
+    }
+
+    @Test func recording_takes_the_category_from_playback() throws {
+        let backend = FakeSessionBackend()
+        let shared = SharedAudioSession(backend: backend)
+        let playback = shared.client(.playback)
+        let meeting = shared.client(.meeting)
+
+        try playback.activate()
+        try meeting.activate()
+        playback.deactivate()
+        meeting.deactivate()
+        #expect(backend.calls == ["configure playback", "active", "configure meeting speaker", "active", "inactive"])
+    }
+
+    @Test func playback_during_a_recording_uses_the_loudspeaker() throws {
+        let backend = FakeSessionBackend()
+        let shared = SharedAudioSession(backend: backend)
+        let session = shared.client(.keyboardSession)
+        let playback = shared.client(.playback)
+
+        try session.activate()
+        try playback.activate()
+        playback.deactivate()
+        try playback.activate()
+        #expect(backend.calls == ["configure keyboardSession", "active", "configure keyboardSession speaker", "active", "active"])
+
+        playback.deactivate()
+        session.deactivate()
+        try SharedAudioSession(backend: backend).client(.dictation).activate()
+        #expect(backend.calls.suffix(3) == ["inactive", "configure dictation", "active"])
+    }
+
+    @Test func a_finished_playback_no_longer_blocks_the_recording_category() throws {
+        let backend = FakeSessionBackend()
+        let shared = SharedAudioSession(backend: backend)
+        let playback = shared.client(.playback)
+        try playback.activate()
+        playback.deactivate()
+        try shared.client(.dictation).activate()
+        #expect(backend.calls == ["configure playback", "active", "inactive", "configure dictation", "active"])
     }
 
     @Test func library_groups_follow_the_desktop() throws {
