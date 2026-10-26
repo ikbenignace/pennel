@@ -497,16 +497,24 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
       audioReason.textContent = ctx.info.capabilities.system_audio.reason ?? "";
       audioReason.hidden = !audioReason.textContent;
     };
+    const microphoneAccess = h("button", { class: "btn", onclick: async () => {
+      try { await api.requestPermission("microphone"); await ctx.refresh(); } catch (error) { ctx.report(error); }
+    } }, "Open instellingen");
+    const refreshMicrophoneAccess = () => {
+      microphoneAccess.hidden = ctx.info.capabilities.microphone.status !== "permission_required";
+    };
     ctx.onInfoChange(refreshAudioReason);
+    ctx.onInfoChange(refreshMicrophoneAccess);
     refreshAudioReason();
+    refreshMicrophoneAccess();
     start.addEventListener("click", async () => {
       start.disabled = true;
       try { await api.startMeeting(title.value); ctx.rerender(); }
-      catch (error) { status.textContent = errorText(error); start.disabled = false; }
+      catch (error) { status.textContent = errorText(error); start.disabled = false; await ctx.refresh().catch(ctx.report); }
     });
     return h("div", { class: "recording-view" }, h("h1", {}, "Nieuwe meeting"),
       h("p", { class: "muted" }, "Pennel neemt je microfoon op als ‘Ik’ en wat je computer afspeelt als ‘Anderen’."),
-      processing.element, h("div", { class: "row" }, title, start), status, recoveryNotice(ctx, initial), audioReason,
+      processing.element, h("div", { class: "row" }, title, start), status, microphoneAccess, recoveryNotice(ctx, initial), audioReason,
       h("button", { class: "text-button", onclick: () => api.showWindow("settings", "recording") }, "Opnemen instellen…"));
   }
   if (!initial.id) {

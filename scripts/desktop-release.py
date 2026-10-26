@@ -232,7 +232,7 @@ def prepare_sparkle(app, version, output):
     updates = output / "legacy-sparkle"
     updates.mkdir(exist_ok=True)
     shutil.copy2(archive, updates / archive.name)
-    prefix = os.environ.get("PENNEL_RELEASE_DOWNLOAD_BASE", f"https://github.com/ikbenignace/pennel/releases/download/v{version}/")
+    prefix = os.environ.get("PENNEL_RELEASE_DOWNLOAD_BASE", f"https://github.com/pennel-app/pennel/releases/download/v{version}/")
     if not prefix.startswith("https://"):
         raise ValueError("PENNEL_RELEASE_DOWNLOAD_BASE must use HTTPS")
     run(generator, "--account", "pennel", "--download-url-prefix", prefix.rstrip("/") + "/", "--link", "https://pennel.app", "-o", output / "appcast.xml", updates)

@@ -45,6 +45,7 @@ final class NativeCapture {
     }
 
     private func startMicrophone() throws {
+        try MicrophoneAccess.ensureGranted()
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard AudioInput.isUsable(sampleRate: format.sampleRate, channels: format.channelCount) else {
@@ -57,7 +58,7 @@ final class NativeCapture {
             self?.send(converted.monoSamples)
         }
         engine.prepare()
-        try engine.start()
+        try MicrophoneAccess.start(engine)
     }
 
     private func startSystem() throws {
