@@ -508,7 +508,7 @@ export const api = {
   getDictationSession: (sessionId: string) => invoke<DictationSessionSnapshot>("get_dictation_session", { sessionId }),
   toggleDictationSession: (sessionId: string) => invoke<void>("toggle_dictation_session", { sessionId }),
   cancelDictationSession: (sessionId: string) => invoke<void>("cancel_dictation_session", { sessionId }),
-  closeDictationSession: (sessionId: string) => invoke<void>("close_dictation_session", { sessionId }),
+  closeDictationSession: (sessionId: string, onlyIfIdle = false) => invoke<void>("close_dictation_session", { sessionId, onlyIfIdle }),
   padText: () => invoke<string>("pad_text"),
   savePadText: (text: string) => invoke<void>("save_pad_text", { text }),
   checkForUpdates: () => invoke<UpdateInfo>("check_for_updates"),

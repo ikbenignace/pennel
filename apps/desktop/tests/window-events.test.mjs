@@ -9,12 +9,13 @@ const read = (dir, extension) => readdirSync(new URL(dir, import.meta.url), { re
   .join("\n");
 
 test("a delivered route only navigates the window that shows it", () => {
-  assert.equal(deliveredRouteApplies("dictation", workspaceRoute("dictation")), true);
-  assert.equal(deliveredRouteApplies("dictation", workspaceRoute("dictation", "pad")), true);
+  assert.equal(deliveredRouteApplies("workspace", workspaceRoute("dictation")), true);
+  assert.equal(deliveredRouteApplies("workspace", workspaceRoute("dictation", "pad")), true);
   assert.equal(deliveredRouteApplies("workspace", workspaceRoute("meetings")), true);
   assert.equal(deliveredRouteApplies("workspace", workspaceRoute("recording")), true);
   // Asking for another window here would deliver the route again and loop show and focus.
-  assert.equal(deliveredRouteApplies("workspace", workspaceRoute("dictation")), false);
+  assert.equal(deliveredRouteApplies("workspace", workspaceRoute("history")), true);
+  assert.equal(deliveredRouteApplies("dictation", workspaceRoute("dictation")), false);
   assert.equal(deliveredRouteApplies("onboarding", workspaceRoute("dictation")), false);
   assert.equal(deliveredRouteApplies("settings", workspaceRoute("history")), false);
 });

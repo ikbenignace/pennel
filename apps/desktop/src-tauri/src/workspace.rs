@@ -64,8 +64,7 @@ pub fn fit_window_size(
     }
 }
 
-/// Settings and the meeting library share the main window; dictation and history keep their
-/// task-specific windows.
+/// Every product screen shares main; onboarding and the nonactivating prompt stay separate.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WindowSpec {
     pub label: &'static str,
@@ -90,20 +89,6 @@ pub fn window_spec(kind: &str) -> WindowSpec {
             "Pennel",
             (420.0, 160.0),
             (420.0, 160.0),
-        ),
-        "history" => (
-            "history",
-            "history",
-            "Geschiedenis",
-            (560.0, 560.0),
-            (440.0, 360.0),
-        ),
-        "dictation" => (
-            "dictation",
-            "dictation",
-            "Dicteren",
-            (640.0, 560.0),
-            (480.0, 420.0),
         ),
         _ => (
             "main",
@@ -133,6 +118,18 @@ pub fn query_value(value: &str) -> String {
             _ => format!("%{byte:02X}"),
         })
         .collect()
+}
+
+/// Legacy URL aliases retain section intent while all product views use main's native window.
+pub fn window_url(kind: &str, tab: Option<&str>) -> String {
+    let mode = match kind {
+        "dictation" | "history" | "settings" => kind,
+        _ => window_spec(kind).mode,
+    };
+    match tab.filter(|_| matches!(mode, "dictation" | "history" | "settings" | "workspace")) {
+        Some(tab) => format!("index.html?window={mode}&tab={}", query_value(tab)),
+        None => format!("index.html?window={mode}"),
+    }
 }
 
 pub fn label_spec(label: &str) -> Option<WindowSpec> {
@@ -192,10 +189,10 @@ impl WorkspaceRoute {
     /// The window kind that shows this route.
     pub fn window_kind(&self) -> &'static str {
         match self.section {
-            WorkspaceSection::Dictation => "dictation",
-            WorkspaceSection::History => "history",
-            WorkspaceSection::Settings
+            WorkspaceSection::Dictation
             | WorkspaceSection::Meetings
+            | WorkspaceSection::History
+            | WorkspaceSection::Settings
             | WorkspaceSection::Recording => "workspace",
         }
     }
@@ -454,7 +451,11 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
         _ => return None,
     });
     match route.section {
-        Dictation if tab == Some("pad") => route.tab = Some("pad".into()),
+        Dictation => {
+            route.tab = tab
+                .filter(|value| matches!(*value, "pad" | "home"))
+                .map(str::to_owned)
+        }
         History => {
             route.tab = tab
                 .filter(|value| history_entry_id(value).is_some())
@@ -507,14 +508,19 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
     Some(route)
 }
 
-/// A generic Settings request enters the main pane without replacing its remembered category.
-/// Other no-category task windows keep their current place, including an explicit pending route.
+/// Generic task requests enter main without replacing their frontend-owned selection.
+/// Presenting main itself leaves an explicit pending route untouched.
 pub fn window_request_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
-    if kind == "settings" && tab.is_none() {
-        return Some(WorkspaceRoute::section(WorkspaceSection::Settings));
-    }
-    if tab.is_none() && matches!(kind, "history" | "dictation") {
-        return None;
+    if tab.is_none() {
+        let section = match kind {
+            "settings" => Some(WorkspaceSection::Settings),
+            "dictation" => Some(WorkspaceSection::Dictation),
+            "history" => Some(WorkspaceSection::History),
+            _ => None,
+        };
+        if let Some(section) = section {
+            return Some(WorkspaceRoute::section(section));
+        }
     }
     legacy_route(kind, tab)
 }
@@ -826,11 +832,11 @@ mod tests {
     }
 
     #[test]
-    fn settings_shares_main_while_history_and_dictation_keep_their_windows() {
+    fn all_product_screens_share_the_main_window() {
         for (kind, label, title) in [
             ("settings", "main", "Pennel"),
-            ("history", "history", "Geschiedenis"),
-            ("dictation", "dictation", "Dicteren"),
+            ("history", "main", "Pennel"),
+            ("dictation", "main", "Pennel"),
             ("onboarding", "onboarding", "Welkom bij Pennel"),
             ("library", "main", "Pennel"),
             ("live", "main", "Pennel"),
@@ -841,6 +847,9 @@ mod tests {
             assert_eq!(label_spec(label), Some(spec));
         }
         assert_eq!(label_spec("settings"), None);
+        assert_eq!(label_spec("dictation"), None);
+        assert_eq!(label_spec("history"), None);
+        assert_eq!(label_spec("record-prompt"), Some(window_spec("prompt")));
         assert_eq!(label_spec("pill"), None);
         assert_eq!(
             query_value("2026-10-25 Overleg/&x"),
@@ -882,13 +891,29 @@ mod tests {
     }
 
     #[test]
-    fn presenting_main_keeps_an_explicit_pending_settings_route() {
+    fn presenting_main_keeps_explicit_pending_product_routes() {
         let route = legacy_route("settings", Some("appearance")).unwrap();
         let kind = route.window_kind();
         assert_eq!(window_spec(kind).label, "main");
         assert_eq!(window_request_route(kind, None), None);
-        assert_eq!(window_request_route("history", None), None);
-        assert_eq!(window_request_route("dictation", None), None);
+        for task in ["settings", "history", "dictation", "live"] {
+            let explicit = legacy_route(task, Some("models")).unwrap();
+            assert_eq!(explicit.window_kind(), "workspace");
+            assert_eq!(window_request_route(explicit.window_kind(), None), None);
+        }
+        let history = window_request_route("history", None).unwrap();
+        assert_eq!(history.section, WorkspaceSection::History);
+        assert_eq!(history.tab, None);
+        let dictation = window_request_route("dictation", None).unwrap();
+        assert_eq!(dictation.section, WorkspaceSection::Dictation);
+        assert_eq!(dictation.tab, None);
+        assert_eq!(
+            window_request_route("dictation", Some("home"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("home")
+        );
         assert_eq!(
             window_request_route("dictation", Some("pad"))
                 .unwrap()
@@ -896,6 +921,31 @@ mod tests {
                 .as_deref(),
             Some("pad")
         );
+    }
+
+    #[test]
+    fn first_product_window_urls_keep_legacy_section_intent_unambiguous() {
+        assert_eq!(window_url("dictation", None), "index.html?window=dictation");
+        assert_eq!(
+            window_url("dictation", Some("pad")),
+            "index.html?window=dictation&tab=pad"
+        );
+        assert_eq!(window_url("history", None), "index.html?window=history");
+        assert_eq!(
+            window_url("history", Some("entry:qa-retained")),
+            "index.html?window=history&tab=entry%3Aqa-retained"
+        );
+        assert_eq!(
+            window_url("settings", Some("dictation")),
+            "index.html?window=settings&tab=dictation"
+        );
+        assert_eq!(window_url("settings", None), "index.html?window=settings");
+        assert_eq!(window_url("workspace", None), "index.html?window=workspace");
+        assert_eq!(
+            window_url("onboarding", Some("practice")),
+            "index.html?window=onboarding"
+        );
+        assert_eq!(window_url("prompt", None), "index.html?window=prompt");
     }
 
     #[test]

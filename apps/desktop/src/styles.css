@@ -163,6 +163,8 @@ details > summary { cursor: default; }
 .library-shortcuts { display: flex; flex-direction: column; margin: var(--space-1) var(--space-2) 0; }
 .library-shortcuts > button, .library-settings { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: var(--space-7); padding: var(--space-1) var(--space-3); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--foreground); font: 400 var(--font-label)/1.4 var(--ui); text-align: left; }
 .library-shortcuts > button:hover, .library-settings:hover { background: var(--hover); text-decoration: none; }
+.library-shortcuts > button[aria-current="page"] { background: var(--selection); font-weight: 500; }
+.history-entry.history-selected { background: var(--selection); border-radius: var(--radius-control); }
 .library-shortcuts .ui-icon, .library-settings .ui-icon { color: var(--muted); }
 .library-ask, .library-live { display: flex; align-items: center; gap: 8px; margin: 0 8px 4px; padding: 6px 10px; border: 0; border-radius: 7px; background: none; color: var(--foreground); font-size: var(--font-label); text-align: left; }
 .library-ask .ui-icon { width: 16px; height: 16px; color: var(--muted); }
@@ -555,6 +557,9 @@ body[data-window="onboarding"] main { display: flex; overflow: hidden; }
   .settings-pane .style-rule { flex-wrap: wrap; }
 }
 @media (max-width: 600px) {
+  .history-entry { flex-wrap: wrap; column-gap: var(--space-2); row-gap: var(--space-2); }
+  .history-content { flex-basis: calc(100% - var(--space-7)); }
+  .history-actions { margin-inline-start: var(--space-7); }
   .providers { grid-template-columns: minmax(0, 1fr); }
   .providers .list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }

@@ -14,7 +14,7 @@ export interface WorkspaceRoute {
   source_target?: MeetingSourceTarget;
 }
 
-/** Settings is a section of main; the legacy settings window name remains a route alias. */
+/** All product sections share main; old window names remain compatible route aliases. */
 export type WindowMode = "workspace" | "settings" | "history" | "dictation";
 export const windowTitles: Record<WindowMode, string> = {
   workspace: "Pennel",
@@ -23,12 +23,12 @@ export const windowTitles: Record<WindowMode, string> = {
   get dictation() { return t("window.dictation"); },
 };
 
-export function windowForSection(section: WorkspaceSection): WindowMode {
-  return section === "meetings" || section === "recording" || section === "settings" ? "workspace" : section;
+export function windowForSection(_section: WorkspaceSection): WindowMode {
+  return "workspace";
 }
 
-export function windowMode(value: string | null): WindowMode {
-  return value === "history" || value === "dictation" ? value : "workspace";
+export function windowMode(_value: string | null): WindowMode {
+  return "workspace";
 }
 
 export const settingTabs = ["overview", "providers", "models", "dictation", "meeting-settings", "recording", "dictionary", "styles", "appearance", "account"] as const;
@@ -81,7 +81,7 @@ export function parseWorkspaceRoute(value: unknown): WorkspaceRoute | null {
 export function legacyWorkspaceRoute(kind: string, route?: string | null): WorkspaceRoute | null {
   if (kind === "settings") return workspaceRoute("settings", route === "meetings" ? "meeting-settings" : settings.has(route ?? "") ? route! : "overview");
   if (kind === "history") return historyRoute(historyEntryId(route));
-  if (kind === "dictation") return workspaceRoute("dictation", route === "pad" ? "pad" : null);
+  if (kind === "dictation") return workspaceRoute("dictation", route === "pad" || route === "home" ? route : null);
   if (kind === "live" || kind === "meeting") return workspaceRoute("recording", null, validMeetingId(route) ? route : null);
   if (kind === "library" || kind === "meetings") return workspaceRoute("meetings", route === "chat" ? "chat" : null, validMeetingId(route) ? route : null);
   if (kind === "workspace") {
@@ -111,11 +111,14 @@ export function samePadRoute(current: WorkspaceRoute, next: WorkspaceRoute): boo
 
 export class WorkspaceNavigation {
   current: WorkspaceRoute;
-  constructor(initial: WorkspaceRoute = workspaceRoute("meetings")) { this.current = { ...initial }; }
+  constructor(initial: WorkspaceRoute = workspaceRoute("meetings")) { this.current = { ...initial }; this.recordingWasCurrent = initial.section === "recording"; }
   private readonly remembered = new Map<WorkspaceSection, WorkspaceRoute>();
   private settingsOrigin: WorkspaceRoute | null = null;
+  private recordingWasCurrent = false;
 
   set(route: WorkspaceRoute): void {
+    if (route.section === "recording") this.recordingWasCurrent = true;
+    else if (route.section === "meetings") this.recordingWasCurrent = false;
     if (route.section === "settings" && this.current.section !== "settings") this.settingsOrigin = { ...this.current };
     this.current = { ...route };
     if (route.section !== "recording") {
@@ -126,6 +129,7 @@ export class WorkspaceNavigation {
   }
 
   select(section: WorkspaceSection): WorkspaceRoute {
+    if (section === "history") return historyRoute();
     return this.remembered.get(section) ?? (this.current.section === section ? { ...this.current } : workspaceRoute(section, section === "settings" ? "overview" : null));
   }
 
@@ -134,6 +138,7 @@ export class WorkspaceNavigation {
   }
 
   recordingFinished(id: string): void {
+    if (this.recordingWasCurrent) { this.remembered.set("meetings", workspaceRoute("meetings", null, id)); this.recordingWasCurrent = false; }
     if (this.settingsOrigin?.section === "recording") this.settingsOrigin = workspaceRoute("meetings", null, id);
   }
 }

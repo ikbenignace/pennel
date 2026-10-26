@@ -2,6 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { LatestRequest, SerialQueue, persistAll } from "../src/async.ts";
 
+test("persistence keeps a single typed navigation guard while still attempting every save", async () => {
+  class NavigationGuard extends Error {}
+  const guard = new NavigationGuard("Finish capture before leaving");
+  const saved = [];
+  await assert.rejects(persistAll([
+    async () => { throw guard; },
+    async () => { saved.push("draft"); },
+  ]), error => error === guard);
+  assert.deepEqual(saved, ["draft"]);
+  await assert.rejects(persistAll([async () => { throw "Storage unavailable"; }]), /Storage unavailable/);
+});
+
 function deferred() {
   let resolve;
   let reject;

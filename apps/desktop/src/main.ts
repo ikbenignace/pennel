@@ -10,6 +10,7 @@ import { FrontendBarrier, canShowFinished, type FrontendBarrierKind } from "./se
 import { deliveredRouteApplies, historyEntryId, historyRoute, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, windowForSection, windowMode, windowTitles, workspaceRoute, type WorkspaceRoute, type MeetingSourceTarget } from "./workspace-state";
 import { LibrarySidebar } from "./views/library";
 import { recordingEntry } from "./voice-flow-state";
+import { PadNavigationBlocked } from "./dictation-session-state";
 import { icon } from "./icons";
 import { modelsView } from "./views/models";
 import { accountView } from "./views/account";
@@ -70,7 +71,8 @@ const query = new URLSearchParams(location.search);
 const requestedWindow = query.get("window") ?? "workspace";
 const mode = requestedWindow === "onboarding" ? "onboarding" : ["prompt", "record-prompt"].includes(requestedWindow) ? "prompt" : windowMode(requestedWindow);
 const windowKind = mode === "onboarding" || mode === "prompt" ? "workspace" : mode;
-const navigation = new WorkspaceNavigation(legacyWorkspaceRoute(requestedWindow === "settings" ? "settings" : windowKind, query.get("tab")) ?? workspaceRoute("meetings"));
+const legacyWindow = ["settings", "dictation", "history"].includes(requestedWindow) ? requestedWindow : windowKind;
+const navigation = new WorkspaceNavigation(legacyWorkspaceRoute(legacyWindow, query.get("tab")) ?? workspaceRoute("meetings"));
 if (fixtureClient() && query.has("section")) {
   const route = parseWorkspaceRoute({ section: query.get("section"), tab: query.get("tab"), meeting_id: query.get("meeting_id"), jump_ms: query.has("jump_ms") ? Number(query.get("jump_ms")) : null });
   if (route && windowForSection(route.section) === windowKind) navigation.set(route);
@@ -196,7 +198,7 @@ function navigate(tab: string, param?: string, jumpMs?: number, sourceTarget?: M
   if (tab === "meeting" || tab === "live") { void go(workspaceRoute("recording", null, param ?? null)); return; }
   if (tab === "history") { void go(historyRoute(param)); return; }
   if (tab === "settings") { void go(workspaceRoute("settings", null)); return; }
-  if (tab === "dictation-home") { void go(workspaceRoute("dictation")); return; }
+  if (tab === "dictation-home") { void go(workspaceRoute("dictation", "home")); return; }
   if (tab === "dictation-pad") { void go(workspaceRoute("dictation", "pad")); return; }
   if (settingTabs.includes(tab as typeof settingTabs[number]) || tab === "local") void go(workspaceRoute("settings", tab));
 }
@@ -206,8 +208,10 @@ async function go(route: WorkspaceRoute) {
     await api.showWorkspace(route).catch(report); return;
   }
   if (route.section === "settings" && route.tab === null) route = navigation.select("settings");
+  if (route.section === "dictation" && route.tab === null) route = navigation.select("dictation");
   if (route.section === "settings" && routeKey(navigation.current) === routeKey(route)) { restoreSettingsFocus(); return; }
   if (samePadRoute(navigation.current, route)) { ++navigationGeneration; content.inert = false; return; }
+  if (route.section === "history" && routeKey(navigation.current) === routeKey(route)) { ++navigationGeneration; content.inert = false; return; }
   const mine = ++navigationGeneration;
   try {
     content.inert = true;
@@ -217,7 +221,7 @@ async function go(route: WorkspaceRoute) {
     if (mine !== navigationGeneration) return;
     navigation.set(route);
     await render();
-  } catch (error) { report(error); }
+  } catch (error) { if (!(error instanceof PadNavigationBlocked)) report(error); }
   finally { if (mine === navigationGeneration) { content.inert = false; restoreSettingsFocus(); } }
 }
 
@@ -418,6 +422,7 @@ function titlebarDragRegion(): HTMLElement {
 
 function workspaceShell() {
   library = new LibrarySidebar({ info: visibleInfo, current: () => navigation.current, go: (route) => { void go(route); }, report,
+    select: (section) => { void go(navigation.select(section)); },
     statusChanged: (status) => { currentMeetingStatus = status; updateSettingsRecording(); } });
   app.replaceChildren(titlebarDragRegion(), h("div", { class: "workspace-shell" }, library.element, h("div", { class: "workspace-body" }, recoveryBanner, banner, content)));
 }

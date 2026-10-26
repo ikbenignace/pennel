@@ -5,24 +5,29 @@ import type { Context } from "../main";
 import { applicationLabel } from "../presentation";
 import { icon } from "../icons";
 import { appBadge } from "../app-icon";
+import { HistoryFocusMemory, type HistoryFocusTarget } from "../history-focus-state";
 
 const retrying = new Set<string>();
 type HistoryMessage = { key: "dictation.history.saved" | "dictation.history.recovered" | "dictation.history.save_failed" | "dictation.history.retry_failed"; error?: string };
 let message: HistoryMessage | null = null;
 let messageFailed = false;
+const focusMemory = new HistoryFocusMemory();
 
 function when(ms: number): string {
   return formatDateTime(ms, { dateStyle: "medium", timeStyle: "short" });
 }
 
 export async function historyView(ctx: Context): Promise<HTMLElement> {
-  const entries = await api.history(200);
   const previousView = document.querySelector<HTMLElement>(".history-view");
+  const invoker = document.activeElement;
   const previousFocus = document.activeElement instanceof HTMLElement && previousView?.contains(document.activeElement) ? document.activeElement : null;
   const previousEntry = previousFocus?.closest<HTMLElement>("[data-history-id]")?.dataset.historyId;
   const previousAction = previousFocus?.dataset.historyAction;
+  const entries = await api.history(200);
+  const available = new Set(entries.map((entry) => entry.id));
   const rows = new Map<string, { element: HTMLElement; actions: Map<string, HTMLElement> }>();
   const requested = ctx.param;
+  const selected = requested ? available.has(requested) ? { id: requested } : null : focusMemory.selection(available);
   const retry = async (entry: HistoryEntry) => {
     retrying.add(entry.id);
     ctx.rerender();
@@ -49,8 +54,9 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
     const action = <T extends HTMLElement>(name: string, element: T): T => { element.dataset.historyAction = name; actions.set(name, element); return element; };
     const element = h(
       "div",
-      { class: requested === entry.id ? "history-entry history-target source-highlight" : "history-entry", "data-history-id": entry.id,
+      { class: `history-entry${requested === entry.id ? " history-target source-highlight" : ""}${selected?.id === entry.id ? " history-selected" : ""}`, "data-history-id": entry.id,
         role: "group", tabindex: -1, "aria-label": l("dictation.history.entry_label", () => ({ time: when(entry.created_at_ms) })),
+        "aria-current": selected?.id === entry.id ? "true" : null,
         "aria-describedby": requested === entry.id ? "history-target-notice" : null },
       h("span", { class: "history-destination" }, source?.icon ?? h("span", { class: "app-icon", "aria-hidden": "true" })),
       h("div", { class: "history-content" },
@@ -100,18 +106,39 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
     message ? h("p", { class: messageFailed ? "error" : "help", role: "status" }, l(message.key, () => ({ error: message?.error ? localizeBackendText(message.error) : "" }))) : null,
     entries.length ? h("div", { class: "history-list" }, entries.map(row)) : h("div", { class: "empty-state muted" }, l("dictation.history.empty")),
   );
+  const showSelection = (selection: HistoryFocusTarget | null) => {
+    for (const [id, row] of rows) {
+      row.element.classList.toggle("history-selected", selection?.id === id);
+      if (selection?.id === id) row.element.setAttribute("aria-current", "true");
+      else row.element.removeAttribute("aria-current");
+      if (selection?.id !== id) {
+        row.element.classList.remove("history-target", "source-highlight");
+        row.element.removeAttribute("aria-describedby");
+      }
+    }
+    if (targetNotice) targetNotice.hidden = selection?.id !== requested;
+  };
+  const rememberIntent = (event: Event) => {
+    if (!(event.target instanceof Element)) return;
+    const entry = event.target.closest<HTMLElement>("[data-history-id]");
+    const id = entry?.dataset.historyId;
+    if (!entry || !id || !result.contains(entry)) return;
+    focusMemory.remember(id, event.target.closest<HTMLElement>("[data-history-action]")?.dataset.historyAction);
+    showSelection(focusMemory.selection(available));
+  };
+  result.addEventListener("focusin", rememberIntent);
+  result.addEventListener("pointerdown", rememberIntent);
   requestAnimationFrame(() => {
     if (!result.isConnected) return;
-    if (requested) {
-      const target = rows.get(requested)?.element ?? targetNotice;
-      target?.focus({ preventScroll: true });
-      target?.scrollIntoView({ block: "center" });
-    } else if (previousEntry && (!document.activeElement || document.activeElement === document.body)) {
-      const row = rows.get(previousEntry);
-      const target = previousAction ? row?.actions.get(previousAction) ?? row?.element : row?.element;
-      const focus = target instanceof HTMLButtonElement && target.disabled ? row?.element : target;
-      (focus ?? heading).focus({ preventScroll: true });
-    }
+    const plan = focusMemory.plan({ requested, previous: previousEntry ? { id: previousEntry, action: previousAction } : null, available,
+      returning: !previousView, unobstructed: !document.activeElement || document.activeElement === document.body || document.activeElement === invoker });
+    const row = plan.target ? rows.get(plan.target.id) : null;
+    const target = plan.target?.action ? row?.actions.get(plan.target.action) ?? row?.element : row?.element;
+    const focus = target instanceof HTMLButtonElement && target.disabled ? row?.element : target;
+    const destination = focus ?? (plan.fallback === "notice" ? targetNotice : plan.fallback === "heading" ? heading : null);
+    destination?.focus({ preventScroll: true });
+    if (plan.scroll) destination?.scrollIntoView({ block: plan.scroll });
+    if (plan.target) showSelection(focusMemory.selection(available));
   });
   return result;
 }

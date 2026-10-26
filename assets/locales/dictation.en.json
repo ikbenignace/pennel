@@ -124,5 +124,6 @@
   "dictation.home.shortcut_copy": "Speak, then copy and paste your text.",
   "dictation.history.entry_label": "Dictation from {time}",
   "dictation.history.target_found": "Your dictation is highlighted below.",
-  "dictation.history.target_missing": "This dictation could not be found in recent History."
+  "dictation.history.target_missing": "This dictation could not be found in recent History.",
+  "dictation.pad.finish_before_leaving": "Finish or cancel dictation before switching sections."
 }

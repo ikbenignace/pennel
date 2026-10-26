@@ -13,6 +13,7 @@ export interface LibraryHost {
   info: () => AppInfo;
   current: () => WorkspaceRoute;
   go: (route: WorkspaceRoute) => void;
+  select?: (section: WorkspaceRoute["section"]) => void;
   report: (error: unknown) => void;
   statusChanged?: (status: MeetingStatus) => void;
 }
@@ -38,6 +39,7 @@ export class LibrarySidebar {
   private openingRecording = false;
 
   constructor(private readonly host: LibraryHost) {
+    const select = (section: WorkspaceRoute["section"]) => host.select ? host.select(section) : host.go(workspaceRoute(section));
     this.search = h("input", { type: "search", placeholder: l("common.search"), "aria-label": l("meetings.search_label"), spellcheck: false });
     this.search.addEventListener("input", () => {
       this.query = this.search.value;
@@ -50,8 +52,9 @@ export class LibrarySidebar {
     this.element = h("aside", { class: "library-sidebar", "aria-label": l("meetings.library_label") },
       h("div", { class: "library-actions" }, this.live),
       h("div", { class: "library-shortcuts" },
-        h("button", { class: "text-button", onclick: () => host.go(workspaceRoute("dictation")) }, icon("mic"), l("meetings.open_dictation")),
-        h("button", { class: "text-button", onclick: () => host.go(workspaceRoute("history")) }, icon("history"), l("meetings.open_history"))),
+        h("button", { class: "text-button", "data-workspace-section": "dictation", onclick: () => select("dictation") }, icon("mic"), l("meetings.open_dictation")),
+        h("button", { class: "text-button", "data-workspace-section": "meetings", onclick: () => select("meetings") }, icon("notebook"), l("navigation.meetings")),
+        h("button", { class: "text-button", "data-workspace-section": "history", onclick: () => select("history") }, icon("history"), l("meetings.open_history"))),
       h("div", { class: "library-search" }, this.search), this.ask, this.list,
       h("button", { class: "text-button library-settings", onclick: () => host.go(workspaceRoute("settings")) }, icon("settings"), l("common.settings")));
     bindLocalization(this.live, () => { if (this.status) this.showLive(this.status); });
@@ -109,6 +112,9 @@ export class LibrarySidebar {
 
   highlight() {
     const route = this.host.current();
+    for (const button of this.element.querySelectorAll<HTMLButtonElement>("[data-workspace-section]")) {
+      if (button.dataset.workspaceSection === route.section) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+    }
     const chat = route.section === "meetings" && route.tab === "chat";
     this.ask.toggleAttribute("aria-current", chat);
     this.live.toggleAttribute("aria-current", route.section === "recording");

@@ -2,18 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { WorkspaceNavigation, historyEntryId, historyRoute, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, windowForSection, windowMode, workspaceRoute } from "../src/workspace-state.ts";
 
-test("Settings belongs to the main workspace; History and Dictation retain their windows", () => {
+test("all product sections and legacy window aliases belong to the main workspace", () => {
   assert.equal(windowForSection("settings"), "workspace");
-  assert.equal(windowForSection("history"), "history");
-  assert.equal(windowForSection("dictation"), "dictation");
+  assert.equal(windowForSection("history"), "workspace");
+  assert.equal(windowForSection("dictation"), "workspace");
   assert.equal(windowForSection("meetings"), "workspace");
   assert.equal(windowForSection("recording"), "workspace");
   assert.equal(windowMode("settings"), "workspace");
+  assert.equal(windowMode("dictation"), "workspace");
+  assert.equal(windowMode("history"), "workspace");
   assert.equal(windowMode("library"), "workspace");
   assert.equal(windowMode(null), "workspace");
   assert.deepEqual(legacyWorkspaceRoute("workspace"), workspaceRoute("meetings"));
   assert.deepEqual(legacyWorkspaceRoute("dictation", "pad"), workspaceRoute("dictation", "pad"));
   assert.deepEqual(new WorkspaceNavigation(workspaceRoute("history")).current, workspaceRoute("history"));
+});
+
+test("primary navigation remembers Pad while generic History never repeats an exact-target request", () => {
+  const nav = new WorkspaceNavigation();
+  nav.set(workspaceRoute("dictation", "pad"));
+  nav.set(historyRoute("a-saved-result"));
+  nav.set(workspaceRoute("meetings", null, "a-meeting"));
+  assert.deepEqual(nav.select("dictation"), workspaceRoute("dictation", "pad"));
+  assert.deepEqual(nav.select("history"), workspaceRoute("history"));
+  nav.set(workspaceRoute("dictation", "home"));
+  nav.set(workspaceRoute("settings", "models"));
+  assert.deepEqual(nav.settingsBack(), workspaceRoute("dictation", "home"));
+  assert.deepEqual(legacyWorkspaceRoute("dictation", "home"), workspaceRoute("dictation", "home"));
 });
 
 test("inline Settings returns to the originating task and remembers its last category", () => {
@@ -38,6 +53,18 @@ test("a recording finished during Settings updates the return destination withou
   normal.set(settings); normal.recordingFinished("saved-meeting");
   assert.equal(normal.settingsBack().meeting_id, "another-meeting");
   assert.deepEqual(new WorkspaceNavigation(settings).settingsBack(), workspaceRoute("meetings"));
+});
+
+test("background meeting completion keeps History open and updates the remembered meeting", () => {
+  const nav = new WorkspaceNavigation(workspaceRoute("recording", null, "pending-meeting"));
+  nav.set(historyRoute());
+  nav.recordingFinished("finished-meeting");
+  assert.deepEqual(nav.current, historyRoute());
+  assert.deepEqual(nav.select("meetings"), workspaceRoute("meetings", null, "finished-meeting"));
+  nav.set(workspaceRoute("meetings", null, "another-meeting"));
+  nav.set(workspaceRoute("dictation", "home"));
+  nav.recordingFinished("unrelated-meeting");
+  assert.equal(nav.select("meetings").meeting_id, "another-meeting");
 });
 
 test("legacy windows and settings aliases now land in one workspace", () => {

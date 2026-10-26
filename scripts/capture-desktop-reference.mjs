@@ -36,7 +36,7 @@ if (!selected.length || options.cases.some(name => !cases.some(item => item.name
 const appearances = options.appearance === "both" ? ["light", "dark"] : [options.appearance];
 const meetingId = "2026-10-24 0900 Projectoverleg";
 // Default sizes of the shared app's windows (apps/desktop/src-tauri/src/workspace.rs).
-const windowSizes = { workspace: [980, 640], settings: [760, 600], history: [560, 560], dictation: [640, 560], onboarding: [640, 660] };
+const windowSizes = { workspace: [980, 640], settings: [980, 640], history: [980, 640], dictation: [980, 640], onboarding: [640, 660] };
 const urlFor = (base, item, appearance, locale) => {
   const url = new URL(item.window === "pill" ? "/pill.html" : "/index.html", base);
   for (const [key, value] of Object.entries({ qa: item.name, theme: appearance, locale, window: item.window, section: item.section, tab: item.tab, meeting_id: item.meeting_tab ? meetingId : undefined, meeting_tab: item.meeting_tab })) if (value) url.searchParams.set(key, value);

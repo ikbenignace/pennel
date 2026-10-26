@@ -3,7 +3,7 @@ import { api, type DictationSessionSnapshot, type SetupReadiness } from "../api"
 import { SerialQueue } from "../async";
 import { errorText, h } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
-import { PadDraftState } from "../dictation-session-state";
+import { PadDraftState, PadNavigationBlocked } from "../dictation-session-state";
 import { icon } from "../icons";
 import type { Context } from "../main";
 import { hotkeyLabel } from "../presentation";
@@ -22,6 +22,7 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   let readiness: SetupReadiness | null = null;
   let transition = false;
   let writeError: string | null = null;
+  let navigationNotice = false;
   const back = h("button", { class: "text-button dictation-pad-back", onclick: () => ctx.navigate("dictation-home") }, l("dictation.pad.back"));
   const status = h("p", { class: "pad-status help", role: "status", "aria-live": "polite" });
   const target = h("p", { class: "help pad-target" });
@@ -61,6 +62,7 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   const apply = (snapshot: DictationSessionSnapshot) => {
     if (!mounted) return;
     const busy = snapshot.phase === "listening" || snapshot.phase === "working";
+    if (!busy && !transition) navigationNotice = false;
     back.disabled = busy;
     textarea.disabled = busy;
     start.disabled = transition || snapshot.phase === "working" || readiness?.can_record === false;
@@ -71,7 +73,7 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
       textarea.value = draft.value;
       copy.disabled = !draft.value;
     }
-    status.textContent = writeError ?? (snapshot.error ? localizeBackendText(snapshot.error) : null) ?? (snapshot.phase === "listening" ? t("dictation.pad.listening") : snapshot.phase === "working" ? t("dictation.pad.transcribing") : "");
+    status.textContent = writeError ?? (snapshot.error ? localizeBackendText(snapshot.error) : null) ?? (navigationNotice ? t("dictation.pad.finish_before_leaving") : snapshot.phase === "listening" ? t("dictation.pad.listening") : snapshot.phase === "working" ? t("dictation.pad.transcribing") : "");
     status.classList.toggle("error", !!writeError || !!snapshot.error);
     target.textContent = ctx.info.settings.dictation_pad_auto_paste
       ? snapshot.external_paste_available && snapshot.target_name ? t("dictation.pad.external_target", { app: snapshot.target_name }) : snapshot.external_paste_reason ? localizeBackendText(snapshot.external_paste_reason) : t("dictation.pad.no_target")
@@ -107,13 +109,25 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   });
   textarea.addEventListener("blur", () => { void flush().catch(showError); });
   ctx.onFlush(flush);
-  ctx.beforeLeave(async () => { await flush(); await session.close(); });
+  ctx.beforeLeave(async () => {
+    await flush();
+    let left = false;
+    try { left = !transition && await session.leave(); }
+    catch (error) { showError(error); throw new PadNavigationBlocked(errorText(error)); }
+    if (!left) {
+      navigationNotice = true;
+      if (session.state.snapshot) apply(session.state.snapshot);
+      else status.textContent = t("dictation.pad.finish_before_leaving");
+      throw new PadNavigationBlocked(t("dictation.pad.finish_before_leaving"));
+    }
+  });
   ctx.onDispose(() => { mounted = false; window.clearTimeout(saving); void flush().catch(ctx.report); void session.close().catch(ctx.report); });
   ctx.onInfoChange(() => { textarea.lang = ctx.info.settings.language ?? ""; refreshProcessing(); void refreshReadiness(); if (session.state.snapshot) apply(session.state.snapshot); });
   const restoreSession = async () => {
     if (!mounted || !ctx.visible) return;
     try { await session.open(); await session.refresh(); }
-    catch {
+    catch (error) {
+      if (session.state.busy) throw error;
       await session.close();
       if (mounted && ctx.visible) await session.open();
     }

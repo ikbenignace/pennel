@@ -288,7 +288,7 @@ pub fn build(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             "meeting-status" => crate::show_main(app, Some("meeting")),
             "open" => crate::open_default(app),
             "settings" => crate::show_window(app, "settings", None),
-            "history" => crate::show_main(app, Some("history")),
+            "history" => crate::show_window(app, "history", None),
             "log" => {
                 let _ = crate::commands::open_log_file(app);
             }

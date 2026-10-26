@@ -124,5 +124,6 @@
   "dictation.home.shortcut_copy": "Spreek en kopieer daarna je tekst.",
   "dictation.history.entry_label": "Dictaat van {time}",
   "dictation.history.target_found": "Je dictaat is hieronder gemarkeerd.",
-  "dictation.history.target_missing": "Dit dictaat staat niet in de recente geschiedenis."
+  "dictation.history.target_missing": "Dit dictaat staat niet in de recente geschiedenis.",
+  "dictation.pad.finish_before_leaving": "Rond je dictaat af of annuleer het voordat je naar een ander onderdeel gaat."
 }

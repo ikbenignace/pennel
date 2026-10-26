@@ -99,7 +99,8 @@ pub fn show_main(app: &AppHandle, tab: Option<&str>) {
     };
     let tab = match tab {
         Some("pad") => Some("pad"),
-        Some("dictation-home" | "settings") => None,
+        Some("dictation-home") => Some("home"),
+        Some("history" | "settings") => None,
         other => other,
     };
     show_window(app, kind, tab);
@@ -149,15 +150,10 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
     if kind == "onboarding" {
         workspace::request_onboarding(app, tab);
     }
-    let tab = if kind == "settings" {
-        Some(tab.unwrap_or("overview").to_owned())
-    } else {
-        tab.map(str::to_owned)
-    };
+    let url = workspace::window_url(kind, tab);
     let app = app.clone();
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
-        let tab = tab.as_deref();
         if !workspace::requested(&handle, label) {
             return;
         }
@@ -176,14 +172,7 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     )
                 })
             };
-            // The first render already shows the requested place instead of navigating there afterwards.
-            let url = match tab.filter(|_| matches!(mode, "dictation" | "workspace")) {
-                Some(tab) => format!(
-                    "index.html?window={mode}&tab={}",
-                    workspace::query_value(tab)
-                ),
-                None => format!("index.html?window={mode}"),
-            };
+            // The legacy URL alias preserves the requested section before pending route delivery.
             let mut builder = tauri::WebviewWindowBuilder::new(
                 &handle,
                 label,

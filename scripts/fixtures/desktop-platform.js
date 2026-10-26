@@ -227,7 +227,12 @@
         emit("dictation-session", session); return null;
       }
       case "cancel_dictation_session": { const session = sessions.get(args.sessionId || args.session_id); if (session) { session.phase = "idle"; emit("dictation-session", session); } return null; }
-      case "close_dictation_session": sessions.delete(args.sessionId || args.session_id); return null;
+      case "close_dictation_session": {
+        const id = args.sessionId || args.session_id;
+        const session = sessions.get(id);
+        if ((args.onlyIfIdle || args.only_if_idle) && session && ["listening", "working"].includes(session.phase)) throw new Error("Finish or cancel dictation before leaving.");
+        sessions.delete(id); return null;
+      }
       case "dictation_state": return clone(pillSnapshot);
       case "frontend_ready": globalThis.__PENNEL_FIXTURE_READY__ = true; return null;
       case "frontend_flushed": return null;
