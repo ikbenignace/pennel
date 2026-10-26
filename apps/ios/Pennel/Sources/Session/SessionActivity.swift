@@ -50,12 +50,18 @@ final class SystemSessionActivity: SessionActivityControlling {
         Activity<SessionActivityAttributes>.activities.first { $0.id == id }
     }
 
-    /// A Live Activity left by a previous run (the app was killed) must not claim the microphone is ready.
+    /// A Live Activity left by a previous run (the app was killed) must not claim the microphone is ready. The ids are
+    /// taken synchronously at launch, so a session started right after (cold launch via `pennel://sessie/start`)
+    /// never loses its own, newer activity to this cleanup.
     static func endLeftovers() {
+        let ids = Activity<SessionActivityAttributes>.activities.map(\.id)
+        endLeftovers(ids) { id in await find(id)?.end(nil, dismissalPolicy: .immediate) }
+    }
+
+    @discardableResult
+    nonisolated static func endLeftovers(_ ids: [String], end: @escaping @Sendable (String) async -> Void) -> Task<Void, Never> {
         Task.detached {
-            for activity in Activity<SessionActivityAttributes>.activities {
-                await activity.end(nil, dismissalPolicy: .immediate)
-            }
+            for id in ids { await end(id) }
         }
     }
 

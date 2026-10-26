@@ -262,4 +262,18 @@ struct DictationSessionTests {
         #expect(meeting.dictating == [true, false])
         #expect(meeting.marks.count == 1)
     }
+
+    @Test func leftover_cleanup_never_ends_an_activity_started_after_launch() async {
+        var existing = ["killed-run"]
+        let ended = EndedIds()
+        let cleanup = SystemSessionActivity.endLeftovers(existing) { await ended.add($0) }
+        existing.append("new-session")
+        await cleanup.value
+        #expect(await ended.ids == ["killed-run"])
+    }
+}
+
+private actor EndedIds {
+    private(set) var ids: [String] = []
+    func add(_ id: String) { ids.append(id) }
 }
