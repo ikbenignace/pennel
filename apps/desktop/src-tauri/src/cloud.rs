@@ -25,7 +25,7 @@ pub struct CloudError {
 }
 
 impl CloudError {
-    fn other(message: impl std::fmt::Display) -> Self {
+    pub(crate) fn other(message: impl std::fmt::Display) -> Self {
         Self {
             code: "error".into(),
             message: message.to_string(),
@@ -345,9 +345,10 @@ impl From<MeetingSyncState> for MeetingSyncView {
     }
 }
 
-/// Only the dedicated cloud commands may switch sync on or off.
+/// Only the dedicated cloud commands may switch sync or Claude-toegang on or off.
 pub fn keep_stored_cloud_sync(incoming: &mut Settings, stored: &Settings) {
     incoming.cloud_sync = stored.cloud_sync;
+    incoming.claude_access = stored.claude_access;
 }
 
 fn device_name() -> String {
@@ -397,6 +398,7 @@ pub async fn cloud_login_poll(
     let poll = blocking(move || shared.engine.cloud_login_poll(device_code).map_err(err)).await?;
     if matches!(poll, CloudLoginPoll::Done { .. }) {
         poke(&app);
+        crate::claude_access::poke(&app);
     }
     Ok(poll.into())
 }
@@ -411,6 +413,7 @@ pub async fn cloud_logout(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Res
     .await?;
     let _ = app.emit("sync-changed", SyncReportView::from(current_report(&app)));
     settings_changed(&app);
+    crate::claude_access::poke(&app);
     Ok(())
 }
 
@@ -459,6 +462,7 @@ pub async fn cloud_delete_account(app: AppHandle, shared: State<'_, Arc<Shared>>
     blocking(move || shared.engine.cloud_delete_account().map_err(err)).await?;
     let _ = app.emit("sync-changed", SyncReportView::from(current_report(&app)));
     settings_changed(&app);
+    crate::claude_access::poke(&app);
     Ok(())
 }
 
@@ -505,6 +509,7 @@ pub async fn cloud_sync_disable(app: AppHandle, shared: State<'_, Arc<Shared>>) 
     blocking(move || shared.engine.cloud_sync_disable().map_err(err)).await?;
     let _ = app.emit("sync-changed", SyncReportView::from(current_report(&app)));
     settings_changed(&app);
+    crate::claude_access::poke(&app);
     Ok(())
 }
 
@@ -727,6 +732,9 @@ mod tests {
         incoming.cloud_sync = true;
         keep_stored_cloud_sync(&mut incoming, &stored);
         assert!(!incoming.cloud_sync);
+        incoming.claude_access = true;
+        keep_stored_cloud_sync(&mut incoming, &stored);
+        assert!(!incoming.claude_access);
     }
 
     #[test]

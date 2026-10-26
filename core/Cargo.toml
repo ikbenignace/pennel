@@ -20,6 +20,7 @@ chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 getrandom = "0.4.3"
 hmac = { version = "0.13.0", features = ["zeroize"] }
+pennel-speakers = { path = "speakers" }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
@@ -41,8 +42,11 @@ transcribe-cpp = { version = "0.4.1", default-features = false, features = ["met
 transcribe-cpp = { version = "0.4.1", default-features = false, optional = true }
 
 [features]
-default = ["local-models"]
+default = ["local-models", "speakers"]
 local-models = ["dep:transcribe-cpp"]
+# Local speaker recognition (sherpa-onnx with a statically linked ONNX Runtime). Without it the core
+# still matches voices from a Pennel Cloud diarization.
+speakers = ["pennel-speakers/onnx"]
 vulkan = ["local-models", "transcribe-cpp/vulkan"]
 
 [dev-dependencies]

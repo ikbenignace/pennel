@@ -32,6 +32,7 @@
   const transcript = [
     { start_ms: 0, end_ms: 8000, speaker: "others", text: "We ronden de planning maandag af.", failed: false, voice: 1 },
     { start_ms: 8000, end_ms: 14000, speaker: "me", text: "Ik bevestig de volgende afspraak.", failed: false, voice: null },
+    { start_ms: 14000, end_ms: 21000, speaker: "others", text: "Dan zet ik het voorstel nog vandaag in de map.", failed: false, voice: 2 },
   ];
   const available = () => ({ status: "available", reason: null });
   const providers = [
@@ -65,8 +66,8 @@
     style_rules: [{ bundle_id: "com.tinyspeck.slackmacgap", style: "casual" }, { bundle_id: "com.apple.MobileSMS", style: "casual" }, { bundle_id: "com.apple.mail", style: "formal" }, { bundle_id: "com.microsoft.Word", style: "formal" }, { bundle_id: "com.apple.Terminal", style: "literal" }, { bundle_id: "com.microsoft.VSCode", style: "literal" }], history_retention_days: 30, hotkey: "fn", local_unload_minutes: 5,
     meetings_dir: "/QA/Pennel Preview/Meetings", default_template: "algemeen", meeting_audio_retention_days: 30,
     app_rules: [], calendar_rules: [], event_rules: [], calendar_enabled: false, echo_cancellation: true,
-    record_shortcut_enabled: true, consent_enabled: false, auto_detect: true, diarization: false,
-    appearance: options.appearance, dictation_pad_auto_paste: false, cloud_sync: Boolean(options.cloud),
+    record_shortcut_enabled: true, consent_enabled: false, auto_detect: true, diarization: Boolean(options.speakers), speaker_recognition: options.speaker_mode || "local",
+    appearance: options.appearance, dictation_pad_auto_paste: false, cloud_sync: Boolean(options.cloud), claude_access: Boolean(options.claude),
     onboarding: { version: 1, status: options.window === "onboarding" ? "pending" : options.shortcut_denied ? "skipped" : "completed", resume_step: options.step || "welcome" },
   };
   const capabilities = Object.fromEntries(["pad_external_paste", "global_hotkey", "record_shortcut", "microphone", "system_audio", "echo_cancellation", "call_detection", "calendar", "apple_speech", "apple_intelligence", "selection", "rich_clipboard", "audio_playback", "diarization"].map(name => [name, available()]));
@@ -91,7 +92,12 @@
     ? { kind: "partial", bytes: Math.floor(model.size_bytes / 3) }
     : model.id === "whisper-large-v3-turbo" && !(options.window === "onboarding" && ["welcome", "engine"].includes(options.step)) ? { kind: "downloaded" } : { kind: "not_downloaded" } }));
   const diarizer = { id: "diar_streaming_sortformer_4spk-v2.1", name: "Sortformer (sprekers)", size_bytes: 139310336, state: { kind: "not_downloaded" } };
-  const modelFor = id => models.find(model => model.id === id) || (id === diarizer.id ? diarizer : undefined);
+  const speakerModels = [["pyannote-segmentation-3.0", 5992913], ["3dspeaker-campplus-zh-en-advanced", 28281164]].map(([id, size_bytes]) => ({ id, size_bytes, state: options.speakers === "ready" ? { kind: "downloaded" } : { kind: "not_downloaded" } }));
+  if (options.speakers === "legacy") diarizer.state = { kind: "downloaded" };
+  let voiceProfile = options.voice_profile ? { created_iso: "2026-10-20T10:00:00+02:00", speech_seconds: 22 } : null;
+  let knownVoices = options.known_voices ? [{ id: "qa-noor", name: "Noor", meetings: 4, updated_iso: "2026-10-24T09:30:00+02:00" }, { id: "qa-sam", name: "Sam Peeters", meetings: 1, updated_iso: "2026-10-14T15:00:00+02:00" }] : [];
+  const meetingVoices = [{ voice: 1, name: "Noor", remembered: Boolean(options.known_voices), can_remember: true }, { voice: 2, name: null, remembered: false, can_remember: true }];
+  const modelFor = id => models.find(model => model.id === id) || speakerModels.find(model => model.id === id) || (id === diarizer.id ? diarizer : undefined);
   const activeDownloads = new Set(options.download_active ? ["whisper-large-v3-turbo"] : []);
   const downloadWaiters = new Map();
   let pad = sentence;
@@ -295,9 +301,20 @@
       case "rename_meeting": return meetingId;
       case "summarize_meeting": return summary;
       case "retranscribe_meeting": return 0;
-      case "diarize_meeting": return 1;
+      case "diarize_meeting": return { voices: 2, named: 1, me_found: false };
+      case "speaker_setup": return { local_available: options.speaker_local !== false, ready: options.speaker_mode === "cloud" ? signedIn : speakerModels.every(model => model.state.kind === "downloaded") || diarizer.state.kind === "downloaded", signed_in: signedIn, model_ids: speakerModels.map(model => model.id), legacy_model: diarizer.state.kind === "downloaded", profile: clone(voiceProfile), known: clone(knownVoices), enrollment_text: "Ik lees deze tekst voor zodat Pennel mijn stem leert kennen. Zo weet Pennel in elke meeting wanneer ik aan het woord ben, ook als we samen rond één microfoon zitten. Vandaag is een rustige dag: de koffie is nog warm, de zon schijnt door het raam en op mijn bureau ligt een schrift vol ideeën. Straks overlopen we de planning, verdelen we de taken en spreken we af wie welke vragen beantwoordt." };
+      case "meeting_voices": return clone(meetingVoices);
+      case "remember_speaker": { const voice = meetingVoices.find(item => item.voice === args.voice); if (voice) { voice.name = args.name; voice.remembered = true; } return null; }
+      case "start_voice_enrollment": { let seconds = 0; globalThis.__PENNEL_ENROLLMENT__ = setInterval(() => emit("voice-enrollment", { seconds: ++seconds, level: 0.1, stopped: false }), 1000); return null; }
+      case "finish_voice_enrollment": clearInterval(globalThis.__PENNEL_ENROLLMENT__); if (options.enrollment_error) throw new Error(options.enrollment_error); voiceProfile = { created_iso: "2026-10-25T09:00:00+01:00", speech_seconds: 21 }; return clone(voiceProfile);
+      case "cancel_voice_enrollment": clearInterval(globalThis.__PENNEL_ENROLLMENT__); return null;
+      case "forget_voice_profile": voiceProfile = null; return null;
+      case "rename_known_voice": knownVoices = knownVoices.map(voice => voice.id === args.id ? { ...voice, name: args.name } : voice); return null;
+      case "forget_known_voice": knownVoices = knownVoices.filter(voice => voice.id !== args.id); return null;
+      case "forget_all_voices": knownVoices = []; voiceProfile = null; return null;
       case "cloud_account": if (!signedIn) throw notSignedIn(); return clone(cloudAccount);
       case "cloud_devices": if (!signedIn) throw notSignedIn(); return clone(cloudDevices);
+      case "claude_access": case "set_claude_access": return { enabled: Boolean(options.claude), status: options.claude ? { kind: "connected", last_request_ms: now - 2 * 60_000 } : { kind: "off" }, mcp_url: "https://api.pennel.app/mcp" };
       case "cloud_sync_last": return syncReport();
       case "cloud_folder_warning": return null;
       case "meeting_sync_states": return signedIn && !options.empty ? [{ id: meetingId, state: options.cloud === "conflict" ? "conflict" : "synced" }] : [];

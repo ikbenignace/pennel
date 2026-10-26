@@ -1,4 +1,5 @@
-import { api, type CloudAccount, type CloudDevice, type Settings, type SyncReport } from "../api";
+import { api, type ClaudeAccessView, type ClaudeStatus, type CloudAccount, type CloudDevice, type Settings, type SyncReport } from "../api";
+import { claudeInstructions, claudeStatusText } from "../claude-access";
 import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, planSyncRedraw, pollLogin, recoveryNeedsConfirmation, relativeTime, type LoginPoll } from "../cloud-login";
 import { confirmDialog, errorCode, errorText, h, section, toggle } from "../dom";
 import type { Context } from "../main";
@@ -32,6 +33,8 @@ let redraw: (() => void) | null = null;
 let listening = false;
 let shownReport: SyncReport | null = null;
 let syncBlock: { element: HTMLElement; build: (report: SyncReport) => HTMLElement } | null = null;
+let claudeShown: { line: HTMLElement; enabled: boolean } | null = null;
+let listeningClaude = false;
 
 function update() { redraw?.(); }
 
@@ -58,6 +61,21 @@ function listenForSync() {
     }
     update();
   }).catch(() => { listening = false; });
+}
+
+function claudeLine(status: ClaudeStatus, enabled: boolean): string | null {
+  return claudeStatusText(status, enabled, (then) => relativeTime(then, Date.now()));
+}
+
+function listenForClaude() {
+  if (listeningClaude) return;
+  listeningClaude = true;
+  void api.onClaudeAccessChanged((status) => {
+    if (!claudeShown?.line.isConnected) return;
+    const text = claudeLine(status, claudeShown.enabled);
+    claudeShown.line.textContent = text ?? "";
+    claudeShown.line.className = status.kind === "error" ? "error" : "muted";
+  }).catch(() => { listeningClaude = false; });
 }
 
 async function beginLogin(ctx: Context) {
@@ -109,6 +127,7 @@ function resetLocalState() {
 
 export async function accountView(ctx: Context): Promise<HTMLElement> {
   listenForSync();
+  listenForClaude();
   const mine = ctx.rerender;
   redraw = mine;
   ctx.onDispose(() => { if (redraw === mine) redraw = null; });
@@ -124,10 +143,11 @@ export async function accountView(ctx: Context): Promise<HTMLElement> {
     if (accountScreenFor(errorCode(error)) === "signed_out") return signedOut(ctx);
     accountError = error;
   }
-  const [report, devices, warning] = await Promise.all([
+  const [report, devices, warning, claude] = await Promise.all([
     api.cloudSyncLast(),
     account ? api.cloudDevices().catch(() => null) : Promise.resolve(null),
     api.cloudFolderWarning().catch(() => null),
+    account ? api.claudeAccess().catch(() => null) : Promise.resolve(null),
   ]);
   const enabled = ctx.info.settings.cloud_sync === true;
   const build = (current: SyncReport) => syncSection(ctx, current, enabled, warning, !unlockVisible(current, enabled));
@@ -144,6 +164,7 @@ export async function accountView(ctx: Context): Promise<HTMLElement> {
     ui.shownCode ? recoverySheet(ctx, ui.shownCode) : null,
     unlockSection(ctx, report, enabled),
     enabled && !ui.shownCode && !needsVault(report) ? recoverySection(ctx) : null,
+    claude ? claudeSection(ctx, claude) : null,
     devices ? devicesSection(ctx, devices) : null,
     deleteSection(ctx));
 }
@@ -374,6 +395,38 @@ function recoverySection(ctx: Context): HTMLElement {
       const ok = await confirmDialog("Nieuwe herstelcode maken?", "De oude herstelcode werkt daarna niet meer.", "Nieuwe herstelcode maken");
       if (ok) await action(ctx, async () => { showCode(await api.cloudSyncNewRecoveryCode()); });
     } }, "Nieuwe herstelcode maken"));
+}
+
+function copyField(label: string, value: string): HTMLElement {
+  const status = h("span", { class: "muted", role: "status" });
+  return h("div", {},
+    h("p", { class: "help" }, label),
+    h("div", { class: "row" },
+      h("input", { type: "text", class: "grow", readonly: true, value, "aria-label": label, spellcheck: "false" }),
+      h("button", { class: "btn", onclick: async () => {
+        try { await api.copyText(value); status.textContent = copyStatusText(null); }
+        catch (error) { status.textContent = copyStatusText(errorText(error)); }
+      } }, "Kopiëren"),
+      status));
+}
+
+function claudeSection(ctx: Context, view: ClaudeAccessView): HTMLElement {
+  const control = toggle("Claude-toegang", view.enabled, (checked) => void action(ctx, async () => {
+    await api.setClaudeAccess(checked);
+  }));
+  const text = claudeLine(view.status, view.enabled);
+  const line = h("p", { class: view.status.kind === "error" && view.enabled ? "error" : "muted", role: "status" }, text ?? "");
+  claudeShown = { line, enabled: view.enabled };
+  const steps = claudeInstructions(view.mcp_url);
+  return section("Claude-toegang", null,
+    control,
+    h("p", { class: "help" }, "Laat Claude je meetings doorzoeken en samenvatten. Claude stelt zijn vragen aan deze computer, die antwoordt vanuit de meetings die hier staan. In Pennel Cloud blijven je meetings end-to-end versleuteld. Werkt zolang Pennel op deze computer open is."),
+    line,
+    view.enabled ? [
+      copyField("In claude.ai: Instellingen → Connectors → Eigen connector toevoegen, met deze URL:", steps.connectorUrl),
+      copyField("In Claude Code:", steps.command),
+      h("p", { class: "help" }, "Claude vraagt je daarna één keer om in te loggen bij Pennel."),
+    ] : null);
 }
 
 function seenText(device: CloudDevice): string {

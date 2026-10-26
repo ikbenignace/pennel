@@ -20,7 +20,7 @@ struct OnboardingView: View {
 
     private var step: OnboardingStep { state.settings.onboarding.resumeStep }
     private var stage: Int {
-        switch step { case .welcome: 0; case .engine: 1; case .permissions: 2; case .practice: 3 }
+        switch step { case .welcome: 0; case .engine: 1; case .permissions: 2; case .practice, .voice: 3 }
     }
     private var session: OwnedDictationSession? { state.workspace.session?.kind == .practice ? state.workspace.session : nil }
     private var engine: String {
@@ -52,7 +52,7 @@ struct OnboardingView: View {
         case .welcome: true
         case .engine: engine == "apple" ? ProviderKind.appleSpeech.isPlatformSupported : engine != "local" || !downloading
         case .permissions: state.dictationSetup.canRecord
-        case .practice: session?.phase == .done
+        case .practice, .voice: session?.phase == .done
         }
     }
     private var nextTitle: String {
@@ -64,7 +64,7 @@ struct OnboardingView: View {
             if downloading { return "Downloaden…" }
             return model.flatMap { state.downloads.errors[$0.id] } == nil ? "Download model" : "Opnieuw proberen"
         case .permissions: return canContinue && !state.dictationSetup.canUseShortcut ? "Verder zonder \(state.settings.hotkey.label)" : "Verder"
-        case .practice: return "Open Pennel"
+        case .practice, .voice: return "Open Pennel"
         }
     }
 
@@ -92,7 +92,7 @@ struct OnboardingView: View {
                     case .welcome: welcome
                     case .engine: engineChoice
                     case .permissions: permissions
-                    case .practice: practice
+                    case .practice, .voice: practice
                     }
                     if let error = message ?? state.lastError {
                         Text(error).font(.figtree(12)).foregroundStyle(Theme.accent).padding(.top, 17)
@@ -543,7 +543,7 @@ struct OnboardingView: View {
             }
             if commitChoice() { state.setOnboarding(step: .permissions) }
         case .permissions: state.setOnboarding(step: .practice); ensurePractice()
-        case .practice:
+        case .practice, .voice:
             guard session?.phase == .done else { return }
             state.setOnboarding(step: .practice, status: .completed)
             onFinish()

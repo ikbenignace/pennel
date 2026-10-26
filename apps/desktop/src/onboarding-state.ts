@@ -1,6 +1,11 @@
 import type { LocalModel, OnboardingProgress, OnboardingStep, PermissionInfo, Settings, SetupReadiness } from "./api";
 
-export const onboardingSteps: OnboardingStep[] = ["welcome", "engine", "permissions", "practice"];
+export const onboardingSteps: OnboardingStep[] = ["welcome", "engine", "permissions", "practice", "voice"];
+
+/** Readiness knows setup up to the practice; after a practice the saved step may be the optional voice step. */
+export function resumeStep(ready: OnboardingStep, saved: OnboardingStep | undefined): OnboardingStep {
+  return ready === "practice" && saved === "voice" ? "voice" : ready;
+}
 
 export function stepIndex(step: unknown): number {
   const index = onboardingSteps.indexOf(step as OnboardingStep);

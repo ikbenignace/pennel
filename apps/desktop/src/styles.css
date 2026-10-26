@@ -136,6 +136,8 @@ details > summary { cursor: default; }
 .editor-dialog h2 { font-size: var(--font-body); font-weight: 600; margin: 0 0 6px; }
 .editor-dialog form { display: flex; flex-direction: column; gap: 10px; }
 .editor-dialog input { width: 100%; }
+.editor-dialog input[type="checkbox"] { width: 28px; }
+.editor-dialog .checkbox { margin: 0; }
 .dialog-actions { margin-top: 12px; }
 .template-editor { width: min(560px, calc(100vw - 40px)); }
 .template-editor textarea { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -486,3 +488,19 @@ body[data-window="onboarding"] main { display: flex; overflow: hidden; }
   .transcript-line { grid-template-columns: 44px 68px minmax(0, 1fr); gap: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* Sprekers: learning the user's voice and the speaker models */
+.enrollment-text { margin: 0; padding: var(--space-4); border-radius: var(--radius-panel); background: var(--subtle); font-size: var(--font-content); line-height: 1.6; -webkit-user-select: text; user-select: text; }
+.enrollment-controls { flex-wrap: nowrap; gap: var(--space-3); margin-top: var(--space-4); }
+.enrollment-record { min-width: 112px; font-variant-numeric: tabular-nums; }
+.enrollment-status { flex: 1; min-width: 0; margin: 0; }
+.enrollment-dialog { width: min(520px, calc(100vw - 40px)); }
+.enrollment-dialog .enrollment-text { font-size: var(--font-body); }
+.pane-section .enrollment-text { background: var(--surface); }
+.voice-step-note { margin-top: var(--space-3) !important; }
+.speaker-route { margin: var(--space-3) 0 var(--space-1); }
+.speaker-download-block { margin-top: var(--space-2); }
+.speaker-download .engine-download-progress { margin-top: var(--space-2); }
+.speaker-sign-in { margin-top: var(--space-2); }
+.speaker-forget-all { margin-top: var(--space-3); }
+.remembered-voices { margin: calc(var(--space-2) * -1) 0 var(--space-3); }

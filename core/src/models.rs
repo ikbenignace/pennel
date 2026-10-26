@@ -61,6 +61,8 @@ pub struct ModelEntry {
 pub enum ModelKind {
     Speech,
     Diarizer,
+    /// One of the two files of the speaker pipeline; the app offers them as one download.
+    Speakers,
 }
 
 pub const DIARIZER_ID: &str = "diar_streaming_sortformer_4spk-v2.1";
@@ -80,10 +82,43 @@ fn diarizer_entry() -> ModelEntry {
     }
 }
 
+pub const SEGMENTATION_ID: &str = "pyannote-segmentation-3.0";
+pub const EMBEDDING_ID: &str = "3dspeaker-campplus-zh-en-advanced";
+
+/// pyannote segmentation-3.0 (MIT) and 3D-Speaker CAM++ (Apache-2.0), ONNX exports pinned by commit.
+fn speaker_entries() -> Vec<ModelEntry> {
+    vec![
+        ModelEntry {
+            id: SEGMENTATION_ID.into(),
+            name: "pyannote segmentatie 3.0".into(),
+            description: "Hoort wie wanneer spreekt".into(),
+            size_bytes: 5_992_913,
+            sha256: "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079".into(),
+            url: "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/model.onnx".into(),
+            scores: None,
+            legacy: false,
+            kind: ModelKind::Speakers,
+        },
+        ModelEntry {
+            id: EMBEDDING_ID.into(),
+            name: "CAM++ stemafdruk".into(),
+            description: "Herkent stemmen over meetings heen".into(),
+            size_bytes: 28_281_164,
+            sha256: "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2".into(),
+            url: "https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/0743f301363dec56491a490f6d6cbc9d67f9a3bf/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx".into(),
+            scores: None,
+            legacy: false,
+            kind: ModelKind::Speakers,
+        },
+    ]
+}
+
 impl ModelEntry {
     fn extension(&self) -> &str {
         if self.url.ends_with(".gguf") {
             "gguf"
+        } else if self.url.ends_with(".onnx") {
+            "onnx"
         } else {
             "bin"
         }
@@ -136,6 +171,7 @@ fn entries() -> Vec<ModelEntry> {
         .collect();
     entries.extend(legacy_entries());
     entries.push(diarizer_entry());
+    entries.extend(speaker_entries());
     entries
 }
 
@@ -549,6 +585,23 @@ mod tests {
         assert_eq!(store.state(DIARIZER_ID), ModelState::Downloaded);
         assert!(store.downloaded().is_empty());
         assert!(!ids(&store.local_models(None, false)).contains(&DIARIZER_ID));
+    }
+
+    #[test]
+    fn speaker_models_are_onnx_files_outside_the_speech_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        for id in [SEGMENTATION_ID, EMBEDDING_ID] {
+            assert_eq!(store.state(id), ModelState::NotDownloaded);
+            std::fs::write(dir.path().join(format!("models/{id}.onnx")), b"x").unwrap();
+            assert_eq!(store.state(id), ModelState::Downloaded);
+            assert!(store.path(id).unwrap().ends_with(format!("{id}.onnx")));
+        }
+        assert!(store.downloaded().is_empty());
+        let listed = store.local_models(None, false);
+        assert!(!ids(&listed).contains(&SEGMENTATION_ID));
+        assert!(!ids(&listed).contains(&EMBEDDING_ID));
     }
 
     #[test]

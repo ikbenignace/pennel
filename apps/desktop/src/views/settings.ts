@@ -1,5 +1,7 @@
-import { api, listen, type Capability, type MeetingTemplate, type RecordAction } from "../api";
-import { confirmDialog, errorText, h, section, select, toggle } from "../dom";
+import { api, type Capability, type KnownVoice, type MeetingTemplate, type RecordAction, type SpeakerRecognitionMode } from "../api";
+import { askText, confirmDialog, errorText, h, section, select, toggle } from "../dom";
+import { trainedLabel } from "../speaker-state";
+import { SpeakerModels, enrollmentBlocker, enrollmentDialog, speakerDownload } from "./voices";
 import type { Context } from "../main";
 import { icon } from "../icons";
 import { appBadge } from "../app-icon";
@@ -77,37 +79,88 @@ async function templateSection(ctx: Context, templates: MeetingTemplate[]) {
     h("button", { class: "btn", onclick: () => templateEditor(ctx, { id: null, name: "", body: "Beschrijf waar de samenvatting op moet letten.\n\n## Samenvatting\n## Actiepunten\n" }) }, "Nieuw sjabloon"));
 }
 
+async function speakerSections(ctx: Context): Promise<HTMLElement[]> {
+  const settings = ctx.info.settings;
+  const setup = await api.speakerSetup();
+  const mode: SpeakerRecognitionMode = settings.speaker_recognition === "cloud" ? "cloud" : "local";
+  const modelStatus = h("p", { class: "help", role: "status" });
+  let download: ReturnType<typeof speakerDownload> | null = null;
+  const models = new SpeakerModels(setup.model_ids, () => {
+    modelStatus.textContent = models.ready ? "Sprekermodellen klaar"
+      : models.downloading ? "Sprekermodellen worden gedownload."
+      : setup.legacy_model ? "Het oudere sprekermodel werkt nog, maar herkent stemmen niet over meetings heen. Download de nieuwe sprekermodellen om dat wel te doen."
+      : "Sprekermodellen nog niet gedownload.";
+    download?.update();
+    learnReason.textContent = enrollmentBlocker(setup, mode, models) ?? "";
+    learnReason.hidden = !learnReason.textContent;
+    for (const button of [learn, again]) button.disabled = !!enrollmentBlocker(setup, mode, models);
+  });
+  download = speakerDownload(models);
+  ctx.onDispose(() => models.dispose());
+
+  const choice = select<SpeakerRecognitionMode>([["local", "Op dit toestel"], ["cloud", "Via Pennel Cloud"]], mode,
+    (value) => ctx.save((next) => { next.speaker_recognition = value; }), "segmented");
+  choice.setAttribute("aria-label", "Waar sprekers herkend worden");
+  choice.options[0].disabled = !setup.local_available;
+  const route = [
+    setup.local_available ? null : h("p", { class: "help" }, "Op dit toestel herkennen kan niet in deze versie van Pennel. Kies ‘Via Pennel Cloud’."),
+    ...mode === "cloud"
+      ? [h("p", { class: "help" }, "Je audio gaat naar Pennel Cloud, wordt daar in het geheugen verwerkt en niet bewaard. Daarvoor log je in bij Pennel Cloud."),
+        setup.signed_in ? null : h("button", { class: "text-button speaker-sign-in", onclick: () => ctx.navigate("account") }, "Inloggen bij Pennel Cloud")]
+      : setup.local_available ? [modelStatus, download.element, h("p", { class: "help" }, "Herkent stemmen op je computer. Je audio verlaat je toestel niet.")] : [],
+  ];
+
+  const learnVoice = async () => {
+    if (await enrollmentDialog(setup.enrollment_text)) ctx.rerender();
+  };
+  const learn = h("button", { class: "btn", onclick: learnVoice }, "Leer je stem");
+  const again = h("button", { class: "btn", onclick: learnVoice }, "Opnieuw");
+  const forget = h("button", { class: "btn danger", onclick: async () => {
+    if (!await confirmDialog("Je stem vergeten?", "Pennel herkent je dan niet meer automatisch op een gedeelde microfoon. Bestaande meetings blijven zoals ze zijn.", "Vergeet")) return;
+    try { await api.forgetVoiceProfile(); ctx.rerender(); } catch (error) { ctx.report(error); }
+  } }, "Vergeet mijn stem");
+  const learnReason = h("p", { class: "help", hidden: true });
+
+  const knownRow = (voice: KnownVoice) => h("div", { class: "row template-row" },
+    h("span", { class: "grow" }, voice.name),
+    h("span", { class: "help" }, voice.meetings === 1 ? "1 meeting" : `${voice.meetings} meetings`),
+    h("button", { class: "btn", onclick: async () => {
+      const name = await askText("Naam van deze stem", voice.name);
+      if (!name || name === voice.name) return;
+      try { await api.renameKnownVoice(voice.id, name); ctx.rerender(); } catch (error) { ctx.report(error); }
+    } }, "Wijzig naam"),
+    h("button", { class: "btn", onclick: async () => {
+      if (!await confirmDialog(`Stem van ${voice.name} vergeten?`, "Pennel geeft deze stem in nieuwe meetings geen naam meer. Namen in bestaande meetings blijven staan.", "Vergeet")) return;
+      try { await api.forgetKnownVoice(voice.id); ctx.rerender(); } catch (error) { ctx.report(error); }
+    } }, "Vergeet"));
+  const forgetAll = h("button", { class: "btn danger", disabled: !setup.known.length && !setup.profile, onclick: async () => {
+    if (!await confirmDialog("Alle stemmen vergeten?", "Je eigen stem en alle onthouden stemmen verdwijnen van dit toestel. Namen in bestaande meetings blijven staan.", "Vergeet alles")) return;
+    try { await api.forgetAllVoices(); ctx.rerender(); } catch (error) { ctx.report(error); }
+  } }, "Vergeet alle stemmen");
+
+  const sections = [
+    section("Sprekers herkennen", "Herkent na de meeting wie er sprak. Stemmen die je onthoudt, krijgen voortaan zelf hun naam.",
+      toggle("Sprekers herkennen na elke meeting", settings.diarization,
+        (value) => ctx.save((next) => { next.diarization = value; }), ctx.info.capabilities.diarization),
+      h("div", { class: "row speaker-route" }, choice), ...route),
+    section("Je stem", "Zo blijft wat jij zegt ‘Ik’, ook als iedereen rond één microfoon zit. Alleen een stemafdruk blijft op dit toestel, nooit de opname.",
+      h("div", { class: "row" }, h("span", { class: "grow" }, trainedLabel(setup.profile)),
+        ...(setup.profile ? [again, forget] : [learn])), learnReason),
+    section("Bekende stemmen", "Stemmen die je koos om te onthouden. Pennel geeft ze in volgende meetings zelf hun naam.",
+      setup.known.length ? setup.known.map(knownRow)
+        : h("p", { class: "help" }, "Nog geen stemmen onthouden. Geef een stem een naam in een meeting en kies ‘Onthoud deze stem’."),
+      h("div", { class: "row speaker-forget-all" }, forgetAll)),
+  ];
+  await models.start(ctx.info.active_model_downloads ?? []);
+  return sections;
+}
+
 export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
   const settings = ctx.info.settings;
   const templates = await api.meetingTemplates();
   const recording = await api.meetingStatus();
   const pathLocked = ctx.info.preview || recording.busy;
   const path = h("span", { class: "grow meeting-path", "aria-label": "Meetingmap" }, ctx.info.preview ? "Preview · aparte meetingmap" : settings.meetings_dir || "~/Pennel");
-  const status = h("p", { class: "help" }, "Sprekersmodel nog niet gecontroleerd.");
-  const download = h("button", { class: "btn", onclick: async () => {
-    download.disabled = true;
-    try { await api.downloadModel(ctx.info.diarizer_model_id); status.textContent = "Model wordt gedownload. Je kunt het hier annuleren."; }
-    catch (error) { status.textContent = errorText(error); download.disabled = false; }
-  } }, "Download sprekermodel");
-  const progress = h("progress", { hidden: true, max: 1, value: 0 });
-  try {
-    const model = await api.modelState(ctx.info.diarizer_model_id);
-    status.textContent = model.kind === "downloaded" ? "Model klaar · Sortformer, tot 4 sprekers"
-      : model.kind === "partial" ? "Download onderbroken" : "Model nog niet gedownload";
-    download.disabled = model.kind === "downloaded";
-  } catch (error) { status.textContent = errorText(error); }
-  const listeners = await Promise.all([
-    listen<{ id: string; downloaded: number; total: number }>("download-progress", (event) => {
-      if (event.payload.id !== ctx.info.diarizer_model_id) return;
-      progress.hidden = false; progress.max = event.payload.total || 1; progress.value = event.payload.downloaded;
-    }),
-    listen<{ id: string; error: string | null }>("download-done", (event) => {
-      if (event.payload.id !== ctx.info.diarizer_model_id) return;
-      status.textContent = event.payload.error ? errorText(event.payload.error) : "Model klaar · Sortformer, tot 4 sprekers";
-      progress.hidden = true; download.disabled = !event.payload.error;
-    }),
-  ]);
-  ctx.onDispose(() => listeners.forEach((dispose) => dispose()));
   return h("div", { class: "settings-pane" },
     section("Map", "Elke meeting wordt een map met Markdown en audio. Leesbaar in Obsidian.",
       h("div", { class: "row" }, path,
@@ -123,11 +176,7 @@ export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
     section("Standaardsjabloon", null, select(templates.map((template) => [template.id, template.name]), settings.default_template,
       (id) => ctx.save((next) => { next.default_template = id; }), "menu")),
     await templateSection(ctx, templates),
-    section("Sprekers herkennen", "Splitst ‘Anderen’ na de meeting op in afzonderlijke stemmen die je een naam kunt geven. Draait lokaal.",
-      toggle("Sprekers herkennen na elke meeting", settings.diarization,
-        (value) => ctx.save((next) => { next.diarization = value; }), ctx.info.capabilities.diarization),
-      h("div", { class: "row" }, status, download,
-        h("button", { class: "btn", onclick: () => api.cancelDownload(ctx.info.diarizer_model_id) }, "Annuleren"), progress)),
+    ...await speakerSections(ctx),
     section("Audio bewaren", "Notities en transcript blijven altijd staan.",
       select([["30", "30 dagen"], ["90", "90 dagen"], ["365", "1 jaar"], ["0", "Altijd"]], String(settings.meeting_audio_retention_days),
         (value) => ctx.save((next) => { next.meeting_audio_retention_days = Number(value); }))));

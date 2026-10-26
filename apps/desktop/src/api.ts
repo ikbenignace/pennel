@@ -1,7 +1,9 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type Event } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import type { ClaudeStatus } from "./claude-access";
 import type { LoginPoll } from "./cloud-login";
+export type { ClaudeStatus };
 import type { WorkspaceRoute } from "./workspace-state";
 
 interface PlatformClient {
@@ -68,7 +70,8 @@ export type AppWindow = "library" | "settings" | "history" | "dictation" | "live
 export type MeetingPhase = "idle" | "starting" | "recording" | "stopping" | "finalizing" | "error";
 export type Speaker = "me" | "others";
 export type AppearancePreference = "system" | "light" | "dark";
-export type OnboardingStep = "welcome" | "engine" | "permissions" | "practice";
+export type OnboardingStep = "welcome" | "engine" | "permissions" | "practice" | "voice";
+export type SpeakerRecognitionMode = "local" | "cloud";
 
 export interface OnboardingProgress {
   version: number;
@@ -136,6 +139,12 @@ export interface ModelChoice {
   model: string;
 }
 
+export interface ClaudeAccessView {
+  enabled: boolean;
+  status: ClaudeStatus;
+  mcp_url: string;
+}
+
 export interface Settings {
   appearance: AppearancePreference;
   onboarding: OnboardingProgress;
@@ -163,6 +172,8 @@ export interface Settings {
   consent_enabled: boolean;
   auto_detect: boolean;
   diarization: boolean;
+  speaker_recognition: SpeakerRecognitionMode;
+  claude_access?: boolean;
   [key: string]: unknown;
 }
 
@@ -383,6 +394,48 @@ export interface SyncReport {
   last_success_ms: number | null;
 }
 
+export interface SpeakerRecognition {
+  voices: number;
+  named: number;
+  me_found: boolean;
+}
+
+export interface VoiceProfile {
+  created_iso: string;
+  speech_seconds: number;
+}
+
+export interface KnownVoice {
+  id: string;
+  name: string;
+  meetings: number;
+  updated_iso: string;
+}
+
+export interface MeetingVoice {
+  voice: number;
+  name: string | null;
+  remembered: boolean;
+  can_remember: boolean;
+}
+
+export interface SpeakerSetup {
+  local_available: boolean;
+  ready: boolean;
+  signed_in: boolean;
+  model_ids: string[];
+  legacy_model: boolean;
+  profile: VoiceProfile | null;
+  known: KnownVoice[];
+  enrollment_text: string;
+}
+
+export interface EnrollmentProgress {
+  seconds: number;
+  level: number;
+  stopped: boolean;
+}
+
 export interface CloudLoginStart {
   user_code: string;
   verification_uri: string;
@@ -501,7 +554,17 @@ export const api = {
   saveMeetingNotes: (id: string, text: string) => invoke<void>("save_meeting_notes", { id, text }),
   setMeetingAttendees: (id: string, attendees: string[]) => invoke<void>("set_meeting_attendees", { id, attendees }),
   renameSpeaker: (id: string, voice: number, name: string) => invoke<void>("rename_speaker", { id, voice, name }),
-  diarizeMeeting: (id: string) => invoke<number>("diarize_meeting", { id }),
+  recognizeSpeakers: (id: string) => invoke<SpeakerRecognition>("diarize_meeting", { id }),
+  meetingVoices: (id: string) => invoke<MeetingVoice[]>("meeting_voices", { id }),
+  rememberSpeaker: (id: string, voice: number, name: string) => invoke<void>("remember_speaker", { id, voice, name }),
+  speakerSetup: () => invoke<SpeakerSetup>("speaker_setup"),
+  startVoiceEnrollment: () => invoke<void>("start_voice_enrollment"),
+  finishVoiceEnrollment: () => invoke<VoiceProfile>("finish_voice_enrollment"),
+  cancelVoiceEnrollment: () => invoke<void>("cancel_voice_enrollment"),
+  forgetVoiceProfile: () => invoke<void>("forget_voice_profile"),
+  renameKnownVoice: (id: string, name: string) => invoke<void>("rename_known_voice", { id, name }),
+  forgetKnownVoice: (id: string) => invoke<void>("forget_known_voice", { id }),
+  forgetAllVoices: () => invoke<void>("forget_all_voices"),
   exportMeeting: (id: string, includeTranscript: boolean) =>
     invoke<MeetingExport>("export_meeting", { id, includeTranscript }),
   renameMeeting: (id: string, title: string) => invoke<string>("rename_meeting", { id, title }),
@@ -527,6 +590,10 @@ export const api = {
   deleteConflictCopy: (id: string, name: string) => invoke<void>("delete_conflict_copy", { id, name }),
   cloudFolderWarning: () => invoke<string | null>("cloud_folder_warning"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
+  claudeAccess: () => invoke<ClaudeAccessView>("claude_access"),
+  setClaudeAccess: (enabled: boolean) => invoke<ClaudeAccessView>("set_claude_access", { enabled }),
+  onClaudeAccessChanged: (handler: (status: ClaudeStatus) => void): Promise<() => void> =>
+    listen<ClaudeStatus>("claude-access-changed", (event) => handler(event.payload)),
   onSyncChanged: (handler: (report: SyncReport) => void): Promise<() => void> =>
     listen<SyncReport>("sync-changed", (event) => handler(event.payload)),
 };

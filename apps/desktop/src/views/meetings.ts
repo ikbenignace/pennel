@@ -1,6 +1,7 @@
-import { api, fixtureClient, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type Passage, type Segment } from "../api";
+import { api, fixtureClient, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type MeetingVoice, type Passage, type Segment } from "../api";
 import { SerialQueue, orFallback, persistAll } from "../async";
-import { askText, confirmDialog, errorText, formatClock, h, markdown, menuButton, select } from "../dom";
+import { askText, askTextWithSwitch, confirmDialog, errorText, formatClock, h, markdown, menuButton, select } from "../dom";
+import { recognitionSummary } from "../speaker-state";
 import { MeetingDraft } from "../meeting-draft";
 import type { Context } from "../main";
 import { icon } from "../icons";
@@ -105,7 +106,23 @@ function editNotes(ctx: Context, draft: MeetingDraft, id: string, rows = 8) {
   return { input, flush };
 }
 
-function transcript(ctx: Context, segments: Segment[], detail?: MeetingDetail, id?: string) {
+/** Names a voice in this meeting; with "Onthoud deze stem" switched on, later meetings name it too. */
+async function nameVoice(id: string, voice: number, suggested: string, current: MeetingVoice | undefined, remembering = false): Promise<boolean> {
+  if (!current?.can_remember) {
+    const name = await askText("Naam voor deze stem", suggested, "Laat leeg om terug ‘Anderen’ te tonen.");
+    if (name === null) return false;
+    await api.renameSpeaker(id, voice, name);
+    return true;
+  }
+  const answer = await askTextWithSwitch("Naam voor deze stem", suggested,
+    "Laat leeg om terug ‘Anderen’ te tonen. Een onthouden stem krijgt in volgende meetings zelf deze naam.", "Onthoud deze stem", remembering || current.remembered);
+  if (!answer) return false;
+  if (answer.on && answer.text) await api.rememberSpeaker(id, voice, answer.text);
+  else await api.renameSpeaker(id, voice, answer.text);
+  return true;
+}
+
+function transcript(ctx: Context, segments: Segment[], detail?: MeetingDetail, id?: string, voices: MeetingVoice[] = []) {
   const result = h("div", { class: "transcript" });
   if (!segments.length) { result.append(h("p", { class: "muted" }, "Nog geen transcript.")); return result; }
   const play = ctx.info.capabilities.audio_playback;
@@ -121,16 +138,21 @@ function transcript(ctx: Context, segments: Segment[], detail?: MeetingDetail, i
       const names = detail?.attendees ?? [];
       const chosen = names.indexOf(currentName);
       const original = chosen >= 0 ? `name:${chosen}` : "current";
+      const voice = voices.find((item) => item.voice === segment.voice);
+      const offerRemember = !!voice?.can_remember && !voice.remembered && !!currentName;
       const picker = select([
         ...chosen < 0 ? [["current", speakerLabel(segment, detail)] as [string, string]] : [],
         ...names.map((name, index) => [`name:${index}`, name] as [string, string]), ["custom", "Andere naam…"],
+        ...offerRemember ? [["remember", "Onthoud deze stem…"] as [string, string]] : [],
       ], original, (value) => {
         void (async () => {
-          const name = value.startsWith("name:") ? names[Number(value.slice(5))]
-            : value === "custom" ? await askText("Naam voor deze stem", currentName, "Laat leeg om terug ‘Anderen’ te tonen.") : null;
-          if (name === null || name === undefined) { picker.value = original; return; }
-          try { await api.renameSpeaker(id, segment.voice!, name); ctx.rerender(); }
-          catch (error) { picker.value = original; ctx.report(error); }
+          const suggested = value.startsWith("name:") ? names[Number(value.slice(5))] : currentName;
+          try {
+            const changed = value.startsWith("name:") && !voice?.can_remember
+              ? (await api.renameSpeaker(id, segment.voice!, suggested), true)
+              : await nameVoice(id, segment.voice!, suggested, voice, value === "remember");
+            if (changed) ctx.rerender(); else picker.value = original;
+          } catch (error) { picker.value = original; ctx.report(error); }
         })();
       }, "menu");
       picker.classList.add("speaker", "speaker-picker");
@@ -269,8 +291,8 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const playback = ctx.info.capabilities.audio_playback;
   const audioAvailable = detail.audio_tracks.some((track) => track.available);
   const audioReason = !audioAvailable ? "Geen bewaarde audio beschikbaar." : playback.status !== "available" ? playback.reason ?? "Audio afspelen is niet beschikbaar." : null;
-  let speakerModelReady = false;
-  try { speakerModelReady = (await api.modelState(ctx.info.diarizer_model_id)).kind === "downloaded"; } catch { /* The unavailable model remains actionable in Meetings settings. */ }
+  const [voices, speakerSetup] = await Promise.all([orFallback(() => api.meetingVoices(id), [], ctx.report), orFallback(() => api.speakerSetup(), null, ctx.report)]);
+  const remembered = voices.filter((voice) => voice.remembered && voice.name).map((voice) => voice.name);
   if (ctx.sourceTarget) current.tab = ctx.sourceTarget.kind === "transcript" ? "transcript" : "notes";
   else if (ctx.jumpMs !== undefined) current.tab = "transcript";
   const templates = await api.meetingTemplates();
@@ -305,7 +327,9 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     if (current.tab === "ask") { panel.replaceChildren(chat(ctx, id)); return; }
     if (current.tab === "transcript") {
       panel.replaceChildren(h("div", { class: "transcript-tools" }, audioReason ? h("span", { class: "help" }, audioReason) : h("span", { class: "grow" }),
-        h("button", { class: "text-button", disabled: !!audioReason, title: audioReason, onclick: () => api.stopAudio() }, "Stop audio")), transcript(ctx, detail.transcript, detail, id));
+        h("button", { class: "text-button", disabled: !!audioReason, title: audioReason, onclick: () => api.stopAudio() }, "Stop audio")),
+        ...remembered.length ? [h("p", { class: "help remembered-voices" }, `Onthouden: ${remembered.join(", ")}`)] : [],
+        transcript(ctx, detail.transcript, detail, id, voices));
       return;
     }
     panel.replaceChildren(detail.summary ? enhanced : detail.notes.trim() ? h("div", { class: "markdown" }, detail.notes) : h("p", { class: "muted" }, "Nog geen samenvatting."));
@@ -359,17 +383,19 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
       run: shareAction(() => api.shareMeeting(id, false, "share")) },
   ], "share-menu");
   const diarization = ctx.info.capabilities.diarization;
+  const cloudRoute = ctx.info.settings.speaker_recognition === "cloud";
   const speakerReason = runtime.busy || detail.info.duration_min <= 0 ? "Rond eerst de opname af."
     : diarization.status !== "available" ? diarization.reason ?? "Sprekers herkennen is niet beschikbaar."
-    : !detail.audio_tracks.some((track) => track.speaker === "others" && track.available) ? "Geen bewaard ‘Anderen’-spoor beschikbaar."
-    : !detail.transcript.some((segment) => segment.speaker === "others" && !segment.failed) ? "Geen transcript van andere sprekers beschikbaar."
-    : !speakerModelReady ? "Download eerst het sprekermodel bij Instellingen → Meetings." : null;
+    : !detail.audio_tracks.some((track) => track.available) ? "Geen bewaarde audio beschikbaar."
+    : !detail.transcript.some((segment) => !segment.failed) ? "Nog geen transcript."
+    : !speakerSetup?.ready ? cloudRoute ? "Log eerst in bij Pennel Cloud in Instellingen → Account." : "Download eerst de sprekermodellen bij Instellingen → Meetings."
+    : null;
   const canDiarize = !speakerReason;
   const diarize = h("button", { class: "btn", disabled: !canDiarize || current.working,
-    title: speakerReason ?? "Herkent stemmen met het lokale sprekermodel" }, "Sprekers herkennen");
+    title: speakerReason ?? (cloudRoute ? "Herkent stemmen via Pennel Cloud" : "Herkent stemmen op dit toestel") }, "Sprekers herkennen");
   diarize.addEventListener("click", async () => {
     current.working = true; diarize.disabled = true; message.textContent = "Sprekers herkennen…";
-    try { const voices = await api.diarizeMeeting(id); current.message = `${voices} stemmen herkend.`; }
+    try { current.message = recognitionSummary(await api.recognizeSpeakers(id)); }
     catch (error) { current.message = errorText(error); }
     current.working = false; ctx.rerender();
   });

@@ -1,0 +1,19 @@
+[package]
+name = "pennel-speakers"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "Speaker diarization, voice embeddings and voice matching shared by Pennel and Pennel Cloud"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+sherpa-onnx = { version = "=2.0.0", default-features = false, features = ["static"], optional = true }
+
+[features]
+default = []
+# Runs the segmentation and embedding models through sherpa-onnx (statically linked ONNX Runtime).
+onnx = ["dep:sherpa-onnx"]
+
+[dev-dependencies]
+serde_json = "1.0.154"

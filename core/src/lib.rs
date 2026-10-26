@@ -3,6 +3,7 @@ uniffi::setup_scaffolding!();
 mod call_detector;
 mod catalog;
 mod chunker;
+mod claude_access;
 mod cleanup;
 mod cli_agent;
 mod cloud;
@@ -31,6 +32,7 @@ mod rules;
 mod session;
 mod settings;
 mod setup;
+mod speakers;
 mod speech;
 mod status;
 mod storage;
@@ -40,12 +42,14 @@ mod system_llm;
 mod system_stt;
 mod templates;
 mod transcript_filter;
+mod voices;
 mod wav;
 
 pub use call_detector::{CallDetector, CallEvent, CallObservation};
 pub use cli_agent::{DetectedAgent, check_cli_agent, detect_cli_agents};
 pub use cloud::SecretStore;
 pub use cloud::account::{CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart};
+pub use cloud::relay::{RelayAnswer, RelayRequest};
 pub use cloud::sync::{MASS_DELETE, MeetingSyncState, SyncItemState, SyncReport, SyncStatus};
 pub use engine::{
     ApiKeys, CleanupStatus, DictationRequest, DictationResult, LibrarySearch, PennelEngine,
@@ -76,10 +80,13 @@ pub use rules::{
 pub use session::{MeetingHealth, MeetingRecognition, MeetingSession};
 pub use settings::{
     AppearancePreference, DictationMode, HotkeyTrigger, ModelChoice, OnboardingProgress,
-    OnboardingStatus, OnboardingStep, Settings, Style, StyleRule, default_settings,
+    OnboardingStatus, OnboardingStep, Settings, SpeakerRecognitionMode, Style, StyleRule,
+    default_settings,
 };
 pub use setup::{SetupAccess, SetupFacts, SetupReadiness, dictation_readiness, meeting_readiness};
+pub use speakers::{MeetingVoice, SpeakerRecognition};
 pub use status::{CommandIntent, DictationStatus, PillState};
 pub use system_llm::{LanguageModelMessage, SystemLanguageModel};
 pub use system_stt::SystemTranscriber;
 pub use templates::MeetingTemplate;
+pub use voices::{KnownVoice, VoiceProfile};

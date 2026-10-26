@@ -86,7 +86,7 @@ pub struct PennelEngine {
     history: Mutex<HistoryStore>,
     unsaved_history: Mutex<RecoveryState>,
     dictation_pad: Mutex<DictationPad>,
-    models: ModelStore,
+    pub(crate) models: ModelStore,
     downloads: Mutex<HashMap<String, Arc<DownloadTask>>>,
     local: LocalEngine,
     index: Mutex<Option<MeetingIndex>>,
@@ -308,15 +308,17 @@ impl PennelEngine {
     /// Meeting files stay; only what this device knew about the cloud is forgotten.
     pub fn cloud_logout(&self) -> Result<(), PennelError> {
         self.ensure_cloud_identity_mutable()?;
-        // Sync settings take these locks in this order too. Do not invert them during logout.
-        let _sync = self.sync_gate.lock().unwrap();
-        let _meeting = self.meeting_gate.lock().unwrap();
-        self.ensure_cloud_identity_mutable()?;
-        if let Ok(session) = self.cloud_session() {
-            session.logout();
+        {
+            // Sync settings take these locks in this order too. Do not invert them during logout.
+            let _sync = self.sync_gate.lock().unwrap();
+            let _meeting = self.meeting_gate.lock().unwrap();
+            self.ensure_cloud_identity_mutable()?;
+            if let Ok(session) = self.cloud_session() {
+                session.logout();
+            }
+            self.clear_sync_state_locked();
         }
-        self.clear_sync_state_locked();
-        Ok(())
+        self.set_claude_access(false)
     }
 
     pub fn cloud_account(&self) -> Result<CloudAccount, PennelError> {
@@ -337,12 +339,14 @@ impl PennelEngine {
 
     pub fn cloud_delete_account(&self) -> Result<(), PennelError> {
         self.ensure_cloud_identity_mutable()?;
-        let _sync = self.sync_gate.lock().unwrap();
-        let _meeting = self.meeting_gate.lock().unwrap();
-        self.ensure_cloud_identity_mutable()?;
-        self.cloud_session()?.delete_account()?;
-        self.clear_sync_state_locked();
-        Ok(())
+        {
+            let _sync = self.sync_gate.lock().unwrap();
+            let _meeting = self.meeting_gate.lock().unwrap();
+            self.ensure_cloud_identity_mutable()?;
+            self.cloud_session()?.delete_account()?;
+            self.clear_sync_state_locked();
+        }
+        self.set_claude_access(false)
     }
 
     /// Creates the vault and returns the recovery code to show once. When the account already
@@ -878,6 +882,9 @@ impl PennelEngine {
         let store = self.meeting_store();
         let uid = store.uid_of(&id);
         store.delete(&id)?;
+        let _ = self
+            .voice_store()
+            .forget_meeting(uid.as_deref().unwrap_or(&id));
         // Deleted in Pennel itself: sync may push this deletion past the mass-delete brake.
         // Kept in memory until the next pass, so deleting never waits for a running one.
         if let Some(uid) = uid
@@ -1093,29 +1100,10 @@ impl PennelEngine {
     }
 
     /// Splits the meeting's "Anderen" segments into voices from the full others-track (16 kHz mono);
-    /// returns how many voices were found.
+    /// returns how many voices were found. Kept for the macOS app; see `recognize_speakers`.
     pub fn diarize_meeting(&self, id: String, samples: Vec<f32>) -> Result<u32, PennelError> {
-        self.claim_library()?;
-        self.ensure_meeting_inactive(&id)?;
-        crate::local_engine::ensure_available()?;
-        let path = self
-            .models
-            .path(crate::models::DIARIZER_ID)
-            .ok_or(PennelError::ModelNotDownloaded)?;
-        let turns = crate::diarize::diarize(&path, &samples)?;
-        let store = self.meeting_store();
-        if store.unparsed_transcript_lines(&id) > 0 {
-            return Err(PennelError::InvalidResponse {
-                message: "transcript bevat regels die Pennel niet herkent".into(),
-            });
-        }
-        let mut segments = store.read_transcript(&id);
-        crate::diarize::assign_voices(&mut segments, &turns);
-        store.write_transcript(&id, &segments)?;
-        let mut voices: Vec<u32> = segments.iter().filter_map(|s| s.voice).collect();
-        voices.sort_unstable();
-        voices.dedup();
-        Ok(voices.len() as u32)
+        self.recognize_speakers(id, None, Some(samples))
+            .map(|recognition| recognition.voices)
     }
 
     pub fn meeting_attendees(&self, id: String) -> Vec<String> {
@@ -1841,7 +1829,7 @@ impl PennelEngine {
             .any(|session| !session.is_finalized())
     }
 
-    fn ensure_meeting_inactive(&self, id: &str) -> Result<(), PennelError> {
+    pub(crate) fn ensure_meeting_inactive(&self, id: &str) -> Result<(), PennelError> {
         if self
             .active_sessions
             .lock()
@@ -1857,7 +1845,7 @@ impl PennelEngine {
         Ok(())
     }
 
-    fn claim_library(&self) -> Result<(), PennelError> {
+    pub(crate) fn claim_library(&self) -> Result<(), PennelError> {
         let mut settings = self.settings();
         if self.preview {
             enforce_preview_library(
@@ -2720,13 +2708,7 @@ mod tests {
                 &[0.1; 16_000],
                 &crate::local_engine::CancelToken::default()
             ),
-            Err(unavailable.clone())
-        );
-        assert_eq!(
-            engine
-                .diarize_meeting("any".into(), vec![0.0; 16_000])
-                .unwrap_err(),
-            unavailable
+            Err(unavailable)
         );
     }
 
@@ -3469,10 +3451,18 @@ mod tests {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let engine = meeting_engine(&dir, &server);
         let id = add_meeting(&engine, "Sync", 9, "hallo");
+        let voice: Vec<f32> = (0..16_000).map(|i| (i as f32 * 0.05).sin() * 0.2).collect();
         assert_eq!(
-            engine.diarize_meeting(id, vec![0.0; 16000]),
-            Err(PennelError::ModelNotDownloaded)
+            engine.diarize_meeting(id.clone(), vec![0.0; 16_000]),
+            Ok(0),
+            "a silent track has nobody to recognise"
         );
+        let expected = if cfg!(feature = "speakers") {
+            PennelError::ModelNotDownloaded
+        } else {
+            crate::speakers::unavailable()
+        };
+        assert_eq!(engine.diarize_meeting(id, voice), Err(expected));
     }
 
     struct EchoLength;

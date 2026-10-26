@@ -25,6 +25,15 @@ pub enum AppearancePreference {
     Dark,
 }
 
+/// Where meeting audio is split into speakers. Matching voices always happens on the device.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeakerRecognitionMode {
+    #[default]
+    Local,
+    Cloud,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingStatus {
@@ -40,6 +49,8 @@ pub enum OnboardingStep {
     Engine,
     Permissions,
     Practice,
+    /// "Leer je stem": optional, after the first dictation.
+    Voice,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
@@ -137,7 +148,12 @@ pub struct Settings {
     #[serde(default)]
     pub diarization: bool,
     #[serde(default)]
+    pub speaker_recognition: SpeakerRecognitionMode,
+    #[serde(default)]
     pub cloud_sync: bool,
+    /// Lets Claude ask this computer about its meetings through Pennel Cloud (off by default).
+    #[serde(default)]
+    pub claude_access: bool,
     #[serde(default)]
     pub appearance: AppearancePreference,
     #[serde(default)]
@@ -213,7 +229,9 @@ pub fn default_settings() -> Settings {
         consent_enabled: false,
         auto_detect: true,
         diarization: false,
+        speaker_recognition: SpeakerRecognitionMode::Local,
         cloud_sync: false,
+        claude_access: false,
         appearance: AppearancePreference::System,
         onboarding: OnboardingProgress {
             status: OnboardingStatus::Pending,

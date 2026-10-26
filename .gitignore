@@ -17,3 +17,4 @@ apps/ios/Frameworks/
 apps/ios/PennelCore/
 apps/ios/build/
 apps/ios/PennelMobileKit/.build/
+core/speakers/target/
