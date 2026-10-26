@@ -184,12 +184,18 @@ pub fn answer(
     }
     match answer {
         "yes" => {
-            crate::meeting_runtime::start(
+            let started = crate::meeting_runtime::start(
                 shared,
                 prompt.title.unwrap_or_else(|| "Meeting".into()),
                 Some(prompt.app_id),
                 prompt.attendees,
-            )?;
+            );
+            if started.is_err() {
+                // The prompt is already gone; the recording view shows why it did not start.
+                LOG.error("Opname na opnamevraag kon niet starten");
+                crate::show_window(app, "live", None);
+            }
+            started?;
         }
         "never" => {
             let mut settings = shared.settings();
