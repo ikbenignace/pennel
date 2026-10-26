@@ -306,7 +306,7 @@
       case "meeting_voices": return clone(meetingVoices);
       case "remember_speaker": { const voice = meetingVoices.find(item => item.voice === args.voice); if (voice) { voice.name = args.name; voice.remembered = true; } return null; }
       case "start_voice_enrollment": { let seconds = 0; globalThis.__PENNEL_ENROLLMENT__ = setInterval(() => emit("voice-enrollment", { seconds: ++seconds, level: 0.1, stopped: false }), 1000); return null; }
-      case "finish_voice_enrollment": clearInterval(globalThis.__PENNEL_ENROLLMENT__); if (options.enrollment_error) throw new Error(options.enrollment_error); voiceProfile = { created_iso: "2026-10-25T09:00:00+01:00", speech_seconds: 21 }; return clone(voiceProfile);
+      case "finish_voice_enrollment": clearInterval(globalThis.__PENNEL_ENROLLMENT__); if (options.enrollment_delay_ms) await new Promise(resolve => setTimeout(resolve, options.enrollment_delay_ms)); if (options.enrollment_error) throw new Error(options.enrollment_error); voiceProfile = { created_iso: "2026-10-25T09:00:00+01:00", speech_seconds: 21 }; return clone(voiceProfile);
       case "cancel_voice_enrollment": clearInterval(globalThis.__PENNEL_ENROLLMENT__); return null;
       case "forget_voice_profile": voiceProfile = null; return null;
       case "rename_known_voice": knownVoices = knownVoices.map(voice => voice.id === args.id ? { ...voice, name: args.name } : voice); return null;

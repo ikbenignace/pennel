@@ -1,6 +1,7 @@
 import { api, listen, type EnrollmentProgress, type ModelState, type SpeakerSetup, type VoiceProfile } from "../api";
 import { errorText, formatClock, h } from "../dom";
-import { combinedProgress, enrollmentButton, enrollmentStatus, enrollmentStep, percent, speakerModelsReady, type DownloadProgress, type Enrollment } from "../speaker-state";
+import { afterPaint } from "../async";
+import { combinedProgress, enrollmentButton, enrollmentStatus, enrollmentStep, enrollmentTone, percent, speakerModelsReady, type DownloadProgress, type Enrollment } from "../speaker-state";
 
 export const speakerDownloadLabel = "Sprekermodellen downloaden · 34 MB";
 
@@ -101,9 +102,11 @@ export class EnrollmentPanel {
     this.draw();
   }
 
-  get busy(): boolean { return this.state.phase === "recording" || this.state.phase === "working"; }
+  get busy(): boolean { return this.state.phase === "starting" || this.state.phase === "recording" || this.state.phase === "working"; }
 
-  set disabled(value: boolean) { this.button.disabled = value || this.state.phase === "working"; }
+  private get waiting(): boolean { return this.state.phase === "starting" || this.state.phase === "working"; }
+
+  set disabled(value: boolean) { this.button.disabled = value || this.waiting; }
 
   private apply(state: Enrollment) {
     if (this.disposed) return;
@@ -112,16 +115,22 @@ export class EnrollmentPanel {
 
   private draw() {
     this.button.textContent = enrollmentButton(this.state, formatClock);
-    this.button.disabled = this.state.phase === "working";
+    this.button.disabled = this.waiting;
     this.button.dataset.phase = this.state.phase;
     this.button.classList.toggle("primary", this.state.phase !== "done");
+    this.button.setAttribute("aria-busy", String(this.waiting));
     this.status.textContent = enrollmentStatus(this.state);
-    this.status.classList.toggle("error", this.state.phase === "error");
+    const tone = enrollmentTone(this.state);
+    this.status.classList.toggle("error", tone === "error");
+    this.status.classList.toggle("success", tone === "success");
   }
 
   private async toggle() {
     if (this.state.phase === "recording") return this.finish();
-    if (this.state.phase === "working") return;
+    if (this.waiting) return;
+    this.apply(enrollmentStep(this.state, { kind: "request" }));
+    // Opening and closing the microphone runs on the app's main thread; paint the new state first.
+    await afterPaint();
     try {
       this.stopListening ??= await listen<EnrollmentProgress>("voice-enrollment", (event) => {
         if (this.state.phase !== "recording") return;
@@ -129,6 +138,7 @@ export class EnrollmentPanel {
         else this.apply(enrollmentStep(this.state, { kind: "tick", seconds: event.payload.seconds }));
       });
       await api.startVoiceEnrollment();
+      if (this.disposed) { void api.cancelVoiceEnrollment(); return; }
       this.apply(enrollmentStep(this.state, { kind: "start" }));
     } catch (error) { this.apply(enrollmentStep(this.state, { kind: "failed", message: errorText(error) })); }
   }
@@ -136,6 +146,7 @@ export class EnrollmentPanel {
   private async finish() {
     if (this.state.phase !== "recording") return;
     this.apply(enrollmentStep(this.state, { kind: "finish" }));
+    await afterPaint();
     try {
       const profile = await api.finishVoiceEnrollment();
       this.apply(enrollmentStep(this.state, { kind: "succeeded", profile }));
