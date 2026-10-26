@@ -1,0 +1,45 @@
+name: affected checks
+
+on:
+  workflow_call:
+    outputs:
+      core:
+        value: ${{ jobs.changes.outputs.core }}
+      legacy:
+        value: ${{ jobs.changes.outputs.legacy }}
+      platform:
+        value: ${{ jobs.changes.outputs.platform }}
+      app:
+        value: ${{ jobs.changes.outputs.app }}
+      packaging:
+        value: ${{ jobs.changes.outputs.packaging }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      legacy: ${{ steps.filter.outputs.legacy }}
+      platform: ${{ steps.filter.outputs.platform }}
+      app: ${{ steps.filter.outputs.app }}
+      packaging: ${{ steps.filter.outputs.packaging }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - name: Test change selection
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_ci_changes.py'
+      - name: Select affected checks
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = pull_request ]; then
+            python3 scripts/ci-changes.py --base "$BASE_SHA" --head "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          else
+            python3 scripts/ci-changes.py >> "$GITHUB_OUTPUT"
+          fi

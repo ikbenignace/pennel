@@ -2,6 +2,7 @@ name: desktop
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -11,7 +12,12 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  changes:
+    uses: ./.github/workflows/changes.yml
+
   version:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     outputs:
       release: ${{ steps.plan.outputs.release }}
@@ -30,6 +36,8 @@ jobs:
           cat plan.txt >> "$GITHUB_OUTPUT"
 
   core:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -106,7 +114,8 @@ jobs:
             runner: ${{ vars.LINUX_RUNNER || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             bundles: deb,appimage
-    needs: version
+    needs: [changes, version]
+    if: needs.changes.outputs.app == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     env:
@@ -262,6 +271,8 @@ jobs:
         run: rm -rf "src-tauri/target/${{ matrix.target }}/release/bundle"
 
   packaging-tools:
+    needs: changes
+    if: needs.changes.outputs.packaging == 'true'
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v5
