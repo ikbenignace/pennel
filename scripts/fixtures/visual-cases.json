@@ -29,6 +29,7 @@
   {"name":"settings-appearance","window":"settings","section":"settings","tab":"appearance"},
   {"name":"settings-account","window":"settings","section":"settings","tab":"account"},
   {"name":"settings-account-synced","window":"settings","section":"settings","tab":"account","cloud":"synced"},
+  {"name":"settings-account-claude","window":"settings","section":"settings","tab":"account","cloud":"synced","claude":true},
   {"name":"onboarding-welcome","window":"onboarding","step":"welcome"},
   {"name":"onboarding-engine-local","window":"onboarding","step":"engine","engine":"local"},
   {"name":"onboarding-download-active","window":"onboarding","step":"engine","engine":"local","download_active":true},

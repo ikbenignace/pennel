@@ -5,6 +5,7 @@ pub mod account;
 pub mod crypto;
 pub mod diarize;
 pub mod http;
+pub mod relay;
 pub mod sync;
 
 const RELEASE_URL: &str = "https://api.pennel.app";

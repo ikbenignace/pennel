@@ -3,6 +3,7 @@ uniffi::setup_scaffolding!();
 mod call_detector;
 mod catalog;
 mod chunker;
+mod claude_access;
 mod cleanup;
 mod cli_agent;
 mod cloud;
@@ -48,6 +49,7 @@ pub use call_detector::{CallDetector, CallEvent, CallObservation};
 pub use cli_agent::{DetectedAgent, check_cli_agent, detect_cli_agents};
 pub use cloud::SecretStore;
 pub use cloud::account::{CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart};
+pub use cloud::relay::{RelayAnswer, RelayRequest};
 pub use cloud::sync::{MASS_DELETE, MeetingSyncState, SyncItemState, SyncReport, SyncStatus};
 pub use engine::{
     ApiKeys, CleanupStatus, DictationRequest, DictationResult, LibrarySearch, PennelEngine,

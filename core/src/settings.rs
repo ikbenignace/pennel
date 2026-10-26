@@ -151,6 +151,9 @@ pub struct Settings {
     pub speaker_recognition: SpeakerRecognitionMode,
     #[serde(default)]
     pub cloud_sync: bool,
+    /// Lets Claude ask this computer about its meetings through Pennel Cloud (off by default).
+    #[serde(default)]
+    pub claude_access: bool,
     #[serde(default)]
     pub appearance: AppearancePreference,
     #[serde(default)]
@@ -228,6 +231,7 @@ pub fn default_settings() -> Settings {
         diarization: false,
         speaker_recognition: SpeakerRecognitionMode::Local,
         cloud_sync: false,
+        claude_access: false,
         appearance: AppearancePreference::System,
         onboarding: OnboardingProgress {
             status: OnboardingStatus::Pending,

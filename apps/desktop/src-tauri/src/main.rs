@@ -6,6 +6,7 @@ mod call_detection;
 mod capabilities;
 #[cfg(target_os = "macos")]
 mod capture;
+mod claude_access;
 #[cfg(any(not(target_os = "macos"), test))]
 mod clipboard;
 #[cfg(not(target_os = "macos"))]
@@ -817,6 +818,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     });
     app.manage(shared.clone());
     app.manage(cloud::SyncRunner::start(shared.clone(), handle.clone()));
+    app.manage(claude_access::ClaudeAccessRunner::start(
+        shared.clone(),
+        handle.clone(),
+    ));
     app.manage(platform_commands::UpdateState::default());
     if handle
         .config()
@@ -1082,6 +1087,8 @@ fn main() {
             cloud::meeting_sync_states,
             cloud::cloud_folder_warning,
             cloud::open_url,
+            claude_access::claude_access,
+            claude_access::set_claude_access,
             owned_dictation::onboarding_readiness,
             owned_dictation::pad_text,
             owned_dictation::save_pad_text,
@@ -1180,6 +1187,7 @@ fn main() {
                                 let _ = done.recv();
                             }
                             app.state::<cloud::SyncRunner>().stop();
+                            app.state::<claude_access::ClaudeAccessRunner>().stop();
                             platform_audio::stop();
                             let listener = shared.hotkey.lock().unwrap().take();
                             drop(listener);

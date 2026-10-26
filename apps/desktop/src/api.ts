@@ -1,7 +1,9 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type Event } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import type { ClaudeStatus } from "./claude-access";
 import type { LoginPoll } from "./cloud-login";
+export type { ClaudeStatus };
 import type { WorkspaceRoute } from "./workspace-state";
 
 interface PlatformClient {
@@ -137,6 +139,12 @@ export interface ModelChoice {
   model: string;
 }
 
+export interface ClaudeAccessView {
+  enabled: boolean;
+  status: ClaudeStatus;
+  mcp_url: string;
+}
+
 export interface Settings {
   appearance: AppearancePreference;
   onboarding: OnboardingProgress;
@@ -165,6 +173,7 @@ export interface Settings {
   auto_detect: boolean;
   diarization: boolean;
   speaker_recognition: SpeakerRecognitionMode;
+  claude_access?: boolean;
   [key: string]: unknown;
 }
 
@@ -581,6 +590,10 @@ export const api = {
   deleteConflictCopy: (id: string, name: string) => invoke<void>("delete_conflict_copy", { id, name }),
   cloudFolderWarning: () => invoke<string | null>("cloud_folder_warning"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
+  claudeAccess: () => invoke<ClaudeAccessView>("claude_access"),
+  setClaudeAccess: (enabled: boolean) => invoke<ClaudeAccessView>("set_claude_access", { enabled }),
+  onClaudeAccessChanged: (handler: (status: ClaudeStatus) => void): Promise<() => void> =>
+    listen<ClaudeStatus>("claude-access-changed", (event) => handler(event.payload)),
   onSyncChanged: (handler: (report: SyncReport) => void): Promise<() => void> =>
     listen<SyncReport>("sync-changed", (event) => handler(event.payload)),
 };
