@@ -28,7 +28,7 @@
   <img src="assets/readme/meeting-light.png" width="980" alt="Pennel meeting view with a meeting library, decisions and action items, using example content">
 </picture>
 
-<p align="center"><sub>Example meeting content. Pennel’s interface is currently in Dutch.</sub></p>
+<p align="center"><sub>Example meeting content, shown with the Dutch interface. Pennel supports English and Dutch.</sub></p>
 
 Write an email by speaking. Turn a conversation into notes you can come back to. Pennel brings dictation and meetings together, with local models or a provider you choose.
 
@@ -52,9 +52,12 @@ Mac releases use Pennel’s own signing certificate and are not yet Apple-notari
 
 ## Get started
 
-1. **Choose your speech model.** The setup wizard starts with local recognition. Download a model or configure your preferred provider.
-2. **Grant access.** Follow the prompts for your microphone and the permissions needed for shortcuts, pasting and meeting audio.
-3. **Say something.** Hold <kbd>fn</kbd> on an Apple keyboard, or <kbd>Right Ctrl</kbd> on Windows and Linux X11. Speak, then release to place the text where you were typing.
+1. **Choose your interface language.** Pennel selects the first supported system language by default, with English as the fallback. You can also choose **English** or **Nederlands**.
+2. **Choose your speech model.** The setup wizard starts with local recognition. Download a model or configure your preferred provider.
+3. **Grant access.** Follow the prompts for your microphone and the permissions needed for shortcuts, pasting and meeting audio.
+4. **Say something.** Hold <kbd>fn</kbd> on an Apple keyboard, or <kbd>Right Ctrl</kbd> on Windows and Linux X11. Speak, then release to place the text where you were typing.
+
+You can change the [interface language](docs/desktop.md#interface-language) later in **Settings → Appearance**. The change applies immediately; speech recognition and your content keep their own language. Releases **v0.1.7 and earlier** use Dutch and do not include the interface-language step.
 
 On Mac, set **System Settings → Keyboard → Press 🌐 key to → Do Nothing** when using `fn`. External keyboards can use a [different shortcut](docs/desktop.md#dictation-destinations-and-live-text).
 
