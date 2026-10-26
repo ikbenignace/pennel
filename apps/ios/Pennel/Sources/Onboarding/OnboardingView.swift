@@ -33,6 +33,9 @@ struct OnboardingView: View {
                     ProviderDetailView(providerId: route.id)
                 }
         }
+        // A full-screen cover does not inherit the tab view's tint and font.
+        .tint(Brand.accent.color)
+        .font(Theme.font(.body))
         .onAppear {
             flow.speech = OnboardingFlow.initialChoice(settings: model.settings, cloudSignedIn: model.engine.cloudSignedIn())
         }

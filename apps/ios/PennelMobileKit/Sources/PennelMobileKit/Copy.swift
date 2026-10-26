@@ -124,6 +124,9 @@ public enum Copy {
 
         public static let modeFast = "Snel"
         public static let modeCleaned = "Opgekuist"
+        /// The desktop label without "stijl per app": iPhone always uses the default style.
+        public static let modeCleanedOption = "Opgekuist — euh's weg, zelfcorrecties verwerkt"
+        public static let modeFastOption = "Snel — letterlijk wat je zei, zonder taalmodel"
         public static let keyboard = "Toetsenbord"
         public static let quickStart = "Snel starten"
         public static let openSettings = "Open Instellingen"

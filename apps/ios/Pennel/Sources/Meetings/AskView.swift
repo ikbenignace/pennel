@@ -117,7 +117,7 @@ struct AskChat: View {
         case .summary: "samenvatting"
         case .notes: "notities"
         }
-        return "\(passage.title) · \(MeetingDates.dayLabel(passage.startIso)) · \(place)"
+        return "\(passage.title) · \(MeetingDates.dateTimeLabel(passage.startIso)) · \(place)"
     }
 }
 

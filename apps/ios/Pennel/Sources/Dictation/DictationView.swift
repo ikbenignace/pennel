@@ -215,6 +215,10 @@ struct DictationView: View {
 
     private func content(_ controller: DictationController) -> some View {
         List {
+            Section(Copy.Dictation.sessionCard) {
+                SessionCard(session: DictationSession.shared)
+            }
+            .pennelRow()
             Section {
                 VStack(spacing: 12) {
                     Button(action: controller.toggle) {
@@ -292,6 +296,51 @@ private struct HistoryRow: View {
             }
             .buttonStyle(.borderless)
             .font(Theme.font(.subheadline))
+        }
+    }
+}
+
+/// Spec §4.2: the keyboard session at the top of the tab, in its three states.
+private struct SessionCard: View {
+    let session: DictationSession
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            VStack(alignment: .leading, spacing: Brand.Spacing.s3) {
+                HStack {
+                    Text(status(now: context.date))
+                        .font(Theme.font(.headline, weight: .semibold))
+                    Spacer()
+                    switch session.phase {
+                    case .off:
+                        Button(Copy.Dictation.startSession) { Task { await session.start() } }
+                            .buttonStyle(.bordered)
+                    case .ready:
+                        Button(Copy.Dictation.stopSession) { session.stop() }
+                            .buttonStyle(.bordered)
+                    case .listening, .processing:
+                        EmptyView()
+                    }
+                }
+                if session.phase == .ready {
+                    Text(Copy.Dictation.sessionReadyExplanation)
+                        .font(Theme.font(.footnote))
+                        .foregroundStyle(Brand.muted.color)
+                }
+                if session.phase == .off, let error = session.startError {
+                    Text(error).font(Theme.font(.footnote)).foregroundStyle(.red)
+                }
+            }
+            .padding(.vertical, Brand.Spacing.s1)
+        }
+    }
+
+    private func status(now: Date) -> String {
+        switch session.phase {
+        case .off: Copy.Dictation.sessionOff
+        case .ready: Copy.Dictation.sessionReady(remaining: max(0, (session.expiresAt ?? now).timeIntervalSince(now)))
+        case .listening: Copy.Dictation.listening
+        case .processing: Copy.Dictation.processing
         }
     }
 }

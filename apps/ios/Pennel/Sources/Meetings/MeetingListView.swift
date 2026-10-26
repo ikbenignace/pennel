@@ -12,6 +12,11 @@ enum MeetingDates {
         return date.formatted(.dateTime.locale(Locale(identifier: "nl-BE")).day().month(.abbreviated).year())
     }
 
+    /// The desktop's `dateLabel`: "24 okt 2026, 09:00".
+    static func dateTimeLabel(_ iso: String) -> String {
+        [dayLabel(iso), timeLabel(iso)].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
     static func timeLabel(_ iso: String) -> String {
         guard let date = date(iso) else { return "" }
         return date.formatted(.dateTime.locale(Locale(identifier: "nl-BE")).hour().minute())
@@ -270,7 +275,7 @@ private struct MeetingRow: View {
     private var details: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(meeting.title).font(Theme.font(.body, weight: .medium))
-            Text([MeetingDates.dayLabel(meeting.startIso), MeetingDates.timeLabel(meeting.startIso),
+            Text([MeetingDates.dateTimeLabel(meeting.startIso),
                   meeting.durationMin > 0 ? "\(meeting.durationMin) min" : nil]
                 .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                 .font(Theme.font(.footnote))

@@ -58,7 +58,7 @@ struct MeetingDetailView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: Brand.Spacing.s2) {
                 Text(info.title).font(.instrumentSerif(Brand.FontSize.displayTitle))
-                Text([MeetingDates.dayLabel(info.startIso), MeetingDates.timeLabel(info.startIso),
+                Text([MeetingDates.dateTimeLabel(info.startIso),
                       info.durationMin > 0 ? "\(info.durationMin) min" : ""]
                     .filter { !$0.isEmpty }.joined(separator: " · "))
                     .font(Theme.font(.footnote))

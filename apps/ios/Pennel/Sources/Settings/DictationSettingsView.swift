@@ -15,8 +15,8 @@ struct DictationSettingsView: View {
         Form {
             Section("Stand") {
                 Picker("Stand", selection: binding(\.mode)) {
-                    Text(Copy.Settings.modeCleaned).tag(DictationMode.clean)
-                    Text(Copy.Settings.modeFast).tag(DictationMode.fast)
+                    Text(Copy.Settings.modeCleanedOption).tag(DictationMode.clean)
+                    Text(Copy.Settings.modeFastOption).tag(DictationMode.fast)
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
