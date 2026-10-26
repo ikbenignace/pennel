@@ -54,7 +54,8 @@ second (10 times per second while listening, with the level) and `result.json` w
 command. The session ends, and the audio session is deactivated, after the chosen duration without a dictation
 (default 5 minutes), on **Stop**, on a phone call or other interruption (`Sessie gestopt door een oproep.`), on a
 media-services reset and when the app terminates; if the app is killed, the keyboard reads `off` after 5 s without
-a heartbeat.
+a heartbeat. The **Dicteersessie** card at the top of the Dicteren tab shows `Uit` with **Start sessie**, or
+`Klaar · nog m:ss` with **Stop sessie** and the explanation, `Luistert…` and `Pennel verwerkt je dictaat.` (spec §4.2).
 
 ## Keyboard
 
@@ -64,7 +65,11 @@ hands-free until the next tap; the cross cancels. Taps are ignored while the app
 explanation and **Open Instellingen**; letters always work. Opening `pennel://sessie/start` and Settings lives only in
 `AppOpener.swift`; setting `isEnabled` to false (App Review, spec R1) shows `Open Pennel en tik op Start sessie.` instead.
 A result is inserted once, only for the id of the keyboard's own stop command; **Laatste dictaat invoegen** appears only when a fresh keyboard finds an uninserted result.
-Gap: the Full Access flag for onboarding is Task 12; the opener returns true when the responder chain accepted the call, so a silent refusal by iOS still needs the device check.
+The first time the keyboard runs with Full Access it sets one boolean in the App Group defaults
+(`keyboardFullAccessSeen`, `KeyboardFullAccess`), never any text; the first launch and Instellingen › Dicteren ›
+Toetsenbord read it to show whether the keyboard is ready. Without Full Access the keyboard cannot reach the group, so the
+flag is not cleared when Full Access is switched off later.
+Gap: the opener returns true when the responder chain accepted the call, so a silent refusal by iOS still needs the device check.
 
 Keyboard memory (Instruments Allocations, 10 dictations plus letter typing, target under 30 MB): pending device acceptance.
 Simulator Release build of `PennelKeyboard.appex`: 782850 bytes in total (binary 651 KB, two fonts).
@@ -130,6 +135,19 @@ page opens in the default browser and the app polls like the desktop (interval, 
 Pending device acceptance: record on the iPhone and see the meeting on the Mac within a minute of finishing; edit notes on
 the Mac and see them on the iPhone at the next foreground; whether `BGAppRefreshTask` ever runs for a given user.
 
+## First launch
+
+Shown once, while the core's `onboarding.status` is `pending` (set to `completed` or `skipped` afterwards; the iPhone's
+steps differ from the desktop's, so `resume_step` is not used). Instellingen › Weergave › **Introductie opnieuw openen**
+shows it again, like the desktop. Steps (spec §4.7): **Welkom bij Pennel** with `Drie dingen en je kan dicteren in elke
+app.`; **Microfoon toestaan**; **Hoe wil je dicteren?** with **Pennel Cloud**, **Apple-dicteren** or **Eigen provider**;
+then the Account screen (login) only after Pennel Cloud, or the Providers screen only after Eigen provider; **Toetsenbord
+toevoegen en Volledige toegang aanzetten** with the Full Access explanation and the keyboard's status; and the optional
+**Action Button instellen**. The choice points dictation and meeting speech at Apple-dicteren at once, at Pennel Cloud only
+after a login, and at an own provider only once it has a key. **Later instellen** closes it at any step. Shared labels
+(**Aan de slag**, **Verder**, **Terug**, **Klaar**, **Later instellen**, **Geef toegang**, **In orde**) come from
+`apps/desktop/src/views/onboarding.ts`.
+
 ## Not available on iPhone
 
 Shown disabled with the reason, never hidden (also listed in `docs/desktop.md`): CLI agents, local models,
@@ -146,9 +164,9 @@ Measured with `scripts/build-core-ios.sh` (unstripped archives are about 93 MB):
 | ios-arm64 | 23553568 bytes |
 | ios-arm64-simulator | 23544600 bytes |
 
-Unsigned Release build, not App Store thinned size (`make ios`, Xcode 27, sum of all files in `Pennel.app`):
-12774231 bytes (about 12.8 MB; the app binary is 10.3 MB, keyboard extension 0.8 MB, widgets extension 0.8 MB
-including two Figtree fonts).
+Unsigned Release build, not App Store thinned size (`make ios`, Xcode 27, sum of all files in `Pennel.app`, measured
+2026-10-26 with all iPhone features): 14074619 bytes (about 14.1 MB; the app binary is 12072104 bytes, the keyboard
+extension 874690 bytes, the widgets extension 876296 bytes, each extension including two Figtree fonts).
 
 App Store size: pending device acceptance.
 
@@ -168,3 +186,50 @@ session, lock the phone for 2 minutes, unlock, dictate from the keyboard; the or
 Pending device acceptance (no device available):
 - Spike: start a meeting from the Action Button with the phone locked and unlocked, with `StartMeetingIntent.supportedModes = .background` as an `AudioRecordingIntent` that starts its Live Activity before `AVAudioSession.setActive(true)`. Record the result per iOS version here. Until it works on iOS 26 and 27 the foreground hop stays.
 - Manual: each intent from the Action Button, Back Tap (via Opdrachten), Siri and Control Center; the Stop buttons on the Lock Screen Live Activities with the phone locked.
+
+## App Review notes
+
+Text for the App Review notes field in App Store Connect (English, for the reviewer):
+
+> Pennel is a dictation and meeting-notes app. Everything works without an account.
+>
+> **Testing without an account.** On first launch choose "Apple-dicteren" (Apple's on-device speech recognition, no
+> account or key). Then: Dicteren tab → "Dicteer naar klembord" records, transcribes on the device and puts the text on
+> the clipboard. Meetings tab → "Start opname" records a meeting from the microphone; "Stop opname" finishes it and shows
+> the transcript.
+>
+> **Why the keyboard opens its own app.** Keyboard extensions cannot use the microphone. When the user taps "Start
+> Pennel" on the Pennel keyboard (only with Full Access), the keyboard opens its own containing app, Pennel, through
+> the `pennel://sessie/start` link, which starts a short dictation session; the user returns with the system back arrow.
+> The keyboard opens no other app and no website. It never uses the network and never stores what is typed; Full Access
+> is only used to exchange small files with the Pennel app in the shared App Group. Without Full Access the letter keys
+> work normally.
+>
+> **Why background audio is used.** After the user starts a dictation session, the app keeps the microphone open in the
+> background (background mode `audio`) for a limited time (5 minutes by default, chosen by the user: 5 min, 15 min or
+> 1 hour) so the keyboard can dictate in other apps. A Live Activity ("Pennel staat klaar") is shown the whole time with a
+> Stop button, and the session ends on Stop, on a phone call, or when the time runs out. Audio is only kept between a
+> dictation start and stop on the keyboard; while the session waits, every sample is discarded. Meeting recordings started
+> by the user also continue with the screen locked, with their own Live Activity and Stop button.
+>
+> **Pennel Cloud (optional).** Signing in uses a link sent by e-mail. Review account: an e-mail address with a mailbox
+> shared with App Review, given in the App Review "Sign-in information" fields of App Store Connect.
+
+The review Cloud account itself (a mailbox to share, or a fixed test code on the server in `pennel-cloud`, spec R9) does
+not exist yet: create it before the first TestFlight review and fill in the sign-in fields. A screen recording of the
+keyboard session (spec R3) is also still to be made on a device.
+
+## Privacy label answers
+
+For App Store Connect, App Privacy (to be confirmed against `pennel-cloud` before submitting):
+
+- **Tracking:** no. No third-party SDKs, no advertising, no analytics, no crash reporting.
+- **Data collected:** Contact Info → Email Address, linked to the user, purpose App Functionality, only when the user signs
+  in to Pennel Cloud. Nothing is collected without an account.
+- **Meetings synced through Pennel Cloud** are end-to-end encrypted with a key Pennel cannot read, so they are not
+  collected data in Apple's sense.
+- **Audio and text sent for transcription or cleanup** go to the provider the user chose (Pennel Cloud or their own
+  provider) for that request only. If the Pennel Cloud server keeps any of it beyond the request, add Audio Data / Other User
+  Content (App Functionality, linked) to the label.
+- Apple-dicteren and Apple Intelligence run on the device; nothing leaves the iPhone.
+

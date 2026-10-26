@@ -21,6 +21,11 @@ Update 2026-10-25: de gedeelde app heeft tijdelijke dicteerherstelitems, duurzam
 | T11 | Twee computers, zelfde account: meeting opnemen op de ene, verschijnt op de andere | Synchronisatie is alleen met tests en een gesimuleerde server geverifieerd |
 | T12 | Kluis opnieuw beginnen en herstelcode op een tweede toestel | Herstelflow is nog niet op twee echte toestellen doorlopen |
 | T13 | Dicteren en samenvatten via Pennel Cloud zonder eigen sleutel | Gehoste modellen zijn nog niet end-to-end op een toestel bevestigd |
+| T14 | Fysieke meeting van 60 minuten met vergrendeld scherm en één telefoontje | iPhone-opname, onderbreking en afronden zijn alleen in de simulator en met tests geverifieerd |
+| T15 | Een week dicteren met het Pennel-toetsenbord in Slack, Mail, WhatsApp en ChatGPT | Toetsenbord, app-wissel en invoegen zijn nog niet op een iPhone gebruikt |
+| T16 | Action Button, Tik achterop en bedieningspaneel: dicteren en opname starten/stoppen | Opdrachten zijn alleen met tests en in de simulator gecontroleerd |
+| T17 | Meeting op iPhone opgenomen staat binnen een minuut op de Mac (en omgekeerd) | Sync vanaf de iPhone is alleen met tests geverifieerd |
+| T18 | Toetsenbord zonder Volledige toegang en zonder netwerk: typen werkt | App Review-eis 4.4.1; nog niet op een toestel bevestigd |
 
 Tip: menu → **Logboek openen** toont het log van de actieve build. Canoniek Mac: `~/Library/Logs/Pennel/pennel.log`; preview/Windows/Linux: `logs/pennel.log` in de eigen gegevensmap.
 
@@ -64,7 +69,7 @@ Deze lijst beschrijft de native referentie en blijft bewaard als regressie-/acce
 ## 3. Nog te bouwen
 
 - **3g Microsoft 365-agenda** (Graph, device-code login) — vereist Azure app-registratie, mogelijk AE-admin-goedkeuring.
-- **Fase 4 – iPhone:** dicteertoetsenbord, Action Button/Shortcut, fysieke meetings opnemen, sync.
+- **Fase 4 – iPhone:** gebouwd (native SwiftUI-app op dezelfde kern: dicteertoetsenbord met sessie, Action Button/opdrachten/bedieningspaneel, fysieke meetings opnemen, Pennel Cloud-sync, eerste start); wacht op toestelacceptatie T14–T18 en een TestFlight-build. Zie [iPhone](ios.md).
 - **Gedeelde desktopapp – Mac, Windows en Linux:** één Tauri-interface en Rust-runtime met native services zijn geïmplementeerd; echte pakket-/toestelacceptatie en publieke uitrol staan nog open. Zie [desktopgedrag](desktop.md) en [Linux-pakketten](linux-packaging.md).
 - **Pennel Cloud, fase B en synchronisatie:** inloggen, end-to-end versleutelde meetingsynchronisatie en gehoste modellen zijn gebouwd in de gedeelde app (native referentie: uitgeschakeld tabblad); wachten op toestelacceptatie T11–T13.
 - **Commercialisatie** (zie het businessplan in de private repo pennel-cloud): licentie, accounts/licenties, betalingen, website, onboarding zonder eigen API-sleutels.
