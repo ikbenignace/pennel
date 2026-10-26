@@ -12,6 +12,13 @@ final class PlatformTests: XCTestCase {
         XCTAssertEqual(bottomOverlayFrame(visible: tiny, width: 420, height: 120), NSRect(x: 0, y: 25, width: 300, height: 80))
     }
 
+    func testTopRightOverlayFrameKeepsMarginAndFitsSmallScreens() {
+        let secondary = NSRect(x: -1440, y: 200, width: 1440, height: 875)
+        XCTAssertEqual(topRightOverlayFrame(visible: secondary, width: 420, height: 160, margin: 12), NSRect(x: -432, y: 903, width: 420, height: 160))
+        let tiny = NSRect(x: 0, y: 25, width: 300, height: 80)
+        XCTAssertEqual(topRightOverlayFrame(visible: tiny, width: 420, height: 160, margin: 12), NSRect(x: 0, y: 25, width: 300, height: 80))
+    }
+
     func testPasteboardRestorePreservesRichFormats() {
         let original = [["public.utf8-plain-text": Data("original".utf8), "public.html": Data("<b>original</b>".utf8)]]
         let board = FakePasteboard(items: original)

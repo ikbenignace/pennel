@@ -207,6 +207,8 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
             if mode == "prompt" {
                 builder = builder
                     .decorations(false)
+                    .transparent(true)
+                    .shadow(false)
                     .always_on_top(true)
                     .skip_taskbar(true)
                     .focused(false)
@@ -226,11 +228,26 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                 if let Ok(pointer) = window.ns_window() {
                     unsafe {
                         macos::configure_panel(pointer, true);
-                        macos::show_panel(pointer);
+                        macos::show_panel_at_top_right(
+                            pointer,
+                            spec.size.0,
+                            spec.size.1,
+                            workspace::PROMPT_MARGIN,
+                        );
                     }
                 }
                 #[cfg(not(target_os = "macos"))]
                 {
+                    if let Some(monitor) = preferred_monitor(&handle) {
+                        let area = monitor.work_area();
+                        let (x, y) = workspace::prompt_origin(
+                            (area.position.x, area.position.y),
+                            (area.size.width, area.size.height),
+                            monitor.scale_factor(),
+                            spec.size,
+                        );
+                        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+                    }
                     crate::pill::show_without_focus(&window);
                 }
             } else {
