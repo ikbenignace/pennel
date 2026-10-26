@@ -244,7 +244,7 @@ private struct CloudProviderCard: View {
         .pennelRow()
         .task {
             let engine = model.engine
-            state = await Task.detached { () -> State in
+            state = await Task.detached { () -> CardState in
                 do { return .signedIn(try engine.cloudAccount().email) }
                 catch PennelError.NotSignedIn { return .signedOut }
                 catch { return .failed(ErrorText.failed(error)) }
