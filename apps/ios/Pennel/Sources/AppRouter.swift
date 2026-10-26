@@ -12,6 +12,20 @@ final class AppRouter {
     var showsSessionReturn = false
     private(set) var dictationRequests = 0
     @ObservationIgnored private var handledDictationRequests = 0
+    private(set) var liveMeetingRequests = 0
+    @ObservationIgnored private var handledLiveMeetingRequests = 0
+
+    func requestLiveMeeting() {
+        selectedTab = .meetings
+        liveMeetingRequests += 1
+    }
+
+    /// True once per request, so the library shows the live screen once, also after a cold launch.
+    func takeLiveMeetingRequest() -> Bool {
+        guard handledLiveMeetingRequests < liveMeetingRequests else { return false }
+        handledLiveMeetingRequests = liveMeetingRequests
+        return true
+    }
 
     func requestDictation() {
         selectedTab = .dictate

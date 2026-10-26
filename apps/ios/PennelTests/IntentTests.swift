@@ -31,6 +31,7 @@ private final class FakeSession: DictationSessionControlling {
     func stop() { stops += 1 }
 }
 
+@Suite(.serialized)
 @MainActor
 struct IntentTests {
     /// A Live Activity button must work with the phone locked: a foreground stop would open the app.
@@ -53,22 +54,30 @@ struct IntentTests {
 
     @Test func start_meeting_intent_starts_runtime() async throws {
         let fake = FakeMeeting()
+        let router = AppRouter()
         IntentEnvironment.meeting = { fake }
+        IntentEnvironment.router = { router }
         defer { IntentEnvironment.reset() }
 
         _ = try await StartMeetingIntent().perform()
 
         #expect(fake.started == [""])
         #expect(fake.stops == 0)
+        #expect(router.selectedTab == .meetings)
+        #expect(router.takeLiveMeetingRequest())
+        #expect(!router.takeLiveMeetingRequest())
     }
 
     @Test func start_meeting_intent_reports_a_failed_start() async {
         let fake = FakeMeeting()
         fake.failure = MeetingRuntime.StartError.busy
+        let router = AppRouter()
         IntentEnvironment.meeting = { fake }
+        IntentEnvironment.router = { router }
         defer { IntentEnvironment.reset() }
 
         await #expect(throws: MeetingRuntime.StartError.self) { _ = try await StartMeetingIntent().perform() }
+        #expect(!router.takeLiveMeetingRequest())
     }
 
     @Test func stop_intents_stop_what_they_control() async throws {

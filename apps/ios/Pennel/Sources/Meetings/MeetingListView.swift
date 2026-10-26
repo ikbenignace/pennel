@@ -153,6 +153,8 @@ struct MeetingListView: View {
         }
         .task(id: query) { await load() }
         .task { prune() }
+.task { showRequestedLiveMeeting() }
+.onChange(of: AppRouter.shared.liveMeetingRequests) { showRequestedLiveMeeting() }
         .onChange(of: runtime.phase) { reload() }
         .onChange(of: syncRunner.report) { loadSyncStates() }
     }
@@ -195,6 +197,10 @@ struct MeetingListView: View {
             let removed = engine.pruneMeetingAudio()
             if removed > 0 { Self.log.info("pruned \(removed, privacy: .public) recordings") }
         }
+    }
+
+    private func showRequestedLiveMeeting() {
+        if AppRouter.shared.takeLiveMeetingRequest() { showsLive = true }
     }
 
     private func startRecording() {

@@ -9,8 +9,8 @@ struct StartMeetingIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult {
         #if PENNEL_APP
-        IntentEnvironment.router().selectedTab = .meetings
         try await IntentEnvironment.meeting().start(title: "")
+        IntentEnvironment.router().requestLiveMeeting()
         #endif
         return .result()
     }
