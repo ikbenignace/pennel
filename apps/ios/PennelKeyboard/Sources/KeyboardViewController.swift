@@ -23,6 +23,7 @@ final class KeyboardViewController: UIInputViewController {
         observations = [HandoffSignal.session, .result].map { signal in
             signal.observe { [weak self] in DispatchQueue.main.async { self?.model?.refresh() } }
         }
+        timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.model?.refresh() }
         }
