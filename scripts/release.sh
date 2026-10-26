@@ -12,7 +12,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 out="$root/build/release/$version"
 app="$root/build/Pennel.app"
 sparkle_bin="$root/apps/macos/.build/artifacts/sparkle/Sparkle/bin"
-download_prefix="https://github.com/ikbenignace/pennel/releases/download/v$version/"
+download_prefix="https://github.com/pennel-app/pennel/releases/download/v$version/"
 
 if [ "$dry_run" = 0 ]; then
   : "${PENNEL_SIGN_IDENTITY:?set PENNEL_SIGN_IDENTITY to your \"Developer ID Application: …\" identity}"
@@ -61,7 +61,7 @@ cp "$zip" "$updates/"
   --link https://pennel.app -o "$out/appcast.xml" "$updates"
 
 if [ "$dry_run" = 0 ]; then
-  gh release create "v$version" "$zip" "$dmg" --repo ikbenignace/pennel --draft \
+  gh release create "v$version" "$zip" "$dmg" --repo pennel-app/pennel --draft \
     --title "Pennel $version" --notes "See CHANGELOG"
 fi
 

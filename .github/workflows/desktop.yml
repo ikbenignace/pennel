@@ -302,7 +302,7 @@ jobs:
           printf '%s\n' "$TAP_KEY" > ~/.ssh/tap_key
           chmod 600 ~/.ssh/tap_key
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
-          git clone --depth 1 git@github.com:ikbenignace/homebrew-pennel.git tap
+          git clone --depth 1 git@github.com:pennel-app/homebrew-pennel.git tap
           mkdir -p tap/Casks
           python3 scripts/desktop-auto-release.py cask "$VERSION" "$sha" --repository "$GITHUB_REPOSITORY" > tap/Casks/pennel.rb
           cd tap

@@ -33,22 +33,22 @@ class CaskTests(unittest.TestCase):
     SHA = "a" * 64
 
     def test_cask_points_at_the_release_dmg(self):
-        cask = auto.render_cask("0.1.8", self.SHA, "ikbenignace/pennel")
+        cask = auto.render_cask("0.1.8", self.SHA, "pennel-app/pennel")
         self.assertIn('version "0.1.8"', cask)
         self.assertIn(f'sha256 "{self.SHA}"', cask)
-        self.assertIn("https://github.com/ikbenignace/pennel/releases/download/v#{version}/Pennel_#{version}_aarch64.dmg", cask)
+        self.assertIn("https://github.com/pennel-app/pennel/releases/download/v#{version}/Pennel_#{version}_aarch64.dmg", cask)
         self.assertIn('app "Pennel.app"', cask)
         self.assertIn("depends_on arch: :arm64", cask)
 
     def test_zap_never_removes_meetings_or_models(self):
-        cask = auto.render_cask("0.1.8", self.SHA, "ikbenignace/pennel")
+        cask = auto.render_cask("0.1.8", self.SHA, "pennel-app/pennel")
         self.assertNotIn("Application Support", cask)
 
     def test_rejects_malformed_inputs(self):
         with self.assertRaises(ValueError):
-            auto.render_cask("0.1.8", "ABC", "ikbenignace/pennel")
+            auto.render_cask("0.1.8", "ABC", "pennel-app/pennel")
         with self.assertRaises(ValueError):
-            auto.render_cask("0.1", self.SHA, "ikbenignace/pennel")
+            auto.render_cask("0.1", self.SHA, "pennel-app/pennel")
 
 
 if __name__ == "__main__":

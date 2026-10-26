@@ -104,7 +104,7 @@ def main():
     cask = commands.add_parser("cask", help="Print the Homebrew cask for a published release")
     cask.add_argument("version")
     cask.add_argument("sha256")
-    cask.add_argument("--repository", default="ikbenignace/pennel")
+    cask.add_argument("--repository", default="pennel-app/pennel")
     args = parser.parse_args()
     try:
         if args.command == "plan":
