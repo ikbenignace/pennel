@@ -1,5 +1,7 @@
 # Openstaande punten
 
+**Huidig desktopwerk:** de [desktoproadmap](desktop-roadmap.md) bevat tien voorbereide GitHub-issues met bronverwijzingen en acceptatiecriteria. Het publieke GitHub Projects-bord moet nog worden aangemaakt; de roadmap beschrijft de inrichting. Gebruik deze taken voor de huidige toestel- en releaseacceptatie. De historische lijst hieronder blijft als context bewaard.
+
 Historische native Mac-baseline: 2026-10-24, na fase 3a–3f. De gedeelde Tauri-app voor Mac, Windows en Linux is daarnaast geïmplementeerd; zie [migratie en bewijs](shared-app-migration.md). Onderstaande toestelvragen blijven acceptatiepunten totdat ze met de kandidaatpakketten zijn uitgevoerd.
 
 Update 2026-10-25: de gedeelde app heeft tijdelijke dicteerherstelitems, duurzame meetingchunks, vastgezette opname-instellingen, zichtbare opnamefouten, gedeelde modeldownloads, expliciete providertests en verbeterde bron-/toetsenbordnavigatie. Zie [desktopgedrag](desktop.md) en de [kleine Mac-pilot](improvement-pilot.md). De historische beperkingen hieronder zijn geen actuele buglijst voor de gedeelde app; fysieke toestel-, pakket- en updateacceptatie blijven afzonderlijk nodig.
