@@ -48,6 +48,10 @@ jobs:
       - name: Rust tests
         if: needs.changes.outputs.core == 'true'
         run: cargo test --manifest-path core/Cargo.toml --lib
+      - name: Rust lint without local models
+        run: cargo clippy --manifest-path core/Cargo.toml --lib --tests --no-default-features -- -D warnings
+      - name: Rust tests without local models
+        run: cargo test --manifest-path core/Cargo.toml --no-default-features --lib
       - name: Speaker pipeline
         if: needs.changes.outputs.core == 'true'
         run: |

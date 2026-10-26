@@ -1,0 +1,64 @@
+name: ios
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "core/**"
+      - "apps/ios/**"
+      - "scripts/build-core-ios.sh"
+      - "scripts/with-toolchain.sh"
+      - "Makefile"
+      - "assets/brand/**"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    # The app targets iOS 26.0, so it needs Xcode 26 or later; macos-26 is the first image that ships it.
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Require the iOS 26 SDK
+        run: |
+          sdk=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "Xcode $(xcodebuild -version | head -n 1), iOS SDK $sdk"
+          if [ "${sdk%%.*}" -lt 26 ]; then
+            echo "::error::iOS SDK $sdk is older than 26.0; this runner image cannot build Pennel for iPhone."
+            exit 1
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, aarch64-apple-ios, aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+          # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
+          # the build script's output, which would then link against a missing directory.
+          cache-directories: core/target/sherpa-onnx-prebuilt
+          key: ios-sherpa-prebuilt
+      - name: Rerun sherpa-onnx's build script after a cache restore
+        shell: bash
+        run: bash scripts/ci-sherpa-cache.sh core/target
+      # The iOS build compares its generated bindings with the Mac build's.
+      - name: Mac core bindings
+        run: make core
+      - name: Pick an available iPhone simulator
+        run: |
+          name=$(xcrun simctl list devices available | sed -n 's/^ *\(iPhone [^(]*[^( ]\) (.*/\1/p' | head -n 1)
+          test -n "$name"
+          echo "IOS_DESTINATION=platform=iOS Simulator,name=$name" >> "$GITHUB_ENV"
+      - name: Build and test
+        run: make ios-test
+      - name: Unsigned device build
+        run: make ios

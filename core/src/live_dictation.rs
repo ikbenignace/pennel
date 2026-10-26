@@ -5,10 +5,10 @@ use std::thread::JoinHandle;
 
 use crate::engine::{DictationRequest, DictationResult, PennelEngine};
 use crate::error::PennelError;
+use crate::local_engine::CancelToken;
 use crate::provider::ProviderKind;
 use crate::settings::{DictationMode, Settings};
 use crate::speech::{has_speech, is_hallucination};
-use transcribe_cpp::CancelToken;
 
 const SAMPLE_RATE: u32 = 16_000;
 const MAX_AUDIO_SAMPLES: usize = SAMPLE_RATE as usize * 6;

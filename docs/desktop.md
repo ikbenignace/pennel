@@ -82,6 +82,18 @@ Recording uses `idle → starting → recording → stopping → finalizing → 
 
 This table describes implemented paths, not completed hardware certification. Call classification is heuristic. Safari/WebKit attribution, app helper variants, device routes and real meetings remain acceptance cases.
 
+The iPhone app (native SwiftUI on the same core, see `docs/ios.md`) shows the same settings sections. These are visible but switched off there, with the reason shown in the app:
+
+| Capability on iPhone | Reason shown |
+| --- | --- |
+| CLI agents (Claude Code, Codex, …) | `Werkt alleen op een computer.` |
+| Local models | `Lokale modellen komen later naar iPhone. Apple-dicteren werkt al zonder internet.` |
+| Echo cancellation | `Niet nodig op iPhone: Pennel neemt alleen de microfoon op.` |
+| Call detection, calendar, per-app and per-meeting recording rules | `Op iPhone neemt Pennel alleen op wanneer jij op Start opname tikt.` |
+| Style per app | `iOS laat Pennel niet zien in welke app je typt. Op iPhone geldt de standaardstijl.` |
+| Hotkey (dictation and record shortcut) | `Op iPhone start je met het Pennel-toetsenbord of via Snel starten: Actieknop, Tik achterop of Bedieningspaneel.` |
+| Speaker recognition and naming (physical meetings are one microphone track, written as "Anderen") | `Sprekers herkennen is niet beschikbaar. Op iPhone neemt Pennel één microfoonspoor op; iedereen staat onder ‘Anderen’.` |
+
 ### Built-in Apple models
 
 In **Providers → Provider toevoegen**, add **Apple-dicteren** for dictation/meeting transcription and **Apple Intelligence** for cleanup, commands, summaries and meeting questions. Neither account has an API key or server URL. The provider actions assign the relevant model slots; the **Modellen** tab shows macOS-managed models without an editable model name. Speech permission is requested explicitly from the Apple-dicteren card. macOS manages speech-language assets and may install them on first use.
@@ -157,6 +169,7 @@ Keys remain in Keychain, Windows Credential Manager or Secret Service. No API ke
 | Canonical Windows | `%LOCALAPPDATA%\Pennel` | Existing `app.pennel.desktop` service |
 | Canonical Linux | `$XDG_DATA_HOME/Pennel`, normally `~/.local/share/Pennel` | Existing `app.pennel.desktop` Secret Service entries |
 | Preview/debug | Corresponding `Pennel Preview` directory | Separate preview service |
+| iPhone | `<app container>/Library/Application Support/Pennel`; meetings in `Documents/Meetings` | `app.pennel.ios` Keychain service, this device only |
 
 Canonical meetings use `~/Pennel` or the configured library. Previews pin their library to `<preview data>/Meetings`, reject external paths/symlink escapes, and do not migrate native credentials. `tauri.preview.conf.json` changes the bundle identity to `dev.pennel.Pennel.preview`; debug builds are also isolated.
 

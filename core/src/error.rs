@@ -32,6 +32,13 @@ impl PennelError {
             message: err.to_string(),
         }
     }
+
+    #[cfg_attr(feature = "local-models", allow(dead_code))]
+    pub(crate) fn local_models_unavailable() -> Self {
+        PennelError::InvalidResponse {
+            message: "Lokale modellen zijn niet beschikbaar op dit toestel.".into(),
+        }
+    }
 }
 
 #[cfg(test)]
