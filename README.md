@@ -1,99 +1,95 @@
-<img src="assets/brand/wordmark.svg" height="72" alt="pennel.">
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/wordmark-dark.svg">
+    <img src="assets/brand/wordmark.svg" width="200" alt="Pennel">
+  </picture>
+</p>
 
-**Say it. Full stop.** Pennel turns dictation into polished text and meetings into transcripts and notes kept on your computer.
+<h1 align="center">Say it. Full stop.</h1>
 
-The desktop implementation now uses one **Tauri 2 interface and Rust core for macOS, Windows and Linux**. An embedded Swift library retains the Mac's Apple integrations. This checkout contains the shared-app migration; the native SwiftUI app remains a comparison and recovery build until packaged applications pass device acceptance. See [implementation and evidence](docs/shared-app-migration.md).
+<p align="center">
+  Dictation where you type. Meeting notes kept on your computer.
+</p>
 
-- **Dictation and commands.** Hold `fn` on Mac or Right Ctrl on Windows/X11 Linux, speak, and release to insert cleaned-up text. Double-tap for hands-free dictation. Shift changes the instruction into a command on the selection where the platform supports selection reading.
-- **Meetings.** Microphone and system audio feed separate tracks and local M4A archives. The shared interface includes meeting detection/rules, notes, transcript, templates, speaker recognition, search, cited questions and export. Platform services and permissions determine availability.
-- **Private by default.** No account or telemetry. Use local speech models or your chosen provider, including OpenAI-compatible services and local servers. API keys stay in the OS credential store; meetings remain Markdown files in your chosen folder. Logs contain timings, lengths and errors rather than dictated or meeting content.
-- **One implementation.** Providers, processing, recording policy, lifecycle, history, search and model management share the Rust core. The same Dutch-first interface, fonts and design assets are used on every desktop platform.
+<p align="center">
+  <a href="https://github.com/pennel-app/pennel/releases/latest"><strong>Download Pennel</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#get-started">Get started</a>
+  &nbsp;·&nbsp;
+  <a href="docs/desktop-roadmap.md">Roadmap</a>
+  &nbsp;·&nbsp;
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
 
-Targets: **Apple Silicon/macOS 14.4+**, **Windows 11 x64**, and **Linux x86-64** with WebKitGTK 4.1. Apple Speech requires macOS 26+. Linux Wayland uses a configured desktop shortcut and clipboard delivery instead of a generic global keyboard hook or automatic paste. Real call, device, clipboard, installer and update acceptance remains required on each target.
+<p align="center">macOS · Windows · Linux &nbsp; / &nbsp; Open source · Apache-2.0</p>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/meeting-dark.png">
+  <img src="assets/readme/meeting-light.png" width="980" alt="Pennel meeting view with a meeting library, decisions and action items, using example content">
+</picture>
+
+<p align="center"><sub>Example meeting content. Pennel’s interface is currently in Dutch.</sub></p>
+
+Write an email by speaking. Turn a conversation into notes you can come back to. Pennel brings dictation and meetings together, with local models or a provider you choose.
 
 ## Install
 
-Every push to `main` that changes the app publishes a [GitHub release](https://github.com/pennel-app/pennel/releases) with the Mac `.dmg`, Windows `.exe`/`.msi` and Linux `.deb`/`.AppImage`. On a Mac with Apple Silicon:
+Choose your installer from the [latest release](https://github.com/pennel-app/pennel/releases/latest).
+
+| Platform | Requirements | Download |
+| --- | --- | --- |
+| macOS | Apple Silicon · macOS 14.4 or later | [`.dmg`](https://github.com/pennel-app/pennel/releases/latest) |
+| Windows | Windows 11 · x64 | [`.exe` or `.msi`](https://github.com/pennel-app/pennel/releases/latest) |
+| Linux | x86-64 · WebKitGTK 4.1 | [`.deb` or `.AppImage`](https://github.com/pennel-app/pennel/releases/latest) |
+
+On a Mac, you can also install with Homebrew:
 
 ```sh
 brew install --cask pennel-app/pennel/pennel
-brew upgrade --cask pennel   # later updates
 ```
 
-Mac releases are signed with Pennel's own stable certificate, so macOS asks for microphone, accessibility and input-monitoring permission once (again at the first update with this signature) and keeps it across later updates. They are not yet signed with an Apple Developer ID, so the Homebrew cask removes the download quarantine; Windows installers are unsigned and SmartScreen asks for confirmation.
+Mac releases use Pennel’s own signing certificate and are not yet Apple-notarized; the Homebrew cask handles download quarantine. Windows installers are unsigned, so SmartScreen may ask for confirmation. Linux users should check the [runtime dependencies](docs/linux-packaging.md#runtime-prerequisites), including when using an AppImage.
 
-## Build the shared app
+## Get started
 
-Prerequisites: Rust stable, Node 22+, Python 3 and CMake. Mac builds also need Xcode with the macOS 26 SDK or newer; Windows needs the MSVC build tools. Linux build/runtime packages and desktop differences are documented in [desktop development](docs/desktop.md) and [Linux packaging](docs/linux-packaging.md).
+1. **Choose your speech model.** The setup wizard starts with local recognition. Download a model or configure your preferred provider.
+2. **Grant access.** Follow the prompts for your microphone and the permissions needed for shortcuts, pasting and meeting audio.
+3. **Say something.** Hold <kbd>fn</kbd> on an Apple keyboard, or <kbd>Right Ctrl</kbd> on Windows and Linux X11. Speak, then release to place the text where you were typing.
 
-```sh
-make desktop-preview  # isolated preview installers; use this for migration QA
-make desktop-test     # frontend build and Tauri Rust tests
-(cd apps/desktop && npm test)
-```
+On Mac, set **System Settings → Keyboard → Press 🌐 key to → Do Nothing** when using `fn`. External keyboards can use a [different shortcut](docs/desktop.md#dictation-destinations-and-live-text).
 
-On Mac, `make desktop-preview` also creates `build/Pennel Preview.dmg` without Finder layout automation. The native comparison preview is built with `make app-preview`. It creates `build/Pennel Native Preview.app`, with its own data directory and credential service. `make theme-check` verifies that both interfaces use the generated shared theme tokens. See [redesign acceptance](docs/redesign-acceptance.md) for automated, screenshot and device evidence.
+On **Linux Wayland**, [set a desktop shortcut](docs/desktop.md#linux-x11-and-wayland) to `pennel --toggle-dictation`. Press once to start, again to finish, then paste with <kbd>Ctrl</kbd> + <kbd>V</kbd>.
 
-For a development session with hot reload:
+## From speech to finished text
 
-```sh
-cd apps/desktop
-npm ci
-../../scripts/with-toolchain.sh npx tauri dev
-```
+Hold to talk, or double-tap for hands-free dictation. Use your chosen text model to clean up what you said, apply a writing style, or give an instruction about selected text where your platform supports it.
 
-`scripts/with-toolchain.sh` uses an existing system toolchain, or a task-local Rust/CMake installation under the ignored `build/toolchain/` directory when present. It does not install tools or edit shell configuration.
+Prefer to work in one place? Open the dictation pad to speak, edit and copy your text. Previous dictations are available in History.
 
-`make desktop` builds canonical packages. Mac canonical builds retain the existing bundle identity, data directory and Keychain service. Preview/debug builds use separate data and credentials and keep meetings inside their own directory; they do not import the native app's library.
+## Meetings worth coming back to
 
-## Native Mac reference
+Record your microphone and computer audio, then review the transcript alongside your own notes. Generate a summary, keep action items, name speakers and ask questions with links back to the source passage.
 
-Keep the reference app available while comparing features and recovering existing installations:
+Search past meetings and export the parts you need. Recordings and Markdown files live in a folder you choose, so your notes remain useful outside Pennel.
 
-```sh
-make core   # Rust core, generated Swift bindings and XCFramework
-make test   # core and native reference tests
-make app    # build/Pennel.app (native reference)
-swift test --package-path apps/macos-platform
-```
+Audio capture, automatic meeting detection and echo handling depend on your operating system and devices. See [platform support](docs/desktop.md#platform-behavior) for the details.
 
-`make core` generates `apps/macos/Frameworks/` and `apps/macos/Sources/PennelCore/`. The shared app's Swift platform library has no SwiftUI or second Rust engine. Do not run a canonical shared Mac build alongside the older native app against the same data.
+## Your models. Your files.
 
-## First run
+Use downloadable speech models, Apple’s built-in models on compatible Macs, or your own provider. OpenAI-compatible services, Ollama and LM Studio are supported. Choose speech recognition and text processing separately.
 
-1. New profiles open the setup wizard: choose speech recognition and language, grant the required access, and try a real first dictation. New profiles default to local recognition in **Snel** mode. Existing profiles retain their configuration and open the workspace directly.
-2. Use **Dicteren** for the local editable pad, or the configured shortcut in another app. Automatic external paste from the pad is a separate preference, off by default. Microphone access is required for recording; global shortcuts, external placement, meeting audio and optional speech/calendar features have their own access requirements. Providers, models and appearance remain available in **Instellingen**, with unsupported platform controls visible and explained.
-3. On an Apple keyboard, set **System Settings → Keyboard → Press 🌐 key to** *Do Nothing* when using `fn`. Logitech MX keyboards do not send Apple's Fn/Globe keycode; choose **Rechter Option** under **Instellingen → Dicteren → Sneltoets** instead. [Logitech's explanation](https://support.logi.com/hc/en-us/articles/29752695205527-Logitech-keyboard-FN-key-behavior-on-macOS-or-iOS).
+- **No telemetry.** No Pennel account is needed to use local models or your own provider.
+- **Keys stay in your system’s credential store.** Keychain on Mac, Credential Manager on Windows and Secret Service on Linux.
+- **You choose what leaves your computer.** A remote provider receives the audio or text needed for the task you select. Meetings and recordings are stored locally.
 
-The **Dicteren** page explains dictation in other apps; **Open dicteerpad** is optional. The small floating pill shows provisional text during Apple or local recognition. Cloud providers that return one final transcript show text after recording, before cleanup; preview never adds cloud requests or switches providers.
+Apple dictation requires macOS 26 or later. Apple Intelligence also requires an eligible Mac with Apple Intelligence enabled. Other local models work on the supported systems listed above.
 
-On Wayland, bind a desktop keyboard shortcut to `pennel --toggle-dictation`: press once to start, again to finish, then paste the copied result with Ctrl+V. Bind `pennel --toggle-meeting` for manual meeting recording. For an AppImage, use its executable path in the shortcut command. See [Wayland behavior](docs/desktop.md#linux-x11-and-wayland).
+## Follow along
 
-Use **Logboek openen** from the tray/menu bar for troubleshooting. Canonical Mac logs remain under `~/Library/Logs/Pennel/`; other builds use `logs/pennel.log` inside their own data directory.
+Pennel is under active development. See the [desktop roadmap](docs/desktop-roadmap.md) for current validation and release work, [report a bug](https://github.com/pennel-app/pennel/issues/new), or read the [contributing guide](CONTRIBUTING.md).
 
-## Verification and distribution
-
-[The migration record](docs/shared-app-migration.md) separates implemented behavior, automated checks, packaged-app inspection and outstanding device acceptance. Memory, installed-size and download-size figures need measurements of the actual release packages; no generic framework figure is used here.
-
-CI builds the shared app for Mac, Windows and Linux and publishes unsigned releases automatically (see [releasing](docs/releasing.md)). The manual signed-candidate workflow prepares packages using existing credentials and publishes no release. Release helpers preserve the legacy Sparkle upgrade path, and require acceptance of exact Mac, Windows and Linux updater artifacts before preparing the update manifest. Linux in-app updates use AppImage; Debian installations use a verified package or package manager. See [release preparation](docs/linux-packaging.md#candidate-and-update-artifacts) and the [native reference release process](docs/releasing.md).
-
-## Local models
-
-Local speech recognition uses [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp). The bundled [`@handy-computer/models`](https://github.com/handy-computer/models) catalog supplies model sizes, supported languages and benchmark data. Mac uses Metal; Windows/Linux default to CPU with an optional Vulkan build. Update the catalog with `scripts/update-catalog.sh <version>`.
-
-## Layout
-
-- `core/` — shared product logic, runtime state machines and stores; UniFFI also serves the native reference.
-- `apps/desktop/` — shared Tauri interface, Rust host and Windows/Linux adapters.
-- `apps/macos-platform/` — embedded Swift services for Apple APIs.
-- `apps/macos/` — native SwiftUI comparison/recovery app.
-- `assets/brand/` — shared design guide, icons and fonts.
-- `scripts/` — build, inspection, release preparation and acceptance tools.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+For builds, troubleshooting and platform details, start with the [desktop development guide](docs/desktop.md).
 
 ## License
 
-[Apache License 2.0](LICENSE). "Pennel" and the Pennel logo are trademarks of the project owner; forks must use a different name and logo.
+Pennel is licensed under the [Apache License 2.0](LICENSE). “Pennel” and the Pennel logo are trademarks of the project owner; forks must use a different name and logo.

@@ -10,6 +10,8 @@ As in the original Pennel, the main window **Pennel** is the meeting library: it
 
 New profiles use local speech recognition in **Snel** mode and open a separate headerless wizard: welcome, language/speech recognition, access, a real first dictation and an optional **Leer je stem** step. A successful practice resumes at that step; finishing or skipping it completes the wizard. The model download and provider credentials use the existing core and OS credential services. A saved wizard step is not proof that a model or permission remains available. Existing profiles keep their providers, model choices and dictation mode and can resume setup when necessary. Windows and Linux open the workspace at launch; Mac uses the menu bar lifecycle below.
 
+Microphone access is required for recording. Global shortcuts, external placement, meeting audio and optional speech/calendar features have their own permission requirements; unsupported controls remain visible with an explanation in **Instellingen**. On an Apple keyboard, set **System Settings → Keyboard → Press 🌐 key to → Do Nothing** when using `fn`. Logitech MX keyboards can use **Rechter Option** under **Instellingen → Dicteren → Sneltoets** instead.
+
 The in-app dictation pad retains an editable local draft. **Dicteerpad ook extern plakken** is off by default and applies only to recordings made in that pad. Enabling it captures the previous external target when recording starts; it does not change normal shortcut dictation in other apps. If the captured target cannot be used, the text remains in the pad. Onboarding practice is a separate owned session: it transcribes with a temporary Fast setting and never uses external paste or clipboard delivery.
 
 Window closing and navigation invalidate pending owned external delivery. Meeting recording and the normal background runtime retain their existing lifetime. Real device and platform acceptance are recorded separately in [redesign acceptance](redesign-acceptance.md).
@@ -182,6 +184,8 @@ make desktop-test
 
 `make desktop-preview` installs locked frontend dependencies and builds isolated preview packages. On Mac it builds the app-only Tauri package and creates `build/Pennel Preview.dmg` with `hdiutil`, so preview packaging also works without an interactive Finder session. `make desktop-test` builds the frontend and runs backend tests; run `npm test` as well for frontend regression coverage. `make desktop` builds canonical packages. Installer output is under `apps/desktop/src-tauri/target[/<target>]/release/bundle/` unless a debug build was requested.
 
+Mac canonical packages preserve the existing bundle identity, data directory and Keychain service. Do not run a canonical shared Mac build alongside the native reference against the same data. Use `make app-preview` for `build/Pennel Native Preview.app`, with separate data and credentials, when comparing the two interfaces. `make theme-check` verifies their generated shared theme tokens. See [redesign acceptance](redesign-acceptance.md) for screenshot, package and device evidence.
+
 For hot reload:
 
 ```sh
@@ -202,11 +206,30 @@ swift test --package-path apps/macos-platform
 make packaging-test
 ```
 
+`make core` generates `apps/macos/Frameworks/` and `apps/macos/Sources/PennelCore/`. The embedded Mac platform library has no SwiftUI interface or second Rust engine.
+
+### Local model catalog
+
+Local recognition uses [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp). The bundled [model catalog](https://github.com/handy-computer/models) supplies download sizes, supported languages and benchmark data. Update it with `scripts/update-catalog.sh <version>`.
+
+### Repository layout
+
+- `core/` — shared product logic, runtime state machines and stores; UniFFI also serves the native reference.
+- `apps/desktop/` — shared Tauri interface, Rust host and Windows/Linux adapters.
+- `apps/macos-platform/` — embedded Swift services for Apple APIs.
+- `apps/macos/` — native comparison and recovery application.
+- `assets/brand/` — shared design guide, icons and fonts.
+- `scripts/` — build, capture, inspection, release preparation and acceptance tools.
+
 ## Verification and release state
 
 Automated checks and local package inspection are recorded in [shared-app-migration.md](shared-app-migration.md). Linux's isolated codec round-trip and synthetic PulseAudio observations verify code paths; they are not real calls, installed-package tests or Wayland compositor acceptance. Cross-target Windows type checking does not establish Windows execution. CI configuration does not imply a workflow has run for this change.
 
-The standard CI matrix is configured to build Mac, Windows and Linux development artifacts without requiring release keys. The manual candidate workflow uses existing signing keys/certificates and performs no publication. The Tauri updater is enabled only when a public key is configured; previews without release configuration do not auto-update. Linux AppImages support in-app updates; Debian installations use a verified package or package manager.
+The standard CI matrix builds Mac, Windows and Linux artifacts without requiring release keys. App changes on `main` publish [GitHub releases](https://github.com/pennel-app/pennel/releases) containing Mac `.dmg`, Windows `.exe`/`.msi` and Linux `.deb`/`.AppImage` packages. Mac releases use the configured stable self-signed certificate when available; they are not Developer ID notarized releases, and Windows installers are unsigned. The Homebrew cask handles Mac download quarantine. After installation, `brew upgrade --cask pennel` gets later cask updates.
+
+The manual candidate workflow uses existing signing keys/certificates and performs no publication. Release helpers retain the legacy Sparkle upgrade path and require acceptance of the exact Mac, Windows and Linux updater artifacts before preparing an update manifest. The Tauri updater is enabled only when a public key is configured; previews without release configuration do not auto-update. Linux AppImages support in-app updates; Debian installations use a verified package or package manager. See [releasing](releasing.md) and [candidate and update artifacts](linux-packaging.md#candidate-and-update-artifacts).
+
+Installed-size, download-size, memory and latency claims require measurements of the actual release packages. Track remaining desktop acceptance and distribution tasks in the [desktop roadmap](desktop-roadmap.md); the [historical open-items list](open-items.md) remains context rather than a current bug list.
 
 Pennel Cloud is built in the shared app and awaits device acceptance (see open-items T11-T13); the Linux clipboard paths for the recovery code have not been exercised on a Linux device.
 
