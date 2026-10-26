@@ -98,7 +98,7 @@ final class WindowSnapshot: NSObject, NSApplicationDelegate {
                 state.settings.language = "nl"
                 state.settings.dictionary = ["Pennel", "Studio Noord"]
                 state.workspace.padText = Self.sentence
-                state.settings.onboarding = OnboardingProgress(version: 1, status: .completed, resumeStep: .welcome)
+                state.settings.onboarding = OnboardingProgress(version: 1, status: .completed, resumeStep: .welcome, goal: .dictation)
                 Keychain.accounts = []
                 Permissions.microphone = .authorized
                 Permissions.accessibilityTrusted = true
@@ -163,7 +163,7 @@ final class WindowSnapshot: NSObject, NSApplicationDelegate {
             let step: OnboardingStep = value == "onboarding-welcome" ? .welcome
                 : value.contains("permissions") || value == "onboarding-permission-denied" ? .permissions
                 : value.contains("practice") ? .practice : .engine
-            state.settings.onboarding = OnboardingProgress(version: 1, status: .pending, resumeStep: step)
+            state.settings.onboarding = OnboardingProgress(version: 1, status: .pending, resumeStep: step, goal: .dictation)
             state.workspace.onboardingInitialized = true
             state.workspace.onboardingEngine = value == "onboarding-engine-apple" ? "apple" : value == "onboarding-engine-custom" ? "custom" : "local"
             state.workspace.onboardingModel = state.settings.dictationStt.model

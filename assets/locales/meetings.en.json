@@ -129,5 +129,15 @@
   "meetings.speaker_cloud_sign_in": "Sign in to Pennel Cloud in Settings → Account first.",
   "meetings.download_speaker_models": "Download the speaker models in Settings → Meetings first.",
   "meetings.speaker_cloud_help": "Recognizes voices through Pennel Cloud",
-  "meetings.speaker_local_help": "Recognizes voices on this device"
+  "meetings.speaker_local_help": "Recognizes voices on this device",
+  "meetings.new_recording": "New recording",
+  "meetings.return_recording": "Return to recording",
+  "meetings.return_finishing": "Return to recording",
+  "meetings.recording_needs_attention": "Recording needs attention",
+  "meetings.open_dictation": "Dictation",
+  "meetings.open_history": "History",
+  "meetings.summary_setup_help": "Set up summaries and questions to use them in this meeting. Your notes and transcript stay here.",
+  "meetings.set_up_summaries": "Set up summaries",
+  "meetings.set_up_questions": "Set up questions",
+  "meetings.questions_setup_help": "Set up a text service to ask questions about your meetings."
 }

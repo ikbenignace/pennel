@@ -37,6 +37,17 @@ test("fixture app information is synthetic and never returns an API key", async 
   assert.equal(JSON.stringify(await context.__PENNEL_PLATFORM__.invoke("app_info")).includes("synthetic-only"), false);
 });
 
+test("first-use fixtures preserve the chosen task without requiring voice enrollment", async () => {
+  const meeting = fixture("onboarding-welcome", { goal: "meeting" });
+  const api = meeting.__PENNEL_PLATFORM__;
+  const info = await api.invoke("app_info");
+  assert.equal(info.settings.onboarding.goal, "meeting");
+  const next = structuredClone(info.settings);
+  next.onboarding.resume_step = "permissions";
+  await api.invoke("save_settings", { settings: next });
+  assert.equal((await api.invoke("app_info")).settings.onboarding.goal, "meeting");
+});
+
 test("pad/practice sessions emit to the fixture listener and never invoke native transport", async () => {
   const context = fixture("dictation-pad");
   const api = context.__PENNEL_PLATFORM__;

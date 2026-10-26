@@ -29,6 +29,8 @@ export async function checkProviderHistoryUI() {
   const { modelsView } = await import("/src/views/models.ts");
   const { localView } = await import("/src/views/local.ts");
   const { onboardingView } = await import("/src/views/onboarding.ts");
+  const { t } = await import("/src/i18n.ts");
+  const { providerDestination } = await import("/src/processing-state.ts");
   const target = document.getElementById("content");
   const previous = [...target.childNodes];
   let current = historyView;
@@ -48,7 +50,7 @@ export async function checkProviderHistoryUI() {
       else await mount(current);
     },
     rerender: () => { void mount(current); },
-    navigate() {}, report: error => errors.push(String(error)),
+    navigate() {}, openSetup() {}, report: error => errors.push(String(error)),
     onDispose: action => cleanup.push(action), beforeLeave() {}, onFlush() {},
     onInfoChange: listener => infoListeners.push(listener), onFocusChange() {}, onVisibilityChange() {},
   };
@@ -61,47 +63,47 @@ export async function checkProviderHistoryUI() {
   const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   const button = (label, root = target) => [...root.querySelectorAll("button")].find(node => node.textContent.trim() === label);
-  const textSection = () => [...target.querySelectorAll("section")].find(node => node.querySelector("h3")?.textContent === "Opkuisen en samenvatten");
+  const textSection = () => [...target.querySelectorAll("section")].find(node => node.querySelector("h2,h3")?.textContent === t("providers.models.text"));
   const results = [];
   try {
     await mount(historyView);
-    assert(target.textContent.includes("Nog niet bewaard") && target.textContent.includes("alleen tijdelijk"), "Unsaved status and memory-only explanation missing.");
-    button("Kopiëren").click(); await settle();
+    assert(target.textContent.includes(t("dictation.history.unsaved")) && target.textContent.includes(t("dictation.history.temporary")), "Unsaved status and memory-only explanation missing.");
+    button(t("common.copy")).click(); await settle();
     assert(operations.some(operation => operation.command === "copy_text" && operation.args.text === entries[0].text), "Copy did not use retained text.");
-    button("Opnieuw bewaren").click(); await settle();
+    button(t("dictation.history.save_again")).click(); await settle();
     assert(entries[0].status === "done" && operations.filter(operation => operation.command === "save_history").length === 1, "Save did not persist exactly once.");
     assert(!operations.some(operation => ["retry_history", "toggle_dictation", "dictation_session_start"].includes(operation.command)), "Save unexpectedly ran recognition or capture.");
     results.push("Unsaved History copy and save preserve text without recognition or paste.");
 
     entries = [{ ...entries[0], id: "synthetic-discard", status: "unsaved" }];
     await mount(historyView);
-    target.querySelector('[aria-label="Dictaat verwijderen"]').click(); await settle();
-    assert(document.querySelector("dialog[open]")?.textContent.includes("Niet bewaard dictaat verwijderen?"), "Discard confirmation missing.");
-    button("Annuleren", document.querySelector("dialog[open]")).click(); await settle();
+    [...target.querySelectorAll("button")].find(node => node.getAttribute("aria-label") === t("dictation.history.delete")).click(); await settle();
+    assert(document.querySelector("dialog[open]")?.textContent.includes(t("dictation.history.discard_title")), "Discard confirmation missing.");
+    button(t("common.cancel"), document.querySelector("dialog[open]")).click(); await settle();
     assert(entries.length === 1 && !operations.some(operation => operation.command === "delete_history"), "Cancel discarded retained text.");
-    target.querySelector('[aria-label="Dictaat verwijderen"]').click(); await settle();
-    button("Verwijder", document.querySelector("dialog[open]")).click(); await settle();
+    [...target.querySelectorAll("button")].find(node => node.getAttribute("aria-label") === t("dictation.history.delete")).click(); await settle();
+    button(t("common.delete"), document.querySelector("dialog[open]")).click(); await settle();
     assert(entries.length === 0 && operations.filter(operation => operation.command === "delete_history").length === 1, "Explicit discard failed.");
     results.push("Unsaved History discard requires confirmation; cancellation preserves the entry.");
 
     info.keys.groq = true;
     await mount(modelsView);
-    assert(textSection().textContent.includes("Tekst → Groq (api.groq.com)"), "Text processing destination not visible before testing.");
+    assert(textSection().textContent.includes(t("providers.text_destination", { destination: providerDestination(info.settings.providers.find(account => account.id === info.settings.llm.provider_id)) })), "Text processing destination not visible before testing.");
     assert(operations.filter(operation => operation.command === "test_provider_task").length === 0, "Task test ran automatically.");
-    button("Test tekstverwerking", textSection()).click(); await settle();
-    assert(textSection().textContent.includes("Test geslaagd") && operations.filter(operation => operation.command === "test_provider_task").length === 1, "Explicit task test did not succeed.");
+    button(t("providers.test_text"), textSection()).click(); await settle();
+    assert(textSection().textContent.includes(t("providers.test_passed")) && operations.filter(operation => operation.command === "test_provider_task").length === 1, "Explicit task test did not succeed.");
     info.provider_revisions.groq++;
     await mount(modelsView);
-    assert(!textSection().textContent.includes("Test geslaagd"), "Credential replacement retained a stale verified label.");
+    assert(!textSection().textContent.includes(t("providers.test_passed")), "Credential replacement retained a stale verified label.");
     results.push("Task testing is explicit, shows its destination and invalidates after credential replacement.");
 
     let resolveOldTask;
     taskResponder = () => new Promise(resolve => { resolveOldTask = resolve; });
-    button("Test tekstverwerking", textSection()).click(); await settle();
+    button(t("providers.test_text"), textSection()).click(); await settle();
     info.settings.llm.model = "synthetic-new-model";
     await mount(modelsView);
     resolveOldTask({ verified: true, message: "Verouderd testantwoord" }); await settle();
-    assert(!textSection().textContent.includes("Test geslaagd") && !textSection().textContent.includes("Verouderd testantwoord"), "An obsolete task result affected a new configuration.");
+    assert(!textSection().textContent.includes(t("providers.test_passed")) && !textSection().textContent.includes("Verouderd testantwoord"), "An obsolete task result affected a new configuration.");
     results.push("A late task response cannot verify a changed model.");
 
     const models = await original("local_models", {});
@@ -113,7 +115,7 @@ export async function checkProviderHistoryUI() {
     await mount(context => localView(context, true)); await settle();
     assert(operations.filter(operation => operation.command === "join_model_download").length === joinBefore + 1, "A cancelled snapshot attempted repeated joins.");
     assert(!operations.some(operation => operation.command === "download_model"), "Joining an obsolete download started a fresh download.");
-    assert(!button("Annuleren"), "A cancelled download kept a stale active indicator.");
+    assert(!button(t("common.cancel")), "A cancelled download kept a stale active indicator.");
     results.push("A stale active-download snapshot does not start or retain a cancelled download.");
 
     info.active_model_downloads = [modelId];
@@ -127,7 +129,7 @@ export async function checkProviderHistoryUI() {
     await mount(context => localView(context, true)); await settle();
     assert(operations.filter(operation => operation.command === "join_model_download").length === activeBefore + 1, "An existing worker was joined repeatedly.");
     assert(refreshes === refreshesBefore, "An immediately successful join refreshed the view during mounting.");
-    assert(target.querySelector("progress")?.value === 456 && button("Annuleren"), "Existing progress was not replayed into the model controls.");
+    assert(target.querySelector("progress")?.value === 456 && button(t("common.cancel")), "Existing progress was not replayed into the model controls.");
     info.active_model_downloads = [];
     fixture.emit("download-done", { id: modelId, error: "cancelled" }); await settle();
     results.push("An existing download replays progress through a single join and cancellation clears it.");
@@ -142,7 +144,9 @@ export async function checkProviderHistoryUI() {
     assert(operations.filter(operation => operation.command === "join_model_download").length === wizardJoinsBefore + 1, "A successful initial wizard join caused repeated attachments.");
     assert(refreshes === wizardRefreshesBefore, "A successful initial wizard join refreshed before mounting completed.");
     results.push("An immediately successful initial join does not refresh or remount the wizard.");
-    button("Apple-dicteren").click(); await settle();
+    const alternatives = target.querySelector("details.onboarding-other-options");
+    if (alternatives && !alternatives.open) alternatives.querySelector("summary").click();
+    button(t("onboarding.apple_dictation")).click(); await settle();
     assert(operations.filter(operation => operation.command === "cancel_download").length === cancelledBefore, "Choosing another engine cancelled a shared download.");
     info.active_model_downloads = [];
     fixture.emit("download-done", { id: modelId, error: "cancelled" }); await settle();

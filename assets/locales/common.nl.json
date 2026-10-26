@@ -7,6 +7,7 @@
   "common.done": "Klaar",
   "common.loading": "Laden…",
   "common.back": "Terug",
+  "navigation.back_to_work": "Terug naar je werk",
   "common.continue": "Verder",
   "common.close": "Sluiten",
   "common.none": "Geen",
@@ -65,5 +66,10 @@
   "updates.downloading": "Update downloaden…",
   "updates.installed": "Update geïnstalleerd. Start Pennel opnieuw.",
   "common.transition_busy": "Een andere vensteractie is al bezig.",
-  "interface.system": "Systeemtaal ({language})"
+  "interface.system": "Systeemtaal ({language})",
+  "navigation.overview": "Overzicht",
+  "navigation.your_work": "Je werk",
+  "navigation.app": "Pennel",
+  "navigation.advanced": "Geavanceerd",
+  "appearance.zoom_help": "Tekstgrootte: {modifier} + = om te vergroten, {modifier} + - om te verkleinen en {modifier} + 0 om terug te zetten."
 }

@@ -1,0 +1,48 @@
+import type { AppInfo } from "./api";
+import type { ProviderSlot } from "./provider-verification";
+
+export type SetupTask = ProviderSlot;
+export type TaskConfigurationState = "ready" | "provider" | "unsupported" | "permission" | "key" | "model" | "download" | "address";
+export interface TaskConfiguration { state: TaskConfigurationState; reason: string | null }
+
+/** Presentation readiness is configuration, not a successful provider or microphone test. */
+export function taskConfiguration(info: Pick<AppInfo, "settings" | "kinds" | "keys">, task: SetupTask, downloaded: readonly string[]): TaskConfiguration {
+  const choice = info.settings[task];
+  const account = info.settings.providers.find((provider) => provider.id === choice.provider_id);
+  const kind = info.kinds.find((candidate) => candidate.kind === account?.kind);
+  const result = (state: TaskConfigurationState, reason: string | null = null): TaskConfiguration => ({ state, reason });
+  if (!account || !kind) return result("provider");
+  if (!(task === "llm" ? kind.llm : kind.stt)) return result("unsupported", kind.availability.reason);
+  if (kind.availability.status !== "available") return result(kind.availability.status === "permission_required" ? "permission" : "unsupported", kind.availability.reason);
+  if (kind.requires_key && !info.keys[account.id]) return result("key");
+  if (kind.is_cli_agent && !account.base_url.trim()) return result("address");
+  if (!kind.is_cli_agent && !choice.model.trim()) return result("model");
+  if (account.kind === "local" && !downloaded.includes(choice.model)) return result("download");
+  return result("ready");
+}
+
+/** A dialog owns its async work; a late load cannot replace a newer choice or a closed view. */
+export class TaskSetupScope {
+  private generation = 0;
+  private disposed = false;
+  private readonly pending = new Set<Promise<unknown>>();
+  private readonly failures = new Map<"settings" | "mutation", unknown>();
+  get failure(): unknown { return this.failures.get("mutation") ?? this.failures.get("settings") ?? null; }
+
+  next(): number { return ++this.generation; }
+  current(generation: number): boolean { return !this.disposed && generation === this.generation; }
+  dispose(): void { this.disposed = true; this.generation++; }
+
+  track<T>(work: Promise<T>, kind: "settings" | "mutation" = "mutation"): Promise<T> {
+    const pending = work.then((value) => { this.failures.delete(kind); return value; }, (error: unknown) => { this.failures.set(kind, error); throw error; });
+    this.pending.add(pending);
+    void pending.then(() => this.pending.delete(pending), () => this.pending.delete(pending));
+    return pending;
+  }
+
+  async settle(): Promise<void> {
+    await Promise.all([...this.pending]);
+  }
+
+  settingsSaved(): void { this.failures.delete("settings"); }
+}

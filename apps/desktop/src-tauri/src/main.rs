@@ -91,15 +91,16 @@ pub fn show_main(app: &AppHandle, tab: Option<&str>) {
         Some("history") => "history",
         Some("pad" | "dictation-home") => "dictation",
         Some(
-            "providers" | "models" | "dictation" | "dictionary" | "styles" | "meeting-settings"
-            | "recording" | "appearance" | "account" | "local",
+            "settings" | "overview" | "providers" | "models" | "dictation" | "dictionary"
+            | "styles" | "meeting-settings" | "recording" | "appearance" | "account" | "local",
         ) => "settings",
         Some("meetings" | "library" | "chat") => "library",
         _ => "workspace",
     };
     let tab = match tab {
         Some("pad") => Some("pad"),
-        Some("dictation-home") => None,
+        Some("dictation-home") => Some("home"),
+        Some("history" | "settings") => None,
         other => other,
     };
     show_window(app, kind, tab);
@@ -145,21 +146,14 @@ pub fn notify_visibility(app: &AppHandle, label: &str, visible: bool) {
 pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
     let spec = workspace::window_spec(kind);
     let (label, mode) = (spec.label, spec.mode);
-    // Reopening settings, history or dictation keeps the category the window already shows.
-    let keeps_place = tab.is_none() && matches!(mode, "settings" | "history" | "dictation");
-    if !keeps_place {
-        workspace::request(app, label, workspace::legacy_route(kind, tab));
-    } else {
-        workspace::request(app, label, None);
-    }
+    workspace::request(app, label, workspace::window_request_route(kind, tab));
     if kind == "onboarding" {
         workspace::request_onboarding(app, tab);
     }
-    let tab = tab.map(str::to_owned);
+    let url = workspace::window_url(kind, tab);
     let app = app.clone();
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
-        let tab = tab.as_deref();
         if !workspace::requested(&handle, label) {
             return;
         }
@@ -178,14 +172,7 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     )
                 })
             };
-            // The first render already shows the requested place instead of navigating there afterwards.
-            let url = match tab.filter(|_| matches!(mode, "settings" | "dictation" | "workspace")) {
-                Some(tab) => format!(
-                    "index.html?window={mode}&tab={}",
-                    workspace::query_value(tab)
-                ),
-                None => format!("index.html?window={mode}"),
-            };
+            // The legacy URL alias preserves the requested section before pending route delivery.
             let mut builder = tauri::WebviewWindowBuilder::new(
                 &handle,
                 label,
@@ -199,6 +186,7 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
             .visible(false);
             if mode != "prompt" {
                 builder = native_title_bar(builder)
+                    .zoom_hotkeys_enabled(true)
                     .min_inner_size(
                         fit.map_or(spec.minimum.0, |size| size.min_width),
                         fit.map_or(spec.minimum.1, |size| size.min_height),

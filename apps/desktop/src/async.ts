@@ -15,6 +15,7 @@ export class SerialQueue {
 export async function persistAll(tasks: (() => Promise<void>)[]): Promise<void> {
   const results = await Promise.allSettled(tasks.map((task) => Promise.resolve().then(task)));
   const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+  if (errors.length === 1 && errors[0] instanceof Error) throw errors[0];
   if (errors.length) throw new Error(errors.map((error: unknown) => error instanceof Error ? error.message : String(error)).join("\n"));
 }
 

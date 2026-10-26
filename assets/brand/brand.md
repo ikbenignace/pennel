@@ -6,7 +6,7 @@ Pennel (PEN-el, the same in Dutch and English): the little pen that writes down 
 
 Use the checked-in `wordmark.svg`, `mark.svg`, `app-icon.svg` and `menubar.svg`. The wordmark uses Instrument Serif and a true circular orange dot. The listening indicator uses five bars; movement conveys actual audio level or processing state.
 
-The desktop interface follows the neutral native-app direction approved on 25 October 2026: compact sans-serif UI, restrained controls, a clear sidebar and an uninterrupted onboarding window. Raycast and FluidVoice are craft and interaction references. Pennel retains its own marks, copy and color roles.
+The desktop interface follows the warm native-app direction of the original Swift app at `91775c1`: paper and ink, a barely darker sidebar, Figtree UI, Instrument Serif large titles, restrained controls and real system window chrome. Raycast, Things, Granola and Linear inform hierarchy and interaction craft; Pennel retains its own marks, copy and color roles. The shared Tauri app owns product UI; the frozen native app is a reference and recovery path.
 
 ## Palette and source of truth
 
@@ -14,16 +14,16 @@ The desktop interface follows the neutral native-app direction approved on 25 Oc
 
 | Role | Light | Dark |
 |---|---|---|
-| Surface | `#FFFFFF` | `#202022` |
-| Window chrome | `#F6F6F8` | `#27272A` |
-| Sidebar | `#F1F1F3` | `#252527` |
-| Foreground | `#1D1D1F` | `#F3F3F5` |
-| Secondary text | `#64646A` | `#A6A6AE` |
-| Border | `#E3E3E8` | `#3B3B40` |
-| Selected surface | `#E3E3E8` | `#3B3B40` |
-| Field | `#FFFFFF` | `#2B2B2F` |
-| Primary button | `#252527` | `#EAEAEC` |
-| Primary button text | `#FFFFFF` | `#202022` |
+| Surface | `#FCFBF8` | `#1E1C1A` |
+| Window chrome | `#FCFBF8` | `#1E1C1A` |
+| Sidebar | `#F7F4EE` | `#252320` |
+| Foreground | `#2A2723` | `#F3F0EA` |
+| Secondary text | `#6F675D` | `#ABA398` |
+| Border | `#ECE7DE` | `#3A3632` |
+| Selected surface | `#ECE7DE` | `#3A3632` |
+| Field | `#FFFFFF` | `#2C2926` |
+| Primary button | `#2A2723` | `#F3F0EA` |
+| Primary button text | `#FCFBF8` | `#1E1C1A` |
 | Accent | `#C2410C` | `#F2B48E` |
 | Success | `#1E7B3A` | `#7BD88F` |
 
@@ -39,9 +39,9 @@ Rules
 
 ## Typography and geometry
 
-- **Figtree** carries all product headings, body text, buttons and labels. Use Regular for prose, Medium for controls and SemiBold for short headings.
-- **Instrument Serif** Regular is for the wordmark and marketing. It is not the product's heading font. Never fake bold or use it in controls.
-- Use sentence case. Typical UI sizes are 11 pt captions, 12 pt labels, 13 pt body, 14 pt reading text, 16 pt section headings, 21 pt workspace headings and 26–28 pt onboarding headings.
+- **Figtree** carries navigation, body text, buttons, labels and small section headings. Use Regular for prose, Medium for controls and SemiBold for short headings.
+- **Instrument Serif** Regular carries large product titles, the wordmark and marketing. Use the shared page/display/onboarding tokens; never fake bold or use serif type in controls.
+- Use sentence case. Shared sizes include 11 pt captions, 12 pt labels, 13 pt body, 14 pt reading text, 16 pt section headings, 21 pt compact titles, 26–28 pt onboarding/welcome titles and 28–30 pt large page/display titles. Enlarge text without losing critical content or actions.
 - Use a 4 pt spacing grid. Controls have 6 pt radii, segmented controls 8 pt, panels and windows 12 pt. Rounded pills are reserved for the recording overlay and compact indicators.
 - Keep component state families consistent: default, hover, focus, selected, disabled, loading and error. A disabled primary button keeps a readable label; hover does not replace its background with a pale secondary fill.
 - Fonts live in `assets/brand/fonts/` and are bundled locally. Outline artwork text so SVG marks render without installed fonts. The native reference keeps its required bundled resource copies.
@@ -79,7 +79,7 @@ Calm, direct, a bit dry: the way a good colleague writes a meeting recap. Confid
 
 **Do**
 - Short sentences, verbs first. "Hold fn. Talk. Let go." / "Hou fn in. Praat. Laat los."
-- True, concrete facts: "13 MB", "no account", "on your Mac", "Markdown files in a folder you choose".
+- True, concrete facts: "no account", "on your computer", "Markdown files in a folder you choose". Size, speed and accuracy figures require a dated measurement of the stated build and configuration.
 - Say where data lives and who sees it.
 - Use the reader's words: emails, notes, meetings. Not "AI workflows".
 - Dutch: use "je", not "u". Keep English UI terms only where Dutch users really use them (Mac, fn, Markdown).

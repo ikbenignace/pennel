@@ -20,6 +20,7 @@
         "height": 640,
         "minWidth": 760,
         "minHeight": 520,
+        "zoomHotkeysEnabled": true,
         "visible": false,
         "center": true,
         "titleBarStyle": "Overlay",

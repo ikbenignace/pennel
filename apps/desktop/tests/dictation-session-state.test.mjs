@@ -147,3 +147,60 @@ test("a hidden pad rebinds once when reopened and rejects results from its close
   assert.deepEqual(updates, ["pad-1", "pad-2"]);
   assert.equal(lifecycle.state.snapshot.session_id, "pad-2");
 });
+
+test("leaving a busy pad keeps its capture and listener owned until explicit finish or cancellation", async () => {
+  let emit;
+  const closed = [];
+  const driver = {
+    open: async () => snapshot("pad", "pad", "listening"),
+    get: async () => snapshot("pad", "pad", "listening"),
+    toggle: async () => {}, cancel: async () => {},
+    close: async id => { closed.push(id); },
+    leave: async id => { closed.push(`leave:${id}`); },
+    subscribe: async listener => { emit = listener; return () => {}; },
+  };
+  const lifecycle = new OwnedSessionLifecycle("pad", () => {}, driver);
+  await lifecycle.open();
+  assert.equal(await lifecycle.leave(), false);
+  assert.deepEqual(closed, []);
+  emit({ ...snapshot("pad", "pad", "done"), text: "Preserved dictation" });
+  assert.equal(lifecycle.state.snapshot.text, "Preserved dictation");
+  assert.equal(await lifecycle.leave(), true);
+  assert.deepEqual(closed, ["leave:pad"]);
+  assert.equal(lifecycle.state.snapshot, null);
+});
+
+test("a native capture beginning during leave is not closed or detached", async () => {
+  let emit;
+  let current = snapshot("pad", "pad");
+  let unsubscribed = false;
+  const driver = {
+    open: async () => current, get: async () => current,
+    toggle: async () => {}, cancel: async () => {}, close: async () => {},
+    leave: async () => { current = snapshot("pad", "pad", "listening"); emit(current); throw new Error("Busy"); },
+    subscribe: async listener => { emit = listener; return () => { unsubscribed = true; }; },
+  };
+  const lifecycle = new OwnedSessionLifecycle("pad", () => {}, driver);
+  await lifecycle.open();
+  assert.equal(await lifecycle.leave(), false);
+  assert.equal(lifecycle.state.snapshot.phase, "listening");
+  assert.equal(unsubscribed, false);
+});
+
+test("failed idle leave preserves the session and can be retried without opening or closing another owner", async () => {
+  let fail = true;
+  let opens = 0;
+  const driver = {
+    open: async () => { opens++; return snapshot("pad", "pad"); }, get: async () => snapshot("pad", "pad"),
+    toggle: async () => {}, cancel: async () => {}, close: async () => { throw new Error("Wrong close policy"); },
+    leave: async () => { if (fail) throw new Error("Transport failed"); }, subscribe: async () => () => {},
+  };
+  const lifecycle = new OwnedSessionLifecycle("pad", () => {}, driver);
+  await lifecycle.open();
+  await assert.rejects(lifecycle.leave(), /Transport failed/);
+  assert.equal(lifecycle.state.snapshot.session_id, "pad");
+  fail = false;
+  assert.equal(await lifecycle.leave(), true);
+  await lifecycle.close();
+  assert.equal(opens, 1);
+});

@@ -1,6 +1,6 @@
 import { liveText, bindLocalization, l, t, uiLocale, localizeBackendText, type LocalizedText } from "../i18n.ts";
-import { api, type ModelChoice, type RemoteModel, type Settings } from "../api";
-import { errorText, field, h, section, select } from "../dom";
+import { api, listen, type ModelChoice, type RemoteModel, type Settings } from "../api";
+import { errorText, field, formatBytes, h, isCancellation, section, select } from "../dom";
 import type { Context } from "../main";
 import { processingSummary, providerDestination } from "../processing-state";
 import { ModelCatalogCache, providerFingerprint, providerVerification, taskFingerprint, type ProviderSlot } from "../provider-verification";
@@ -21,7 +21,14 @@ export async function modelsView(ctx: Context): Promise<HTMLElement> {
   );
 }
 
-async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subtitle: string | LocalizedText, llm: boolean) {
+export async function taskModelView(ctx: Context, key: Slot): Promise<HTMLElement> {
+  const title = key === "llm" ? l("settings.setup.text_title") : key === "meeting_stt" ? l("settings.setup.meeting_title") : l("settings.setup.dictation_title");
+  const result = await slot(ctx, key, title, null, key === "llm", true);
+  result.querySelector("h2,h3")?.classList.add("visually-hidden");
+  return result;
+}
+
+async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subtitle: string | LocalizedText | null, llm: boolean, taskSetup = false) {
   const { settings, kinds } = ctx.info;
   const choice: ModelChoice = settings[key];
   const eligible = settings.providers.filter((p) => {
@@ -33,7 +40,7 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
   const set = (change: (c: ModelChoice) => void) =>
     ctx.save((s: Settings) => {
       change(s[key]);
-    });
+    }).catch(ctx.report);
 
   const provider = select(
     eligible.map((p) => [p.id, p.name] as [string, string]),
@@ -69,11 +76,15 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
     if (!account?.base_url) repair = () => t("providers.choose_cli");
   } else ready = ready && !!choice.model.trim();
   if (account?.kind === "local") {
-    const downloaded = (await api.localModels(null, false)).filter((m) => m.state.kind === "downloaded");
+    const all = await api.localModels(null, false);
+    const downloaded = all.filter((m) => m.state.kind === "downloaded");
     const downloadedChoice = downloaded.some((item) => item.id === choice.model);
     ready = ready && downloadedChoice;
     if (!downloadedChoice) { repair = () => t("providers.download_first"); repairTarget = "local"; }
-    model = downloaded.length
+    model = taskSetup ? select(
+      all.map((item) => [item.id, `${item.name} · ${formatBytes(item.size_bytes)}`] as [string, string]),
+      choice.model, (id) => set((c) => (c.model = id)), "menu",
+    ) : downloaded.length
       ? select(
           downloaded.map((m) => [m.id, m.name] as [string, string]),
           choice.model,
@@ -81,6 +92,30 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
           "menu",
         )
       : h("span", { class: "muted" }, l("providers.no_downloaded_model"));
+    if (taskSetup && !downloadedChoice) {
+      const selectedModel = all.find((item) => item.id === choice.model);
+      if (selectedModel) {
+        let disposed = false;
+        let active = ctx.info.active_model_downloads?.includes(selectedModel.id) ?? false;
+        const progress = h("progress", { hidden: !active, "aria-label": l("providers.local.downloading_model", () => ({ model: selectedModel.name })) });
+        const outcome = h("p", { class: "help", role: "status" });
+        const download = h("button", { class: "btn", disabled: active || accountKind?.availability.status !== "available", onclick: async () => {
+          active = true; download.disabled = true; cancel.hidden = false; progress.hidden = false;
+          try { await api.downloadModel(selectedModel.id); if (!disposed) await ctx.refresh(); }
+          catch (error) { if (!disposed && !isCancellation(error)) { outcome.textContent = errorText(error); outcome.className = "error"; } }
+          finally { if (!disposed) { active = false; download.disabled = false; cancel.hidden = true; progress.hidden = true; } }
+        } }, l("settings.setup.download", () => ({ size: formatBytes(selectedModel.size_bytes) })));
+        const cancel = h("button", { class: "btn", hidden: !active, onclick: () => api.cancelDownload(selectedModel.id).catch(ctx.report) }, l("common.cancel"));
+        ctx.onDispose(() => { disposed = true; });
+        void listen<{ id: string; downloaded: number; total: number }>("download-progress", (event) => {
+          if (!disposed && event.payload.id === selectedModel.id) { progress.max = event.payload.total || 1; progress.value = event.payload.downloaded; }
+        }).then((unlisten) => { if (disposed) unlisten(); else ctx.onDispose(unlisten); }).catch(ctx.report);
+        void listen<{ id: string }>("download-done", (event) => {
+          if (!disposed && event.payload.id === selectedModel.id) void ctx.refresh().catch(ctx.report);
+        }).then((unlisten) => { if (disposed) unlisten(); else ctx.onDispose(unlisten); }).catch(ctx.report);
+        model = h("div", {}, model, h("div", { class: "row" }, download, cancel), progress, outcome);
+      }
+    }
   } else if (account?.kind === "apple_speech") {
     model = h("span", { class: "help" }, liveText(() => localizeBackendText(accountKind?.availability.reason ?? "")) || l("providers.apple_speech_model"));
   } else if (account?.kind === "apple_intelligence") {
@@ -140,9 +175,10 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
   bindLocalization(repairText, () => { repairText.textContent = repair(); });
   const flowText = h("p", { class: "help" }, flow());
   bindLocalization(flowText, () => { flowText.textContent = flow(); });
-  return section(title, subtitle, field(l("common.provider"), h("div", { class: "row" }, provider, readiness)), field(l("common.model"), model),
+  return section(title, subtitle, field(taskSetup ? l("settings.setup.process_with") : l("common.provider"), h("div", { class: "row" }, provider, readiness)), field(l("common.model"), model),
     flowText,
-    !configured ? h("p", { class: "help" }, repairText, " ", h("button", { class: "text-button", onclick: () => ctx.navigate(repairTarget) }, repairTarget === "local" ? l("providers.open_local_models") : l("providers.open_providers"))) : null,
+    !configured ? h("p", { class: "help" }, repairText, " ",
+      taskSetup && repairTarget === "local" ? null : h("button", { class: "text-button", onclick: () => ctx.navigate(repairTarget) }, taskSetup ? l("settings.setup.connection_details") : repairTarget === "local" ? l("providers.open_local_models") : l("providers.open_providers"))) : null,
     catalogStatus,
     h("p", { class: "help" }, l("providers.sample_help", () => ({ destination: providerDestination(account) }))),
     h("div", { class: "row" }, test), outcome);

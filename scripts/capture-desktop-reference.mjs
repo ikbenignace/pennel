@@ -36,15 +36,16 @@ if (!selected.length || options.cases.some(name => !cases.some(item => item.name
 const appearances = options.appearance === "both" ? ["light", "dark"] : [options.appearance];
 const meetingId = "2026-10-24 0900 Projectoverleg";
 // Default sizes of the shared app's windows (apps/desktop/src-tauri/src/workspace.rs).
-const windowSizes = { workspace: [980, 640], settings: [760, 600], history: [560, 560], dictation: [640, 560], onboarding: [640, 660] };
+const windowSizes = { workspace: [980, 640], settings: [980, 640], history: [980, 640], dictation: [980, 640], onboarding: [640, 660] };
 const urlFor = (base, item, appearance, locale) => {
   const url = new URL(item.window === "pill" ? "/pill.html" : "/index.html", base);
   for (const [key, value] of Object.entries({ qa: item.name, theme: appearance, locale, window: item.window, section: item.section, tab: item.tab, meeting_id: item.meeting_tab ? meetingId : undefined, meeting_tab: item.meeting_tab })) if (value) url.searchParams.set(key, value);
   return url.href;
 };
 const { createServer } = await import(pathToFileURL(join(appRoot, "node_modules/vite/dist/node/index.js")).href);
+const viteCache = await mkdtemp(join(tmpdir(), "pennel-visual-vite-"));
 const server = await createServer({
-  configFile: join(appRoot, "vite.config.ts"), root: appRoot,
+  configFile: join(appRoot, "vite.config.ts"), root: appRoot, cacheDir: viteCache,
   server: { host: "127.0.0.1", port: options.port, strictPort: Boolean(options.port), hmr: false, fs: { allow: [root] } },
   plugins: [{
     name: "pennel-owned-visual-fixtures",
@@ -86,6 +87,7 @@ async function cleanup() {
   }
   await server.close();
   if (profile) await rm(profile, { recursive: true, force: true });
+  await rm(viteCache, { recursive: true, force: true });
 }
 process.on("SIGINT", () => { void cleanup().finally(() => process.exit(0)); });
 process.on("SIGTERM", () => { void cleanup().finally(() => process.exit(0)); });
@@ -135,8 +137,8 @@ if (options.serve) {
       for (const item of selected) {
         currentCase = `${locale}/${appearance}/${item.name}`;
         connection.events.length = 0;
-        const [width, height] = item.window === "pill" ? [pillMetrics["window-width"], pillMetrics["window-height"]] : windowSizes[item.window];
-        await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+        const [width, height] = item.size ?? (item.window === "pill" ? [pillMetrics["window-width"], pillMetrics["window-height"]] : windowSizes[item.window]);
+        await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: item.scale ?? 1, mobile: false });
         await send("Emulation.setDefaultBackgroundColorOverride", item.window === "pill" ? { color: { r: 0, g: 0, b: 0, a: 0 } } : {});
         const url = urlFor(base, item, appearance, locale);
         await send("Page.navigate", { url });
@@ -154,7 +156,8 @@ if (options.serve) {
         await send("Runtime.evaluate", { expression: "(async()=>{await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()", awaitPromise: true, returnByValue: true });
         await new Promise(resolve => setTimeout(resolve, 250));
         for (const step of item.steps || []) {
-          await send("Runtime.evaluate", { expression: step.eval, awaitPromise: true });
+          const result = await send("Runtime.evaluate", { expression: step.eval, awaitPromise: true });
+          if (result.exceptionDetails) throw new Error(`${item.name}: ${result.exceptionDetails.exception?.description || result.exceptionDetails.text}`);
           await new Promise(resolve => setTimeout(resolve, step.wait || 300));
         }
         const metadata = await send("Runtime.evaluate", { expression: "(()=>{const pill=document.getElementById('pill'),preview=document.getElementById('preview'),text=document.getElementById('preview-text'),bounds=pill?.getBoundingClientRect();const pillError=pill?(bounds.left<0||bounds.top<0||bounds.right>innerWidth||bounds.bottom>innerHeight?'Pill exceeds the viewport':text?.querySelector('*')?'Preview interpreted markup':window.__PENNEL_FIXTURE__.options.preview_text&&preview.hidden?'Expected preview is hidden':''):'';return {document_language:document.documentElement.lang,width:innerWidth,height:innerHeight,horizontal_overflow:document.documentElement.scrollWidth>innerWidth,unknown_commands:window.__PENNEL_FIXTURE__.unknown,calls:window.__PENNEL_FIXTURE__.calls,runtime_banner:document.querySelector('.notice-banner:not([hidden]):not([data-recovery-banner])')?.textContent||'',recovery_banner:document.querySelector('[data-recovery-banner]:not([hidden])')?.textContent||'',surface_error:pillError,pill_preview:text?{text:text.textContent,visible:!preview.hidden,height:preview.getBoundingClientRect().height}:null,body:document.body.innerText.slice(0,300)}})()", returnByValue: true });

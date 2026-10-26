@@ -7,6 +7,7 @@
   "common.done": "Done",
   "common.loading": "Loading…",
   "common.back": "Back",
+  "navigation.back_to_work": "Back to your work",
   "common.continue": "Continue",
   "common.close": "Close",
   "common.none": "None",
@@ -65,5 +66,10 @@
   "updates.downloading": "Downloading update…",
   "updates.installed": "Update installed. Restart Pennel.",
   "common.transition_busy": "Another window action is already in progress.",
-  "interface.system": "System language ({language})"
+  "interface.system": "System language ({language})",
+  "navigation.overview": "Overview",
+  "navigation.your_work": "Your work",
+  "navigation.app": "Pennel",
+  "navigation.advanced": "Advanced",
+  "appearance.zoom_help": "Text size: {modifier} + = to enlarge, {modifier} + - to reduce, and {modifier} + 0 to reset."
 }

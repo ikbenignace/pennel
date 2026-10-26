@@ -100,7 +100,7 @@ export function dictationView(ctx: Context): HTMLElement {
       toggle(l("dictation.pad.paste_externally"), s.dictation_pad_auto_paste, (value) => { void ctx.save((settings) => { settings.dictation_pad_auto_paste = value; }); }, ctx.info.capabilities.pad_external_paste),
       h("p", { class: "help" }, l("dictation.pad.paste_help"))),
     section(l("dictation.access.title"), l("dictation.access.help"),
-      h("button", { class: "btn", onclick: () => api.showWindow("onboarding", "resume") }, l("dictation.access.check_ellipsis"))),
+      h("button", { class: "btn", onclick: () => api.showWindow("onboarding", "dictation-setup") }, l("dictation.access.check_ellipsis"))),
   );
 }
 

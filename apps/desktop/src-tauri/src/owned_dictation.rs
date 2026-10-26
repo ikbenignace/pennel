@@ -205,6 +205,9 @@ pub fn begin_capture(app: &AppHandle, shared: &Shared, id: &str) -> Result<Owned
             .get_mut(id)
             .ok_or("Deze dicteersessie is gesloten")?;
         session.capture = Some(valid);
+        // Navigation's idle-only close uses this same lock, including while capture is starting.
+        session.snapshot.phase = SessionPhase::Listening;
+        session.snapshot.error = None;
         let previous_targets = std::mem::take(&mut session.external);
         if let Some(target) = &capture.external {
             session.external.push(target.clone());
@@ -283,14 +286,13 @@ pub fn complete(app: &AppHandle, shared: &Shared, capture: &OwnedCapture, text: 
     }
     if capture.kind == SessionKind::Practice {
         let mut settings = shared.settings();
-        // Onboarding completes after the optional voice step, which comes next.
-        settings.onboarding.version = 1;
-        settings.onboarding.resume_step = pennel_core::OnboardingStep::Voice;
-        if let Err(error) = shared.engine.update_settings(settings) {
-            failed(app, &capture.id, error.to_string());
-            return false;
+        if settings.onboarding.finish_dictation_practice() {
+            if let Err(error) = shared.engine.update_settings(settings) {
+                failed(app, &capture.id, error.to_string());
+                return false;
+            }
+            let _ = app.emit("settings-changed", ());
         }
-        let _ = app.emit("settings-changed", ());
     }
     let external_notice = if capture.external_requested && capture.external.is_none() {
         Some("Geen doelapp beschikbaar. Je tekst staat in Pennel.".into())
@@ -366,16 +368,41 @@ pub fn external_allowed(shared: &Shared, capture: &OwnedCapture) -> bool {
 }
 
 fn close(app: &AppHandle, owner: &str, id: &str) -> Result<(), String> {
+    close_with_policy(app, owner, id, false)
+}
+
+fn take_session(
+    entries: &mut HashMap<String, Session>,
+    owner: &str,
+    id: &str,
+    only_if_idle: bool,
+) -> Result<Option<Session>, String> {
+    if let Some(session) = entries.get(id) {
+        if session.owner != owner {
+            return Err("Deze dicteersessie hoort bij een ander venster".into());
+        }
+        if only_if_idle
+            && matches!(
+                session.snapshot.phase,
+                SessionPhase::Listening | SessionPhase::Working
+            )
+        {
+            return Err("Rond eerst je huidige dictaat af".into());
+        }
+    }
+    Ok(entries.remove(id))
+}
+
+fn close_with_policy(
+    app: &AppHandle,
+    owner: &str,
+    id: &str,
+    only_if_idle: bool,
+) -> Result<(), String> {
     let removed = {
         let sessions = app.state::<Sessions>();
         let mut entries = sessions.entries.lock().unwrap();
-        if entries
-            .get(id)
-            .is_some_and(|session| session.owner != owner)
-        {
-            return Err("Deze dicteersessie hoort bij een ander venster".into());
-        }
-        entries.remove(id)
+        take_session(&mut entries, owner, id, only_if_idle)?
     };
     if let Some(session) = removed {
         session.live.store(false, Ordering::SeqCst);
@@ -394,6 +421,13 @@ fn close(app: &AppHandle, owner: &str, id: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn session_owner_allowed(kind: SessionKind, owner: &str) -> bool {
+    matches!(
+        (kind, owner),
+        (SessionKind::Pad, "main") | (SessionKind::Practice, "onboarding")
+    )
 }
 
 pub fn close_owner(app: &AppHandle, owner: &str) {
@@ -629,10 +663,7 @@ pub fn open_dictation_session(
     shared: State<'_, Arc<Shared>>,
 ) -> Result<DictationSessionSnapshot, String> {
     let owner = window.label();
-    if !matches!(
-        (kind, owner),
-        (SessionKind::Pad, "dictation") | (SessionKind::Practice, "onboarding")
-    ) {
+    if !session_owner_allowed(kind, owner) {
         return Err("Dit venster kan geen dicteersessie openen".into());
     }
     close_owner(&app, owner);
@@ -782,15 +813,66 @@ pub fn cancel_dictation_session(
 #[tauri::command]
 pub fn close_dictation_session(
     session_id: String,
+    only_if_idle: Option<bool>,
     window: WebviewWindow,
     app: AppHandle,
 ) -> Result<(), String> {
-    close(&app, window.label(), &session_id)
+    close_with_policy(
+        &app,
+        window.label(),
+        &session_id,
+        only_if_idle.unwrap_or(false),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_main_pad_and_owned_onboarding_practice_can_open_sessions() {
+        assert!(session_owner_allowed(SessionKind::Pad, "main"));
+        assert!(session_owner_allowed(SessionKind::Practice, "onboarding"));
+        assert!(!session_owner_allowed(SessionKind::Practice, "main"));
+        assert!(!session_owner_allowed(SessionKind::Pad, "history"));
+        assert!(!session_owner_allowed(SessionKind::Pad, "onboarding"));
+    }
+
+    #[test]
+    fn guarded_navigation_cannot_remove_a_listening_or_processing_session() {
+        for phase in [SessionPhase::Listening, SessionPhase::Working] {
+            let mut session = metadata_session(SessionKind::Pad, phase);
+            session.owner = "main".into();
+            session.snapshot.text = "Retained local draft".into();
+            let live = session.live.clone();
+            let mut entries = HashMap::from([("pad".into(), session)]);
+            assert!(take_session(&mut entries, "main", "pad", true).is_err());
+            assert_eq!(entries["pad"].snapshot.text, "Retained local draft");
+            assert!(live.load(Ordering::SeqCst));
+            assert!(
+                take_session(&mut entries, "main", "pad", false)
+                    .unwrap()
+                    .is_some()
+            );
+        }
+    }
+
+    #[test]
+    fn idle_navigation_releases_only_its_own_session() {
+        for phase in [SessionPhase::Idle, SessionPhase::Done, SessionPhase::Error] {
+            let mut session = metadata_session(SessionKind::Pad, phase);
+            session.owner = "main".into();
+            let mut entries = HashMap::from([("pad".into(), session)]);
+            assert!(take_session(&mut entries, "history", "pad", true).is_err());
+            assert!(entries.contains_key("pad"));
+            assert!(
+                take_session(&mut entries, "main", "pad", true)
+                    .unwrap()
+                    .is_some()
+            );
+            assert!(entries.is_empty());
+        }
+    }
 
     #[test]
     fn localization_changes_owned_messages_but_never_dictated_text_or_app_names() {

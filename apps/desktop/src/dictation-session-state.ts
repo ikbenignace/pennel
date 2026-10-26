@@ -1,5 +1,10 @@
 import type { DictationSessionSnapshot } from "./api";
 
+/** The Pad presents its own navigation recovery without leaving the current view. */
+export class PadNavigationBlocked extends Error {
+  constructor(message = "Finish or cancel dictation before switching sections.") { super(message); this.name = "PadNavigationBlocked"; }
+}
+
 export class DictationSessionState {
   snapshot: DictationSessionSnapshot | null = null;
   private closed = true;
@@ -53,6 +58,7 @@ export interface DictationSessionDriver {
   toggle(id: string): Promise<void>;
   cancel(id: string): Promise<void>;
   close(id: string): Promise<void>;
+  leave?(id: string): Promise<void>;
   subscribe(listener: (snapshot: DictationSessionSnapshot) => void): Promise<() => void>;
 }
 
@@ -127,5 +133,26 @@ export class OwnedSessionLifecycle {
     this.unlisten?.(); this.unlisten = null;
     const id = this.state.close();
     if (id) await this.driver.close(id);
+  }
+
+  async leave(): Promise<boolean> {
+    if (this.opening) await this.opening;
+    if (this.state.busy) return false;
+    const id = this.state.snapshot?.session_id;
+    if (id) {
+      try {
+        if (this.driver.leave) await this.driver.leave(id);
+        else await this.driver.close(id);
+      }
+      catch (error) {
+        await this.refresh().catch(() => undefined);
+        if (this.state.busy) return false;
+        throw error;
+      }
+    }
+    ++this.generation;
+    this.unlisten?.(); this.unlisten = null;
+    this.state.close();
+    return true;
   }
 }

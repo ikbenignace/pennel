@@ -86,9 +86,9 @@ pub use rules::{
 };
 pub use session::{MeetingHealth, MeetingRecognition, MeetingSession};
 pub use settings::{
-    AppearancePreference, DictationMode, HotkeyTrigger, ModelChoice, OnboardingProgress,
-    OnboardingStatus, OnboardingStep, Settings, SpeakerRecognitionMode, Style, StyleRule,
-    default_settings,
+    AppearancePreference, DictationMode, HotkeyTrigger, ModelChoice, OnboardingGoal,
+    OnboardingProgress, OnboardingStatus, OnboardingStep, Settings, SpeakerRecognitionMode, Style,
+    StyleRule, default_settings,
 };
 pub use setup::{SetupAccess, SetupFacts, SetupReadiness, dictation_readiness, meeting_readiness};
 pub use speakers::{MeetingVoice, SpeakerRecognition};

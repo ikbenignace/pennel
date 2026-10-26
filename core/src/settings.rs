@@ -42,6 +42,14 @@ pub enum OnboardingStatus {
     Completed,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
+#[serde(rename_all = "snake_case")]
+pub enum OnboardingGoal {
+    #[default]
+    Dictation,
+    Meeting,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingStep {
@@ -50,7 +58,7 @@ pub enum OnboardingStep {
     Engine,
     Permissions,
     Practice,
-    /// "Leer je stem": optional, after the first dictation.
+    /// Retained for older saved progress; new first use defers enrollment to Meetings settings.
     Voice,
 }
 
@@ -59,6 +67,8 @@ pub struct OnboardingProgress {
     pub version: u32,
     pub status: OnboardingStatus,
     pub resume_step: OnboardingStep,
+    #[serde(default)]
+    pub goal: OnboardingGoal,
 }
 
 impl Default for OnboardingProgress {
@@ -68,7 +78,20 @@ impl Default for OnboardingProgress {
             version: 1,
             status: OnboardingStatus::Skipped,
             resume_step: OnboardingStep::Welcome,
+            goal: OnboardingGoal::Dictation,
         }
+    }
+}
+
+impl OnboardingProgress {
+    pub fn finish_dictation_practice(&mut self) -> bool {
+        if self.goal != OnboardingGoal::Dictation || self.status != OnboardingStatus::Pending {
+            return false;
+        }
+        self.version = 1;
+        self.status = OnboardingStatus::Completed;
+        self.resume_step = OnboardingStep::Practice;
+        true
     }
 }
 
@@ -239,7 +262,7 @@ pub fn default_settings() -> Settings {
         appearance: AppearancePreference::System,
         onboarding: OnboardingProgress {
             status: OnboardingStatus::Pending,
-            resume_step: OnboardingStep::Language,
+            resume_step: OnboardingStep::Welcome,
             ..OnboardingProgress::default()
         },
         dictation_pad_auto_paste: false,
@@ -447,7 +470,58 @@ mod tests {
         assert!(!settings.dictation_pad_auto_paste);
         assert_eq!(settings.onboarding.version, 1);
         assert_eq!(settings.onboarding.status, OnboardingStatus::Pending);
-        assert_eq!(settings.onboarding.resume_step, OnboardingStep::Language);
+        assert_eq!(settings.onboarding.resume_step, OnboardingStep::Welcome);
+        assert_eq!(settings.onboarding.goal, OnboardingGoal::Dictation);
+    }
+
+    #[test]
+    fn old_onboarding_progress_defaults_to_dictation_without_losing_its_step() {
+        let old = r#"{"version":1,"status":"pending","resume_step":"voice"}"#;
+        let restored: OnboardingProgress = serde_json::from_str(old).unwrap();
+        assert_eq!(restored.goal, OnboardingGoal::Dictation);
+        assert_eq!(restored.resume_step, OnboardingStep::Voice);
+        assert_eq!(restored.status, OnboardingStatus::Pending);
+    }
+
+    #[test]
+    fn meeting_first_progress_survives_a_restart_and_is_not_completed_by_dictation_practice() {
+        let mut progress = OnboardingProgress {
+            status: OnboardingStatus::Pending,
+            resume_step: OnboardingStep::Permissions,
+            goal: OnboardingGoal::Meeting,
+            ..OnboardingProgress::default()
+        };
+        assert!(!progress.finish_dictation_practice());
+        assert_eq!(progress.status, OnboardingStatus::Pending);
+        let restored: OnboardingProgress =
+            serde_json::from_str(&serde_json::to_string(&progress).unwrap()).unwrap();
+        assert_eq!(restored, progress);
+    }
+
+    #[test]
+    fn real_dictation_practice_completes_setup_without_optional_voice_enrollment() {
+        let mut progress = OnboardingProgress {
+            status: OnboardingStatus::Pending,
+            resume_step: OnboardingStep::Practice,
+            ..OnboardingProgress::default()
+        };
+        assert!(progress.finish_dictation_practice());
+        assert_eq!(progress.status, OnboardingStatus::Completed);
+        assert_eq!(progress.resume_step, OnboardingStep::Practice);
+    }
+
+    #[test]
+    fn rehearsing_does_not_rewrite_completed_or_preexisting_progress() {
+        for status in [OnboardingStatus::Completed, OnboardingStatus::Skipped] {
+            let mut progress = OnboardingProgress {
+                status,
+                resume_step: OnboardingStep::Voice,
+                ..OnboardingProgress::default()
+            };
+            let previous = progress.clone();
+            assert!(!progress.finish_dictation_practice());
+            assert_eq!(progress, previous);
+        }
     }
 
     #[test]
@@ -488,6 +562,7 @@ mod tests {
             version: 1,
             status: OnboardingStatus::Pending,
             resume_step: OnboardingStep::Practice,
+            goal: OnboardingGoal::Dictation,
         };
         let restored: Settings =
             serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
@@ -506,6 +581,7 @@ mod tests {
                 version: 1,
                 status: OnboardingStatus::Completed,
                 resume_step: OnboardingStep::Voice,
+                goal: OnboardingGoal::Dictation,
             };
             let mut json = serde_json::to_value(&settings).unwrap();
             json["ui_language"] = language.into();

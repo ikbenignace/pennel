@@ -64,8 +64,7 @@ pub fn fit_window_size(
     }
 }
 
-/// Each product window, as in the original Pennel: the library is the main window and settings,
-/// history and dictation open in their own titled windows.
+/// Every product screen shares main; onboarding and the nonactivating prompt stay separate.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WindowSpec {
     pub label: &'static str,
@@ -90,27 +89,6 @@ pub fn window_spec(kind: &str) -> WindowSpec {
             "Pennel",
             (420.0, 160.0),
             (420.0, 160.0),
-        ),
-        "settings" => (
-            "settings",
-            "settings",
-            "Instellingen",
-            (760.0, 600.0),
-            (640.0, 460.0),
-        ),
-        "history" => (
-            "history",
-            "history",
-            "Geschiedenis",
-            (560.0, 560.0),
-            (440.0, 360.0),
-        ),
-        "dictation" => (
-            "dictation",
-            "dictation",
-            "Dicteren",
-            (640.0, 560.0),
-            (480.0, 420.0),
         ),
         _ => (
             "main",
@@ -140,6 +118,18 @@ pub fn query_value(value: &str) -> String {
             _ => format!("%{byte:02X}"),
         })
         .collect()
+}
+
+/// Legacy URL aliases retain section intent while all product views use main's native window.
+pub fn window_url(kind: &str, tab: Option<&str>) -> String {
+    let mode = match kind {
+        "dictation" | "history" | "settings" => kind,
+        _ => window_spec(kind).mode,
+    };
+    match tab.filter(|_| matches!(mode, "dictation" | "history" | "settings" | "workspace")) {
+        Some(tab) => format!("index.html?window={mode}&tab={}", query_value(tab)),
+        None => format!("index.html?window={mode}"),
+    }
 }
 
 pub fn label_spec(label: &str) -> Option<WindowSpec> {
@@ -199,10 +189,11 @@ impl WorkspaceRoute {
     /// The window kind that shows this route.
     pub fn window_kind(&self) -> &'static str {
         match self.section {
-            WorkspaceSection::Dictation => "dictation",
-            WorkspaceSection::History => "history",
-            WorkspaceSection::Settings => "settings",
-            WorkspaceSection::Meetings | WorkspaceSection::Recording => "workspace",
+            WorkspaceSection::Dictation
+            | WorkspaceSection::Meetings
+            | WorkspaceSection::History
+            | WorkspaceSection::Settings
+            | WorkspaceSection::Recording => "workspace",
         }
     }
 
@@ -403,8 +394,23 @@ pub fn hide_current(app: &AppHandle, label: &str, revision: u64) -> bool {
         .hide_current(label, revision)
 }
 
+fn onboarding_tab(tab: Option<&str>) -> Option<&str> {
+    tab.filter(|tab| {
+        matches!(
+            *tab,
+            "welcome"
+                | "engine"
+                | "permissions"
+                | "practice"
+                | "resume"
+                | "dictation-setup"
+                | "dictation-permissions"
+        )
+    })
+}
+
 pub fn request_onboarding(app: &AppHandle, tab: Option<&str>) {
-    if let Some(tab @ ("welcome" | "engine" | "permissions" | "practice" | "resume")) = tab {
+    if let Some(tab) = onboarding_tab(tab) {
         *app.state::<Navigation>().onboarding.lock().unwrap() = Some(tab.into());
     }
 }
@@ -423,6 +429,17 @@ pub fn valid_meeting_id(value: &str) -> bool {
             .any(|c| c.is_control() || matches!(c, '/' | '\\' | ':'))
 }
 
+fn history_entry_id(tab: &str) -> Option<&str> {
+    let id = tab.strip_prefix("entry:")?;
+    let valid = !id.is_empty()
+        && id.len() <= 128
+        && id.as_bytes()[0].is_ascii_alphanumeric()
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'));
+    valid.then_some(id)
+}
+
 pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
     use WorkspaceSection::*;
     let mut route = WorkspaceRoute::section(match kind {
@@ -434,15 +451,25 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
         _ => return None,
     });
     match route.section {
-        Dictation if tab == Some("pad") => route.tab = Some("pad".into()),
+        Dictation => {
+            route.tab = tab
+                .filter(|value| matches!(*value, "pad" | "home"))
+                .map(str::to_owned)
+        }
+        History => {
+            route.tab = tab
+                .filter(|value| history_entry_id(value).is_some())
+                .map(str::to_owned)
+        }
         Settings => {
             route.tab = Some(
-                match tab.unwrap_or("providers") {
+                match tab.unwrap_or("overview") {
                     "meetings" => "meeting-settings",
                     "local" => "local",
-                    known @ ("providers" | "models" | "dictation" | "meeting-settings"
-                    | "recording" | "dictionary" | "styles" | "appearance" | "account") => known,
-                    _ => "providers",
+                    known @ ("overview" | "providers" | "models" | "dictation"
+                    | "meeting-settings" | "recording" | "dictionary" | "styles"
+                    | "appearance" | "account") => known,
+                    _ => "overview",
                 }
                 .into(),
             );
@@ -454,7 +481,8 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
                 if valid_meeting_id(id)
                     && !matches!(
                         id,
-                        "providers"
+                        "overview"
+                            | "providers"
                             | "models"
                             | "dictation"
                             | "meeting-settings"
@@ -478,6 +506,23 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
         _ => {}
     }
     Some(route)
+}
+
+/// Generic task requests enter main without replacing their frontend-owned selection.
+/// Presenting main itself leaves an explicit pending route untouched.
+pub fn window_request_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
+    if tab.is_none() {
+        let section = match kind {
+            "settings" => Some(WorkspaceSection::Settings),
+            "dictation" => Some(WorkspaceSection::Dictation),
+            "history" => Some(WorkspaceSection::History),
+            _ => None,
+        };
+        if let Some(section) = section {
+            return Some(WorkspaceRoute::section(section));
+        }
+    }
+    legacy_route(kind, tab)
 }
 
 pub fn request(app: &AppHandle, label: &str, route: Option<WorkspaceRoute>) {
@@ -523,6 +568,23 @@ pub fn requested(app: &AppHandle, label: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn task_specific_dictation_repairs_reach_an_existing_onboarding_window() {
+        assert_eq!(
+            onboarding_tab(Some("dictation-setup")),
+            Some("dictation-setup")
+        );
+        assert_eq!(
+            onboarding_tab(Some("dictation-permissions")),
+            Some("dictation-permissions")
+        );
+        for legacy in ["welcome", "engine", "permissions", "practice", "resume"] {
+            assert_eq!(onboarding_tab(Some(legacy)), Some(legacy));
+        }
+        assert_eq!(onboarding_tab(Some("untrusted-route")), None);
+        assert_eq!(onboarding_tab(None), None);
+    }
 
     #[test]
     fn prompt_sits_top_right_inside_the_work_area() {
@@ -770,11 +832,11 @@ mod tests {
     }
 
     #[test]
-    fn settings_history_and_dictation_open_their_own_titled_windows() {
+    fn all_product_screens_share_the_main_window() {
         for (kind, label, title) in [
-            ("settings", "settings", "Instellingen"),
-            ("history", "history", "Geschiedenis"),
-            ("dictation", "dictation", "Dicteren"),
+            ("settings", "main", "Pennel"),
+            ("history", "main", "Pennel"),
+            ("dictation", "main", "Pennel"),
             ("onboarding", "onboarding", "Welkom bij Pennel"),
             ("library", "main", "Pennel"),
             ("live", "main", "Pennel"),
@@ -784,6 +846,10 @@ mod tests {
             assert_eq!((spec.label, spec.title), (label, title));
             assert_eq!(label_spec(label), Some(spec));
         }
+        assert_eq!(label_spec("settings"), None);
+        assert_eq!(label_spec("dictation"), None);
+        assert_eq!(label_spec("history"), None);
+        assert_eq!(label_spec("record-prompt"), Some(window_spec("prompt")));
         assert_eq!(label_spec("pill"), None);
         assert_eq!(
             query_value("2026-10-25 Overleg/&x"),
@@ -793,7 +859,7 @@ mod tests {
             legacy_route("settings", Some("styles"))
                 .unwrap()
                 .window_kind(),
-            "settings"
+            "workspace"
         );
         assert_eq!(
             legacy_route("live", None).unwrap().window_kind(),
@@ -805,6 +871,136 @@ mod tests {
                 .tab
                 .as_deref(),
             Some("pad")
+        );
+    }
+
+    #[test]
+    fn opening_settings_without_a_category_restores_the_frontend_category() {
+        let route = window_request_route("settings", None).unwrap();
+        assert_eq!(route.section, WorkspaceSection::Settings);
+        assert_eq!(route.tab, None);
+        assert_eq!(route.window_kind(), "workspace");
+        assert_eq!(window_spec("settings"), window_spec("workspace"));
+        assert_eq!(
+            window_request_route("settings", Some("models"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("models")
+        );
+    }
+
+    #[test]
+    fn presenting_main_keeps_explicit_pending_product_routes() {
+        let route = legacy_route("settings", Some("appearance")).unwrap();
+        let kind = route.window_kind();
+        assert_eq!(window_spec(kind).label, "main");
+        assert_eq!(window_request_route(kind, None), None);
+        for task in ["settings", "history", "dictation", "live"] {
+            let explicit = legacy_route(task, Some("models")).unwrap();
+            assert_eq!(explicit.window_kind(), "workspace");
+            assert_eq!(window_request_route(explicit.window_kind(), None), None);
+        }
+        let history = window_request_route("history", None).unwrap();
+        assert_eq!(history.section, WorkspaceSection::History);
+        assert_eq!(history.tab, None);
+        let dictation = window_request_route("dictation", None).unwrap();
+        assert_eq!(dictation.section, WorkspaceSection::Dictation);
+        assert_eq!(dictation.tab, None);
+        assert_eq!(
+            window_request_route("dictation", Some("home"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("home")
+        );
+        assert_eq!(
+            window_request_route("dictation", Some("pad"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("pad")
+        );
+    }
+
+    #[test]
+    fn first_product_window_urls_keep_legacy_section_intent_unambiguous() {
+        assert_eq!(window_url("dictation", None), "index.html?window=dictation");
+        assert_eq!(
+            window_url("dictation", Some("pad")),
+            "index.html?window=dictation&tab=pad"
+        );
+        assert_eq!(window_url("history", None), "index.html?window=history");
+        assert_eq!(
+            window_url("history", Some("entry:qa-retained")),
+            "index.html?window=history&tab=entry%3Aqa-retained"
+        );
+        assert_eq!(
+            window_url("settings", Some("dictation")),
+            "index.html?window=settings&tab=dictation"
+        );
+        assert_eq!(window_url("settings", None), "index.html?window=settings");
+        assert_eq!(window_url("workspace", None), "index.html?window=workspace");
+        assert_eq!(
+            window_url("onboarding", Some("practice")),
+            "index.html?window=onboarding"
+        );
+        assert_eq!(window_url("prompt", None), "index.html?window=prompt");
+    }
+
+    #[test]
+    fn targeted_history_keeps_the_result_id_as_data() {
+        let id = "019c6e27-e55b-73d1-87d8-4e01f1f75043";
+        let tab = format!("entry:{id}");
+        assert_eq!(history_entry_id(&tab), Some(id));
+        assert_eq!(
+            legacy_route("history", Some(&tab)).unwrap().tab.as_deref(),
+            Some(tab.as_str())
+        );
+        for invalid in [
+            "entry:",
+            "entry:../history",
+            "entry:<script>",
+            "entry:%3Cscript%3E",
+            "entry:result\n",
+            "other",
+        ] {
+            assert!(history_entry_id(invalid).is_none());
+            assert!(
+                legacy_route("history", Some(invalid))
+                    .unwrap()
+                    .tab
+                    .is_none()
+            );
+        }
+        assert!(history_entry_id(&format!("entry:{}", "x".repeat(129))).is_none());
+    }
+
+    #[test]
+    fn settings_without_a_category_opens_task_readiness() {
+        assert_eq!(
+            legacy_route("settings", None).unwrap().tab.as_deref(),
+            Some("overview")
+        );
+        assert_eq!(
+            legacy_route("settings", Some("unknown"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("overview")
+        );
+        assert_eq!(
+            legacy_route("settings", Some("models"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("models")
+        );
+        assert!(
+            legacy_route("library", Some("overview"))
+                .unwrap()
+                .meeting_id
+                .is_none()
         );
     }
 

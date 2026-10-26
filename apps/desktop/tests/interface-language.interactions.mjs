@@ -26,6 +26,11 @@ function choose(picker, value, document = globalThis.document) {
   button.click();
 }
 
+function showOtherOptions(document = globalThis.document) {
+  const alternatives = document.querySelector("details.onboarding-other-options");
+  if (alternatives && !alternatives.open) alternatives.querySelector("summary").click();
+}
+
 export async function checkInterfaceLanguageUI() {
   const fixture = ownedFixture();
   const { api } = await import("/src/api.ts");
@@ -73,8 +78,9 @@ export async function checkOnboardingLanguageUI() {
   assert(JSON.stringify((await api.info()).settings) === JSON.stringify({ ...before.settings, ui_language: next }), "Language screen changed speech/provider/model/progress settings.");
   document.querySelector('.onboarding-next').click();
   await until(() => fixture.info().settings.onboarding.resume_step === "welcome", "Language did not advance to Welcome.");
-  document.querySelector('.onboarding-next').click();
+  [...document.querySelectorAll('.onboarding-goals button')].find(node => node.textContent.trim() === t("onboarding.try_dictation")).click();
   await until(() => fixture.info().settings.onboarding.resume_step === "engine" && document.querySelector('[aria-label]') && document.querySelector('.engine-language'), "Welcome did not advance to speech recognition.");
+  showOtherOptions();
   const modelPicker = [...document.querySelectorAll('.choice[aria-label]')].find(node => node.getAttribute("aria-label")?.startsWith(t("onboarding.speech_model") + ":"));
   assert(modelPicker?.value === before.settings.dictation_stt.model, "Language onboarding reset the existing model choice.");
   const engineSettings = await api.info();
@@ -93,6 +99,7 @@ export async function checkOnboardingModelPicker() {
   const { t, getInterfaceLanguage } = await import("/src/i18n.ts");
   const picker = () => [...document.querySelectorAll('.choice[aria-label]')].find(node => node.getAttribute("aria-label")?.startsWith(t("onboarding.speech_model") + ":"));
   const id = fixture.info().settings.dictation_stt.model;
+  showOtherOptions();
   assert(picker()?.value === id, "Onboarding reset the saved model ID.");
   assert(fixture.completeDownload(id), "Active model download was not owned by the fixture.");
   await until(() => document.querySelector('[data-download-state]')?.textContent.trim() === t("onboarding.downloaded"), "Downloaded model badge did not update.");
@@ -103,6 +110,8 @@ export async function checkOnboardingModelPicker() {
 /** Two real owned fixture windows share an isolated synthetic profile through the storage-event seam. */
 export async function checkCrossWindowLanguagePreservation() {
   ownedFixture();
+  const { catalogs } = await import("/src/i18n.ts");
+  const text = (win, key) => catalogs[win.document.documentElement.lang][key];
   const profile = `language-preservation-${crypto.randomUUID()}`;
   const profileKey = `pennel-synthetic-fixture:${profile}`;
   const frames = [];
@@ -133,7 +142,7 @@ export async function checkCrossWindowLanguagePreservation() {
     }
     const before = await recordingWindow.__PENNEL_PLATFORM__.invoke("meeting_status");
     assert(before.recording && before.session_id, "Recording fixture has no active session.");
-    const picker = settingsWindow.document.querySelector('.choice[aria-label^="Interfacetaal:"]');
+    const picker = [...settingsWindow.document.querySelectorAll('.choice[aria-label]')].find(node => node.getAttribute("aria-label")?.startsWith(text(settingsWindow, "interface.language") + ":"));
     choose(picker, "en", settingsWindow.document);
     await until(() => [settingsWindow, recordingWindow, notesWindow].every(win => win.document.documentElement.lang === "en"), "Settings change did not propagate to other owned windows.");
     assert(recordingWindow.document.querySelector("textarea") === recordingInput && notesWindow.document.querySelector("textarea") === notesInput, "Cross-window locale change replaced a note input.");
@@ -151,9 +160,9 @@ export async function checkCrossWindowLanguagePreservation() {
     choose(picker, "nl", settingsWindow.document);
     await until(() => delayed.document.documentElement.lang === "nl", "Pending settings window did not receive the new language.");
     await until(() => delayed.document.querySelector('.speaker-route') && !delayed.document.querySelector('.settings-loading'), "Delayed speaker controls did not finish rendering.");
-    const heading = [...delayed.document.querySelectorAll('.pane-section h3')].find(node => node.textContent === "Sprekers herkennen");
+    const heading = [...delayed.document.querySelectorAll('.pane-section h2,.pane-section h3')].find(node => node.textContent === text(delayed, "settings.speakers.title"));
     assert(heading, "Asynchronously inserted speaker controls retained the previous interface language.");
-    assert(delayed.document.querySelector('.speaker-route .choice')?.getAttribute("aria-label")?.includes("sprekers"), "Asynchronously inserted speaker controls retained a stale accessible name.");
+    assert(delayed.document.querySelector('.speaker-route .choice')?.getAttribute("aria-label") === text(delayed, "settings.speakers.route_label"), "Asynchronously inserted speaker controls retained a stale accessible name.");
     choose(picker, "en", settingsWindow.document);
     await until(() => [recordingWindow, notesWindow, delayed].every(win => win.document.documentElement.lang === "en"), "Repeated cross-window language switch did not apply.");
     assert(recordingWindow.document.querySelector("textarea") === recordingInput && recordingInput.value === literal, "Repeated relabeling replaced the recording note field or its content.");

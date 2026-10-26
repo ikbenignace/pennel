@@ -1,8 +1,8 @@
-import { api, fixtureClient, listen, type DictationSessionSnapshot, type KindInfo, type LocalModel, type OnboardingStep, type PermissionInfo, type ProviderAccount, type ProviderKind, type SetupReadiness } from "../api";
+import { api, fixtureClient, listen, type DictationSessionSnapshot, type KindInfo, type LocalModel, type OnboardingGoal, type OnboardingStep, type PermissionInfo, type ProviderAccount, type ProviderKind, type SetupReadiness } from "../api";
 import { errorText, formatBytes, h, isCancellation, select, type ChoiceElement } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
 import { icon } from "../icons";
-import { defaultModelId, initialEngine, manualPracticeAllowed, modelOptionLabel, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex, type Engine } from "../onboarding-state";
+import { defaultModelId, initialEngine, manualPracticeAllowed, modelOptionLabel, onboardingFlow, onboardingProgressChange, onboardingResumeStep, onboardingRouteIntent, onboardingSteps, stepIndex, type Engine } from "../onboarding-state";
 import { trainedLabel } from "../speaker-state";
 import { EnrollmentPanel, SpeakerModels, enrollmentBlocker, enrollmentIntro, speakerDownload } from "./voices";
 import { hotkeyLabel, hotkeyKeyLabel } from "../presentation";
@@ -32,7 +32,7 @@ class OnboardingWizard {
   private readonly body = h("div", { class: "onboarding-body" });
   private readonly progress = h("div", { class: "onboarding-progress", role: "img" });
   private readonly next = h("button", { class: "btn primary onboarding-next", onclick: () => { void this.advance().catch(this.fail); } });
-  private readonly back = h("button", { class: "text-button", onclick: () => { void this.move(Math.max(0, this.index - 1)).catch(this.fail); } }, l("onboarding.back"));
+  private readonly back = h("button", { class: "text-button", onclick: () => { void this.previous().catch(this.fail); } }, l("onboarding.back"));
   private readonly skip = h("button", { class: "text-button", onclick: () => { void this.leave().catch(this.fail); } });
   private readonly count = h("span", { class: "help onboarding-count" });
   private readonly theme = h("button", { class: "button-icon", "aria-label": l("onboarding.change_appearance"), onclick: () => {
@@ -42,9 +42,16 @@ class OnboardingWizard {
   private readonly message = h("p", { class: "onboarding-message error", role: "status", "aria-live": "polite", hidden: true });
   private readonly readyRow = h("div", { class: "onboarding-permissions" });
   private readonly engineDetail = h("section", { class: "onboarding-engine-detail", id: "onboarding-engine-detail" });
+  private readonly advancedModel = h("div", { class: "engine-model-options" });
   private readonly localButtons = new Map<Engine, HTMLButtonElement>();
   private index: number;
   private get step(): OnboardingStep { return onboardingSteps[this.index]; }
+  private goal: OnboardingGoal;
+  private legacyStep: OnboardingStep | undefined;
+  private preserveProgress = false;
+  private permissionRepair = false;
+  private showOptions = false;
+  private get flow(): OnboardingStep[] { return this.preserveProgress ? ["engine", "permissions", "practice"] : onboardingFlow(this.legacyStep); }
   private engine: Engine;
   private language: string;
   private localModelId: string;
@@ -74,7 +81,6 @@ class OnboardingWizard {
   private practiceStatus: HTMLParagraphElement | null = null;
   private practiceButton: HTMLButtonElement | null = null;
   private practiceKey: HTMLButtonElement | null = null;
-  private fresh: boolean;
   private voicePanel: EnrollmentPanel | null = null;
   private interfacePicker: ChoiceElement<"system" | "en" | "nl"> | null = null;
   private refreshPracticePresentation: (() => void) | null = null;
@@ -82,27 +88,35 @@ class OnboardingWizard {
 
   constructor(private readonly ctx: Context) {
     const settings = ctx.info.settings;
-    const account = settings.providers.find((provider) => provider.id === settings.dictation_stt.provider_id);
+    const requested = new URLSearchParams(location.search).get("tab");
+    const intent = onboardingRouteIntent(requested, settings.onboarding);
+    this.goal = intent.goal;
+    this.preserveProgress = intent.preserveProgress;
+    this.permissionRepair = intent.preserveProgress && intent.step === "permissions";
+    const choice = this.goal === "meeting" ? settings.meeting_stt : settings.dictation_stt;
+    const account = settings.providers.find((provider) => provider.id === choice.provider_id);
     this.engine = initialEngine(account?.kind, ctx.info.kinds.find((kind) => kind.kind === "local")?.availability.status !== "unsupported");
     this.language = settings.language ?? "";
-    this.localModelId = account?.kind === "local" ? settings.dictation_stt.model : ctx.info.kinds.find((kind) => kind.kind === "local")?.default_stt_model ?? "";
+    this.localModelId = account?.kind === "local" ? choice.model : ctx.info.kinds.find((kind) => kind.kind === "local")?.default_stt_model ?? "";
     this.providerChoice = account && this.customAccounts().some((item) => item.id === account.id) ? account.id
       : this.customAccounts()[0]?.id ?? `new:${this.customKinds()[0]?.kind ?? "open_ai"}`;
     const providerKind = this.customKind();
-    this.providerModel = this.engine === "custom" ? settings.dictation_stt.model : providerKind?.default_stt_model ?? "";
+    this.providerModel = this.engine === "custom" ? choice.model : providerKind?.default_stt_model ?? "";
     this.providerBaseUrl = this.customAccount()?.base_url ?? providerKind?.default_base_url ?? "";
-    this.index = stepIndex(settings.onboarding?.resume_step);
-    this.fresh = settings.onboarding?.status === "pending";
-    const requested = new URLSearchParams(location.search).get("tab");
-    if (requested === "welcome" || requested === "language") { this.index = stepIndex("language"); this.fresh = false; }
+    this.legacyStep = settings.onboarding?.resume_step;
+    this.index = stepIndex(intent.step === "resume" ? "practice" : intent.step);
+    if (requested && onboardingSteps.includes(requested as OnboardingStep)) {
+      if (requested === "language" || requested === "voice") this.legacyStep = requested;
+    }
     const fixture = fixtureClient()?.fixture?.name ?? "";
     if (fixture.includes("engine-apple")) this.engine = "apple";
     if (fixture.includes("engine-custom")) this.engine = "custom";
+    this.showOptions = this.engine !== "local";
     if (fixture.includes("download-error")) this.downloadError = t("onboarding.download_error");
     this.progress.append(...onboardingSteps.map(() => h("span")));
     this.root.append(this.progress,
       this.body, this.message, h("footer", { class: "onboarding-footer" }, h("div", { class: "onboarding-footer-left" }, this.theme, this.back, this.skip, this.count), this.next));
-    ctx.onInfoChange(() => { if (ctx.info.settings.onboarding.status !== "pending") this.fresh = false; this.updateCommon(); if (this.step === "permissions") void this.refreshPermissions().catch(this.fail); });
+    ctx.onInfoChange(() => { this.updateCommon(); if (this.step === "permissions") void this.refreshPermissions().catch(this.fail); });
     ctx.onFocusChange((focused) => {
       if (this.step === "permissions" && focused) void this.refreshPermissions().catch(this.fail);
       if (this.step === "practice") {
@@ -117,8 +131,8 @@ class OnboardingWizard {
         else void this.renderStep().catch(this.fail);
       }
     });
-    ctx.beforeLeave(async () => { this.fresh = false; await this.closePractice(); });
-    ctx.onFlush(() => this.persist(this.step === "practice" && this.practiceDone ? "voice" : this.step));
+    ctx.beforeLeave(async () => { await this.closePractice(); });
+    ctx.onFlush(() => this.persist(this.step));
     ctx.onDispose(() => this.dispose());
     bindLocalization(this.root, () => { this.updateCommon(); this.updateDownload(); this.refreshPracticePresentation?.(); });
   }
@@ -143,34 +157,51 @@ class OnboardingWizard {
     }));
     const route = (event: Event) => {
       const step = (event as CustomEvent<unknown>).detail;
-      if (step === "resume") { this.fresh = false; void this.resume().catch(this.fail); }
-      else if (onboardingSteps.includes(step as OnboardingStep)) { if (step === "welcome" || step === "language") this.fresh = false; void this.move(stepIndex(step === "welcome" ? "language" : step)).catch(this.fail); }
+      if (step === "practice" || step === "dictation-setup" || step === "dictation-permissions" || step === "resume" || onboardingSteps.includes(step as OnboardingStep)) {
+        const intent = onboardingRouteIntent(step, this.ctx.info.settings.onboarding);
+        this.preserveProgress = intent.preserveProgress;
+        this.permissionRepair = intent.preserveProgress && intent.step === "permissions";
+        this.configureGoal(intent.goal);
+        if (step === "language" || step === "voice") this.legacyStep = step;
+        if (intent.step === "resume" || intent.preserveProgress) void this.resume().catch(this.fail);
+        else void this.move(stepIndex(intent.step)).catch(this.fail);
+      }
     };
     window.addEventListener("pennel-onboarding-route", route);
     this.cleanup.push(() => window.removeEventListener("pennel-onboarding-route", route));
-    if (new URLSearchParams(location.search).get("tab") === "resume") await this.resume(); else await this.renderStep();
+    if (new URLSearchParams(location.search).get("tab") === "resume" || this.preserveProgress) await this.resume(); else await this.renderStep();
   }
 
   private async resume() {
-    const readiness = await api.onboardingReadiness("practice");
+    const readiness = await api.onboardingReadiness(this.goal === "meeting" ? "meeting" : "practice");
     this.readiness = readiness;
-    await this.move(stepIndex(resumeStep(readiness.resume_step, this.ctx.info.settings.onboarding.resume_step)));
+    await this.move(stepIndex(onboardingResumeStep(readiness, this.ctx.info.settings.onboarding.resume_step, {
+      goal: this.goal, preserveProgress: this.preserveProgress, step: this.permissionRepair ? "permissions" : "resume",
+    })));
   }
 
   private async persist(step: OnboardingStep, status?: "skipped" | "completed") {
-    if (!onboardingProgressChange(this.ctx.info.settings.onboarding, step, status)) return;
+    if (this.preserveProgress || !onboardingProgressChange(this.ctx.info.settings.onboarding, step, status, this.goal)) return;
     await this.ctx.save((settings) => {
-      const next = onboardingProgressChange(settings.onboarding, step, status);
+      const next = onboardingProgressChange(settings.onboarding, step, status, this.goal);
       if (next) settings.onboarding = next;
     });
   }
 
+  private async previous() {
+    const at = this.flow.indexOf(this.step);
+    await this.move(stepIndex(this.flow[Math.max(0, at - 1)]));
+  }
+
   private async move(index: number) {
     if (this.actionBusy || this.disposed) return;
-    await this.closePractice(); this.closeVoice();
-    await this.persist(onboardingSteps[index]);
-    this.index = index; this.message.hidden = true;
-    await this.renderStep();
+    this.actionBusy = true; this.updateCommon();
+    try {
+      await this.closePractice(); this.closeVoice();
+      await this.persist(onboardingSteps[index]);
+      this.index = index; this.message.hidden = true;
+      await this.renderStep();
+    } finally { this.actionBusy = false; this.updateCommon(); }
   }
 
   private async closePractice() {
@@ -185,11 +216,10 @@ class OnboardingWizard {
   }
 
   private async leave() {
-    this.fresh = false;
     this.actionBusy = true; this.updateCommon();
     // The voice step is optional, so skipping it still completes the onboarding.
     const status = onboardingSteps[this.index] === "voice" ? "completed" : "skipped";
-    try { await this.closePractice(); this.closeVoice(); await this.persist(onboardingSteps[this.index], status); await api.showWorkspace(workspaceRoute("dictation")); }
+    try { await this.closePractice(); this.closeVoice(); await this.persist(onboardingSteps[this.index], status); await api.showWorkspace(workspaceRoute(this.goal === "meeting" ? "meetings" : "dictation")); }
     finally { this.actionBusy = false; this.updateCommon(); }
   }
 
@@ -203,13 +233,13 @@ class OnboardingWizard {
     if (this.step === "welcome") this.renderWelcome();
     if (this.step === "engine") { await this.loadModels(); if (generation !== this.renderGeneration || this.disposed) return; this.renderEngine(); }
     if (this.step === "permissions") {
-      this.body.replaceChildren(this.title(l("onboarding.permissions_title"), l("onboarding.permissions_intro")), this.readyRow,
-        h("p", { class: "help onboarding-permission-help" }, l("onboarding.permissions_later")));
+      this.body.replaceChildren(this.title(l(this.goal === "meeting" ? "onboarding.meeting_permissions_title" : "onboarding.permissions_title"), l(this.goal === "meeting" ? "onboarding.meeting_permissions_intro" : "onboarding.permissions_intro")), this.readyRow,
+        h("p", { class: "help onboarding-permission-help" }, l(this.goal === "meeting" ? "onboarding.meeting_permissions_later" : "onboarding.permissions_later")));
       this.permissionSignature = ""; await this.refreshPermissions();
       this.poll = new VisibilityPoll(1500, () => this.refreshPermissions(), this.fail);
       this.poll.setVisible(this.ctx.visible, false);
     }
-    if (this.step === "practice") await this.renderPractice();
+    if (this.step === "practice") { if (this.goal === "meeting") await this.renderMeetingReady(); else await this.renderPractice(); }
     if (this.step === "voice") { await this.renderVoice(generation); if (generation !== this.renderGeneration || this.disposed) return; }
     this.updateCommon();
   }
@@ -254,10 +284,53 @@ class OnboardingWizard {
   private renderWelcome() {
     this.body.replaceChildren(wordmark(),
       h("h1", {}, l("onboarding.welcome_title")), h("p", { class: "onboarding-intro" }, l("onboarding.welcome_intro")),
-      h("div", { class: "onboarding-demo" }, h("div", { class: "keycap", "aria-hidden": "true" }, icon("globe"), h("span", {}, this.keyLabel())),
-        h("div", { class: "onboarding-demo-document" }, h("span", { class: "help" }, l("onboarding.next_message")), h("p", {}, liveText(() => phrases[this.language] ?? phrases[getInterfaceLanguage()]), h("span", { class: "typing-caret", "aria-hidden": "true" })))),
-      h("p", { class: "help" }, l("onboarding.welcome_gesture", { shortcut: this.hotkey() })),
+      h("div", { class: "onboarding-goals" },
+        this.goalAction("dictation", l("onboarding.try_dictation"), l("onboarding.dictation_goal_help")),
+        this.goalAction("meeting", l("onboarding.record_meeting"), l("onboarding.meeting_goal_help"))),
+      this.interfaceLanguageControl(),
       h("p", { class: "help onboarding-welcome-note" }, l("onboarding.welcome_note")));
+  }
+
+  private goalAction(goal: OnboardingGoal, label: LocalizedText, description: LocalizedText): HTMLElement {
+    return h("div", { class: "onboarding-goal" }, h("button", { class: `btn ${goal === this.goal ? "primary" : ""}`, onclick: () => {
+      void this.chooseGoal(goal).catch(this.fail);
+    } }, icon(goal === "meeting" ? "notebook" : "mic"), label), h("p", { class: "help" }, description));
+  }
+
+  private interfaceLanguageControl(): HTMLElement {
+    const system = this.ctx.info.system_interface_language === "nl" ? "Nederlands" : "English";
+    const picker = select<"system" | "en" | "nl">([
+      ["system", l("onboarding.interface_system", { language: system })], ["en", "English"], ["nl", "Nederlands"],
+    ], this.ctx.info.settings.ui_language ?? "system", (value) => {
+      void this.ctx.save((settings) => { settings.ui_language = value; }).catch(this.fail);
+    }, "menu");
+    picker.setAttribute("aria-label", t("onboarding.interface_language"));
+    bindLocalization(picker, () => picker.setAttribute("aria-label", t("onboarding.interface_language")));
+    this.interfacePicker = picker;
+    return h("div", { class: "preference-row onboarding-interface-language" }, h("span", {}, l("onboarding.interface_language")), picker);
+  }
+
+  private async chooseGoal(goal: OnboardingGoal) {
+    if (this.actionBusy) return;
+    this.legacyStep = undefined;
+    this.configureGoal(goal);
+    await this.move(stepIndex("engine"));
+  }
+
+  private configureGoal(goal: OnboardingGoal) {
+    this.goal = goal;
+    const settings = this.ctx.info.settings;
+    const choice = goal === "meeting" ? settings.meeting_stt : settings.dictation_stt;
+    const account = settings.providers.find((provider) => provider.id === choice.provider_id);
+    this.engine = initialEngine(account?.kind, this.ctx.info.kinds.find((kind) => kind.kind === "local")?.availability.status !== "unsupported");
+    this.localModelId = account?.kind === "local" ? choice.model : this.ctx.info.kinds.find((kind) => kind.kind === "local")?.default_stt_model ?? "";
+    this.providerChoice = account && this.customAccounts().some((item) => item.id === account.id) ? account.id : this.customAccounts()[0]?.id ?? `new:${this.customKinds()[0]?.kind ?? "open_ai"}`;
+    this.providerModel = this.engine === "custom" ? choice.model : this.customKind()?.default_stt_model ?? "";
+    this.providerBaseUrl = this.customAccount()?.base_url ?? this.customKind()?.default_base_url ?? "";
+    this.showOptions = this.engine !== "local";
+    this.downloading = false;
+    this.downloadError = null;
+    this.downloadProgress = { downloaded: 0, total: 0 };
   }
 
   private async loadModels() {
@@ -332,8 +405,13 @@ class OnboardingWizard {
       if (value !== "custom") bindLocalization(button, () => { button.title = this.ctx.info.kinds.find((kind) => kind.kind === (value === "local" ? "local" : "apple_speech"))?.availability.reason ?? ""; });
       this.localButtons.set(value, button); choices.append(button);
     }
+    const alternatives = h("details", { class: "onboarding-other-options", open: this.showOptions }, h("summary", {}, l("onboarding.other_options")),
+      h("div", { class: "engine-language" }, h("span", {}, l("onboarding.language")), language), choices, this.advancedModel,
+      ...this.ctx.info.kinds.filter((kind) => ["local", "apple_speech"].includes(kind.kind) && kind.availability.status === "unsupported" && kind.availability.reason)
+        .map((kind) => h("p", { class: "help" }, this.ownedStatus(() => this.ctx.info.kinds.find((item) => item.kind === kind.kind)?.availability.reason ?? ""))));
+    alternatives.addEventListener("toggle", () => { this.showOptions = alternatives.open; });
     this.body.replaceChildren(this.title(l("onboarding.engine_title"), l("onboarding.engine_intro")),
-      h("div", { class: "engine-language" }, h("span", {}, l("onboarding.language")), language), choices, this.engineDetail);
+      this.engineDetail, alternatives);
     this.renderEngineDetail();
   }
 
@@ -342,6 +420,7 @@ class OnboardingWizard {
   }
 
   private renderEngineDetail() {
+    this.advancedModel.hidden = this.engine !== "local";
     this.localButtons.forEach((button, engine) => button.setAttribute("aria-pressed", String(engine === this.engine)));
     const apple = this.ctx.info.kinds.find((kind) => kind.kind === "apple_speech");
     const appleButton = this.localButtons.get("apple");
@@ -356,14 +435,16 @@ class OnboardingWizard {
       picker.setAttribute("aria-label", t("onboarding.speech_model"));
       bindLocalization(picker, () => picker.setAttribute("aria-label", t("onboarding.speech_model")));
       picker.disabled = this.models.length === 0;
-      const name = h("div", {}, picker, h("small", {}, model ? (downloaded ? liveText(() => formatBytes(model.size_bytes)) : l("onboarding.model_download_size", () => ({ size: formatBytes(model.size_bytes) }))) : l("onboarding.no_local_model")));
+      this.advancedModel.replaceChildren(h("label", { class: "preference-row" }, l("onboarding.speech_model"), picker));
+      const name = h("div", {}, h("strong", {}, l("onboarding.recommended_setup")),
+        h("small", {}, model ? (downloaded ? liveText(() => formatBytes(model.size_bytes)) : l("onboarding.model_download_size", () => ({ size: formatBytes(model.size_bytes) }))) : l("onboarding.no_local_model")));
       const status = h("span", { class: "engine-model-status", "data-download-state": true });
       const track = h("progress", { class: "engine-download-progress", "aria-label": l("onboarding.download_model"), hidden: !this.downloading });
       const caption = h("div", { class: "engine-download-caption", hidden: !this.downloading }, h("span", { "data-download-caption": true }), h("button", { class: "text-button", onclick: () => {
         void api.cancelDownload(this.localModelId).then(() => { this.downloading = false; this.updateDownload(); this.updateCommon(); }).catch(this.fail);
       } }, l("onboarding.cancel_download")));
       this.engineDetail.replaceChildren(h("h2", {}, l("onboarding.local_audio_title")), h("p", { class: "engine-description" }, l("onboarding.local_audio_intro")),
-        h("p", { class: "help" }, l("onboarding.practice_speech_only")),
+        h("p", { class: "help" }, l(this.goal === "meeting" ? "onboarding.meeting_speech_only" : "onboarding.practice_speech_only")),
         h("div", { class: "engine-model" }, icon("download"), name, status), track, caption,
         ...(this.downloadError ? [h("div", { class: "engine-error", role: "alert" }, h("p", {}, this.ownedStatus(() => this.downloadError ?? "")),
           h("button", { class: "text-button", disabled: apple?.availability.status === "unsupported", onclick: () => { void this.chooseEngine("apple"); } }, l("onboarding.use_apple")))] : []));
@@ -371,7 +452,7 @@ class OnboardingWizard {
     } else if (this.engine === "apple") {
       this.engineDetail.replaceChildren(h("h2", {}, l("onboarding.apple_title")),
         h("p", { class: "engine-description" }, l("onboarding.apple_intro")),
-        h("p", { class: "help" }, l("onboarding.practice_speech_only")),
+        h("p", { class: "help" }, l(this.goal === "meeting" ? "onboarding.meeting_speech_only" : "onboarding.practice_speech_only")),
         h("div", { class: "engine-model" }, icon("audioLines"), h("div", {}, h("strong", {}, l("onboarding.apple_dictation")), h("small", {}, l("onboarding.apple_available")))),
         ...(apple?.availability.reason ? [h("p", { class: "help" }, this.ownedStatus(() => this.ctx.info.kinds.find((kind) => kind.kind === "apple_speech")?.availability.reason ?? ""))] : []));
     } else this.renderProvider();
@@ -385,7 +466,8 @@ class OnboardingWizard {
     const picker = select(options, this.providerChoice, (value) => {
       this.providerChoice = value;
       const account = this.customAccount(); const kind = this.customKind();
-      this.providerModel = account?.id === this.ctx.info.settings.dictation_stt.provider_id ? this.ctx.info.settings.dictation_stt.model : kind?.default_stt_model ?? "";
+      const choice = this.goal === "meeting" ? this.ctx.info.settings.meeting_stt : this.ctx.info.settings.dictation_stt;
+      this.providerModel = account?.id === choice.provider_id ? choice.model : kind?.default_stt_model ?? "";
       this.providerBaseUrl = account?.base_url ?? kind?.default_base_url ?? "";
       this.renderProvider(); this.updateCommon();
     }, "menu");
@@ -421,16 +503,18 @@ class OnboardingWizard {
   }
 
   private async refreshPermissions() {
-    const [permissions, readiness] = await Promise.all([api.permissions(), api.onboardingReadiness("practice")]);
+    const [permissions, readiness] = await Promise.all([api.permissions(), api.onboardingReadiness(this.goal === "meeting" ? "meeting" : "practice")]);
     if (this.disposed || this.step !== "permissions") return;
     this.permissions = permissions; this.readiness = readiness;
     const signature = JSON.stringify([permissions, readiness]);
     if (signature !== this.permissionSignature) {
       this.permissionSignature = signature;
-      const kinds: [PermissionInfo["kind"], string | LocalizedText, string | LocalizedText][] = [["microphone", l("onboarding.microphone"), l("onboarding.microphone_description")], ["accessibility", l("onboarding.accessibility"), l("onboarding.accessibility_description")]];
+      const kinds: [PermissionInfo["kind"], string | LocalizedText, string | LocalizedText][] = [["microphone", l("onboarding.microphone"), l("onboarding.microphone_description")]];
+      if (this.goal === "meeting") kinds.push(["system_audio", l("onboarding.system_audio"), l("onboarding.system_audio_description")]);
+      else kinds.push(["accessibility", l("onboarding.accessibility"), l("onboarding.accessibility_description")]);
       if (this.engine === "apple") kinds.push(["speech", l("onboarding.speech_recognition"), l("onboarding.apple_permission_description")]);
       this.readyRow.replaceChildren(...kinds.map(([kind, label, description]) => this.permissionRow(kind, label, description)),
-        ...(!readiness.can_use_shortcut ? [h("p", { class: "help" }, this.ctx.info.capabilities.global_hotkey.reason ? this.ownedStatus(() => this.ctx.info.capabilities.global_hotkey.reason ?? "") : l("onboarding.manual_shortcut_help"))] : []));
+        ...(this.goal === "dictation" && !readiness.can_use_shortcut ? [h("p", { class: "help" }, this.ctx.info.capabilities.global_hotkey.reason ? this.ownedStatus(() => this.ctx.info.capabilities.global_hotkey.reason ?? "") : l("onboarding.manual_shortcut_help"))] : []));
     }
     this.updateCommon();
   }
@@ -446,7 +530,7 @@ class OnboardingWizard {
       try { await api.requestPermission(kind); await this.refreshPermissions(); }
       catch (error) { this.fail(error); button.disabled = false; }
     } }, permission?.status === "denied" || kind === "accessibility" || this.ctx.info.platform === "windows" ? l("onboarding.open_settings") : l("onboarding.grant_access"));
-    return h("div", { class: "permission-row" }, icon(kind === "microphone" ? "mic" : kind === "speech" ? "audioLines" : "keyboard"),
+    return h("div", { class: "permission-row" }, icon(kind === "microphone" ? "mic" : kind === "speech" || kind === "system_audio" ? "audioLines" : "keyboard"),
       h("div", { class: "grow" }, h("strong", {}, label), h("p", { class: "help" }, description),
         granted ? null : unsupported ? h("p", { class: "help" }, l("onboarding.permission_unsupported"))
           : unknown && this.ctx.info.platform === "linux" ? h("p", { class: "help" }, l("onboarding.microphone_checked_later")) : button,
@@ -479,12 +563,11 @@ class OnboardingWizard {
       this.practiceKey?.setAttribute("data-pressed", String(snapshot.phase === "listening"));
       this.practiceButton.disabled = snapshot.phase === "working";
       if (snapshot.phase === "done" && snapshot.text.trim() && !this.practiceDone) {
-        this.fresh = false;
         this.practiceDone = true;
         this.body.querySelector("h1")!.textContent = t("onboarding.practice_success_title");
         const introduction = this.body.querySelector(".onboarding-heading p");
         if (introduction) introduction.textContent = t("onboarding.practice_success_intro");
-        void this.persist("voice").catch(this.fail);
+        void this.persist("practice", "completed").catch(this.fail);
       }
       this.updateCommon();
     };
@@ -513,6 +596,16 @@ class OnboardingWizard {
     try { await this.practice.open(); } catch (error) { this.fail(error); }
   }
 
+  private async renderMeetingReady() {
+    this.readiness = await api.onboardingReadiness("meeting");
+    if (this.disposed || this.step !== "practice") return;
+    this.body.replaceChildren(this.title(l("onboarding.meeting_ready_title"), l("onboarding.meeting_ready_intro")),
+      h("div", { class: "onboarding-meeting-ready" }, icon("notebook"), h("h2", {}, l("onboarding.meeting_not_recording")),
+        h("p", { class: "help" }, l("onboarding.meeting_ready_help"))),
+      ...(!this.readiness.can_record ? [h("p", { class: "error", role: "status" }, this.ownedStatus(() => this.readiness?.reason ?? "")),
+        h("button", { class: "btn", onclick: () => { void this.resume().catch(this.fail); } }, l("onboarding.check_setup"))] : []));
+  }
+
   private async renderVoice(generation: number) {
     const setup = await api.speakerSetup();
     if (generation !== this.renderGeneration || this.disposed) return;
@@ -538,7 +631,7 @@ class OnboardingWizard {
           h("p", { class: "engine-description" }, mode === "cloud" ? l("onboarding.voice_cloud_intro") : this.ownedStatus(() => enrollmentBlocker(setup, mode, models) ?? "")),
           h("p", { class: "help" }, l("onboarding.voice_later"))));
       } else {
-        this.voicePanel ??= new EnrollmentPanel(setup.enrollment_text, () => { this.fresh = false; }, () => this.updateCommon());
+        this.voicePanel ??= new EnrollmentPanel(setup.enrollment_text, () => {}, () => this.updateCommon());
         detail.replaceChildren(this.voicePanel.element,
           ...setup.profile ? [h("p", { class: "help voice-step-note" }, l("onboarding.voice_update_note", () => ({ profile: trainedLabel(setup.profile!) })))] : []);
       }
@@ -578,8 +671,8 @@ class OnboardingWizard {
         const provider = settings.providers.find((item) => item.id === id);
         if (provider && this.providerBaseUrl.trim()) provider.base_url = this.providerBaseUrl.trim();
       }
-      settings.dictation_stt = { provider_id: id, model };
-      if (this.fresh) settings.meeting_stt = { provider_id: id, model };
+      if (this.goal === "meeting") settings.meeting_stt = { provider_id: id, model };
+      else settings.dictation_stt = { provider_id: id, model };
       settings.language = this.language || null;
     });
   }
@@ -600,12 +693,26 @@ class OnboardingWizard {
         }
         await this.commitEngine();
       }
-      if (this.step === "practice" && !this.practiceDone) return;
+      if (this.step === "practice") {
+        if (this.goal === "meeting") {
+          this.readiness = await api.onboardingReadiness("meeting");
+          if (!this.readiness.can_record) { await this.renderMeetingReady(); return; }
+          await this.persist("practice", "completed");
+          await api.showWorkspace(workspaceRoute("recording"));
+          return;
+        }
+        if (!this.practiceDone) return;
+        if (!this.flow.includes("voice")) {
+          await this.closePractice(); await this.persist("practice", "completed");
+          await api.showWorkspace(workspaceRoute("dictation"));
+          return;
+        }
+      }
       if (this.step === "voice") {
         if (this.voicePanel?.busy) return;
-        this.closeVoice(); await this.persist("voice", "completed"); await api.showWorkspace(workspaceRoute("dictation")); return;
+        this.closeVoice(); await this.persist("voice", "completed"); await api.showWorkspace(workspaceRoute(this.goal === "meeting" ? "meetings" : "dictation")); return;
       }
-      const next = this.index + 1;
+      const next = stepIndex(this.flow[this.flow.indexOf(this.step) + 1]);
       await this.closePractice(); await this.persist(onboardingSteps[next]); this.index = next; await this.renderStep();
     } finally { this.actionBusy = false; this.updateCommon(); }
   }
@@ -615,13 +722,17 @@ class OnboardingWizard {
     if (this.interfacePicker) this.interfacePicker.value = this.ctx.info.settings.ui_language ?? "system";
     if (!this.message.hidden && this.lastError) this.message.textContent = localizeBackendText(errorText(this.lastError));
     this.body.inert = this.actionBusy;
-    this.progress.hidden = this.step === "language";
-    this.progress.setAttribute("aria-label", t("onboarding.step_accessibility", { current: this.index + 1, total: onboardingSteps.length }));
-    [...this.progress.children].forEach((segment, index) => segment.setAttribute("data-active", String(index <= this.index)));
-    this.back.hidden = this.step === "language"; this.back.disabled = this.actionBusy;
+    const current = Math.max(0, this.flow.indexOf(this.step));
+    this.progress.hidden = this.step === "language" || this.step === "welcome";
+    if (this.progress.childElementCount !== this.flow.length) this.progress.replaceChildren(...this.flow.map(() => h("span")));
+    this.progress.setAttribute("aria-label", t("onboarding.step_accessibility", { current: current + 1, total: this.flow.length }));
+    [...this.progress.children].forEach((segment, index) => segment.setAttribute("data-active", String(index <= current)));
+    this.back.hidden = current === 0; this.back.disabled = this.actionBusy;
     this.skip.textContent = this.step === "practice" ? t("onboarding.practice_later") : this.step === "voice" ? t("onboarding.skip") : t("onboarding.setup_later");
     this.skip.disabled = this.actionBusy || !!this.voicePanel?.busy;
-    this.count.textContent = t("onboarding.step_count", { current: this.index + 1, total: onboardingSteps.length });
+    this.count.textContent = t("onboarding.step_count", { current: current + 1, total: this.flow.length });
+    this.count.hidden = this.step === "welcome";
+    this.next.hidden = this.step === "welcome";
     const dark = this.ctx.info.settings.appearance === "dark" || (this.ctx.info.settings.appearance === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
     this.theme.replaceChildren(icon(dark ? "sun" : "moon"));
     let label = this.step === "welcome" ? t("onboarding.get_started") : this.step === "voice" ? t("onboarding.done") : t("onboarding.continue");
@@ -636,11 +747,14 @@ class OnboardingWizard {
       disabled ||= !availability || ["unsupported", "unavailable"].includes(availability.status);
     }
     if (this.step === "permissions") {
-      const manualAllowed = manualPracticeAllowed(this.readiness, this.permissions, this.ctx.info.settings);
+      const manualAllowed = manualPracticeAllowed(this.readiness, this.permissions, this.ctx.info.settings, this.goal);
       disabled ||= !manualAllowed;
-      if (manualAllowed && this.ctx.info.platform === "macos" && this.readiness?.can_use_shortcut === false) label = t("onboarding.continue_without_shortcut", { shortcut: this.hotkey() });
+      if (this.goal === "dictation" && manualAllowed && this.ctx.info.platform === "macos" && this.readiness?.can_use_shortcut === false) label = t("onboarding.continue_without_shortcut", { shortcut: this.hotkey() });
     }
-    if (this.step === "practice") disabled ||= !this.practiceDone;
+    if (this.step === "practice") {
+      if (this.goal === "meeting") { disabled ||= !this.readiness?.can_record; label = t("onboarding.open_recording"); }
+      else { disabled ||= !this.practiceDone; label = t("onboarding.open_dictation"); }
+    }
     if (this.step === "voice") disabled ||= !!this.voicePanel?.busy || !!this.voiceModels?.downloading;
     this.next.disabled = disabled; this.next.replaceChildren(label, icon("arrowRight"));
   }

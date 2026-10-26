@@ -7,15 +7,18 @@ export { meetingDate, dayGroup } from "../meeting-labels.ts";
 import { icon } from "../icons";
 import { badgeFor, resolveOpenMeeting, syncActive, type SyncItemState } from "../sync-badge";
 import { workspaceRoute, type WorkspaceRoute } from "../workspace-state";
+import { recordingEntry } from "../voice-flow-state";
 
 export interface LibraryHost {
   info: () => AppInfo;
   current: () => WorkspaceRoute;
   go: (route: WorkspaceRoute) => void;
+  select?: (section: WorkspaceRoute["section"]) => void;
   report: (error: unknown) => void;
+  statusChanged?: (status: MeetingStatus) => void;
 }
 
-/** The main window's sidebar, as in the original library: search, questions, live recording and the grouped meetings. */
+/** Persistent task actions stay above search and the grouped meeting library. */
 export class LibrarySidebar {
   readonly element: HTMLElement;
   private readonly search: HTMLInputElement;
@@ -32,8 +35,11 @@ export class LibrarySidebar {
   private rendered = "";
   private menu: HTMLElement | null = null;
   private menuAnchor: HTMLElement | null = null;
+  private status: MeetingStatus | null = null;
+  private openingRecording = false;
 
   constructor(private readonly host: LibraryHost) {
+    const select = (section: WorkspaceRoute["section"]) => host.select ? host.select(section) : host.go(workspaceRoute(section));
     this.search = h("input", { type: "search", placeholder: l("common.search"), "aria-label": l("meetings.search_label"), spellcheck: false });
     this.search.addEventListener("input", () => {
       this.query = this.search.value;
@@ -41,10 +47,17 @@ export class LibrarySidebar {
       this.searchTimer = window.setTimeout(() => { void this.refresh().catch(host.report); }, 180);
     });
     this.ask = h("button", { class: "library-ask", onclick: () => host.go(workspaceRoute("meetings", "chat")) }, icon("chat"), h("span", {}, l("meetings.ask_all")));
-    this.live = h("button", { class: "library-live", hidden: true, onclick: () => host.go(workspaceRoute("recording")) });
+    this.live = h("button", { class: "library-record library-live", onclick: () => { void this.openRecording(); } }, icon("mic"), h("span", { class: "library-live-title" }, l("meetings.new_recording")));
     this.list = h("div", { class: "meeting-list", role: "list" });
     this.element = h("aside", { class: "library-sidebar", "aria-label": l("meetings.library_label") },
-      h("div", { class: "library-search" }, this.search), this.ask, this.live, this.list);
+      h("div", { class: "library-actions" }, this.live),
+      h("div", { class: "library-shortcuts" },
+        h("button", { class: "text-button", "data-workspace-section": "dictation", onclick: () => select("dictation") }, icon("mic"), l("meetings.open_dictation")),
+        h("button", { class: "text-button", "data-workspace-section": "meetings", onclick: () => select("meetings") }, icon("notebook"), l("navigation.meetings")),
+        h("button", { class: "text-button", "data-workspace-section": "history", onclick: () => select("history") }, icon("history"), l("meetings.open_history"))),
+      h("div", { class: "library-search" }, this.search), this.ask, this.list,
+      h("button", { class: "text-button library-settings", onclick: () => host.go(workspaceRoute("settings")) }, icon("settings"), l("common.settings")));
+    bindLocalization(this.live, () => { if (this.status) this.showLive(this.status); });
     document.addEventListener("pointerdown", (event) => { if (this.menu && !this.menu.contains(event.target as Node)) this.closeMenu(false); });
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && this.menu) { event.preventDefault(); this.closeMenu(); } });
     void api.onSyncChanged((report) => {
@@ -99,6 +112,9 @@ export class LibrarySidebar {
 
   highlight() {
     const route = this.host.current();
+    for (const button of this.element.querySelectorAll<HTMLButtonElement>("[data-workspace-section]")) {
+      if (button.dataset.workspaceSection === route.section) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+    }
     const chat = route.section === "meetings" && route.tab === "chat";
     this.ask.toggleAttribute("aria-current", chat);
     this.live.toggleAttribute("aria-current", route.section === "recording");
@@ -110,10 +126,29 @@ export class LibrarySidebar {
   }
 
   private showLive(status: MeetingStatus) {
-    this.live.hidden = !status.busy;
-    if (!status.busy) return;
-    this.live.replaceChildren(h("span", { class: "status-dot" }), h("span", { class: "library-live-title" }, status.title ?? l("meetings.default_title")));
-    if (status.phase === "finalizing") this.live.append(h("span", { class: "help" }, l("meetings.finishing")));
+    this.status = status;
+    this.host.statusChanged?.(status);
+    const entry = recordingEntry(status);
+    const label = entry.kind === "new" ? l("meetings.new_recording") : entry.kind === "recovery" ? l("meetings.recording_needs_attention")
+      : entry.kind === "finishing" ? l("meetings.return_finishing") : l("meetings.return_recording");
+    this.live.dataset.phase = entry.kind;
+    this.live.disabled = this.openingRecording;
+    this.live.title = entry.kind === "new" ? "" : status.title ?? "";
+    this.live.replaceChildren(entry.kind === "new" ? icon("mic") : entry.kind === "recovery" ? icon("warning") : h("span", { class: "status-dot" }),
+      h("span", { class: "library-live-title" }, label));
+    if (entry.kind === "finishing") this.live.append(h("span", { class: "help library-record-state" }, l("meetings.finishing")));
+  }
+
+  private async openRecording() {
+    if (this.openingRecording) return;
+    this.openingRecording = true;
+    this.live.disabled = true;
+    try {
+      const status = await api.meetingStatus();
+      this.showLive(status);
+      this.host.go(workspaceRoute("recording", null, recordingEntry(status).meetingId));
+    } catch (error) { this.host.report(error); }
+    finally { this.openingRecording = false; this.live.disabled = false; }
   }
 
   private draw(meetings: MeetingInfo[], passages: Passage[], query: string) {

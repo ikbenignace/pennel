@@ -9,6 +9,7 @@ export class OwnedDictationSession extends OwnedSessionLifecycle {
       toggle: api.toggleDictationSession,
       cancel: api.cancelDictationSession,
       close: api.closeDictationSession,
+      leave: (id) => api.closeDictationSession(id, true),
       subscribe: (handler) => listenToWindow<DictationSessionSnapshot>("dictation-session", (event) => handler(event.payload)),
     });
   }
