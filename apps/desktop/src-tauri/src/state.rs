@@ -12,6 +12,7 @@ use crate::meeting_runtime::MeetingContext;
 use crate::secrets::Secrets;
 
 pub struct Shared {
+    pub system_interface_language: pennel_core::InterfaceLanguage,
     pub engine: Arc<PennelEngine>,
     pub version: String,
     pub preview: bool,
@@ -39,6 +40,7 @@ impl Shared {
         let engine = PennelEngine::new_preview(data_dir.to_string_lossy().into_owned()).unwrap();
         let (dictation, _) = std::sync::mpsc::channel();
         Arc::new(Self {
+            system_interface_language: pennel_core::InterfaceLanguage::English,
             engine,
             version: "0.0.0-test".into(),
             preview: true,
@@ -61,6 +63,12 @@ impl Shared {
         })
     }
 
+    pub fn interface_language(&self) -> pennel_core::InterfaceLanguage {
+        self.settings()
+            .ui_language
+            .resolve(&[self.system_interface_language.code().to_owned()])
+    }
+
     pub fn settings(&self) -> Settings {
         self.engine.settings()
     }
@@ -72,6 +80,49 @@ impl Shared {
     pub fn set_meeting_dictating(&self, dictating: bool) {
         if let Some(meeting) = self.meeting.lock().unwrap().as_ref() {
             meeting.set_dictating(dictating);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn interface_preferences_keep_the_system_snapshot_and_active_session() {
+        use pennel_core::{InterfaceLanguage, InterfaceLanguagePreference};
+        let root = tempfile::tempdir().unwrap();
+        let mut shared = Shared::testing(root.path().to_path_buf());
+        Arc::get_mut(&mut shared).unwrap().system_interface_language = InterfaceLanguage::Dutch;
+        let token = shared.recording.lock().unwrap().begin(None).unwrap();
+        let mut settings = shared.settings();
+        settings.language = Some("fr".into());
+        for (preference, resolved) in [
+            (
+                InterfaceLanguagePreference::English,
+                InterfaceLanguage::English,
+            ),
+            (InterfaceLanguagePreference::Dutch, InterfaceLanguage::Dutch),
+            (
+                InterfaceLanguagePreference::System,
+                InterfaceLanguage::Dutch,
+            ),
+        ] {
+            settings.ui_language = preference;
+            shared.engine.update_settings(settings.clone()).unwrap();
+            assert_eq!(shared.interface_language(), resolved);
+            assert_eq!(shared.settings().ui_language, preference);
+            assert_eq!(shared.settings().language.as_deref(), Some("fr"));
+            assert_eq!(
+                shared
+                    .recording
+                    .lock()
+                    .unwrap()
+                    .snapshot()
+                    .session_id
+                    .as_deref(),
+                Some(token.as_str())
+            );
         }
     }
 }

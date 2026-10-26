@@ -20,7 +20,7 @@ struct OnboardingView: View {
 
     private var step: OnboardingStep { state.settings.onboarding.resumeStep }
     private var stage: Int {
-        switch step { case .welcome: 0; case .engine: 1; case .permissions: 2; case .practice, .voice: 3 }
+        switch step { case .language, .welcome: 0; case .engine: 1; case .permissions: 2; case .practice, .voice: 3 }
     }
     private var session: OwnedDictationSession? { state.workspace.session?.kind == .practice ? state.workspace.session : nil }
     private var engine: String {
@@ -49,7 +49,7 @@ struct OnboardingView: View {
     private var downloading: Bool { model.map { state.downloads.isDownloading($0.id) } ?? false }
     private var canContinue: Bool {
         switch step {
-        case .welcome: true
+        case .language, .welcome: true
         case .engine: engine == "apple" ? ProviderKind.appleSpeech.isPlatformSupported : engine != "local" || !downloading
         case .permissions: state.dictationSetup.canRecord
         case .practice, .voice: session?.phase == .done
@@ -57,7 +57,7 @@ struct OnboardingView: View {
     }
     private var nextTitle: String {
         switch step {
-        case .welcome: return "Aan de slag"
+        case .language, .welcome: return "Aan de slag"
         case .engine:
             if engine == "custom" { return "Gebruik provider" }
             if engine != "local" || localReady { return "Verder" }
@@ -73,7 +73,7 @@ struct OnboardingView: View {
             ZStack(alignment: .topLeading) {
                 Text("Pennel").font(.figtree(11, weight: .medium)).foregroundStyle(Theme.muted)
                     .padding(.leading, 20).padding(.top, 14)
-                if step != .welcome {
+                if step != .welcome && step != .language {
                     HStack(spacing: 5) {
                         ForEach(0..<4) { index in
                             Capsule().fill(index <= stage ? Theme.ink : Theme.line).frame(width: 29, height: 3)
@@ -84,12 +84,12 @@ struct OnboardingView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            .frame(height: step == .welcome ? 25 : 34)
+            .frame(height: (step == .welcome || step == .language) ? 25 : 34)
             .background(OnboardingDragRegion())
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     switch step {
-                    case .welcome: welcome
+                    case .language, .welcome: welcome
                     case .engine: engineChoice
                     case .permissions: permissions
                     case .practice, .voice: practice
@@ -99,7 +99,7 @@ struct OnboardingView: View {
                     }
                 }
                 .frame(maxWidth: step == .engine ? 556 : 510, alignment: .leading)
-                .padding(.horizontal, 27).padding(.top, step == .welcome ? 46 : step == .engine ? 48 : 35).padding(.bottom, 24)
+                .padding(.horizontal, 27).padding(.top, (step == .welcome || step == .language) ? 46 : step == .engine ? 48 : 35).padding(.bottom, 24)
                 .frame(maxWidth: .infinity)
             }
             footer
@@ -450,7 +450,7 @@ struct OnboardingView: View {
                 state.save()
             } label: { (colorScheme == .dark ? PennelIcon.sun : PennelIcon.moon).image.resizable().scaledToFit().frame(width: 16, height: 16) }
             .buttonStyle(.plain).foregroundStyle(Theme.muted).accessibilityLabel("Weergave wisselen")
-            if step != .welcome { Button("Terug", action: back).buttonStyle(.plain).foregroundStyle(Theme.muted) }
+            if step != .welcome && step != .language { Button("Terug", action: back).buttonStyle(.plain).foregroundStyle(Theme.muted) }
             Button(step == .practice ? "Later proberen" : "Later instellen", action: skip).buttonStyle(.plain).foregroundStyle(Theme.muted).keyboardShortcut(.cancelAction)
             Text("\(stage + 1) van 4").font(.figtree(11)).foregroundStyle(Theme.muted)
         }.fixedSize(horizontal: true, vertical: false)
@@ -534,7 +534,7 @@ struct OnboardingView: View {
     private func advance() {
         message = nil
         switch step {
-        case .welcome: state.setOnboarding(step: .engine)
+        case .language, .welcome: state.setOnboarding(step: .engine)
         case .engine:
             if engine == "local", !localReady {
                 if let model { state.downloads.start(model.id) }

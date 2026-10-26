@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
 use std::time::Duration;
 
-use pennel_core::RecordingPhase;
+use pennel_core::{InterfaceLanguage, RecordingPhase};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Listener, Manager};
@@ -46,12 +46,17 @@ fn meeting_action(phase: RecordingPhase) -> MeetingAction {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Presentation {
     status: String,
-    action: &'static str,
+    action: String,
     action_enabled: bool,
     recording_icon: bool,
 }
 
-fn presentation(phase: RecordingPhase, title: Option<&str>, elapsed_secs: u64) -> Presentation {
+fn presentation(
+    phase: RecordingPhase,
+    title: Option<&str>,
+    elapsed_secs: u64,
+    language: InterfaceLanguage,
+) -> Presentation {
     let (status, action, action_enabled) = match phase {
         RecordingPhase::Recording => (
             format!(
@@ -70,8 +75,8 @@ fn presentation(phase: RecordingPhase, title: Option<&str>, elapsed_secs: u64) -
         RecordingPhase::Idle | RecordingPhase::Error => ("Pennel".into(), "Start opname", true),
     };
     Presentation {
-        status,
-        action,
+        status: pennel_core::localize_ui_text(language, &status),
+        action: pennel_core::localize_ui_text(language, action),
         action_enabled,
         recording_icon: matches!(phase, RecordingPhase::Recording | RecordingPhase::Stopping),
     }
@@ -126,8 +131,13 @@ fn snapshot(app: &AppHandle, shared: &Shared) -> Snapshot {
         }
     };
     Snapshot {
-        meeting: presentation(phase, title.as_deref(), elapsed),
-        hint,
+        meeting: presentation(
+            phase,
+            title.as_deref(),
+            elapsed,
+            shared.interface_language(),
+        ),
+        hint: pennel_core::localize_ui_text(shared.interface_language(), &hint),
         dark,
         recording: phase == RecordingPhase::Recording,
     }
@@ -143,7 +153,7 @@ fn apply(app: &AppHandle, items: &Items, current: &Snapshot, previous: Option<&S
     if previous.is_none_or(|previous| previous.meeting != current.meeting) {
         let _ = items.status.set_text(&current.meeting.status);
         let _ = items.status.set_enabled(current.recording);
-        let _ = items.meeting.set_text(current.meeting.action);
+        let _ = items.meeting.set_text(&current.meeting.action);
         let _ = items.meeting.set_enabled(current.meeting.action_enabled);
     }
     if previous.is_none_or(|previous| previous.hint != current.hint) {
@@ -185,7 +195,7 @@ pub fn build(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
     let meeting = MenuItem::with_id(
         app,
         "meeting",
-        initial.meeting.action,
+        &initial.meeting.action,
         initial.meeting.action_enabled,
         Some("CmdOrCtrl+Shift+R"),
     )?;
@@ -200,19 +210,50 @@ pub fn build(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "dictation",
-                "Dicteren starten/stoppen",
+                crate::ui::message("Dicteren starten/stoppen"),
                 true,
                 None::<&str>,
             )?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "open", "Open Pennel", true, Some("CmdOrCtrl+O"))?,
-            &MenuItem::with_id(app, "history", "Geschiedenis…", true, None::<&str>)?,
-            &MenuItem::with_id(app, "settings", "Instellingen…", true, Some("CmdOrCtrl+,"))?,
-            &MenuItem::with_id(app, "log", "Logboek openen", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                "open",
+                crate::ui::message("Open Pennel"),
+                true,
+                Some("CmdOrCtrl+O"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                "history",
+                crate::ui::message("Geschiedenis…"),
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "settings",
+                crate::ui::message("Instellingen…"),
+                true,
+                Some("CmdOrCtrl+,"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                "log",
+                crate::ui::message("Logboek openen"),
+                true,
+                None::<&str>,
+            )?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "quit", "Stop Pennel", true, Some("CmdOrCtrl+Q"))?,
+            &MenuItem::with_id(
+                app,
+                "quit",
+                crate::ui::message("Stop Pennel"),
+                true,
+                Some("CmdOrCtrl+Q"),
+            )?,
         ],
     )?;
+    crate::ui::register_tray(app, &menu)?;
     TrayIconBuilder::with_id("pennel")
         .icon(tauri::image::Image::from_bytes(include_bytes!(
             "../icons/macos-menubar.png"
@@ -298,23 +339,67 @@ mod tests {
 
     #[test]
     fn recording_menu_follows_actual_lifecycle_and_elapsed_time() {
-        let idle = presentation(RecordingPhase::Idle, None, 0);
-        assert_eq!(idle.action, "Start opname");
+        let idle = presentation(RecordingPhase::Idle, None, 0, InterfaceLanguage::English);
+        assert_eq!(idle.action, "Start recording");
         assert!(!idle.recording_icon);
-        let recording = presentation(RecordingPhase::Recording, Some("Werkoverleg"), 125);
+        let recording = presentation(
+            RecordingPhase::Recording,
+            Some("Werkoverleg"),
+            125,
+            InterfaceLanguage::English,
+        );
         assert_eq!(recording.status, "● Werkoverleg · 02:05");
-        assert_eq!(recording.action, "Stop opname");
+        assert_eq!(recording.action, "Stop recording");
         assert!(recording.recording_icon);
-        let stopping = presentation(RecordingPhase::Stopping, None, 0);
-        assert_eq!(stopping.action, "Opname afronden…");
+        let stopping = presentation(
+            RecordingPhase::Stopping,
+            None,
+            0,
+            InterfaceLanguage::English,
+        );
+        assert_eq!(stopping.action, "Finalizing recording…");
         assert!(stopping.recording_icon);
-        assert!(!presentation(RecordingPhase::Finalizing, None, 0).recording_icon);
-        assert_eq!(presentation(RecordingPhase::Error, None, 0), idle);
+        assert!(
+            !presentation(
+                RecordingPhase::Finalizing,
+                None,
+                0,
+                InterfaceLanguage::English
+            )
+            .recording_icon
+        );
+        assert_eq!(
+            presentation(RecordingPhase::Error, None, 0, InterfaceLanguage::English),
+            idle
+        );
+    }
+
+    #[test]
+    fn dutch_menu_copy_keeps_the_recorded_title_untouched() {
+        let idle = presentation(RecordingPhase::Idle, None, 0, InterfaceLanguage::Dutch);
+        assert_eq!(idle.action, "Start opname");
+        let title = "Geef Pennel toegang tot de microfoon.";
+        let active = presentation(
+            RecordingPhase::Recording,
+            Some(title),
+            3,
+            InterfaceLanguage::English,
+        );
+        assert_eq!(active.status, format!("● {title} · 00:03"));
+        assert_eq!(active.action, "Stop recording");
     }
 
     #[test]
     fn starting_cannot_start_twice_and_finishing_only_opens_the_recording() {
-        assert!(!presentation(RecordingPhase::Starting, None, 0).action_enabled);
+        assert!(
+            !presentation(
+                RecordingPhase::Starting,
+                None,
+                0,
+                InterfaceLanguage::English
+            )
+            .action_enabled
+        );
         assert_eq!(meeting_action(RecordingPhase::Idle), MeetingAction::Start);
         assert_eq!(meeting_action(RecordingPhase::Error), MeetingAction::Start);
         assert_eq!(

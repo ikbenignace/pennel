@@ -2,13 +2,13 @@
 
 `apps/desktop/` hosts one Tauri 2 application for Mac, Windows and Linux. Its TypeScript/Vite interface links through Rust commands to one `PennelEngine`. The native Mac presentation remains a comparison/recovery build during migration; it is not the shared application's host.
 
-As in the original Pennel, the main window **Pennel** is the meeting library: its sidebar holds search, **Vraag het je meetings**, the live recording and meetings grouped by **Vandaag, Deze week, Eerder**. **Instellingen** (centred tabs), **Geschiedenis** and **Dicteren** (direct dictation and the pad) open in their own titled windows from the tray menu, `Cmd/Ctrl+,` and links inside the app. Library/search/chat, live and completed meetings, notes/transcript/questions, speaker naming/recognition, templates, exports, history, the recording prompt and the dictation pill remain available. Settings retain this order and Dutch copy: **Providers, Modellen, Dicteren, Meetings, Opnemen, Woordenlijst, Stijlen**, followed by **Weergave**. Platform-specific features remain visible with capability/permission explanations.
+As in the original Pennel, the main window **Pennel** is the meeting library: its sidebar holds search, meeting questions, the live recording and meetings grouped by date. Settings (centred tabs), History and Dictation (direct dictation and the pad) open in their own titled windows from the tray menu, `Cmd/Ctrl+,` and links inside the app. Library/search/chat, live and completed meetings, notes/transcript/questions, speaker naming/recognition, templates, exports, history, the recording prompt and the dictation pill remain available. Settings retain the same category order in both languages: **Providers, Models, Dictation, Meetings, Recording, Dictionary, Styles, Appearance, Account**. Platform-specific features remain visible with capability/permission explanations.
 
 ## Appearance and first use
 
 **Systeem, Licht and Donker** use the shared semantic tokens in `assets/brand/tokens.json`. `make theme` generates the CSS and native Swift values; `make theme-check` checks that the committed outputs match. The interface uses bundled Figtree. Instrument Serif remains the wordmark face. The floating pill has separate colors so changing the window appearance does not invert it.
 
-New profiles use local speech recognition in **Snel** mode and open a separate headerless wizard: welcome, language/speech recognition, access, a real first dictation and an optional **Leer je stem** step. A successful practice resumes at that step; finishing or skipping it completes the wizard. The model download and provider credentials use the existing core and OS credential services. A saved wizard step is not proof that a model or permission remains available. Existing profiles keep their providers, model choices and dictation mode and can resume setup when necessary. Windows and Linux open the workspace at launch; Mac uses the menu bar lifecycle below.
+New profiles use local speech recognition in **Snel** mode and open a separate headerless wizard: interface language, welcome, speech recognition, access, a real first dictation and an optional **Leer je stem** step. A successful practice resumes at that step; finishing or skipping it completes the wizard. The model download and provider credentials use the existing core and OS credential services. A saved wizard step is not proof that a model or permission remains available. Existing profiles keep their providers, model choices and dictation mode and can resume setup when necessary. Windows and Linux open the workspace at launch; Mac uses the menu bar lifecycle below.
 
 Microphone access is required for recording. Global shortcuts, external placement, meeting audio and optional speech/calendar features have their own permission requirements; unsupported controls remain visible with an explanation in **Instellingen**. On an Apple keyboard, set **System Settings → Keyboard → Press 🌐 key to → Do Nothing** when using `fn`. Logitech MX keyboards can use **Rechter Option** under **Instellingen → Dicteren → Sneltoets** instead.
 
@@ -16,7 +16,15 @@ The in-app dictation pad retains an editable local draft. **Dicteerpad ook exter
 
 Window closing and navigation invalidate pending owned external delivery. Meeting recording and the normal background runtime retain their existing lifetime. Real device and platform acceptance are recorded separately in [redesign acceptance](redesign-acceptance.md).
 
-### Mac menu bar lifecycle
+### Interface language
+
+The shared desktop app supports **English** and **Nederlands** on macOS, Windows and Linux. The first onboarding screen offers **System language**, **English** and **Nederlands**; the same choice is available in **Settings → Appearance**. System language is the default and shows the language it currently resolves to. Pennel chooses the first supported language in the system preference list, including regional variants, and falls back to English. System preferences are read on launch; an operating-system language change applies when Pennel next starts.
+
+Changing the interface preference saves and relabels open desktop windows, menus and recording overlays immediately. It does not reload a webview, replace active text fields, stop a recording, or change speech recognition, provider/model choices, prompts, template contents, transcripts or notes. Existing profiles keep their onboarding progress; reopening the introduction starts with the language screen.
+
+Translations live in the shared `assets/locales/` catalogs. Frontend `l()`/`liveText()` values explicitly mark app-owned text and attributes for in-place updates; raw user content is never matched or scanned for translation. Rust resolves preferences and supplies localized native UI metadata. No remote translation service or extra dependency is used. The frozen native Mac UI and iPhone interface are not localized by this change; native Mac edits only keep shared bindings compatible.
+
+## Mac menu bar lifecycle
 
 The shared Tauri app lives in the Mac menu bar, without a Dock icon or Cmd-Tab entry, including while its windows are open. First launch or unfinished setup opens onboarding. Completing or skipping setup opens **Dicteren** once; later cold launches stay in the menu bar.
 

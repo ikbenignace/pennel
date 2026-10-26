@@ -38,6 +38,14 @@ pub struct DictationSessionSnapshot {
     pub external_paste_reason: Option<String>,
 }
 
+impl DictationSessionSnapshot {
+    fn localized(mut self) -> Self {
+        self.error = self.error.map(crate::commands::localize_error_message);
+        self.external_paste_reason = self.external_paste_reason.map(crate::ui::message);
+        self
+    }
+}
+
 struct Session {
     owner: String,
     snapshot: DictationSessionSnapshot,
@@ -71,7 +79,7 @@ impl OwnedCapture {
 }
 
 fn emit(app: &AppHandle, owner: &str, snapshot: &DictationSessionSnapshot) {
-    let _ = app.emit_to(owner, "dictation-session", snapshot);
+    let _ = app.emit_to(owner, "dictation-session", snapshot.clone().localized());
 }
 
 fn update(app: &AppHandle, id: &str, change: impl FnOnce(&mut DictationSessionSnapshot)) {
@@ -562,7 +570,9 @@ pub fn onboarding_readiness(
     target: String,
     shared: State<'_, Arc<Shared>>,
 ) -> pennel_core::SetupReadiness {
-    readiness(&shared, &target)
+    let mut result = readiness(&shared, &target);
+    result.reason = result.reason.map(crate::ui::message);
+    result
 }
 
 #[tauri::command]
@@ -676,7 +686,7 @@ pub fn open_dictation_session(
             external: Vec::new(),
         },
     );
-    Ok(snapshot)
+    Ok(snapshot.localized())
 }
 
 #[tauri::command]
@@ -693,7 +703,7 @@ pub fn get_dictation_session(
             .filter(|session| session.owner == window.label())
             .ok_or("Deze dicteersessie is gesloten")?;
         let Some(query) = begin_target_refresh(session) else {
-            return Ok(session.snapshot.clone());
+            return Ok(session.snapshot.clone().localized());
         };
         query
     };
@@ -706,7 +716,7 @@ pub fn get_dictation_session(
         .filter(|session| session.owner == window.label())
         .ok_or("Deze dicteersessie is gesloten")?;
     apply_target_refresh(session, query, target_name, availability);
-    Ok(session.snapshot.clone())
+    Ok(session.snapshot.clone().localized())
 }
 
 fn idle_pad(session: &Session) -> bool {
@@ -781,6 +791,34 @@ pub fn close_dictation_session(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn localization_changes_owned_messages_but_never_dictated_text_or_app_names() {
+        let content = "Geef Pennel toegang tot de microfoon.";
+        let snapshot = DictationSessionSnapshot {
+            session_id: "synthetic-owned-session".into(),
+            kind: SessionKind::Pad,
+            phase: SessionPhase::Error,
+            text: content.into(),
+            error: Some(content.into()),
+            target_name: Some(content.into()),
+            external_paste_available: false,
+            external_paste_reason: Some(
+                "Geen doelapp beschikbaar. Je tekst staat in Pennel.".into(),
+            ),
+        }
+        .localized();
+        assert_eq!(snapshot.text, content);
+        assert_eq!(snapshot.target_name.as_deref(), Some(content));
+        assert_eq!(
+            snapshot.error.as_deref(),
+            Some("Give Pennel microphone access.")
+        );
+        assert_eq!(
+            snapshot.external_paste_reason.as_deref(),
+            Some("No destination app is available. Your text is in Pennel.")
+        );
+    }
 
     fn capture(kind: SessionKind) -> OwnedCapture {
         OwnedCapture {

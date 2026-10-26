@@ -45,6 +45,7 @@ pub enum OnboardingStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingStep {
+    Language,
     Welcome,
     Engine,
     Permissions,
@@ -117,6 +118,8 @@ pub struct Settings {
     pub llm: ModelChoice,
     pub mode: DictationMode,
     pub language: Option<String>,
+    #[serde(default)]
+    pub ui_language: crate::InterfaceLanguagePreference,
     pub dictionary: Vec<String>,
     pub style_rules: Vec<StyleRule>,
     pub history_retention_days: u32,
@@ -206,6 +209,7 @@ pub fn default_settings() -> Settings {
         providers: vec![groq, local],
         mode: DictationMode::Fast,
         language: None,
+        ui_language: crate::InterfaceLanguagePreference::System,
         dictionary: Vec::new(),
         style_rules: DEFAULT_STYLES
             .iter()
@@ -235,6 +239,7 @@ pub fn default_settings() -> Settings {
         appearance: AppearancePreference::System,
         onboarding: OnboardingProgress {
             status: OnboardingStatus::Pending,
+            resume_step: OnboardingStep::Language,
             ..OnboardingProgress::default()
         },
         dictation_pad_auto_paste: false,
@@ -435,10 +440,14 @@ mod tests {
         assert_eq!(settings.meeting_stt.provider_id, "local");
         assert_eq!(settings.mode, DictationMode::Fast);
         assert_eq!(settings.appearance, AppearancePreference::System);
+        assert_eq!(
+            settings.ui_language,
+            crate::InterfaceLanguagePreference::System
+        );
         assert!(!settings.dictation_pad_auto_paste);
         assert_eq!(settings.onboarding.version, 1);
         assert_eq!(settings.onboarding.status, OnboardingStatus::Pending);
-        assert_eq!(settings.onboarding.resume_step, OnboardingStep::Welcome);
+        assert_eq!(settings.onboarding.resume_step, OnboardingStep::Language);
     }
 
     #[test]
@@ -450,6 +459,7 @@ mod tests {
         let mut json = serde_json::to_value(&previous).unwrap();
         let fields = json.as_object_mut().unwrap();
         fields.remove("appearance");
+        fields.remove("ui_language");
         fields.remove("onboarding");
         fields.remove("dictation_pad_auto_paste");
         let restored: Settings = serde_json::from_value(json).unwrap();
@@ -459,6 +469,10 @@ mod tests {
         assert_eq!(restored.llm, previous.llm);
         assert_eq!(restored.mode, DictationMode::Clean);
         assert_eq!(restored.appearance, AppearancePreference::System);
+        assert_eq!(
+            restored.ui_language,
+            crate::InterfaceLanguagePreference::System
+        );
         assert_eq!(restored.onboarding.status, OnboardingStatus::Skipped);
         assert!(!restored.dictation_pad_auto_paste);
     }
@@ -467,6 +481,8 @@ mod tests {
     fn ui_preferences_roundtrip_without_resetting_onboarding() {
         let mut settings = default_settings();
         settings.appearance = AppearancePreference::Dark;
+        settings.ui_language = crate::InterfaceLanguagePreference::Dutch;
+        settings.language = Some("fr".into());
         settings.dictation_pad_auto_paste = true;
         settings.onboarding = OnboardingProgress {
             version: 1,
@@ -476,6 +492,29 @@ mod tests {
         let restored: Settings =
             serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
         assert_eq!(restored, settings);
+    }
+
+    #[test]
+    fn existing_explicit_interface_language_and_progress_are_preserved() {
+        for (language, preference) in [
+            ("en", crate::InterfaceLanguagePreference::English),
+            ("nl", crate::InterfaceLanguagePreference::Dutch),
+        ] {
+            let mut settings = default_settings();
+            settings.language = Some("de".into());
+            settings.onboarding = OnboardingProgress {
+                version: 1,
+                status: OnboardingStatus::Completed,
+                resume_step: OnboardingStep::Voice,
+            };
+            let mut json = serde_json::to_value(&settings).unwrap();
+            json["ui_language"] = language.into();
+            let restored: Settings = serde_json::from_value(json).unwrap();
+            assert_eq!(restored.ui_language, preference);
+            assert_eq!(restored.language, settings.language);
+            assert_eq!(restored.dictation_stt, settings.dictation_stt);
+            assert_eq!(restored.onboarding, settings.onboarding);
+        }
     }
 
     #[test]

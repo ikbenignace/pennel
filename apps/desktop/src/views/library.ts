@@ -1,6 +1,9 @@
+import { bindLocalization, getInterfaceLanguage, l, t, formatNumber, type UiText } from "../i18n.ts";
 import { api, type AppInfo, type MeetingInfo, type MeetingStatus, type Passage } from "../api";
 import { LatestRequest, SerialQueue } from "../async";
 import { askText, confirmDialog, h, snippet } from "../dom";
+import { meetingDate, dayGroup } from "../meeting-labels.ts";
+export { meetingDate, dayGroup } from "../meeting-labels.ts";
 import { icon } from "../icons";
 import { badgeFor, resolveOpenMeeting, syncActive, type SyncItemState } from "../sync-badge";
 import { workspaceRoute, type WorkspaceRoute } from "../workspace-state";
@@ -10,19 +13,6 @@ export interface LibraryHost {
   current: () => WorkspaceRoute;
   go: (route: WorkspaceRoute) => void;
   report: (error: unknown) => void;
-}
-
-export function meetingDate(date: string) {
-  const parsed = new Date(date);
-  return Number.isNaN(parsed.valueOf()) ? date : parsed.toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" });
-}
-
-export function dayGroup(date: string) {
-  const day = new Date(date);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const week = new Date(today); week.setDate(week.getDate() - 7);
-  if (day >= today) return "Vandaag";
-  return day >= week ? "Deze week" : "Eerder";
 }
 
 /** The main window's sidebar, as in the original library: search, questions, live recording and the grouped meetings. */
@@ -44,16 +34,16 @@ export class LibrarySidebar {
   private menuAnchor: HTMLElement | null = null;
 
   constructor(private readonly host: LibraryHost) {
-    this.search = h("input", { type: "search", placeholder: "Zoeken", "aria-label": "Zoeken in meetings", spellcheck: false });
+    this.search = h("input", { type: "search", placeholder: l("common.search"), "aria-label": l("meetings.search_label"), spellcheck: false });
     this.search.addEventListener("input", () => {
       this.query = this.search.value;
       window.clearTimeout(this.searchTimer);
       this.searchTimer = window.setTimeout(() => { void this.refresh().catch(host.report); }, 180);
     });
-    this.ask = h("button", { class: "library-ask", onclick: () => host.go(workspaceRoute("meetings", "chat")) }, icon("chat"), h("span", {}, "Vraag het je meetings"));
+    this.ask = h("button", { class: "library-ask", onclick: () => host.go(workspaceRoute("meetings", "chat")) }, icon("chat"), h("span", {}, l("meetings.ask_all")));
     this.live = h("button", { class: "library-live", hidden: true, onclick: () => host.go(workspaceRoute("recording")) });
     this.list = h("div", { class: "meeting-list", role: "list" });
-    this.element = h("aside", { class: "library-sidebar", "aria-label": "Meetingbibliotheek" },
+    this.element = h("aside", { class: "library-sidebar", "aria-label": l("meetings.library_label") },
       h("div", { class: "library-search" }, this.search), this.ask, this.live, this.list);
     document.addEventListener("pointerdown", (event) => { if (this.menu && !this.menu.contains(event.target as Node)) this.closeMenu(false); });
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && this.menu) { event.preventDefault(); this.closeMenu(); } });
@@ -93,7 +83,7 @@ export class LibrarySidebar {
       this.syncStates = new Map(sync.map((item) => [item.id, item.state]));
       this.shown = result.meetings;
       this.showLive(status);
-      const key = JSON.stringify([query, result, sync]);
+      const key = JSON.stringify([getInterfaceLanguage(), query, result, sync]);
       if (key !== this.rendered) { this.rendered = key; this.draw(result.meetings, result.passages, query); }
       this.highlight();
     }, this.host.report);
@@ -122,32 +112,46 @@ export class LibrarySidebar {
   private showLive(status: MeetingStatus) {
     this.live.hidden = !status.busy;
     if (!status.busy) return;
-    this.live.replaceChildren(h("span", { class: "status-dot" }), h("span", { class: "library-live-title" }, status.title ?? "Meeting"));
-    if (status.phase === "finalizing") this.live.append(h("span", { class: "help" }, "Afronden…"));
+    this.live.replaceChildren(h("span", { class: "status-dot" }), h("span", { class: "library-live-title" }, status.title ?? l("meetings.default_title")));
+    if (status.phase === "finalizing") this.live.append(h("span", { class: "help" }, l("meetings.finishing")));
   }
 
   private draw(meetings: MeetingInfo[], passages: Passage[], query: string) {
     this.closeMenu();
     this.list.replaceChildren();
     if (!meetings.length) {
-      this.list.append(h("p", { class: "library-empty help" }, query ? "Geen meetings gevonden." : "Nog geen meetings."));
+      this.list.append(h("p", { class: "library-empty help" }, query ? l("meetings.none_found") : l("meetings.empty_meetings")));
       return;
     }
     let group = "";
     for (const meeting of meetings) {
       const day = dayGroup(meeting.start_iso);
-      if (day !== group) { group = day; this.list.append(h("h3", { class: "meeting-day" }, day)); }
+      if (day !== group) {
+        group = day;
+        const heading = h("h3", { class: "meeting-day" }, day);
+        bindLocalization(heading, () => { heading.textContent = dayGroup(meeting.start_iso); });
+        this.list.append(heading);
+      }
       const state = this.syncStates.get(meeting.id);
       const badge = badgeFor(state, this.syncOn);
       const hits = passages.filter((passage) => passage.meeting_id === meeting.id).slice(0, 2);
       const source = hits[0];
+      const metadataText = () => `${meetingDate(meeting.start_iso)}${meeting.duration_min ? ` · ${t("meetings.duration_minutes", { count: formatNumber(meeting.duration_min) })}` : ""}`;
+      const metadata = h("span", { class: "meeting-meta" }, metadataText());
+      bindLocalization(metadata, () => { metadata.textContent = metadataText(); });
+      const syncBadge = badge ? h("span", { class: `sync-badge ${state}`, title: badge.label, role: "img", "aria-label": badge.label }, icon(badge.icon)) : null;
+      if (syncBadge) bindLocalization(syncBadge, () => {
+        const label = badgeFor(state, this.syncOn)?.label ?? "";
+        syncBadge.title = label;
+        syncBadge.setAttribute("aria-label", label);
+      });
       const open = h("button", { class: "meeting-select", onclick: () => this.host.go(workspaceRoute("meetings", null, meeting.id, source?.start_ms ?? null,
         source ? { kind: source.kind, start_ms: source.start_ms, text: source.text } : undefined)) },
         h("span", { class: "meeting-name" }, h("span", { class: "meeting-title" }, meeting.title),
-          badge ? h("span", { class: `sync-badge ${state}`, title: badge.label, role: "img", "aria-label": badge.label }, icon(badge.icon)) : null),
-        h("span", { class: "meeting-meta" }, `${meetingDate(meeting.start_iso)}${meeting.duration_min ? ` · ${meeting.duration_min} min` : ""}`),
+          syncBadge),
+        metadata,
         hits.map((passage) => snippet(passage.snippet)));
-      const more = h("button", { class: "meeting-more button-icon", "aria-label": `Acties voor ${meeting.title}`, "aria-haspopup": "menu", "aria-expanded": "false" }, icon("more"));
+      const more = h("button", { class: "meeting-more button-icon", "aria-label": l("meetings.actions_for", { title: meeting.title }), "aria-haspopup": "menu", "aria-expanded": "false" }, icon("more"));
       const row = h("div", { class: "meeting-row", role: "listitem", "data-id": meeting.id }, open, more);
       more.addEventListener("click", (event) => { event.stopPropagation(); this.openMenu(meeting, row, more.getBoundingClientRect(), more); });
       more.addEventListener("keydown", (event) => {
@@ -169,22 +173,22 @@ export class LibrarySidebar {
     this.menuAnchor = invoker;
     invoker.setAttribute("aria-expanded", "true");
     const status = api.meetingStatus();
-    const item = (label: string, action: () => Promise<void>, danger = false) => h("button", { role: "menuitem", class: danger ? "danger" : null, onclick: () => {
+    const item = (label: UiText, action: () => Promise<void>, danger = false) => h("button", { role: "menuitem", class: danger ? "danger" : null, onclick: () => {
       this.closeMenu();
       void action().catch(this.host.report);
     } }, label);
-    const menu = h("div", { class: "context-menu", role: "menu", "aria-label": `Acties voor ${meeting.title}` },
-      item("Hernoemen…", async () => {
-        const title = await askText("Meeting hernoemen", meeting.title);
+    const menu = h("div", { class: "context-menu", role: "menu", "aria-label": l("meetings.actions_for", { title: meeting.title }) },
+      item(l("meetings.rename_action"), async () => {
+        const title = await askText(l("meetings.rename_title"), meeting.title);
         if (!title) return;
         const id = await api.renameMeeting(meeting.id, title);
         await this.refresh();
         this.host.go(workspaceRoute("meetings", null, id));
       }),
-      item(this.host.info().platform === "macos" ? "Toon in Finder" : "Open map", async () => { await api.openPath((await api.meetingDetail(meeting.id)).dir); }),
+      item(this.host.info().platform === "macos" ? l("meetings.show_finder") : l("meetings.open_folder"), async () => { await api.openPath((await api.meetingDetail(meeting.id)).dir); }),
       h("hr"),
-      item("Verwijder…", async () => {
-        if (!await confirmDialog(`${meeting.title} verwijderen?`, "Notities, transcript en audio worden verwijderd.", "Verwijder")) return;
+      item(l("meetings.delete_action"), async () => {
+        if (!await confirmDialog(l("meetings.delete_title", { title: meeting.title }), l("meetings.delete_help"), l("meetings.delete_confirm"))) return;
         await api.deleteMeeting(meeting.id);
         const route = this.host.current();
         await this.refresh();
@@ -200,7 +204,7 @@ export class LibrarySidebar {
     });
     void status.then((current) => {
       if (current.busy && current.id === meeting.id) {
-        menu.replaceChildren(h("p", { class: "help", role: "status" }, "Opname loopt"));
+        menu.replaceChildren(h("p", { class: "help", role: "status" }, l("meetings.recording_active")));
         if (this.menu === menu) { menu.tabIndex = -1; menu.focus(); }
       }
     }).catch(() => undefined);

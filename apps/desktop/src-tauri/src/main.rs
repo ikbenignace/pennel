@@ -45,6 +45,7 @@ mod speakers;
 mod state;
 mod status;
 mod style_application;
+mod ui;
 #[cfg(windows)]
 mod windows_meetings;
 mod workspace;
@@ -190,7 +191,7 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                 label,
                 tauri::WebviewUrl::App(url.into()),
             )
-            .title(spec.title)
+            .title(ui::message(spec.title))
             .inner_size(
                 fit.map_or(width, |size| size.width),
                 fit.map_or(height, |size| size.height),
@@ -388,9 +389,9 @@ pub fn apply_appearance(app: &AppHandle) {
     }
 }
 
-fn hotkey_label(trigger: pennel_core::HotkeyTrigger) -> &'static str {
+fn hotkey_label(trigger: pennel_core::HotkeyTrigger) -> String {
     use pennel_core::HotkeyTrigger::*;
-    match trigger {
+    crate::ui::message(match trigger {
         Fn if cfg!(target_os = "macos") => "fn",
         RightControl | Fn => "rechter Ctrl",
         RightOption if cfg!(target_os = "macos") => "rechter Option",
@@ -398,7 +399,7 @@ fn hotkey_label(trigger: pennel_core::HotkeyTrigger) -> &'static str {
         RightOption => "rechter Alt",
         RightCommand => "rechter Windows-toets",
         ControlSuper => "Ctrl + Windows-toets",
-    }
+    })
 }
 
 pub struct TrayHint(pub MenuItem<tauri::Wry>);
@@ -507,7 +508,9 @@ fn flush_frontend_requests(app: &AppHandle, event: &str, target: Option<&str>) -
         if app.emit_to(label, event, sequence).is_err() {
             return FrontendFlush {
                 request_id: sequence,
-                result: Err("Een venster kon de laatste wijzigingen niet bewaren".into()),
+                result: Err(ui::message(
+                    "Een venster kon de laatste wijzigingen niet bewaren",
+                )),
             };
         }
     }
@@ -519,10 +522,9 @@ fn flush_frontend_requests(app: &AppHandle, event: &str, target: Option<&str>) -
         })
         .unwrap();
     let result = if sync.failed || !sync.pending.is_empty() {
-        Err(
-            "Bewaren is nog niet klaar. Pennel blijft open zodat je wijzigingen bewaard blijven."
-                .into(),
-        )
+        Err(ui::message(
+            "Bewaren is nog niet klaar. Pennel blijft open zodat je wijzigingen bewaard blijven.",
+        ))
     } else {
         Ok(())
     };
@@ -686,13 +688,13 @@ pub fn refresh_hotkey(app: &AppHandle, shared: &Arc<Shared>) {
 }
 
 pub fn hotkey_hint(shared: &Shared) -> String {
-    match shared.hotkey_error.lock().unwrap().as_ref() {
+    crate::ui::message(match shared.hotkey_error.lock().unwrap().as_ref() {
         None => format!(
             "Dicteren — houd {} ingedrukt",
             hotkey_label(shared.settings().hotkey)
         ),
         Some(_) => "Sneltoets niet beschikbaar (zie logboek)".into(),
-    }
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -709,24 +711,67 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
         &[
             &hint,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "open", "Open Pennel", true, None::<&str>)?,
             &MenuItem::with_id(
                 app,
-                "dictation",
-                "Dicteren starten/stoppen",
+                "open",
+                crate::ui::message("Open Pennel"),
                 true,
                 None::<&str>,
             )?,
-            &MenuItem::with_id(app, "meeting", "Meeting opnemen…", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                "dictation",
+                crate::ui::message("Dicteren starten/stoppen"),
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "meeting",
+                crate::ui::message("Meeting opnemen…"),
+                true,
+                None::<&str>,
+            )?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "pad", "Dicteren…", true, None::<&str>)?,
-            &MenuItem::with_id(app, "history", "Geschiedenis…", true, None::<&str>)?,
-            &MenuItem::with_id(app, "settings", "Instellingen…", true, None::<&str>)?,
-            &MenuItem::with_id(app, "log", "Logboek openen", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                "pad",
+                crate::ui::message("Dicteren…"),
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "history",
+                crate::ui::message("Geschiedenis…"),
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "settings",
+                crate::ui::message("Instellingen…"),
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "log",
+                crate::ui::message("Logboek openen"),
+                true,
+                None::<&str>,
+            )?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "quit", "Stop Pennel", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                "quit",
+                crate::ui::message("Stop Pennel"),
+                true,
+                None::<&str>,
+            )?,
         ],
     )?;
+    ui::register_tray(app, &menu)?;
     let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
     TrayIconBuilder::with_id("pennel")
         .icon(icon)
@@ -812,7 +857,13 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
     #[cfg(not(target_os = "macos"))]
     let migration_warning = None;
+    let system_languages = ui::system_languages();
+    let system_interface_language =
+        pennel_core::InterfaceLanguagePreference::System.resolve(&system_languages);
+    ui::initialize(engine.settings().ui_language.resolve(&system_languages));
+    ui::install_menu(&handle)?;
     let shared = Arc::new(Shared {
+        system_interface_language,
         engine,
         secrets,
         data_dir: dir,

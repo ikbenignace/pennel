@@ -27,6 +27,11 @@ public func stringFree(_ pointer: UnsafeMutablePointer<CChar>?) { free(pointer) 
 @_cdecl("pennel_mac_is_main_thread")
 public func isMainThread() -> Bool { Thread.isMainThread }
 
+@_cdecl("pennel_mac_preferred_languages")
+public func preferredLanguagesJSON() -> UnsafeMutablePointer<CChar>? {
+    bridgeJSON(Locale.preferredLanguages)
+}
+
 @_cdecl("pennel_mac_permissions")
 public func permissionsJSON() -> UnsafeMutablePointer<CChar>? {
     func audioState(_ value: AVAuthorizationStatus) -> String {
@@ -106,15 +111,22 @@ public func foregroundJSON() -> UnsafeMutablePointer<CChar>? {
 }
 
 @_cdecl("pennel_mac_pick_style_application")
-public func pickStyleApplicationJSON(_ error: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutablePointer<CChar>? {
+public func pickStyleApplicationJSON(_ rawTitle: UnsafePointer<CChar>?, _ rawPrompt: UnsafePointer<CChar>?, _ error: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutablePointer<CChar>? {
+    guard let title = decodeString(rawTitle), let prompt = decodeString(rawPrompt) else { return nil }
     do {
-        let selection = try onMain { try MainActor.assumeIsolated { try pickStyleApplication() } }
+        let selection = try onMain { try MainActor.assumeIsolated { try pickStyleApplication(title: title, prompt: prompt) } }
         guard let selection else { return bridgeString("null") }
         return bridgeJSON(["id": selection.id, "name": selection.name])
     } catch let failure {
         writeError(error, failure)
         return nil
     }
+}
+
+@_cdecl("pennel_mac_localize_style_application_picker")
+public func localizeStyleApplicationPicker(_ rawTitle: UnsafePointer<CChar>?, _ rawPrompt: UnsafePointer<CChar>?) {
+    guard let title = decodeString(rawTitle), let prompt = decodeString(rawPrompt) else { return }
+    DispatchQueue.main.async { updateStyleApplicationPicker(title: title, prompt: prompt) }
 }
 
 @_cdecl("pennel_mac_external_target_start")

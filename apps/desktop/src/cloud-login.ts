@@ -1,3 +1,5 @@
+import { formatNumber, t } from "./i18n.ts";
+
 export type LoginPoll =
   | { kind: "pending" }
   | { kind: "slow_down" }
@@ -44,45 +46,46 @@ export interface UsageNumbers {
 }
 
 function decimal(value: number): string {
-  return String(Math.round(value * 10) / 10).replace(".", ",");
+  return formatNumber(value, { maximumFractionDigits: 1 });
 }
 
 function duration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  if (!hours) return `${rest} min`;
-  return rest ? `${hours} u ${rest} min` : `${hours} u`;
+  if (!hours) return t("account.usage.minutes", { count: formatNumber(rest) });
+  return rest ? t("account.usage.hours_minutes", { hours: formatNumber(hours), minutes: formatNumber(rest) })
+    : t("account.usage.hours", { count: formatNumber(hours) });
 }
 
 function millions(tokens: number): string {
-  return tokens === 0 ? "0 mln" : `${decimal(tokens / 1e6)} mln`;
+  return t("account.usage.millions", { count: decimal(tokens / 1e6) });
 }
 
 function size(bytes: number): string {
-  return bytes >= 1e9 ? `${decimal(bytes / 1e9)} GB` : `${Math.round(bytes / 1e6)} MB`;
+  return bytes >= 1e9 ? `${decimal(bytes / 1e9)} GB` : `${formatNumber(Math.round(bytes / 1e6))} MB`;
 }
 
 export function formatUsage(account: UsageNumbers): { audio: string; tokens: string; storage: string } {
   return {
-    audio: `${duration(account.audio_seconds)} van ${duration(account.limit_audio_seconds)}`,
-    tokens: `${millions(account.tokens)} van ${millions(account.limit_tokens)} tokens`,
-    storage: `${size(account.storage_bytes)} van ${size(account.limit_storage_bytes)}`,
+    audio: t("account.usage.audio", { used: duration(account.audio_seconds), limit: duration(account.limit_audio_seconds) }),
+    tokens: t("account.usage.tokens", { used: millions(account.tokens), limit: millions(account.limit_tokens) }),
+    storage: t("account.usage.storage", { used: size(account.storage_bytes), limit: size(account.limit_storage_bytes) }),
   };
 }
 
 export function relativeTime(thenMs: number, nowMs: number): string {
   const minutes = Math.max(0, Math.floor((nowMs - thenMs) / 60000));
-  if (minutes < 1) return "zojuist";
-  if (minutes < 60) return `${minutes} min geleden`;
+  if (minutes < 1) return t("account.relative.now");
+  if (minutes < 60) return t("account.relative.minutes", { count: formatNumber(minutes) });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} u geleden`;
+  if (hours < 24) return t("account.relative.hours", { count: formatNumber(hours) });
   const days = Math.floor(hours / 24);
-  return days === 1 ? "1 dag geleden" : `${days} dagen geleden`;
+  return t(days === 1 ? "account.relative.day" : "account.relative.days", { count: formatNumber(days) });
 }
 
 export function copyStatusText(failure: string | null): string {
-  return failure ?? "Gekopieerd";
+  return failure ?? t("account.copied");
 }
 
 export interface AccountUi {

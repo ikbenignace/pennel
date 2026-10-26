@@ -962,7 +962,8 @@ impl Controller {
                     self.clear_owned_preview(&id);
                 }
                 Some(Msg::DeliveryNotice(notice)) => self.notify(&notice),
-                Some(Msg::DeliveryRecovery(recovery)) => {
+                Some(Msg::DeliveryRecovery(mut recovery)) => {
+                    recovery.reason = crate::ui::message(recovery.reason);
                     let _ = self.app.emit("dictation-recovery", &recovery);
                     self.notify(&recovery.reason);
                 }
@@ -1598,7 +1599,13 @@ impl Controller {
     }
 
     fn render(&self) {
-        self.pill.show(self.status.pill());
+        let state = match self.status.pill() {
+            pennel_core::PillState::Error(message) => {
+                pennel_core::PillState::Error(crate::ui::message(message))
+            }
+            other => other,
+        };
+        self.pill.show(state);
     }
 }
 

@@ -1,3 +1,4 @@
+import { liveText, bindLocalization, l, t, uiLocale, localizeBackendText, type LocalizedText } from "../i18n.ts";
 import { api, type ModelChoice, type RemoteModel, type Settings } from "../api";
 import { errorText, field, h, section, select } from "../dom";
 import type { Context } from "../main";
@@ -13,14 +14,14 @@ export async function modelsView(ctx: Context): Promise<HTMLElement> {
     "div",
     { class: "models-settings" },
     ...await Promise.all([
-      slot(ctx, "dictation_stt", "Dicteren", "Spraak naar tekst wanneer je de sneltoets gebruikt.", false),
-      slot(ctx, "llm", "Opkuisen en samenvatten", "Taalmodel dat je dictaten opkuist en meetings samenvat.", true),
-      slot(ctx, "meeting_stt", "Meetings", "Spraak naar tekst voor opgenomen meetings.", false),
+      slot(ctx, "dictation_stt", l("providers.models.dictation"), l("providers.models.dictation_help"), false),
+      slot(ctx, "llm", l("providers.models.text"), l("providers.models.text_help"), true),
+      slot(ctx, "meeting_stt", l("providers.models.meetings"), l("providers.models.meetings_help"), false),
     ]),
   );
 }
 
-async function slot(ctx: Context, key: Slot, title: string, subtitle: string, llm: boolean) {
+async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subtitle: string | LocalizedText, llm: boolean) {
   const { settings, kinds } = ctx.info;
   const choice: ModelChoice = settings[key];
   const eligible = settings.providers.filter((p) => {
@@ -45,7 +46,8 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
       }),
     "menu",
   );
-  provider.setAttribute("aria-label", `Provider voor ${title.toLocaleLowerCase("nl-BE")}`);
+  const providerLabel = () => provider.setAttribute("aria-label", t("providers.provider_for", { task: String(title).toLocaleLowerCase(uiLocale()) }));
+  providerLabel(); bindLocalization(provider, providerLabel);
 
   for (const option of provider.options) {
     const candidate = eligible.find((item) => item.id === option.value);
@@ -53,24 +55,24 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
   }
 
   let model: HTMLElement;
-  let repair = "Kies een provider.";
+  let repair = () => t("providers.choose_provider");
   let repairTarget = "providers";
   const catalogStatus = h("div", { class: "row", hidden: true });
   let ready = accountKind?.availability.status === "available" && (!accountKind.requires_key || !!ctx.info.keys[choice.provider_id]);
   if (account) {
-    repair = accountKind?.availability.status !== "available" ? accountKind?.availability.reason ?? "Deze provider is niet beschikbaar."
-      : accountKind.requires_key && !ctx.info.keys[account.id] ? `Voeg de API-sleutel toe bij Providers → ${account.name}.`
-      : "Kies een model.";
+    repair = () => accountKind?.availability.status !== "available" ? localizeBackendText(accountKind?.availability.reason ?? "") || t("providers.unavailable")
+      : accountKind.requires_key && !ctx.info.keys[account.id] ? t("providers.add_key", { provider: account.name })
+      : t("providers.choose_model");
   }
   if (accountKind?.is_cli_agent) {
     ready = ready && !!account?.base_url;
-    if (!account?.base_url) repair = "Kies het CLI-programma bij Providers.";
+    if (!account?.base_url) repair = () => t("providers.choose_cli");
   } else ready = ready && !!choice.model.trim();
   if (account?.kind === "local") {
     const downloaded = (await api.localModels(null, false)).filter((m) => m.state.kind === "downloaded");
     const downloadedChoice = downloaded.some((item) => item.id === choice.model);
     ready = ready && downloadedChoice;
-    if (!downloadedChoice) { repair = "Download eerst het gekozen spraakmodel."; repairTarget = "local"; }
+    if (!downloadedChoice) { repair = () => t("providers.download_first"); repairTarget = "local"; }
     model = downloaded.length
       ? select(
           downloaded.map((m) => [m.id, m.name] as [string, string]),
@@ -78,11 +80,11 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
           (id) => set((c) => (c.model = id)),
           "menu",
         )
-      : h("span", { class: "muted" }, "Nog geen model gedownload — zie Lokale modellen.");
+      : h("span", { class: "muted" }, l("providers.no_downloaded_model"));
   } else if (account?.kind === "apple_speech") {
-    model = h("span", { class: "help" }, accountKind?.availability.reason ?? "macOS beheert het dicteermodel en de taalbestanden.");
+    model = h("span", { class: "help" }, liveText(() => localizeBackendText(accountKind?.availability.reason ?? "")) || l("providers.apple_speech_model"));
   } else if (account?.kind === "apple_intelligence") {
-    model = h("span", { class: "help" }, "macOS beheert het ingebouwde taalmodel van Apple Intelligence.");
+    model = h("span", { class: "help" }, l("providers.apple_text_model"));
   } else {
     const listId = `models-${key}`;
     const suggestions = h("datalist", { id: listId });
@@ -91,8 +93,8 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
       remoteCache.get(account.id, providerFingerprint(ctx.info, account), () => api.providerModels(account.id))
         .then((known: RemoteModel[]) => suggestions.replaceChildren(...known.map((m) => h("option", { value: m.id }, m.name ?? m.id))))
         .catch((error: unknown) => {
-          catalogStatus.replaceChildren(h("p", { class: "help" }, `Modellenlijst niet beschikbaar: ${errorText(error)}`),
-            h("button", { class: "text-button", onclick: () => { remoteCache.invalidate(account.id); ctx.rerender(); } }, "Opnieuw laden"));
+          catalogStatus.replaceChildren(h("p", { class: "help" }, l("providers.catalog_unavailable", () => ({ error: errorText(error) }))),
+            h("button", { class: "text-button", onclick: () => { remoteCache.invalidate(account.id); ctx.rerender(); } }, l("providers.reload")));
           catalogStatus.hidden = false;
         });
     }
@@ -100,7 +102,7 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
       type: "text",
       value: choice.model,
       list: listId,
-      placeholder: accountKind?.is_cli_agent ? "Leeg = het model van de CLI" : "modelnaam",
+      placeholder: accountKind?.is_cli_agent ? l("providers.cli_default_model") : l("providers.model_name"),
       onchange: () => set((c) => (c.model = input.value.trim())),
     });
     model = h("div", { class: "row" }, input, suggestions);
@@ -121,22 +123,27 @@ async function slot(ctx: Context, key: Slot, title: string, subtitle: string, ll
     } catch (error) {
       if (!disposed && taskFingerprint(ctx.info, key) === fingerprint) providerVerification.set(key, fingerprint, { verified: false, message: errorText(error) });
     } finally { testing = false; if (!disposed) draw(); }
-  } }, llm ? "Test tekstverwerking" : "Test spraakherkenning");
+  } }, llm ? l("providers.test_text") : l("providers.test_speech"));
   const draw = () => {
     const result = providerVerification.get(key, taskFingerprint(ctx.info, key));
-    readiness.textContent = !configured ? "Nog instellen" : result?.verified ? "Test geslaagd" : "Ingesteld";
+    readiness.textContent = !configured ? t("providers.not_configured") : result?.verified ? t("providers.test_passed") : t("providers.configured");
     test.disabled = testing || !configured;
-    test.textContent = testing ? "Testen…" : llm ? "Test tekstverwerking" : "Test spraakherkenning";
-    outcome.textContent = testing ? "Voorbeeld verwerken…" : result?.message ?? "";
+    test.textContent = testing ? t("providers.testing") : llm ? t("providers.test_text") : t("providers.test_speech");
+    outcome.textContent = testing ? t("providers.processing_sample") : localizeBackendText(result?.message ?? "");
     outcome.className = result && !result.verified ? "error" : "help";
   };
   draw();
-  const flow = key === "llm" ? `Tekst → ${providerDestination(account)}.`
+  bindLocalization(readiness, draw);
+  const flow = () => key === "llm" ? t("providers.text_destination", { destination: providerDestination(account) })
     : processingSummary(settings, key === "meeting_stt" ? "meeting" : "dictation").map((stage) => `${stage.label} → ${stage.destination}.`).join(" ");
-  return section(title, subtitle, field("Provider", h("div", { class: "row" }, provider, readiness)), field("Model", model),
-    h("p", { class: "help" }, flow),
-    !configured ? h("p", { class: "help" }, repair, " ", h("button", { class: "text-button", onclick: () => ctx.navigate(repairTarget) }, repairTarget === "local" ? "Lokale modellen openen" : "Providers openen")) : null,
+  const repairText = h("span", {}, repair());
+  bindLocalization(repairText, () => { repairText.textContent = repair(); });
+  const flowText = h("p", { class: "help" }, flow());
+  bindLocalization(flowText, () => { flowText.textContent = flow(); });
+  return section(title, subtitle, field(l("common.provider"), h("div", { class: "row" }, provider, readiness)), field(l("common.model"), model),
+    flowText,
+    !configured ? h("p", { class: "help" }, repairText, " ", h("button", { class: "text-button", onclick: () => ctx.navigate(repairTarget) }, repairTarget === "local" ? l("providers.open_local_models") : l("providers.open_providers"))) : null,
     catalogStatus,
-    h("p", { class: "help" }, `De test verwerkt alleen een voorbeeld met ${providerDestination(account)}. Er wordt geen eigen dictaat of meeting gebruikt.`),
+    h("p", { class: "help" }, l("providers.sample_help", () => ({ destination: providerDestination(account) }))),
     h("div", { class: "row" }, test), outcome);
 }

@@ -1,3 +1,4 @@
+import { t, formatDateTime, formatNumber, localizeBackendText } from "./i18n.ts";
 import type { ModelState, SpeakerRecognition, VoiceProfile } from "./api";
 
 /** Catalogue sizes of the two speaker models, used until the first progress event reports a total. */
@@ -59,23 +60,23 @@ export function enrollmentStep(state: Enrollment, event: EnrollmentEvent): Enrol
 
 export function enrollmentButton(state: Enrollment, clock: (seconds: number) => string): string {
   switch (state.phase) {
-    case "starting": return "Microfoon starten…";
-    case "recording": return `Stop · ${clock(state.seconds)}`;
-    case "working": return "Stem verwerken…";
-    case "done": return "Opnieuw opnemen";
-    case "error": return "Opnieuw proberen";
-    default: return "Start opname";
+    case "starting": return t("settings.voice.starting_button");
+    case "recording": return t("settings.voice.stop_button", { time: clock(state.seconds) });
+    case "working": return t("settings.voice.working_button");
+    case "done": return t("settings.voice.record_again");
+    case "error": return t("settings.voice.retry");
+    default: return t("settings.voice.start");
   }
 }
 
 export function enrollmentStatus(state: Enrollment): string {
   switch (state.phase) {
-    case "starting": return "Pennel zet de microfoon klaar.";
-    case "recording": return "Pennel luistert. Lees de tekst rustig voor en druk dan op Stop.";
-    case "working": return "Pennel verwerkt je stem. Dat duurt enkele seconden.";
-    case "done": return "Pennel kent je stem nu.";
-    case "error": return state.message;
-    default: return "Lees de tekst hardop voor, in je gewone tempo. Dat duurt ongeveer 25 seconden.";
+    case "starting": return t("settings.voice.starting_status");
+    case "recording": return t("settings.voice.recording_status");
+    case "working": return t("settings.voice.working_status");
+    case "done": return t("settings.voice.done_status");
+    case "error": return localizeBackendText(state.message);
+    default: return t("settings.voice.idle_status");
   }
 }
 
@@ -84,14 +85,14 @@ export function enrollmentTone(state: Enrollment): "neutral" | "success" | "erro
 }
 
 export function trainedLabel(profile: VoiceProfile | null): string {
-  if (!profile) return "Nog niet getraind";
+  if (!profile) return t("settings.voice.untrained");
   const date = new Date(profile.created_iso);
-  return Number.isNaN(date.valueOf()) ? "Getraind" : `Getraind op ${date.toLocaleDateString("nl-BE", { dateStyle: "medium" })}`;
+  return Number.isNaN(date.valueOf()) ? t("settings.voice.trained") : t("settings.voice.trained_at", { date: formatDateTime(date, { dateStyle: "medium" }) });
 }
 
 export function recognitionSummary(result: SpeakerRecognition): string {
-  const parts = [result.voices ? `${result.voices} ${result.voices === 1 ? "stem" : "stemmen"} gevonden` : "Geen andere stemmen gevonden"];
-  if (result.named) parts.push(`${result.named} herkend`);
-  if (result.me_found) parts.push("jouw stem herkend");
+  const parts = [result.voices ? t(result.voices === 1 ? "settings.voice.found_one" : "settings.voice.found_many", { count: formatNumber(result.voices) }) : t("settings.voice.found_none")];
+  if (result.named) parts.push(t("settings.voice.named", { count: formatNumber(result.named) }));
+  if (result.me_found) parts.push(t("settings.voice.me_found"));
   return parts.join(" · ");
 }

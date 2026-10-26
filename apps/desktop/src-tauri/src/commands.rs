@@ -25,7 +25,32 @@ const LOG: Log = Log::new("app");
 type Result<T> = std::result::Result<T, String>;
 
 fn err(e: impl std::fmt::Display) -> String {
-    e.to_string()
+    localize_error_message(e.to_string())
+}
+
+pub(crate) fn localize_error_message(source: impl AsRef<str>) -> String {
+    let mut remaining = source.as_ref();
+    let mut wrappers = Vec::new();
+    // These are Pennel's own error envelopes. Captured values in a catalog message remain data.
+    for _ in 0..3 {
+        let Some(prefix) = [
+            "storage error: ",
+            "network error: ",
+            "invalid response: ",
+            "Bewaren mislukt: ",
+        ]
+        .into_iter()
+        .find(|prefix| remaining.starts_with(prefix)) else {
+            break;
+        };
+        wrappers.push(prefix);
+        remaining = &remaining[prefix.len()..];
+    }
+    let mut result = crate::ui::message(remaining);
+    for prefix in wrappers.into_iter().rev() {
+        result = crate::ui::message(format!("{prefix}{result}"));
+    }
+    result
 }
 
 async fn blocking<T: Send + 'static>(
@@ -60,7 +85,7 @@ async fn off_main<T: Send + 'static>(
 #[derive(Serialize)]
 pub struct KindInfo {
     kind: ProviderKind,
-    label: &'static str,
+    label: String,
     requires_key: bool,
     default_base_url: String,
     stt: bool,
@@ -100,7 +125,7 @@ fn provider_kinds(
         .iter()
         .map(|(kind, label)| KindInfo {
             kind: *kind,
-            label,
+            label: crate::ui::message(*label),
             requires_key: pennel_core::requires_key(*kind),
             default_base_url: pennel_core::default_base_url(*kind),
             stt: pennel_core::supports(*kind, ProviderTask::DictationStt),
@@ -120,6 +145,8 @@ fn provider_kinds(
 
 #[derive(Serialize)]
 pub struct AppInfo {
+    interface_language: pennel_core::InterfaceLanguage,
+    system_interface_language: pennel_core::InterfaceLanguage,
     settings: Settings,
     keys: HashMap<String, bool>,
     provider_revisions: HashMap<String, u64>,
@@ -146,8 +173,12 @@ pub(crate) fn info(shared: &Shared) -> AppInfo {
         .map(|p| (p.id.clone(), shared.secrets.get(&p.id).is_some()))
         .collect();
     let hotkey_error = shared.hotkey_error.lock().unwrap().clone();
-    let capabilities = capabilities::snapshot(hotkey_error.as_deref());
+    let capabilities = capabilities::snapshot(hotkey_error.as_deref()).localized();
     AppInfo {
+        interface_language: settings
+            .ui_language
+            .resolve(&[shared.system_interface_language.code().to_owned()]),
+        system_interface_language: shared.system_interface_language,
         keys,
         provider_revisions: settings
             .providers
@@ -165,8 +196,8 @@ pub(crate) fn info(shared: &Shared) -> AppInfo {
         platform: std::env::consts::OS,
         version: shared.version.clone(),
         preview: shared.preview,
-        migration_warning: shared.migration_warning.clone(),
-        hotkey_error,
+        migration_warning: shared.migration_warning.clone().map(crate::ui::message),
+        hotkey_error: hotkey_error.map(crate::ui::message),
         log_path: diagnostics::file_path().map(|p| p.to_string_lossy().into_owned()),
         data_dir: shared.data_dir.to_string_lossy().into_owned(),
         capabilities,
@@ -236,6 +267,7 @@ fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> R
     }
     crate::record_shortcut::refresh(app, shared);
     crate::apply_appearance(app);
+    crate::ui::apply(app, shared).map_err(err)?;
     if old_settings.dictation_pad_auto_paste && !shared.settings().dictation_pad_auto_paste {
         crate::owned_dictation::invalidate_external(app);
     }
@@ -342,9 +374,12 @@ pub fn local_models(
         .engine
         .local_models(language, supported_only)
         .into_iter()
-        .map(|model| LocalModelView {
+        .map(|mut model| LocalModelView {
             state: shared.engine.model_state(model.id.clone()),
-            model,
+            model: {
+                model.description = crate::ui::message(model.description);
+                model
+            },
         })
         .collect()
 }
@@ -416,7 +451,7 @@ pub fn download_model(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>
             "download-done",
             DownloadDone {
                 id,
-                error: result.err().map(|e| e.to_string()),
+                error: result.err().map(err),
             },
         );
     });
@@ -447,7 +482,7 @@ pub async fn join_model_download(
             "download-done",
             DownloadDone {
                 id,
-                error: result.as_ref().err().map(ToString::to_string),
+                error: result.as_ref().err().map(err),
             },
         );
         result.map_err(err)
@@ -468,7 +503,19 @@ pub async fn delete_model(id: String, shared: State<'_, Arc<Shared>>) -> Result<
 #[tauri::command]
 pub async fn history(limit: u32, shared: State<'_, Arc<Shared>>) -> Result<Vec<HistoryEntry>> {
     let shared = shared.inner().clone();
-    off_main("history", move || shared.engine.history(limit).map_err(err)).await
+    off_main("history", move || {
+        shared
+            .engine
+            .history(limit)
+            .map(|mut entries| {
+                for entry in &mut entries {
+                    entry.error = entry.error.take().map(localize_error_message);
+                }
+                entries
+            })
+            .map_err(err)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -505,7 +552,12 @@ pub async fn test_provider_task(
     };
     let shared = shared.inner().clone();
     blocking(move || {
-        pennel_core::test_provider_task(shared.engine.clone(), task, shared.keys()).map_err(err)
+        pennel_core::test_provider_task(shared.engine.clone(), task, shared.keys())
+            .map(|mut result| {
+                result.message = crate::ui::message(result.message);
+                result
+            })
+            .map_err(err)
     })
     .await
 }
@@ -730,14 +782,15 @@ fn status(shared: &Shared) -> MeetingStatus {
         if let Some((system_audio, heard, warning, terminal, echo)) = live_system {
             result.system_audio = system_audio;
             result.heard_system_audio = heard;
-            result.audio_warning = warning;
+            result.audio_warning = warning.map(crate::ui::message);
             result.terminal_error = terminal;
             result.echo_cancellation_active = echo;
             if recording && shared.settings().echo_cancellation && !echo {
                 let explanation = "Echo-onderdrukking is niet actief. Gebruik een koptelefoon om dubbel geluid te vermijden.";
+                let explanation = crate::ui::message(explanation);
                 result.audio_warning = Some(match result.audio_warning {
                     Some(warning) => format!("{warning} {explanation}"),
-                    None => explanation.into(),
+                    None => explanation,
                 });
             }
         }
@@ -749,6 +802,15 @@ fn status(shared: &Shared) -> MeetingStatus {
         result.transcription_warning = health.transcription_warning;
         result.terminal_error = health.terminal_error.or(result.terminal_error);
         result.can_retry_persistence = health.can_retry_persistence;
+    }
+    for message in [
+        &mut result.error,
+        &mut result.audio_warning,
+        &mut result.persistence_error,
+        &mut result.transcription_warning,
+        &mut result.terminal_error,
+    ] {
+        *message = message.take().map(localize_error_message);
     }
     result
 }
@@ -1130,7 +1192,7 @@ pub async fn speaker_setup(shared: State<'_, Arc<Shared>>) -> Result<SpeakerSetu
             legacy_model: engine.model_state(engine.diarizer_model_id()) == ModelState::Downloaded,
             profile: engine.voice_profile(),
             known: engine.known_voices(),
-            enrollment_text: engine.voice_enrollment_text(),
+            enrollment_text: crate::ui::message(engine.voice_enrollment_text()),
         })
     })
     .await
@@ -1334,6 +1396,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn saved_interface_preference_changes_presentation_without_changing_speech_settings() {
+        let root = tempfile::tempdir().unwrap();
+        let shared = Shared::testing(root.path().to_path_buf());
+        let mut settings = shared.settings();
+        settings.language = Some("nl".into());
+        settings.ui_language = pennel_core::InterfaceLanguagePreference::Dutch;
+        shared.engine.update_settings(settings).unwrap();
+        let app = info(&shared);
+        assert_eq!(
+            app.interface_language,
+            pennel_core::InterfaceLanguage::Dutch
+        );
+        assert_eq!(
+            app.settings.ui_language,
+            pennel_core::InterfaceLanguagePreference::Dutch
+        );
+        assert_eq!(app.settings.language.as_deref(), Some("nl"));
+        let local = app
+            .kinds
+            .iter()
+            .find(|kind| kind.kind == ProviderKind::Local)
+            .unwrap();
+        assert_eq!(local.label, "Local on this computer");
+    }
+
+    #[test]
     fn only_conflict_copies_inside_a_meeting_folder_may_be_deleted() {
         assert!(is_conflict_copy_name(
             "notes (conflict Mac 2026-10-25 0930).md"
@@ -1522,6 +1610,7 @@ mod tests {
         let (dictation, _receiver) = std::sync::mpsc::channel();
         let shared = Shared {
             engine,
+            system_interface_language: Default::default(),
             version: "0.2.0-test".into(),
             preview: true,
             migration_warning: None,

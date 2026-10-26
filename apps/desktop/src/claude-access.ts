@@ -1,3 +1,5 @@
+import { t } from "./i18n.ts";
+
 export type ClaudeStatus =
   | { kind: "off" }
   | { kind: "connecting" }
@@ -9,12 +11,12 @@ export function claudeStatusText(status: ClaudeStatus, enabled: boolean, ago: (t
   if (!enabled) return null;
   switch (status.kind) {
     case "off":
-    case "connecting": return "Verbinden met Pennel Cloud…";
+    case "connecting": return t("account.claude.connecting");
     case "connected":
       return status.last_request_ms === null
-        ? "Verbonden. Claude kan je meetings op deze computer doorzoeken."
-        : `Verbonden · laatste vraag van Claude ${ago(status.last_request_ms)}`;
-    case "error": return "Geen verbinding met Pennel Cloud. Pennel probeert het zo opnieuw.";
+        ? t("account.claude.connected")
+        : t("account.claude.last_request", { time: ago(status.last_request_ms) });
+    case "error": return t("account.claude.error");
   }
 }
 

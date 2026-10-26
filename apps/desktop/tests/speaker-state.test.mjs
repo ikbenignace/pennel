@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
+import { setInterfaceLanguage } from "../src/i18n.ts";
+
+beforeEach(() => setInterfaceLanguage("nl"));
 import { combinedProgress, enrollmentButton, enrollmentStatus, enrollmentStep, enrollmentTone, percent, recognitionSummary, speakerModelSizes, speakerModelsReady, trainedLabel } from "../src/speaker-state.ts";
 
 const ids = Object.keys(speakerModelSizes);
@@ -81,4 +84,17 @@ test("the trained date is shown in Dutch", () => {
   assert.equal(trainedLabel(null), "Nog niet getraind");
   assert.match(trainedLabel({ created_iso: "2026-10-26T10:00:00Z", speech_seconds: 20 }), /^Getraind op 26 okt/);
   assert.equal(trainedLabel({ created_iso: "kapot", speech_seconds: 20 }), "Getraind");
+});
+
+
+test("speaker labels follow the interface without changing enrollment state", () => {
+  const state = { phase: "recording", seconds: 12 };
+  setInterfaceLanguage("en");
+  assert.equal(enrollmentButton(state, (seconds) => `00:${seconds}`), "Stop · 00:12");
+  assert.equal(enrollmentStatus({ phase: "done", profile: {} }), "Pennel now recognizes your voice.");
+  assert.equal(recognitionSummary({ voices: 2, named: 1, me_found: true }), "2 voices found · 1 recognized · your voice recognized");
+  assert.equal(trainedLabel(null), "Not trained yet");
+  setInterfaceLanguage("nl");
+  assert.equal(enrollmentButton(state, (seconds) => `00:${seconds}`), "Stop · 00:12");
+  assert.deepEqual(state, { phase: "recording", seconds: 12 });
 });

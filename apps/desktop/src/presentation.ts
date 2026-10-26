@@ -1,3 +1,4 @@
+import { localizeBackendText, t, uiLocale } from "./i18n.ts";
 import type { AppInfo, AppearancePreference, HotkeyTrigger } from "./api";
 
 export function appearanceIsDark(preference: AppearancePreference, systemDark: boolean): boolean {
@@ -11,12 +12,19 @@ function canonicalJson(value: unknown): string {
 }
 
 export function appInfoContentEqual(previous: AppInfo, next: AppInfo): boolean {
-  const content = (info: AppInfo) => ({ ...info, settings: { ...info.settings, appearance: "system" } });
+  const message = (value: string | null | undefined) => value ? localizeBackendText(value) : value;
+  const content = (info: AppInfo) => ({ ...info,
+    interface_language: "en", system_interface_language: "en",
+    settings: { ...info.settings, appearance: "system", ui_language: "system" },
+    hotkey_error: message(info.hotkey_error), migration_warning: message(info.migration_warning),
+    kinds: info.kinds?.map((kind) => ({ ...kind, label: message(kind.label), availability: { ...kind.availability, reason: message(kind.availability.reason) } })),
+    capabilities: info.capabilities && Object.fromEntries(Object.entries(info.capabilities).map(([key, capability]) => [key, { ...capability, reason: message(capability.reason) }])),
+  });
   return canonicalJson(content(previous)) === canonicalJson(content(next));
 }
 
 export function hotkeyLabel(key: HotkeyTrigger, platform: string): string {
-  return ({ fn: platform === "macos" ? "fn" : "rechter Ctrl", right_control: "rechter Ctrl", right_option: platform === "macos" ? "rechter Option" : "rechter Alt", right_command: platform === "macos" ? "rechter Command" : "rechter Windows-toets", control_super: platform === "windows" ? "Ctrl + Windows" : "Ctrl + Super" })[key];
+  return ({ fn: platform === "macos" ? "fn" : t("dictation.shortcut.right_control"), right_control: t("dictation.shortcut.right_control"), right_option: platform === "macos" ? t("dictation.shortcut.right_option") : t("dictation.shortcut.right_alt"), right_command: platform === "macos" ? t("dictation.shortcut.right_command") : t("dictation.shortcut.right_windows"), control_super: platform === "windows" ? "Ctrl + Windows" : "Ctrl + Super" })[key];
 }
 
 export function hotkeyKeyLabel(key: HotkeyTrigger, platform: string): string {
@@ -24,11 +32,11 @@ export function hotkeyKeyLabel(key: HotkeyTrigger, platform: string): string {
 }
 
 export function applicationLabel(id: string): string {
-  const known: Record<string, string> = { "com.apple.mail": "Mail", "com.apple.MobileSMS": "Berichten", "com.apple.Notes": "Notities", "com.apple.Terminal": "Terminal", "com.apple.Safari": "Safari", "com.google.Chrome": "Google Chrome", "com.microsoft.VSCode": "Visual Studio Code", "com.microsoft.Outlook": "Outlook", "com.tinyspeck.slackmacgap": "Slack", "com.anthropic.claudefordesktop": "Claude", "com.openai.chat": "ChatGPT", "com.microsoft.teams2": "Microsoft Teams", "us.zoom.xos": "Zoom", "com.apple.FaceTime": "FaceTime", "net.whatsapp.WhatsApp": "WhatsApp", "Cisco-Systems.Spark": "Webex", "com.hnc.Discord": "Discord", "company.thebrowser.Browser": "Arc", "com.microsoft.edgemac": "Microsoft Edge", "org.mozilla.firefox": "Firefox", "com.brave.Browser": "Brave", "ru.keepcoder.Telegram": "Telegram", "com.microsoft.Word": "Word", "com.googlecode.iterm2": "iTerm", "com.mitchellh.ghostty": "Ghostty", "dev.zed.Zed": "Zed", "com.todesktop.230313mzl4w4u92": "Cursor" };
+  const known: Record<string, string> = { "com.apple.mail": "Mail", "com.apple.MobileSMS": t("dictation.application.messages"), "com.apple.Notes": t("dictation.application.notes"), "com.apple.Terminal": "Terminal", "com.apple.Safari": "Safari", "com.google.Chrome": "Google Chrome", "com.microsoft.VSCode": "Visual Studio Code", "com.microsoft.Outlook": "Outlook", "com.tinyspeck.slackmacgap": "Slack", "com.anthropic.claudefordesktop": "Claude", "com.openai.chat": "ChatGPT", "com.microsoft.teams2": "Microsoft Teams", "us.zoom.xos": "Zoom", "com.apple.FaceTime": "FaceTime", "net.whatsapp.WhatsApp": "WhatsApp", "Cisco-Systems.Spark": "Webex", "com.hnc.Discord": "Discord", "company.thebrowser.Browser": "Arc", "com.microsoft.edgemac": "Microsoft Edge", "org.mozilla.firefox": "Firefox", "com.brave.Browser": "Brave", "ru.keepcoder.Telegram": "Telegram", "com.microsoft.Word": "Word", "com.googlecode.iterm2": "iTerm", "com.mitchellh.ghostty": "Ghostty", "dev.zed.Zed": "Zed", "com.todesktop.230313mzl4w4u92": "Cursor" };
   if (/pennel|musli/i.test(id)) return "Pennel";
   if (known[id]) return known[id];
   const name = id.replace(/\.exe$/i, "").split(".").filter(Boolean).at(-1) ?? id;
-  return name.charAt(0).toLocaleUpperCase("nl-BE") + name.slice(1);
+  return name.charAt(0).toLocaleUpperCase(uiLocale()) + name.slice(1);
 }
 
 export function languageModelConfigured(info: AppInfo): boolean {

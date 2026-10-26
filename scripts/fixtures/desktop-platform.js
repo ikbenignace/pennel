@@ -3,6 +3,13 @@
   const options = globalThis.__PENNEL_FIXTURE_OPTIONS__;
   if (!options || !location.hostname.match(/^(127\.0\.0\.1|localhost)$/)) throw new Error("Visual fixtures require an owned local server");
   const clone = value => structuredClone(value);
+  const systemLanguages = options.system_languages || [options.locale || "nl"];
+  const systemInterfaceLanguage = systemLanguages.map(language => String(language).trim().split(/[-_.@]/)[0].toLowerCase()).find(language => language === "en" || language === "nl") || "en";
+  const profileKey = options.profile ? `pennel-synthetic-fixture:${options.profile}` : null;
+  let persistedSettings;
+  if (profileKey) {
+    try { persistedSettings = JSON.parse(globalThis.localStorage?.getItem(profileKey) || "null"); } catch {}
+  }
   const now = Date.parse("2026-10-25T09:00:00Z");
   const ActualDate = Date;
   function FixtureDate(...args) {
@@ -20,7 +27,7 @@
     state: options.pill_state,
     preview: { session_id: "qa-" + options.name, revision: options.preview_text ? 7 : 0, text: options.preview_text || "" },
   } : { state: "hidden" };
-  const notes = "- Planning afronden\n- Volgende afspraak bevestigen";
+  let notes = "- Planning afronden\n- Volgende afspraak bevestigen";
   const summary = "## Besluiten\n- De planning wordt maandag afgerond.\n\n## Actiepunten\n- [ ] Volgende afspraak bevestigen.";
   const meeting = { id: meetingId, title: "Projectoverleg", start_iso: "2026-10-24T09:00:00+02:00", duration_min: 25, has_summary: true };
   const library = [
@@ -62,15 +69,17 @@
   const model = selectedProvider === "apple-speech" ? "dictation" : selectedProvider === "openai" ? "gpt-4o-mini-transcribe" : "whisper-large-v3-turbo";
   let settings = {
     providers, dictation_stt: { provider_id: selectedProvider, model }, meeting_stt: { provider_id: "local", model: "whisper-large-v3-turbo" },
-    llm: { provider_id: "groq", model: "llama-3.3-70b-versatile" }, mode: options.mode || "fast", language: "nl", dictionary: ["Pennel", "Studio Noord"],
+    llm: { provider_id: "groq", model: "llama-3.3-70b-versatile" }, mode: options.mode || "fast", language: "nl", ui_language: options.ui_language || "system", dictionary: ["Pennel", "Studio Noord"],
     style_rules: [{ bundle_id: "com.tinyspeck.slackmacgap", style: "casual" }, { bundle_id: "com.apple.MobileSMS", style: "casual" }, { bundle_id: "com.apple.mail", style: "formal" }, { bundle_id: "com.microsoft.Word", style: "formal" }, { bundle_id: "com.apple.Terminal", style: "literal" }, { bundle_id: "com.microsoft.VSCode", style: "literal" }], history_retention_days: 30, hotkey: "fn", local_unload_minutes: 5,
     meetings_dir: "/QA/Pennel Preview/Meetings", default_template: "algemeen", meeting_audio_retention_days: 30,
     app_rules: [], calendar_rules: [], event_rules: [], calendar_enabled: false, echo_cancellation: true,
     record_shortcut_enabled: true, consent_enabled: false, auto_detect: true, diarization: Boolean(options.speakers), speaker_recognition: options.speaker_mode || "local",
     appearance: options.appearance, dictation_pad_auto_paste: false, cloud_sync: Boolean(options.cloud), claude_access: Boolean(options.claude),
-    onboarding: { version: 1, status: options.window === "onboarding" ? "pending" : options.shortcut_denied ? "skipped" : "completed", resume_step: options.step || "welcome" },
+    onboarding: { version: 1, status: options.window === "onboarding" ? "pending" : options.shortcut_denied ? "skipped" : "completed", resume_step: options.step || "language" },
   };
-  const capabilities = Object.fromEntries(["pad_external_paste", "global_hotkey", "record_shortcut", "microphone", "system_audio", "echo_cancellation", "call_detection", "calendar", "apple_speech", "apple_intelligence", "selection", "rich_clipboard", "audio_playback", "diarization"].map(name => [name, available()]));
+  if (persistedSettings && typeof persistedSettings === "object") settings = { ...settings, ...persistedSettings };
+  const interfaceLanguage = () => settings.ui_language === "nl" || settings.ui_language === "en" ? settings.ui_language : systemInterfaceLanguage;
+  const capabilities = Object.fromEntries(["pad_external_paste", "global_hotkey", "record_shortcut", "microphone", "system_audio", "echo_cancellation", "call_detection", "calendar", "apple_speech", "apple_intelligence", "selection", "rich_clipboard", "audio_playback", "diarization", "local_models"].map(name => [name, available()]));
   capabilities.local_acceleration = "metal";
   const permissionStatus = options.permission || "granted";
   let permissions = ["microphone", "accessibility", "calendar", "speech", "system_audio"].map(kind => ({ kind, status: kind === "calendar" ? "not_determined" : permissionStatus }));
@@ -90,7 +99,7 @@
     size_bytes: 886381760, parameters: "809M", speed: 72, accuracy: 86, languages: ["nl", "en", "fr", "de"], recommended: true, legacy: false,
   }]).map(model => ({ ...model, state: model.id === "whisper-large-v3-turbo" && options.download_active
     ? { kind: "partial", bytes: Math.floor(model.size_bytes / 3) }
-    : model.id === "whisper-large-v3-turbo" && !(options.window === "onboarding" && ["welcome", "engine"].includes(options.step)) ? { kind: "downloaded" } : { kind: "not_downloaded" } }));
+    : model.id === "whisper-large-v3-turbo" && !(options.window === "onboarding" && ["language", "welcome", "engine"].includes(options.step)) ? { kind: "downloaded" } : { kind: "not_downloaded" } }));
   const diarizer = { id: "diar_streaming_sortformer_4spk-v2.1", name: "Sortformer (sprekers)", size_bytes: 139310336, state: { kind: "not_downloaded" } };
   const speakerModels = [["pyannote-segmentation-3.0", 5992913], ["3dspeaker-campplus-zh-en-advanced", 28281164]].map(([id, size_bytes]) => ({ id, size_bytes, state: options.speakers === "ready" ? { kind: "downloaded" } : { kind: "not_downloaded" } }));
   if (options.speakers === "legacy") diarizer.state = { kind: "downloaded" };
@@ -123,7 +132,7 @@
     return true;
   };
   const shortcutDenied = () => permissions.find(permission => permission.kind === "accessibility")?.status !== "granted";
-  const info = () => ({ settings: clone(settings), keys: clone(keys), provider_revisions: clone(providerRevisions), active_model_downloads: [...activeDownloads],
+  const info = () => ({ interface_language: interfaceLanguage(), system_interface_language: systemInterfaceLanguage, settings: clone(settings), keys: clone(keys), provider_revisions: clone(providerRevisions), active_model_downloads: [...activeDownloads],
     unsaved_history_count: history.filter(entry => entry.status === "unsaved").length,
     kinds: clone(kinds), platform: "macos", version: "0.1.0", hotkey_error: shortcutDenied() ? capabilities.global_hotkey.reason : null,
     log_path: "/QA/Pennel Preview/pennel.log", data_dir: "/QA/Pennel Preview", capabilities: clone(capabilities), recording_app_ids: options.recording_app_ids || [], diarizer_model_id: diarizer.id, preview: true, migration_warning: null });
@@ -174,7 +183,13 @@
     calls.push(command);
     switch (command) {
       case "app_info": return info();
-      case "save_settings": settings = clone(args.settings); return info();
+      case "save_settings": {
+        settings = clone(args.settings);
+        settings.ui_language = ["en", "nl", "system"].includes(settings.ui_language) ? settings.ui_language : "system";
+        if (profileKey) { try { globalThis.localStorage?.setItem(profileKey, JSON.stringify(settings)); } catch {} }
+        emit("settings-changed", null);
+        return info();
+      }
       case "get_permissions": return clone(permissions);
       case "request_permission": {
         permissions = permissions.map(permission => permission.kind === args.kind ? { ...permission, status: "granted" } : permission);
@@ -235,7 +250,9 @@
       }
       case "retry_history": return sentence;
       case "local_models": return clone(args.supportedOnly || args.supported_only ? models.filter(model => model.languages.some(language => language.split(/[-_]/)[0] === (args.language || "nl"))) : models);
-      case "model_state": return clone(modelFor(args.id)?.state || { kind: "not_downloaded" });
+      case "model_state":
+        if (options.model_state_delay_ms) await new Promise(resolve => setTimeout(resolve, options.model_state_delay_ms));
+        return clone(modelFor(args.id)?.state || { kind: "not_downloaded" });
       case "download_model": {
         if (!modelFor(args.id)) throw new Error("Onbekend QA-model");
         if (activeDownloads.has(args.id)) return null;
@@ -276,6 +293,7 @@
       case "detect_cli_agents": return [];
       case "check_cli_agent": return "Niet uitgevoerd in deze fixture.";
       case "meeting_status": return meetingStatus();
+      case "set_meeting_notes": case "save_meeting_notes": notes = String(args.text ?? ""); return null;
       case "retry_meeting_persistence": {
         const status = meetingStatus();
         if (!status.can_retry_persistence || args.sessionId !== status.session_id) throw new Error("Deze QA-opnamesessie is niet meer actief.");
@@ -326,7 +344,7 @@
       case "delete_conflict_copy": case "open_url": case "copy_secret_text": return null;
       case "show_window": case "show_workspace": case "copy_text": case "play_meeting_audio": case "stop_audio":
       case "answer_record_prompt": case "toggle_dictation": case "install_update": case "share_meeting": case "open_log": case "open_path":
-      case "set_meeting_notes": case "set_meeting_title": case "save_meeting_notes": case "set_meeting_attendees": case "rename_speaker":
+      case "set_meeting_title": case "set_meeting_attendees": case "rename_speaker":
       case "delete_meeting": case "delete_template": case "test_apple_intelligence": case "stop_meeting": return null;
       default: unknown.push(command); throw new Error(`Onbekend fixturecommando: ${command}`);
     }
@@ -340,5 +358,9 @@
       return () => listeners.get(name)?.delete(handler);
     },
   };
+  if (profileKey && globalThis.addEventListener) globalThis.addEventListener("storage", event => {
+    if (event.key !== profileKey || !event.newValue) return;
+    try { settings = { ...settings, ...JSON.parse(event.newValue) }; emit("settings-changed", null); } catch {}
+  });
   globalThis.__PENNEL_FIXTURE__ = { options: fixture, calls, unknown, emit, info, completeDownload };
 })();

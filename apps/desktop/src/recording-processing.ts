@@ -1,22 +1,30 @@
 import type { MeetingStatus } from "./api";
 import type { ProcessingStage } from "./processing-state";
+import { t, uiLocale } from "./i18n.ts";
 
 type FrozenRecognition = NonNullable<MeetingStatus["recognition"]>;
 
+function speechLanguageName(language: string | null): string {
+  if (!language) return t("common.automatic");
+  try {
+    const name = new Intl.DisplayNames([uiLocale()], { type: "language" }).of(language) ?? language;
+    return name.charAt(0).toLocaleUpperCase(uiLocale()) + name.slice(1);
+  } catch { return language; }
+}
+
 export function frozenRecognitionLabel(recognition?: FrozenRecognition): string {
-  if (!recognition) return "Opnameconfiguratie niet beschikbaar";
-  const place = recognition.provider_kind === "local" ? `Op deze computer · ${recognition.provider_name}`
-    : recognition.provider_kind === "apple_speech" ? `Op deze Mac · ${recognition.provider_name}`
-    : `${recognition.provider_name} (${recognition.provider_kind ? "gekozen provider" : "bestemming niet vastgesteld"})`;
-  const languages: Record<string, string> = { nl: "Nederlands", en: "Engels", fr: "Frans", de: "Duits" };
-  const language = recognition.language ? languages[recognition.language] ?? recognition.language : "Automatisch";
-  return [place, recognition.model || "Model niet vermeld", language].join(" · ");
+  if (!recognition) return t("dictation.processing.unavailable");
+  const provider = recognition.provider_name;
+  const place = recognition.provider_kind === "local" ? t("dictation.processing.local_provider", { provider })
+    : recognition.provider_kind === "apple_speech" ? t("dictation.processing.mac_provider", { provider })
+    : recognition.provider_kind ? t("dictation.processing.provider", { provider }) : t("dictation.processing.unknown_provider", { provider });
+  return [place, recognition.model || t("dictation.processing.no_model"), speechLanguageName(recognition.language)].join(" · ");
 }
 
 export function meetingProcessingSummary(stages: ProcessingStage[], recognition?: FrozenRecognition, active = false): ProcessingStage[] {
   return [
-    { label: "Audio", destination: active ? frozenRecognitionLabel(recognition) : stages[0]?.destination ?? "Nog niet ingesteld" },
-    { label: "Tekst (optioneel)", destination: `${stages[1]?.destination ?? "Nog niet ingesteld"} · alleen bij samenvatten of vragen, met de dan gekozen provider` },
+    { label: t("dictation.processing.audio"), destination: active ? frozenRecognitionLabel(recognition) : stages[0]?.destination ?? t("dictation.processing.not_configured") },
+    { label: t("dictation.processing.optional_text"), destination: t("dictation.processing.optional_destination", { provider: stages[1]?.destination ?? t("dictation.processing.not_configured") }) },
   ];
 }
 

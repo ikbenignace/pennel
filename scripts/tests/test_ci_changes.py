@@ -49,6 +49,10 @@ class ChangesTests(unittest.TestCase):
     def test_shared_assets_build_both_apps(self):
         self.assertEqual(self.classify('assets/brand/tokens.json'), {'legacy', 'app'})
 
+    def test_translation_catalogs_validate_core_and_both_apps(self):
+        self.assertEqual(self.classify('assets/locales/onboarding.en.json'),
+                         {'core', 'legacy', 'app'})
+
     def test_build_infrastructure_runs_everything(self):
         for path in ('Makefile', '.cargo/config.toml', '.github/workflows/ci.yml',
                      'scripts/generate-theme.py', 'scripts/tests/test_ci_changes.py'):

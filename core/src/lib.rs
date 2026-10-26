@@ -20,6 +20,7 @@ mod http;
 mod live_dictation;
 mod llm;
 mod local_engine;
+mod localization;
 mod meeting_chat;
 mod meeting_index;
 mod meetings;
@@ -62,6 +63,10 @@ pub use gesture::{GestureAction, HotkeyGesture, KeyEdge};
 pub use history::{HistoryEntry, HistoryStatus};
 pub use live_dictation::{
     DictationPreviewMode, DictationPreviewObserver, DictationPreviewUpdate, LiveDictationSession,
+};
+pub use localization::{
+    InterfaceLanguage, InterfaceLanguagePreference, localize_ui_text, resolve_interface_language,
+    ui_text,
 };
 pub use meeting_chat::{ChatTurn, Citation, MeetingAnswer};
 pub use meeting_index::{Passage, PassageKind};
