@@ -20,6 +20,7 @@ pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, PennelEr
     if !model_path.exists() {
         return Err(PennelError::ModelNotDownloaded);
     }
+    crate::cpu_support::ensure_local_models_supported()?;
     let error = |e: transcribe_cpp::Error| PennelError::InvalidResponse {
         message: format!("sprekers herkennen: {e}"),
     };
