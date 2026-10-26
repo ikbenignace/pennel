@@ -83,10 +83,10 @@ jobs:
           # the build script's output, which would then link against a missing directory.
           cache-directories: core/target/sherpa-onnx-prebuilt
           key: sherpa-prebuilt
+          cache-bin: "false"
       - name: Rerun sherpa-onnx's build script after a cache restore
         shell: bash
         run: bash scripts/ci-sherpa-cache.sh core/target
-          cache-bin: "false"
       - name: Rust lint
         run: cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
       - name: Rust tests
@@ -180,11 +180,11 @@ jobs:
           # the build script's output, which would then link against a missing directory.
           cache-directories: apps/desktop/src-tauri/target/sherpa-onnx-prebuilt
           key: sherpa-prebuilt
+          cache-bin: "false"
       - name: Rerun sherpa-onnx's build script after a cache restore
         shell: bash
         working-directory: .
         run: bash scripts/ci-sherpa-cache.sh apps/desktop/src-tauri/target
-          cache-bin: "false"
       - uses: actions/setup-node@v5
         with:
           node-version: 22
