@@ -103,7 +103,7 @@ private final class FakeCloud: CloudService, @unchecked Sendable {
 @MainActor
 private func idleRunner() -> CloudSyncRunner {
     CloudSyncRunner(pass: { _ in SyncReport(status: .off, uploaded: 0, downloaded: 0, conflicts: 0, lastSuccessMs: nil) },
-                    activeMeetingId: { nil }, timers: { _, _ in {} })
+                    unfinalisedMeetingIds: { [] }, timers: { _, _ in {} })
 }
 
 private func filesContaining(_ needle: Data, under root: URL) -> [String] {

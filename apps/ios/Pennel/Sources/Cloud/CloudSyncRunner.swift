@@ -3,8 +3,6 @@ import Foundation
 import Observation
 import os
 
-/// Runs `cloud_sync_run` with at most one pass at a time and one queued rerun, whatever the number of triggers.
-/// The meeting being recorded is passed on every pass: its folder is never pushed before it is finalised (spec §5.6).
 /// Lets a recording create its folder while no sync pass can be scanning the meetings folder.
 @MainActor
 protocol SyncHolding: AnyObject {
@@ -13,6 +11,8 @@ protocol SyncHolding: AnyObject {
     func release()
 }
 
+/// Runs `cloud_sync_run` with at most one pass at a time and one queued rerun, whatever the number of triggers.
+/// Meetings not yet finalised are passed on every pass: their folders are never pushed before then (spec §5.6).
 @MainActor
 @Observable
 final class CloudSyncRunner: SyncHolding {
@@ -27,13 +27,13 @@ final class CloudSyncRunner: SyncHolding {
             let engine = await MainActor.run { AppModel.shared.engine }
             return await Task.detached { engine.cloudSyncRun(recordingMeetingIds: ids) }.value
         },
-        activeMeetingId: { MeetingRuntime.shared.activeMeetingId })
+        unfinalisedMeetingIds: { MeetingRuntime.shared.unfinalisedMeetingIds })
 
     private(set) var report: SyncReport?
     private(set) var isRunning = false
 
     @ObservationIgnored private let pass: Pass
-    @ObservationIgnored private let activeMeetingId: @MainActor () -> String?
+    @ObservationIgnored private let unfinalisedMeetingIds: @MainActor () -> [String]
     @ObservationIgnored private let timers: Timers
     @ObservationIgnored private var current: Task<Void, Never>?
     @ObservationIgnored private var rerunQueued = false
@@ -46,11 +46,11 @@ final class CloudSyncRunner: SyncHolding {
 
     init(
         pass: @escaping Pass,
-        activeMeetingId: @escaping @MainActor () -> String?,
+        unfinalisedMeetingIds: @escaping @MainActor () -> [String],
         timers: @escaping Timers = CloudSyncRunner.systemTimers
     ) {
         self.pass = pass
-        self.activeMeetingId = activeMeetingId
+        self.unfinalisedMeetingIds = unfinalisedMeetingIds
         self.timers = timers
     }
 
@@ -131,8 +131,7 @@ final class CloudSyncRunner: SyncHolding {
         repeat {
             rerunQueued = false
             isRunning = true
-            let ids = activeMeetingId().map { [$0] } ?? []
-            report = await pass(ids)
+            report = await pass(unfinalisedMeetingIds())
         } while rerunQueued && holds == 0
         if rerunQueued { deferred = true }
         isRunning = false

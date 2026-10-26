@@ -26,6 +26,7 @@ private let emptyReport = SyncReport(status: .off, uploaded: 0, downloaded: 0, c
 private final class Fixture {
     let gate = Gate()
     var active: String?
+    var retained: String?
     var scheduled: [(interval: TimeInterval, fire: @MainActor () -> Void)] = []
     private(set) var cancelled = 0
     private(set) var runner: CloudSyncRunner!
@@ -37,7 +38,7 @@ private final class Fixture {
                 await gate.enter(ids)
                 return emptyReport
             },
-            activeMeetingId: { [unowned self] in active },
+            unfinalisedMeetingIds: { [unowned self] in [active, retained].compactMap { $0 } },
             timers: { [unowned self] interval, fire in
                 scheduled.append((interval, fire))
                 return { [unowned self] in cancelled += 1 }
@@ -76,6 +77,17 @@ struct CloudSyncRunnerTests {
         await fixture.runner.idle()
 
         #expect(await fixture.gate.calls == [["2026-10-25 Weekly"], [], []])
+    }
+
+    @Test func runner_passes_a_retained_meeting_with_the_recording_one() async {
+        let fixture = Fixture()
+        fixture.active = "2026-10-26 Nieuw"
+        fixture.retained = "2026-10-25 Niet bewaard"
+        await fixture.gate.open()
+        fixture.runner.poke()
+        await fixture.runner.idle()
+
+        #expect(await fixture.gate.calls == [["2026-10-26 Nieuw", "2026-10-25 Niet bewaard"]])
     }
 
     @Test func timer_runs_only_while_foregrounded() async {

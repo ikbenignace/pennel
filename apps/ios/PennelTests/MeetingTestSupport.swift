@@ -112,12 +112,14 @@ final class MeetingHarness {
     let center = NotificationCenter()
     let clock = ManualClock()
     let interruptions: MeetingInterruptionLog
+    let dataDir: URL
     private(set) var finished: [MeetingFinish] = []
     private(set) var runtime: MeetingRuntime!
 
     init() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pennel-meeting-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        dataDir = dir
         engine = try PennelEngine.newPreview(dataDir: dir.path)
         engine.setSystemTranscriber(transcriber: transcriber)
         try FirstRunDefaults.apply(to: engine, appleIntelligenceAvailable: false, hasKey: { _ in false })

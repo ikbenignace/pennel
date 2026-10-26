@@ -122,6 +122,9 @@ final class MeetingRuntime: DictationMeetingHook {
     /// A meeting whose final save failed; it blocks a new recording until **Opnieuw bewaren** succeeds.
     private(set) var retainedId: String?
 
+    /// The recording one and the one whose final save failed: sync must leave both alone.
+    var unfinalisedMeetingIds: [String] { [activeMeetingId, retainedId].compactMap { $0 } }
+
     @ObservationIgnored var onFinished: (@MainActor (MeetingFinish) -> Void)?
     /// After a later write to a finished meeting (the automatic summary).
     @ObservationIgnored var onUpdated: (@MainActor (String) -> Void)?

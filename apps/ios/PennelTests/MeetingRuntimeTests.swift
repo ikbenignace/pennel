@@ -107,6 +107,26 @@ struct MeetingRuntimeTests {
         #expect(h.interruptions.record(for: id) == nil)
     }
 
+    @Test func meeting_whose_save_failed_stays_out_of_sync() async throws {
+        let h = try MeetingHarness()
+        try await h.runtime.start(title: "Overleg")
+        let id = try #require(h.runtime.activeMeetingId)
+        #expect(h.runtime.unfinalisedMeetingIds == [id])
+        h.speak(seconds: 3)
+
+        let folders = try #require(FileManager.default.enumerator(at: h.dataDir, includingPropertiesForKeys: [.isDirectoryKey]))
+            .compactMap { $0 as? URL }
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+        let locked = folders + [h.dataDir]
+        for folder in locked { try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path) }
+        defer { for folder in locked { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) } }
+        await h.runtime.stop()
+
+        let retained = try #require(h.runtime.retainedId)
+        #expect(h.runtime.activeMeetingId == nil)
+        #expect(h.runtime.unfinalisedMeetingIds == [retained])
+    }
+
     @Test func live_notes_survive_a_reopened_view_and_stop() async throws {
         let h = try MeetingHarness()
         try await h.runtime.start(title: "Overleg")
