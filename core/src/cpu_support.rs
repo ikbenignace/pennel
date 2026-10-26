@@ -52,6 +52,7 @@ pub fn local_models_unavailable_reason() -> Option<String> {
     reason_for(&missing_features(REQUIRED_X86_FEATURES, detected)).map(str::to_owned)
 }
 
+#[cfg_attr(not(feature = "local-models"), allow(dead_code))]
 pub(crate) fn ensure_local_models_supported() -> Result<(), PennelError> {
     match local_models_unavailable_reason() {
         Some(_) => Err(PennelError::UnsupportedProcessor),
