@@ -137,7 +137,8 @@ struct CloudAccountTests {
             sleep: { _ in try? await Task.sleep(for: .milliseconds(20)) })
 
         let login = Task { await model.beginLogin() }
-        for _ in 0..<500 where server.body(for: "/v1/auth/device") == nil { try await Task.sleep(for: .milliseconds(10)) }
+        // Cancelling before the start response arrives would drop it, so wait for the verification page instead.
+        for _ in 0..<500 where opened.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
         model.cancelLogin()
         await login.value
 
