@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { combinedProgress, enrollmentButton, enrollmentStatus, enrollmentStep, percent, recognitionSummary, speakerModelSizes, speakerModelsReady, trainedLabel } from "../src/speaker-state.ts";
+import { combinedProgress, enrollmentButton, enrollmentStatus, enrollmentStep, enrollmentTone, percent, recognitionSummary, speakerModelSizes, speakerModelsReady, trainedLabel } from "../src/speaker-state.ts";
 
 const ids = Object.keys(speakerModelSizes);
 const [segmentation, embedding] = ids;
@@ -43,11 +43,29 @@ test("enrollment records, then learns, and keeps elapsed time monotonic", () => 
   state = enrollmentStep(state, { kind: "succeeded", profile });
   assert.deepEqual(state, { phase: "done", profile });
   assert.equal(enrollmentStatus(state), "Pennel kent je stem nu.");
+  assert.equal(enrollmentTone(state), "success");
+});
+
+test("every enrollment click shows its own state before the app answers", () => {
+  const clock = String;
+  let state = enrollmentStep({ phase: "idle" }, { kind: "request" });
+  assert.deepEqual(state, { phase: "starting" });
+  assert.equal(enrollmentButton(state, clock), "Microfoon starten…");
+  assert.equal(enrollmentStep(state, { kind: "request" }), state);
+  state = enrollmentStep(state, { kind: "start" });
+  assert.equal(state.phase, "recording");
+  state = enrollmentStep(state, { kind: "finish" });
+  assert.equal(enrollmentButton(state, clock), "Stem verwerken…");
+  assert.equal(enrollmentStatus(state), "Pennel verwerkt je stem. Dat duurt enkele seconden.");
+  assert.equal(enrollmentTone(state), "neutral");
+  assert.equal(enrollmentStep({ phase: "starting" }, { kind: "cancel" }).phase, "idle");
+  assert.equal(enrollmentStep({ phase: "done", profile: {} }, { kind: "request" }).phase, "starting");
 });
 
 test("an enrollment error shows the core's message and can be retried", () => {
   const failed = enrollmentStep({ phase: "working" }, { kind: "failed", message: "Pennel hoorde te weinig spraak." });
   assert.equal(enrollmentStatus(failed), "Pennel hoorde te weinig spraak.");
+  assert.equal(enrollmentTone(failed), "error");
   assert.equal(enrollmentButton(failed, String), "Opnieuw proberen");
   assert.equal(enrollmentStep(failed, { kind: "start" }).phase, "recording");
   assert.equal(enrollmentStep({ phase: "idle" }, { kind: "succeeded", profile: {} }).phase, "idle");

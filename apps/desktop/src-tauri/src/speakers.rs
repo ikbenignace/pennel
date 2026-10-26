@@ -11,12 +11,14 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::audio::{CaptureError, Recorder};
+use crate::diagnostics::Log;
 use crate::state::Shared;
 
 const SAMPLE_RATE: usize = 16_000;
 pub const ENROLLMENT_MAX_SECS: u64 = 60;
 const ENROLLMENT_EVENT: &str = "voice-enrollment";
 const TRACKS: [&str; 2] = ["ik.m4a", "anderen.m4a"];
+const LOG: Log = Log::new("speakers");
 
 /// The core's own messages are Dutch, but its error type prefixes some of them in English.
 pub fn speaker_error(error: PennelError) -> String {
@@ -177,8 +179,18 @@ fn take_samples() -> Option<Vec<f32>> {
 }
 
 pub fn finish_enrollment(shared: &Shared) -> Result<VoiceProfile, String> {
+    let started = Instant::now();
     let samples = take_samples().ok_or("Er loopt geen opname van je stem.")?;
-    shared.engine.enroll_voice(samples).map_err(speaker_error)
+    let stopped = started.elapsed();
+    let seconds = samples.len() / SAMPLE_RATE;
+    let result = shared.engine.enroll_voice(samples).map_err(speaker_error);
+    LOG.info(format!(
+        "stem: {seconds} s opname, microfoon gestopt in {} ms, verwerkt in {} ms{}",
+        stopped.as_millis(),
+        (started.elapsed() - stopped).as_millis(),
+        if result.is_ok() { "" } else { ", mislukt" }
+    ));
+    result
 }
 
 pub fn cancel_enrollment() {

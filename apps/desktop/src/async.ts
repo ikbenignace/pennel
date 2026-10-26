@@ -49,3 +49,22 @@ export async function orFallback<T>(work: () => Promise<T>, fallback: T, report:
   try { return await work(); }
   catch (error) { report(error); return fallback; }
 }
+
+/** Resolves once the browser has painted, so a click's new state is on screen before work that
+ * may hold the app's main thread: on macOS the webview cannot paint while that thread is busy. */
+export function afterPaint(frame: ((callback: () => void) => unknown) | undefined = globalThis.requestAnimationFrame?.bind(globalThis)): Promise<void> {
+  return new Promise((resolve) => {
+    // Hidden windows get no frames.
+    const fallback = setTimeout(resolve, 100);
+    frame?.(() => setTimeout(() => { clearTimeout(fallback); resolve(); }, 0));
+  });
+}
+
+export interface ContentSlot<T> { replaceChildren(...nodes: T[]): void }
+
+/** Shows `placeholder` at once and the loaded content when it arrives, unless the view was left. */
+export async function fillWhenReady<T>(slot: ContentSlot<T>, placeholder: T, load: () => Promise<T[]>, live: () => boolean): Promise<void> {
+  slot.replaceChildren(placeholder);
+  const content = await load();
+  if (live()) slot.replaceChildren(...content);
+}

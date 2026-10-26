@@ -17,8 +17,10 @@ pub struct UpdateState {
 }
 
 #[tauri::command]
-pub fn get_permissions() -> Vec<PermissionInfo> {
-    crate::capabilities::permissions()
+pub async fn get_permissions() -> Vec<PermissionInfo> {
+    tauri::async_runtime::spawn_blocking(crate::capabilities::permissions)
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]

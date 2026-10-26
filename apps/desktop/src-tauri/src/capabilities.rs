@@ -116,7 +116,16 @@ fn permission_status(value: Option<&str>) -> PermissionStatus {
 
 pub fn permissions() -> Vec<PermissionInfo> {
     #[cfg(target_os = "macos")]
-    let native = crate::macos::permissions();
+    return permissions_from(&crate::macos::permissions());
+    #[cfg(not(target_os = "macos"))]
+    permissions_from(&serde_json::Value::Null)
+}
+
+/// Each macOS status lookup is a round trip to the privacy service (about 150 ms for all of
+/// them), so one native snapshot serves every capability.
+fn permissions_from(
+    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))] native: &serde_json::Value,
+) -> Vec<PermissionInfo> {
     [
         PermissionKind::Microphone,
         PermissionKind::Accessibility,
@@ -321,7 +330,8 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
     };
     #[cfg(target_os = "macos")]
     {
-        let permissions = permissions();
+        let native = crate::macos::permissions();
+        let permissions = permissions_from(&native);
         let find = |kind| {
             permissions
                 .iter()
@@ -353,7 +363,7 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
         result.diarization = Capability::available();
         result.apple_intelligence =
             apple_intelligence_capability(&crate::macos::language_model_availability());
-        if crate::macos::permissions()
+        if native
             .get("apple_speech")
             .and_then(|value| value.as_bool())
             .unwrap_or(false)

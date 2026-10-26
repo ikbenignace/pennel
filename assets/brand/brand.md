@@ -25,13 +25,14 @@ The desktop interface follows the neutral native-app direction approved on 25 Oc
 | Primary button | `#252527` | `#EAEAEC` |
 | Primary button text | `#FFFFFF` | `#202022` |
 | Accent | `#C2410C` | `#F2B48E` |
+| Success | `#1E7B3A` | `#7BD88F` |
 
 The artwork's Paper `#FCFBF8`, Ink `#2A2723` and Soft wave `#F2B48E` remain fixed brand colors. The dictation pill uses its own fixed Ink background, Paper text and Soft wave indicator in both appearances. Secondary text, including selected-row metadata, must retain at least 4.5:1 contrast.
 
 Legacy UI names map to semantic roles: `paper` means Surface, `background` means Subtle, `ink` means Foreground and `line` means Border. They adapt with appearance; fixed artwork and pill colors use their dedicated roles.
 
 Rules
-- **One accent per surface.** Orange identifies an active state, focus or an error that needs attention. Buttons use the neutral primary-control pairing.
+- **One accent per surface.** Orange identifies an active state, focus or an error that needs attention. Success green only confirms a finished step, as text. Buttons use the neutral primary-control pairing.
 - **Orange never sits on ink.** Dark surfaces use Soft wave. Every dark icon and the pill follow this.
 - **No gradients, no shadows in marks, no glows.** Icons are flat.
 - The dot is always a true circle, never a font period.

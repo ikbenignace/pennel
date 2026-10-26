@@ -30,12 +30,14 @@ export function percent(progress: DownloadProgress): number {
 
 export type Enrollment =
   | { phase: "idle" }
+  | { phase: "starting" }
   | { phase: "recording"; seconds: number }
   | { phase: "working" }
   | { phase: "done"; profile: VoiceProfile }
   | { phase: "error"; message: string };
 
 export type EnrollmentEvent =
+  | { kind: "request" }
   | { kind: "start" }
   | { kind: "tick"; seconds: number }
   | { kind: "finish" }
@@ -45,6 +47,7 @@ export type EnrollmentEvent =
 
 export function enrollmentStep(state: Enrollment, event: EnrollmentEvent): Enrollment {
   switch (event.kind) {
+    case "request": return state.phase === "starting" || state.phase === "recording" || state.phase === "working" ? state : { phase: "starting" };
     case "start": return state.phase === "recording" || state.phase === "working" ? state : { phase: "recording", seconds: 0 };
     case "tick": return state.phase === "recording" ? { phase: "recording", seconds: Math.max(state.seconds, event.seconds) } : state;
     case "finish": return state.phase === "recording" ? { phase: "working" } : state;
@@ -56,8 +59,9 @@ export function enrollmentStep(state: Enrollment, event: EnrollmentEvent): Enrol
 
 export function enrollmentButton(state: Enrollment, clock: (seconds: number) => string): string {
   switch (state.phase) {
+    case "starting": return "Microfoon starten…";
     case "recording": return `Stop · ${clock(state.seconds)}`;
-    case "working": return "Bezig…";
+    case "working": return "Stem verwerken…";
     case "done": return "Opnieuw opnemen";
     case "error": return "Opnieuw proberen";
     default: return "Start opname";
@@ -66,12 +70,17 @@ export function enrollmentButton(state: Enrollment, clock: (seconds: number) => 
 
 export function enrollmentStatus(state: Enrollment): string {
   switch (state.phase) {
+    case "starting": return "Pennel zet de microfoon klaar.";
     case "recording": return "Pennel luistert. Lees de tekst rustig voor en druk dan op Stop.";
-    case "working": return "Pennel leert je stem…";
+    case "working": return "Pennel verwerkt je stem. Dat duurt enkele seconden.";
     case "done": return "Pennel kent je stem nu.";
     case "error": return state.message;
     default: return "Lees de tekst hardop voor, in je gewone tempo. Dat duurt ongeveer 25 seconden.";
   }
+}
+
+export function enrollmentTone(state: Enrollment): "neutral" | "success" | "error" {
+  return state.phase === "done" ? "success" : state.phase === "error" ? "error" : "neutral";
 }
 
 export function trainedLabel(profile: VoiceProfile | null): string {

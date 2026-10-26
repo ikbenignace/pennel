@@ -153,3 +153,33 @@ test("orFallback reports a failure once and returns the fallback", async () => {
   assert.deepEqual(await orFallback(async () => ["a"], [], () => reported.push("no")), ["a"]);
   assert.equal(reported.length, 1);
 });
+
+test("afterPaint waits for the next frame, or a short fallback without frames", async () => {
+  const { afterPaint } = await import("../src/async.ts");
+  let frame;
+  let painted = false;
+  const waiting = afterPaint((callback) => { frame = callback; }).then(() => { painted = true; });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(painted, false);
+  frame();
+  await waiting;
+  assert.equal(painted, true);
+  await afterPaint(undefined);
+});
+
+test("a settings tab shows its placeholder before its data arrives", async () => {
+  const { fillWhenReady } = await import("../src/async.ts");
+  const slot = { children: [], replaceChildren(...nodes) { this.children = nodes; } };
+  const data = deferred();
+  const filling = fillWhenReady(slot, "laden", () => data.promise, () => true);
+  assert.deepEqual(slot.children, ["laden"]);
+  data.resolve(["inhoud", "voet"]);
+  await filling;
+  assert.deepEqual(slot.children, ["inhoud", "voet"]);
+
+  const left = deferred();
+  const stale = fillWhenReady(slot, "laden", () => left.promise, () => false);
+  left.resolve(["oud"]);
+  await stale;
+  assert.deepEqual(slot.children, ["laden"]);
+});

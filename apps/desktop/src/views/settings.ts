@@ -1,4 +1,4 @@
-import { api, type Capability, type KnownVoice, type MeetingTemplate, type RecordAction, type SpeakerRecognitionMode } from "../api";
+import { api, type Capability, type KnownVoice, type MeetingTemplate, type RecordAction, type SpeakerRecognitionMode, type SpeakerSetup } from "../api";
 import { askText, confirmDialog, errorText, h, section, select, toggle } from "../dom";
 import { trainedLabel } from "../speaker-state";
 import { SpeakerModels, enrollmentBlocker, enrollmentDialog, speakerDownload } from "./voices";
@@ -79,9 +79,8 @@ async function templateSection(ctx: Context, templates: MeetingTemplate[]) {
     h("button", { class: "btn", onclick: () => templateEditor(ctx, { id: null, name: "", body: "Beschrijf waar de samenvatting op moet letten.\n\n## Samenvatting\n## Actiepunten\n" }) }, "Nieuw sjabloon"));
 }
 
-async function speakerSections(ctx: Context): Promise<HTMLElement[]> {
+async function speakerSections(ctx: Context, setup: SpeakerSetup): Promise<HTMLElement[]> {
   const settings = ctx.info.settings;
-  const setup = await api.speakerSetup();
   const mode: SpeakerRecognitionMode = settings.speaker_recognition === "cloud" ? "cloud" : "local";
   const modelStatus = h("p", { class: "help", role: "status" });
   let download: ReturnType<typeof speakerDownload> | null = null;
@@ -157,8 +156,7 @@ async function speakerSections(ctx: Context): Promise<HTMLElement[]> {
 
 export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
   const settings = ctx.info.settings;
-  const templates = await api.meetingTemplates();
-  const recording = await api.meetingStatus();
+  const [templates, recording, setup] = await Promise.all([api.meetingTemplates(), api.meetingStatus(), api.speakerSetup()]);
   const pathLocked = ctx.info.preview || recording.busy;
   const path = h("span", { class: "grow meeting-path", "aria-label": "Meetingmap" }, ctx.info.preview ? "Preview · aparte meetingmap" : settings.meetings_dir || "~/Pennel");
   return h("div", { class: "settings-pane" },
@@ -176,7 +174,7 @@ export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
     section("Standaardsjabloon", null, select(templates.map((template) => [template.id, template.name]), settings.default_template,
       (id) => ctx.save((next) => { next.default_template = id; }), "menu")),
     await templateSection(ctx, templates),
-    ...await speakerSections(ctx),
+    ...await speakerSections(ctx, setup),
     section("Audio bewaren", "Notities en transcript blijven altijd staan.",
       select([["30", "30 dagen"], ["90", "90 dagen"], ["365", "1 jaar"], ["0", "Altijd"]], String(settings.meeting_audio_retention_days),
         (value) => ctx.save((next) => { next.meeting_audio_retention_days = Number(value); }))));
