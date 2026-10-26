@@ -70,7 +70,12 @@ public func requestPermission(_ rawKind: UnsafePointer<CChar>?) -> Bool {
     guard let kind = decodeString(rawKind), ["microphone", "accessibility", "calendar", "speech", "system_audio"].contains(kind) else { return false }
     Task { @MainActor in
         switch kind {
-        case "microphone": _ = await AVCaptureDevice.requestAccess(for: .audio)
+        case "microphone":
+            if MicrophoneAccess.state == .denied {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") { NSWorkspace.shared.open(url) }
+            } else {
+                _ = await AVCaptureDevice.requestAccess(for: .audio)
+            }
         case "calendar": _ = try? await EKEventStore().requestFullAccessToEvents()
         case "speech":
             if speechPermissionShouldOpenSettings(SFSpeechRecognizer.authorizationStatus()) {
