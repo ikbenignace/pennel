@@ -4,6 +4,7 @@ import Foundation
 enum ErrorText {
     static func message(_ error: Error) -> String {
         switch error as? PennelError {
+        case .NoSpeech: "Geen spraak herkend. Probeer opnieuw."
         case .MissingApiKey: "Geen API-sleutel ingesteld"
         case .Http(let status, _) where status == 401 || status == 403: "API-sleutel geweigerd"
         case .Http(let status, let message): "HTTP \(status): \(message)"

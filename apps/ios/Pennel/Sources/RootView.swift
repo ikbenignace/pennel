@@ -10,7 +10,7 @@ struct RootView: View {
                 PlaceholderScreen(title: Copy.Tab.meetings)
             }
             Tab(Copy.Tab.dictate, systemImage: "mic") {
-                PlaceholderScreen(title: Copy.Tab.dictate)
+                DictationView()
             }
             Tab(Copy.Tab.ask, systemImage: "bubble.left.and.text.bubble.right") {
                 PlaceholderScreen(title: Copy.Tab.ask)

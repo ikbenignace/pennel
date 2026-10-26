@@ -22,6 +22,8 @@ final class AppModel {
         settings = engine.settings()
         templates = engine.meetingTemplates()
         pinMeetingsDirectory()
+        registerSystemProviders()
+        applyFirstRunDefaults()
     }
 
     private static func start() -> AppModel {
@@ -46,6 +48,25 @@ final class AppModel {
         }
         if settings.meetingsDir != meetings.path {
             update { $0.meetingsDir = meetings.path }
+        }
+    }
+
+    private func registerSystemProviders() {
+        engine.setSystemTranscriber(transcriber: AppleSpeechTranscriber())
+        engine.setSystemLanguageModel(model: AppleIntelligenceModel())
+    }
+
+    private static let defaultsAppliedKey = "firstRunDefaultsApplied"
+
+    /// Runs once: afterwards the user's own choices, including Fast mode, are never reset.
+    private func applyFirstRunDefaults(availability: Bool = FoundationLanguageModel.isAvailable) {
+        guard !UserDefaults.standard.bool(forKey: Self.defaultsAppliedKey) else { return }
+        do {
+            try FirstRunDefaults.apply(to: engine, appleIntelligenceAvailable: availability)
+            UserDefaults.standard.set(true, forKey: Self.defaultsAppliedKey)
+            settings = engine.settings()
+        } catch {
+            Self.log.error("first run defaults: \(ErrorText.code(error), privacy: .public)")
         }
     }
 
