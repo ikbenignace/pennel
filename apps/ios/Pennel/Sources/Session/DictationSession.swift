@@ -80,11 +80,12 @@ final class DictationSession {
 
     private static func live() -> DictationSession {
         DictationSession(
-            capture: MicCapture(audioSession: nil),
-            audioSession: SystemAudioSession(purpose: .keyboardSession),
+            capture: SharedMicrophone.shared.client(),
+            audioSession: SharedAudioSession.shared.client(.keyboardSession),
             runner: { DictationRunner(engine: AppModel.shared.engine) },
             store: HandoffStore(directory: AppPaths.handoffDirectory),
-            activity: SystemSessionActivity())
+            activity: SystemSessionActivity(),
+            meeting: { MeetingRuntime.shared })
     }
 
     static func isStartLink(_ url: URL) -> Bool {
@@ -179,11 +180,12 @@ final class DictationSession {
         switch command.action {
         case .start:
             guard phase == .ready else { return }
-            gate.open()
+            // The meeting hears the same microphone: it goes silent before the dictation starts keeping samples.
             if let meeting = meeting(), meeting.isActive {
                 meeting.setDictating(true)
                 meetingDictationStartMs = meeting.elapsedMs
             }
+            gate.open()
             phase = .listening
             extendClock()
             cancelLevel = timers(0.1) { [weak self] in self?.publishLevel() }

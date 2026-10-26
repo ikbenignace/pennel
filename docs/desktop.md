@@ -89,6 +89,7 @@ The iPhone app (native SwiftUI on the same core, see `docs/ios.md`) shows the sa
 | Echo cancellation | `Niet nodig op iPhone: Pennel neemt alleen de microfoon op.` |
 | Call detection, calendar, per-app and per-meeting recording rules | `Op iPhone neemt Pennel alleen op wanneer jij op Nieuwe opname tikt.` |
 | Style per app | `iOS laat Pennel niet zien in welke app je typt. Op iPhone geldt de standaardstijl.` |
+| Speaker recognition and naming (physical meetings are one microphone track, written as "Anderen") | `Sprekers herkennen is niet beschikbaar. Op iPhone neemt Pennel één microfoonspoor op; iedereen staat onder ‘Anderen’.` |
 
 ### Built-in Apple models
 

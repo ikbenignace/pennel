@@ -16,7 +16,9 @@ final class DictationController {
     var noticeIsError = false
 
     private let model: AppModel
-    @ObservationIgnored private var capture: MicCapture?
+    @ObservationIgnored private let capture = SharedMicrophone.shared.client()
+    @ObservationIgnored private let audioSession = SharedAudioSession.shared.client(.dictation)
+    @ObservationIgnored private var meetingDictationStartMs: UInt64?
     private let buffer = SampleBuffer()
     private var startedAt: Date?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
@@ -103,25 +105,33 @@ final class DictationController {
         guard phase == .idle else { return }
         notice = nil
         buffer.reset()
-        // The keyboard session owns the audio session while it runs; deactivating it here would cut its microphone.
-        let capture = MicCapture(audioSession: DictationSession.shared.phase == .off ? SystemAudioSession(purpose: .dictation) : nil)
+        // A recording meeting shares this microphone: it keeps the time but not the dictated words (spec §5.3).
+        let meeting = MeetingRuntime.shared
+        if meeting.isActive {
+            meeting.setDictating(true)
+            meetingDictationStartMs = meeting.elapsedMs
+        }
         do {
+            try audioSession.activate()
             let buffer = buffer
             try capture.start { buffer.append($0) }
         } catch {
             Self.log.error("capture start: \(ErrorText.code(error), privacy: .public)")
+            capture.stop()
+            audioSession.deactivate()
+            endMeetingDictation()
             show("Mislukt", error: true)
             return
         }
-        self.capture = capture
         startedAt = Date()
         phase = .listening
     }
 
     private func stop() async {
         guard phase == .listening else { return }
-        capture?.stop()
-        capture = nil
+        capture.stop()
+        audioSession.deactivate()
+        endMeetingDictation()
         let samples = buffer.take()
         let seconds = Date().timeIntervalSince(startedAt ?? Date())
         phase = .processing
@@ -136,6 +146,15 @@ final class DictationController {
             show(ErrorText.message(error), error: true)
         }
         loadHistory()
+    }
+
+    private func endMeetingDictation() {
+        guard let start = meetingDictationStartMs else { return }
+        meetingDictationStartMs = nil
+        let meeting = MeetingRuntime.shared
+        guard meeting.isActive else { return }
+        meeting.setDictating(false)
+        meeting.markDictation(startMs: start, endMs: meeting.elapsedMs)
     }
 
     private func show(_ text: String, error: Bool) {

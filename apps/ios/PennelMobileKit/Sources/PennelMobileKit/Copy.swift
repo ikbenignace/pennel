@@ -14,6 +14,76 @@ public enum Copy {
         public static let settings = "Instellingen"
     }
 
+    // MARK: 4.1 Meetings (labels from apps/desktop/src/views/meetings.ts and library.ts)
+    public enum Meetings {
+        public static let newRecording = "Nieuwe opname"
+        public static let stopRecording = "Stop opname"
+        public static let yourNotes = "Je notities"
+        public static let notesPlaceholder = "Typ steekwoorden… of laat het leeg voor een samenvatting."
+        public static let liveTranscript = "Live transcript"
+        public static let summarize = "Samenvatten"
+        public static let regenerate = "Opnieuw genereren"
+        public static let retry = "Opnieuw proberen"
+        public static let retrySave = "Opnieuw bewaren"
+        public static let playFromHere = "Afspelen vanaf dit punt"
+        public static let stopAudio = "Stop audio"
+        public static let share = "Delen"
+        public static let copyFormatted = "Kopieer opgemaakt"
+        public static let copyMarkdown = "Kopieer als Markdown"
+        public static let copyWithTranscript = "Kopieer met transcript"
+        public static let shareSheet = "Deel…"
+        public static let copied = "Gekopieerd"
+        public static let copiedWithTranscript = "Gekopieerd met transcript"
+        public static let search = "Zoeken in meetings"
+        public static let today = "Vandaag"
+        public static let yesterday = "Gisteren"
+        public static let lastWeek = "Afgelopen week"
+        public static let earlier = "Eerder"
+        public static let noMeetings = "Nog geen meetings."
+        public static let noResults = "Geen meetings gevonden."
+        public static let emptyHint = "Start een opname. Je notities en transcript komen hier."
+        public static let finishingRow = "Afronden…"
+        public static let recordingRow = "Opname loopt"
+        public static func recordingClock(_ seconds: TimeInterval) -> String { "Opname loopt · \(minutesAndSeconds(seconds))" }
+        public static let finishing = "Opname afronden…"
+        public static func finishing(pending: UInt32) -> String {
+            pending == 0 ? finishing : "\(finishing) \(pending) \(pending == 1 ? "stuk" : "stukken") te transcriberen"
+        }
+        public static let meetingTitle = "Titel van de meeting"
+        public static let notes = "Notities"
+        public static let transcript = "Transcript"
+        public static let questions = "Vragen"
+        public static let noSummary = "Nog geen samenvatting."
+        public static let noTranscript = "Nog geen transcript."
+        public static let transcriptionFailed = "Transcriptie mislukt"
+        public static let noAudio = "Geen bewaarde audio beschikbaar."
+        public static let template = "Sjabloon"
+        public static let busy = "Bezig…"
+        public static let chooseModel = "Kies een taalmodel om een samenvatting te maken."
+        public static let waitForRecording = "Wacht tot de opname is afgerond."
+        public static let notFound = "Meeting niet gevonden."
+        public static let rename = "Hernoemen…"
+        public static let renameTitle = "Meeting hernoemen"
+        public static let delete = "Verwijder…"
+        public static let deleteConfirm = "Verwijder"
+        public static let deleteMessage = "Notities, transcript en audio worden verwijderd."
+        public static let recognizeSpeakers = "Sprekers herkennen"
+        public static let speakersUnavailable = "Sprekers herkennen is niet beschikbaar."
+    }
+
+    // MARK: 4.3 Vraag (labels from apps/desktop/src/views/meetings.ts)
+    public enum Ask {
+        public static let titleAll = "Vraag het je meetings"
+        public static let titleMeeting = "Vraag het deze meeting"
+        public static let placeholderAll = "Vraag iets over al je meetings"
+        public static let placeholderMeeting = "Vraag iets over deze meeting"
+        public static let exampleAll = "Bijvoorbeeld: ‘Wat hebben we beslist over het budget?’ of ‘Wanneer sprak ik laatst met Jan?’"
+        public static let exampleMeeting = "Bijvoorbeeld: ‘Wat zijn de actiepunten voor mij?’"
+        public static let ask = "Vraag"
+        public static let writing = "Antwoord schrijven"
+        public static let sourceGone = "Deze bron is intussen gewijzigd of niet meer beschikbaar."
+    }
+
     // MARK: 4.2 Dicteren
     public enum Dictation {
         public static let sessionCard = "Dicteersessie"

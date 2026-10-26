@@ -11,26 +11,40 @@ protocol AudioSessionControlling: Sendable {
     func deactivate()
 }
 
-/// The two ways Pennel uses the shared `AVAudioSession`.
+/// The ways Pennel uses the shared `AVAudioSession`.
 struct SystemAudioSession: AudioSessionControlling {
     enum Purpose {
         /// In-app dictation to the clipboard: Pennel is the only audio while it records.
         case dictation
         /// Keyboard session: stays active in the background, so it mixes with whatever else is playing.
         case keyboardSession
+        /// A physical meeting: records in the background with the screen locked, like the keyboard session.
+        case meeting
+        /// Playing back a meeting recording.
+        case playback
     }
 
     let purpose: Purpose
 
     func activate() throws {
+        try configure()
+        try setActive()
+    }
+
+    func configure() throws {
         let session = AVAudioSession.sharedInstance()
         switch purpose {
         case .dictation:
             try session.setCategory(.playAndRecord, mode: .measurement, options: [.allowBluetoothHFP])
-        case .keyboardSession:
+        case .keyboardSession, .meeting:
             try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetoothHFP])
+        case .playback:
+            try session.setCategory(.playback, mode: .spokenAudio)
         }
-        try session.setActive(true)
+    }
+
+    func setActive() throws {
+        try AVAudioSession.sharedInstance().setActive(true)
     }
 
     func deactivate() {

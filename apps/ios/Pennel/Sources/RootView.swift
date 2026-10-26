@@ -7,13 +7,13 @@ struct RootView: View {
     var body: some View {
         TabView {
             Tab(Copy.Tab.meetings, systemImage: "waveform") {
-                PlaceholderScreen(title: Copy.Tab.meetings)
+                MeetingListView()
             }
             Tab(Copy.Tab.dictate, systemImage: "mic") {
                 DictationView()
             }
             Tab(Copy.Tab.ask, systemImage: "bubble.left.and.text.bubble.right") {
-                PlaceholderScreen(title: Copy.Tab.ask)
+                AskView()
             }
             Tab(Copy.Tab.settings, systemImage: "gearshape") {
                 SettingsView()
@@ -26,18 +26,5 @@ struct RootView: View {
             model.errorMessage ?? "",
             isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })
         ) {}
-    }
-}
-
-/// Empty tab until its feature lands.
-private struct PlaceholderScreen: View {
-    let title: String
-
-    var body: some View {
-        NavigationStack {
-            List {}
-                .pennelList()
-                .navigationTitle(title)
-        }
     }
 }

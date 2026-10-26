@@ -5,5 +5,6 @@ import WidgetKit
 struct PennelWidgets: WidgetBundle {
     var body: some Widget {
         SessionLiveActivity()
+        RecordingLiveActivity()
     }
 }

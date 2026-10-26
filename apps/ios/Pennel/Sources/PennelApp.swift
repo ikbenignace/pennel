@@ -8,6 +8,8 @@ struct PennelApp: App {
     init() {
         Theme.configureNavigationBars()
         SystemSessionActivity.endLeftovers()
+        SystemRecordingActivity.endLeftovers()
+        SystemFinishScheduler.register()
     }
 
     var body: some Scene {

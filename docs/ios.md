@@ -69,10 +69,42 @@ Gap: the Full Access flag for onboarding is Task 12; the opener returns true whe
 Keyboard memory (Instruments Allocations, 10 dictations plus letter typing, target under 30 MB): pending device acceptance.
 Simulator Release build of `PennelKeyboard.appex`: 782850 bytes in total (binary 651 KB, two fonts).
 
+## Meetings
+
+**Nieuwe opname** records a physical meeting from the microphone as one track, the existing **Anderen** track, so the
+desktop reads it unchanged. `MeetingRecorder` places the 16 kHz samples on the meeting timeline and sends them to
+`MeetingSession::push_audio_at(Speaker::Others, …)` in whole seconds that start on a millisecond. It also writes `anderen.m4a`
+(AAC, 16 kHz mono, 32 kbit/s), with silence in the gaps, so **Afspelen vanaf dit punt** lands on the right moment. Recording
+continues with the screen locked (background mode `audio`). The Live Activity shows the time and **Stop opname**
+(`StopRecordingIntent` in `Shared/`).
+
+- **One microphone:** `SharedMicrophone` runs one `AVAudioEngine` for the meeting, the keyboard session and in-app
+  dictation. `SharedAudioSession` reference-counts the `AVAudioSession`, so whichever stops first never cuts the others.
+  While a dictation runs during a meeting, the meeting receives silence for that time. It also gets `set_dictating`
+  and `mark_dictation`, like the desktop; the core itself only silences the "Ik" track.
+- **Interruptions:** a call pauses the recording. When the call ends, Pennel reactivates the audio session and continues;
+  the timeline follows the clock, so the transcript has a gap instead of shifted text. If the microphone does not come
+  back, the meeting is finished with what was recorded and is marked as stopped early. A meeting with a gap or an
+  early stop is never shown as a complete recording: the meeting page lists the interruption (kept per meeting in the
+  app's preferences, because the meeting files have no field for it), and no automatic summary runs after an early stop.
+- **Finishing:** after **Stop opname** the core transcribes the last chunks and saves. The meeting id is exposed as
+  `MeetingRuntime.activeMeetingId` until then, so sync never sends a meeting that is still recording. The automatic
+  summary then runs when a language model is ready. Speaker recognition does not run on iPhone. When the app is in the
+  background, finishing asks for `BGContinuedProcessingTask` `app.pennel.ios.finish`, which shows progress.
+- **Library:** **Zoeken in meetings**, grouped by **Vandaag**, **Gisteren**, **Afgelopen week**, **Eerder**. Each
+  meeting has **Notities**, **Transcript** and **Vragen**, plus **Samenvatten** / **Opnieuw genereren** with
+  **Sjabloon**. **Delen** offers **Kopieer opgemaakt** (HTML and plain text on the pasteboard),
+  **Kopieer als Markdown**, **Kopieer met transcript** and **Deel…** (the iOS share sheet). The **Vraag** tab asks
+  across all meetings.
+
+Device acceptance pending: a 60-minute meeting with the screen locked on the oldest supported iPhone, with one phone call
+in the middle; also whether iOS accepts the finish task identifier without a wildcard suffix.
+
 ## Not available on iPhone
 
 Shown disabled with the reason, never hidden (also listed in `docs/desktop.md`): CLI agents, local models,
-echo cancellation, call detection / calendar / per-app and per-meeting recording rules, and style per app.
+echo cancellation, call detection / calendar / per-app and per-meeting recording rules, style per app, and speaker
+recognition and naming in meetings.
 
 ## Sizes
 
@@ -81,11 +113,11 @@ Measured with `scripts/build-core-ios.sh` (unstripped archives are about 93 MB):
 
 | Slice | Stripped `libpennel_core.a` |
 | --- | --- |
-| ios-arm64 | 23006680 bytes |
-| ios-arm64-simulator | 22998400 bytes |
+| ios-arm64 | 23553568 bytes |
+| ios-arm64-simulator | 23544600 bytes |
 
 Unsigned Release build, not App Store thinned size (`make ios`, Xcode 27, sum of all files in `Pennel.app`):
-10403967 bytes (about 10.4 MB; the app binary is 9.0 MB, keyboard extension 0.5 MB, widgets extension 0.6 MB
+12740303 bytes (about 12.7 MB; the app binary is 10.3 MB, keyboard extension 0.8 MB, widgets extension 0.8 MB
 including two Figtree fonts).
 
 App Store size: pending device acceptance.
@@ -93,5 +125,5 @@ App Store size: pending device acceptance.
 ## Device acceptance
 
 Pending device acceptance (no physical device available yet): memory profile in Instruments, 60-minute
-meeting, dictation through the keyboard on a device, archive and App Store size, and the session check (start a
+meeting with the screen locked and a phone call in the middle, dictation through the keyboard on a device, archive and App Store size, and the session check (start a
 session, lock the phone for 2 minutes, unlock, dictate from the keyboard; the orange dot disappears at expiry).
