@@ -50,6 +50,11 @@ final class HandoffServer {
         HandoffSignal.session.post()
     }
 
+    /// Spec §5.2: dictated text leaves the App Group once inserted or after `HandoffClient.resultLifetime`.
+    func purgeExpiredResult(now: Date) {
+        store.purgeExpiredResult(now: now, lifetime: HandoffClient.resultLifetime)
+    }
+
     func publish(_ result: HandoffResult) {
         do {
             try store.write(result, as: .result)

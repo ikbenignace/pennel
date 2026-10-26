@@ -112,6 +112,39 @@ struct HandoffClientTests {
         #expect(client.lastUninserted(now: now) == nil)
     }
 
+    @Test func stale_result_is_never_taken_and_is_removed() throws {
+        let client = client()
+        let id = try client.send(.stop, now: now)
+        try store.write(HandoffResult(id: id, text: "oud", error: nil, at: now), as: .result)
+
+        let later = now.addingTimeInterval(HandoffClient.resultLifetime + 1)
+        #expect(client.takeResult(now: later) == nil)
+        #expect(store.read(HandoffResult.self, as: .result) == nil)
+    }
+
+    @Test func pending_id_expires_so_a_late_keyboard_never_auto_inserts() throws {
+        let slot = PendingHandoff()
+        let client = HandoffClient(store: store, pending: slot)
+        let id = try client.send(.stop, now: now)
+        let later = now.addingTimeInterval(HandoffClient.resultLifetime + 1)
+        // A result written just now for an id the keyboard asked for long ago.
+        try store.write(HandoffResult(id: id, text: "laat", error: nil, at: later), as: .result)
+
+        #expect(client.takeResult(now: later) == nil)
+        #expect(slot.current == nil)
+        #expect(client.lastUninserted(now: later)?.text == "laat")
+    }
+
+    @Test func purge_keeps_a_recent_result_and_removes_an_expired_one() throws {
+        let recent = HandoffResult(id: UUID(), text: "nieuw", error: nil, at: now)
+        try store.write(recent, as: .result)
+        store.purgeExpiredResult(now: now.addingTimeInterval(HandoffClient.resultLifetime), lifetime: HandoffClient.resultLifetime)
+        #expect(store.read(HandoffResult.self, as: .result) == recent)
+
+        store.purgeExpiredResult(now: now.addingTimeInterval(HandoffClient.resultLifetime + 1), lifetime: HandoffClient.resultLifetime)
+        #expect(store.read(HandoffResult.self, as: .result) == nil)
+    }
+
     @Test func atomic_write_never_leaves_partial_json() async throws {
         let state = SessionState(phase: .listening, expiresAt: nil, heartbeatAt: now, level: 0.5)
         let other = SessionState(phase: .ready, expiresAt: now, heartbeatAt: now, level: 0.25)

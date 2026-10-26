@@ -10,6 +10,7 @@ struct PennelApp: App {
         Theme.configureNavigationBars()
         SystemSessionActivity.endLeftovers()
         SystemRecordingActivity.endLeftovers()
+        DictationSession.purgeExpiredResult()
         SystemFinishScheduler.register()
         CloudSyncBackground.register()
         CloudSyncRunner.shared.attach(to: MeetingRuntime.shared)

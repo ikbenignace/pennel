@@ -54,7 +54,7 @@ final class KeyboardModel {
             return
         }
         let current = now()
-        if let result = client.takeResult() { finish(result) }
+        if let result = client.takeResult(now: current) { finish(result) }
         let session = client.session(now: current)
         level = session == .listening ? client.level() : 0
         lastResult = isIdle ? client.lastUninserted(now: current) : nil

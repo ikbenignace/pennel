@@ -99,6 +99,7 @@ public enum HandoffSignal: String, Sendable {
 public final class PendingHandoff: @unchecked Sendable {
     private let lock = NSLock()
     private var id: UUID?
+    private var since: Date?
 
     public init() {}
 
@@ -117,11 +118,33 @@ public final class PendingHandoff: @unchecked Sendable {
 
     var current: UUID? { lock.withLock { id } }
 
-    func set(_ new: UUID) { lock.withLock { id = new } }
+    /// The pending id, unless it was set longer than `lifetime` ago: a keyboard shown again much later must not
+    /// auto-insert an old dictation. An expired id is dropped.
+    func current(now: Date, lifetime: TimeInterval) -> UUID? {
+        lock.withLock {
+            if let since, now.timeIntervalSince(since) > lifetime {
+                id = nil
+                self.since = nil
+            }
+            return id
+        }
+    }
+
+    func set(_ new: UUID, at date: Date = Date()) {
+        lock.withLock {
+            id = new
+            since = date
+        }
+    }
 
     /// Clears only if `expected` is still the pending id, so a late consumer cannot drop a newer command.
     func clear(ifMatching expected: UUID) {
-        lock.withLock { if id == expected { id = nil } }
+        lock.withLock {
+            if id == expected {
+                id = nil
+                since = nil
+            }
+        }
     }
 }
 
@@ -140,7 +163,7 @@ public struct HandoffClient: Sendable {
     @discardableResult
     public func send(_ action: HandoffCommand.Action, now: Date = Date()) throws -> UUID {
         let id = UUID()
-        pending.set(id)
+        pending.set(id, at: now)
         do {
             try store.write(HandoffCommand(id: id, action: action, at: now), as: .command)
         } catch {
@@ -162,8 +185,10 @@ public struct HandoffClient: Sendable {
         store.read(SessionState.self, as: .session)?.level ?? 0
     }
 
-    public func takeResult() -> HandoffResult? {
-        guard let id = pending.current,
+    /// Results older than `resultLifetime` are never inserted; they are removed and the pending id is dropped.
+    public func takeResult(now: Date = Date()) -> HandoffResult? {
+        store.purgeExpiredResult(now: now, lifetime: Self.resultLifetime)
+        guard let id = pending.current(now: now, lifetime: Self.resultLifetime),
               let result = store.read(HandoffResult.self, as: .result),
               result.id == id
         else { return nil }

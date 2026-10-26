@@ -142,11 +142,35 @@ struct DictationSessionTests {
         #expect(result.id == stopId)
         #expect(result.text == "hallo daar")
         #expect(result.error == nil)
-        #expect(client.takeResult()?.text == "hallo daar")
+        #expect(client.takeResult(now: h.now)?.text == "hallo daar")
         #expect(h.session.phase == .ready)
         #expect(h.state?.phase == .ready)
         #expect(h.state?.expiresAt == h.now.addingTimeInterval(300))
         #expect(h.audio.active)
+    }
+
+    @Test func expired_result_is_purged_by_tick_and_stop() async throws {
+        let h = Harness()
+        #expect(await h.session.start())
+        let client = h.client
+        try await h.send(.start, with: client)
+        try await h.send(.stop, with: client)
+        #expect(h.result?.text == "hallo daar")
+        // Listening keeps the session alive past its idle expiry, so only the result's age matters here.
+        try await h.send(.start, with: client)
+
+        h.now = h.now.addingTimeInterval(HandoffClient.resultLifetime)
+        h.session.tick()
+        #expect(h.result != nil)
+
+        h.now = h.now.addingTimeInterval(1)
+        h.session.tick()
+        #expect(h.result == nil)
+        #expect(h.session.phase == .listening)
+
+        try h.store.write(HandoffResult(id: UUID(), text: "oud", error: nil, at: h.now.addingTimeInterval(-HandoffClient.resultLifetime - 1)), as: .result)
+        h.session.stop()
+        #expect(h.result == nil)
     }
 
     @Test func cancel_drops_audio_and_writes_no_result() async throws {

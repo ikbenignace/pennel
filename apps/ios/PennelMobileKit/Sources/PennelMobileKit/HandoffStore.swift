@@ -58,4 +58,12 @@ public final class HandoffStore: @unchecked Sendable {
         guard let current = read(HandoffResult.self, as: .result), current.id == id else { return }
         try? FileManager.default.removeItem(at: directory.appendingPathComponent(File.result.rawValue))
     }
+
+    /// Dictated text may stay in the App Group for `lifetime` at most; an unreadable result is removed too.
+    public func purgeExpiredResult(now: Date, lifetime: TimeInterval) {
+        let url = directory.appendingPathComponent(File.result.rawValue)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        if let current = read(HandoffResult.self, as: .result), now.timeIntervalSince(current.at) <= lifetime { return }
+        try? FileManager.default.removeItem(at: url)
+    }
 }

@@ -90,6 +90,12 @@ final class DictationSession {
             meeting: { MeetingRuntime.shared })
     }
 
+    /// Nothing runs while the app is suspended, so a result that outlived its lifetime is removed at launch.
+    static func purgeExpiredResult() {
+        HandoffStore(directory: AppPaths.handoffDirectory)
+            .purgeExpiredResult(now: Date(), lifetime: HandoffClient.resultLifetime)
+    }
+
     static func isStartLink(_ url: URL) -> Bool {
         url.scheme == "pennel" && url.host() == "sessie" && url.path() == "/start"
     }
@@ -152,6 +158,7 @@ final class DictationSession {
         expiresAt = nil
         generation += 1
         server.publish(SessionState(phase: .off, expiresAt: nil, heartbeatAt: now(), level: 0))
+        server.purgeExpiredResult(now: now())
         activity.end(message: reason == .interrupted ? Copy.Session.stoppedByCall : nil)
         Self.log.info("session off: \(reason.rawValue, privacy: .public)")
     }
@@ -160,6 +167,7 @@ final class DictationSession {
     func tick() {
         guard phase != .off, var clock else { return }
         let now = now()
+        server.purgeExpiredResult(now: now)
         if phase == .ready, clock.isExpired(now: now) {
             stop(reason: .expired)
             return
