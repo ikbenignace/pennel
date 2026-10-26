@@ -30,7 +30,8 @@ condition `PENNEL_APP` so shared intents only perform their action in the app.
 | Target | Bundle id | Contents |
 | --- | --- | --- |
 | `Pennel` | `app.pennel.ios` | The app: one `PennelEngine` (`AppModel.shared`), the bindings from `PennelCore/`, `PennelCoreFFI.xcframework`, `PennelMobileKit` |
-| `PennelKeyboard` | `app.pennel.ios.keyboard` | Keyboard extension (stub). Links `PennelMobileKit` only, never the core; no Keychain access group |
+| `PennelKeyboard` | `app.pennel.ios.keyboard` | Dictation keyboard. Links `PennelMobileKit` only, never the core; no network, no logging, no Keychain access group; Figtree Medium/SemiBold. It writes only `command.json` and reads `session.json` / `result.json` |
+| `PennelKeyboardTests` | | Logic tests of `KeyboardModel`; `PennelKeyboard/Model/` (no UIKit) is compiled into both the extension and this hostless bundle, because an extension cannot host tests |
 | `PennelWidgets` | `app.pennel.ios.widgets` | Session Live Activity; links `PennelMobileKit` and Figtree Medium/SemiBold |
 | `PennelTests` | | Swift Testing, hosted by the app on the simulator |
 
@@ -54,6 +55,19 @@ command. The session ends, and the audio session is deactivated, after the chose
 (default 5 minutes), on **Stop**, on a phone call or other interruption (`Sessie gestopt door een oproep.`), on a
 media-services reset and when the app terminates; if the app is killed, the keyboard reads `off` after 5 s without
 a heartbeat.
+
+## Keyboard
+
+Dictation pad (pill with five bars) and an ABC letter pad (QWERTY by default; AZERTY from Instellingen > Dicteren > Toetsenbord > Indeling,
+stored as the name `qwerty`/`azerty` in the App Group defaults, read without Full Access as the default). Hold the pill to talk until release; tap to talk
+hands-free until the next tap; the cross cancels. Taps are ignored while the app is processing (the app drops a `start` then). Without Full Access the pad shows the
+explanation and **Open Instellingen**; letters always work. Opening `pennel://sessie/start` and Settings lives only in
+`AppOpener.swift`; setting `isEnabled` to false (App Review, spec R1) shows `Open Pennel en tik op Start sessie.` instead.
+A result is inserted once, only for the id of the keyboard's own stop command; **Laatste dictaat invoegen** appears only when a fresh keyboard finds an uninserted result.
+Gap: the Full Access flag for onboarding is Task 12; the opener returns true when the responder chain accepted the call, so a silent refusal by iOS still needs the device check.
+
+Keyboard memory (Instruments Allocations, 10 dictations plus letter typing, target under 30 MB): pending device acceptance.
+Simulator Release build of `PennelKeyboard.appex`: 782850 bytes in total (binary 651 KB, two fonts).
 
 ## Not available on iPhone
 

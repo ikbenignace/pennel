@@ -6,6 +6,7 @@ import UIKit
 struct DictationSettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
+    @State private var layout = KeyboardLayout.stored(in: KeyboardLayout.groupDefaults)
 
     var body: some View {
         Form {
@@ -37,6 +38,11 @@ struct DictationSettingsView: View {
             .pennelRow()
 
             Section(Copy.Settings.keyboard) {
+                Picker("Indeling", selection: $layout) {
+                    Text("QWERTY").tag(KeyboardLayout.qwerty)
+                    Text("AZERTY").tag(KeyboardLayout.azerty)
+                }
+                .onChange(of: layout) { _, new in new.store(in: KeyboardLayout.groupDefaults) }
                 Button(Copy.Settings.openSettings) {
                     if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                 }

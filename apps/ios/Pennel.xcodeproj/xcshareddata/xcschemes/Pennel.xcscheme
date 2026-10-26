@@ -39,6 +39,17 @@
                ReferencedContainer = "container:Pennel.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "T10000000000000000000005"
+               BuildableName = "PennelKeyboardTests.xctest"
+               BlueprintName = "PennelKeyboardTests"
+               ReferencedContainer = "container:Pennel.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
