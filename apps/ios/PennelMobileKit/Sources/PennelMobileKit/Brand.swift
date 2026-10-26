@@ -49,6 +49,7 @@ public enum Brand {
     public static let accent = Token(light: 0xC2410C, dark: 0xF2B48E)
     public static let focusRing = Token(light: 0xC2410C, dark: 0xF2B48E)
     public static let ready = Token(light: 0x34C759, dark: 0x30D158, lightAlpha: 0.70196078, darkAlpha: 0.70196078)
+    public static let success = Token(light: 0x1E7B3A, dark: 0x7BD88F)
     public static let controlEdge = Token(light: 0x2A2723, dark: 0xFFFFFF, lightAlpha: 0.18039216, darkAlpha: 0.12156863)
     public static let disabled = Token(light: 0xF1EDE6, dark: 0x2C2926)
     public static let disabledText = Token(light: 0x6F675D, dark: 0xABA398)
@@ -82,6 +83,7 @@ public enum Brand {
         "accent": accent,
         "focus-ring": focusRing,
         "ready": ready,
+        "success": success,
         "control-edge": controlEdge,
         "disabled": disabled,
         "disabled-text": disabledText,
