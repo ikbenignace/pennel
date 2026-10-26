@@ -2,9 +2,22 @@
 
 Current work is focused on validating Pennel on real desktops and improving installation and updates. The shared application is implemented; the checks below establish how it behaves with actual devices, receiving applications and release packages.
 
-**Prepared backlog:** these ten tasks are ready to become GitHub issues. The public **Pennel roadmap** project is pending setup; this page keeps the work visible in the meantime. Initial status for every task is **Backlog**, with no assignee or due date.
+Use the [Pennel roadmap](https://github.com/orgs/pennel-app/projects/1) to track work across the desktop app, iPhone, Cloud and website. The ten desktop acceptance tasks below retain their completion criteria and source context. New tasks start in **Backlog**, with no assignee or due date. An organisation owner still needs to [make the board public](https://github.com/pennel-app/pennel/issues/25); access may require membership until then.
 
-Historical native Mac limitations in [open-items.md](open-items.md) are regression context. Each task below is acceptance or distribution work, rather than a claim that an old bug still exists. Cloud, Teams and iPhone plans are tracked separately.
+Historical native Mac limitations in [open-items.md](open-items.md) are regression context. Each task below is acceptance or distribution work, rather than a claim that an old bug still exists. Cloud, Teams and iPhone work belongs on the same board, with implementation issues in their owning repository.
+
+| Desktop task | GitHub issue |
+| --- | --- |
+| 1. Mac dictation, commands and clipboard delivery | [#4](https://github.com/pennel-app/pennel/issues/4) |
+| 2. Mac meeting audio and device switching | [#5](https://github.com/pennel-app/pennel/issues/5) |
+| 3. Meeting review, speakers, citations and export | [#6](https://github.com/pennel-app/pennel/issues/6) |
+| 4. Windows 11 installers and device workflows | [#7](https://github.com/pennel-app/pennel/issues/7) |
+| 5. Linux X11 packages and desktop integration | [#8](https://github.com/pennel-app/pennel/issues/8) |
+| 6. Linux Wayland shortcuts and recording | [#9](https://github.com/pennel-app/pennel/issues/9) |
+| 7. Production signing and installer trust | [#10](https://github.com/pennel-app/pennel/issues/10) |
+| 8. Upgrades, recovery and signed updates | [#11](https://github.com/pennel-app/pennel/issues/11) |
+| 9. Sixty-minute recording and performance | [#12](https://github.com/pennel-app/pennel/issues/12) |
+| 10. Mac user pilot and accessibility | [#13](https://github.com/pennel-app/pennel/issues/13) |
 
 ## Evidence for acceptance tasks
 
@@ -151,13 +164,22 @@ Done when:
 
 Sources: [pilot checklist](improvement-pilot.md), [packaged interface acceptance](shared-app-migration.md#acceptance-before-native-replacement-or-publication).
 
-## Set up the GitHub board
+## Using the GitHub roadmap
 
-Use a configured GitHub identity with permission to manage organization Projects and repository issues. [GitHub's Projects API](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-api-to-manage-projects) requires Projects-capable authentication; repository write access alone does not establish that access.
+[Pennel roadmap](https://github.com/orgs/pennel-app/projects/1) is the shared tracking project for `pennel-app/pennel` and `pennel-app/pennel-cloud`. Keep issues in their owning repository. Private Cloud issues retain their repository access restrictions, including after the board becomes public.
 
-1. Check the `pennel-app` organization's existing projects for an equivalent desktop roadmap. Reuse it when present; otherwise create **Pennel roadmap**.
-2. Make the project public, link `pennel-app/pennel`, and save a default **Board** view with **Status** columns in this order: **Backlog → Ready → In progress → In review → Done**.
-3. Configure the [built-in workflows](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-built-in-automations): select `pennel-app/pennel` in **Auto-add to project** with `is:issue is:open`; set newly added items to **Backlog** and closed issues to **Done**.
-4. Check for matching issues before importing the ten tasks above. Create or reuse repository issues with their descriptions, completion checklists and source links. Add each to the project manually if needed: auto-add does not backfill existing issues. Leave them unassigned in **Backlog**.
-5. Use a real **Set up the public desktop roadmap** issue to verify auto-add, card movement and completion. Its checklist is public visibility, repository linkage, saved columns, automatic Backlog placement and automatic Done placement. Close it only once setup is complete, then confirm it appears in **Done**.
-6. Replace this page's pending-setup notice with the verified project URL. Link the board from the root README and `docs/open-items.md`, retaining these task descriptions as source context.
+Move work through **Backlog → Ready → In progress → In review → Done**. Use these fields to keep the full roadmap readable:
+
+| Field | Values | Meaning |
+| --- | --- | --- |
+| Area | Desktop, Core, iPhone, Cloud, Website, Infrastructure | The part of Pennel the work affects. |
+| Horizon | Launch, Next, Later | Release readiness, planned follow-up, or longer-term work; not a promised delivery date. |
+| Priority | P1, P2, P3 | Release or enabling work, planned improvements, or exploration. |
+
+Use **Board** for current status, **Launch readiness** for Launch tasks, and **Full roadmap** for work grouped by Horizon and sorted by Priority. Leave new issues unassigned and without deadlines until someone takes responsibility for them.
+
+The automation adds open `pennel` issues with `is:issue is:open`, places new items in **Backlog**, and moves closed issues and merged pull requests to **Done**. Add Cloud issues manually from the issue's Projects selector or the board's add-item control. Add existing app issues manually when needed: auto-add does not backfill them. Moving a card must not close its issue, and completed work remains visible instead of being automatically archived.
+
+Before creating a task, check for an existing issue or pull request. Describe the current state, a concrete completion checklist, source links, dependencies and the evidence needed to close it. Implemented code, automated checks, deployed behavior and real-device acceptance are separate evidence. The acceptance recording rules above apply to every device or release task.
+
+An organisation owner must change the board to public and verify signed-out access to public work. Keep the [public visibility task](https://github.com/pennel-app/pennel/issues/25) open until the change is verified; private Cloud details must remain restricted. Verify automatic Backlog and Done placement with a real completed setup task.

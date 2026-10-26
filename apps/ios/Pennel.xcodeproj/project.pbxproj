@@ -1,0 +1,815 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B10000000000000000000001 /* PennelCoreFFI.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* PennelCoreFFI.xcframework */; };
+		B10000000000000000000002 /* PennelMobileKit in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000001 /* PennelMobileKit */; };
+		B10000000000000000000003 /* PennelMobileKit in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000002 /* PennelMobileKit */; };
+		B10000000000000000000011 /* Figtree-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* Figtree-Regular.ttf */; };
+		B10000000000000000000012 /* Figtree-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* Figtree-Medium.ttf */; };
+		B10000000000000000000013 /* Figtree-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000013 /* Figtree-SemiBold.ttf */; };
+		B10000000000000000000014 /* InstrumentSerif-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000014 /* InstrumentSerif-Regular.ttf */; };
+		B10000000000000000000022 /* Figtree-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* Figtree-Medium.ttf */; };
+		B10000000000000000000023 /* Figtree-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000013 /* Figtree-SemiBold.ttf */; };
+		B10000000000000000000004 /* PennelMobileKit in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000003 /* PennelMobileKit */; };
+		B10000000000000000000024 /* Figtree-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* Figtree-Medium.ttf */; };
+		B10000000000000000000025 /* Figtree-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000013 /* Figtree-SemiBold.ttf */; };
+		B10000000000000000000031 /* PennelKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = P10000000000000000000002 /* PennelKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B10000000000000000000032 /* PennelWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = P10000000000000000000003 /* PennelWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B10000000000000000000005 /* PennelMobileKit in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000004 /* PennelMobileKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C10000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = T10000000000000000000002;
+			remoteInfo = PennelKeyboard;
+		};
+		C10000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = T10000000000000000000003;
+			remoteInfo = PennelWidgets;
+		};
+		C10000000000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = T10000000000000000000001;
+			remoteInfo = Pennel;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		H10000000000000000000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B10000000000000000000031 /* PennelKeyboard.appex in Embed Foundation Extensions */,
+				B10000000000000000000032 /* PennelWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		F10000000000000000000001 /* PennelCoreFFI.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = PennelCoreFFI.xcframework; sourceTree = "<group>"; };
+		F10000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F10000000000000000000003 /* Pennel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pennel.entitlements; sourceTree = "<group>"; };
+		F10000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F10000000000000000000005 /* PennelKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PennelKeyboard.entitlements; sourceTree = "<group>"; };
+		F10000000000000000000006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F10000000000000000000007 /* PennelMobileKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = PennelMobileKit; sourceTree = "<group>"; };
+		F10000000000000000000011 /* Figtree-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Figtree-Regular.ttf"; sourceTree = "<group>"; };
+		F10000000000000000000012 /* Figtree-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Figtree-Medium.ttf"; sourceTree = "<group>"; };
+		F10000000000000000000013 /* Figtree-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Figtree-SemiBold.ttf"; sourceTree = "<group>"; };
+		F10000000000000000000014 /* InstrumentSerif-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "InstrumentSerif-Regular.ttf"; sourceTree = "<group>"; };
+		P10000000000000000000001 /* Pennel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pennel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		P10000000000000000000002 /* PennelKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PennelKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		P10000000000000000000003 /* PennelWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PennelWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		P10000000000000000000004 /* PennelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PennelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		P10000000000000000000005 /* PennelKeyboardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PennelKeyboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		S10000000000000000000001 /* Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		S10000000000000000000002 /* PennelCore */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PennelCore;
+			sourceTree = "<group>";
+		};
+		S10000000000000000000003 /* Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		S10000000000000000000004 /* Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		S10000000000000000000005 /* PennelTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PennelTests;
+			sourceTree = "<group>";
+		};
+		S10000000000000000000006 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		S10000000000000000000007 /* PennelKeyboardTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PennelKeyboardTests;
+			sourceTree = "<group>";
+		};
+		S10000000000000000000008 /* Model */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Model;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E10000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000001 /* PennelCoreFFI.xcframework in Frameworks */,
+				B10000000000000000000002 /* PennelMobileKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E10000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000003 /* PennelMobileKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000004 /* PennelMobileKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E10000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E10000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000005 /* PennelMobileKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000002 /* Pennel */,
+				S10000000000000000000002 /* PennelCore */,
+				S10000000000000000000006 /* Shared */,
+				G10000000000000000000003 /* PennelKeyboard */,
+				G10000000000000000000004 /* PennelWidgets */,
+				S10000000000000000000005 /* PennelTests */,
+				S10000000000000000000007 /* PennelKeyboardTests */,
+				F10000000000000000000007 /* PennelMobileKit */,
+				G10000000000000000000005 /* Fonts */,
+				G10000000000000000000006 /* Frameworks */,
+				G10000000000000000000007 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G10000000000000000000002 /* Pennel */ = {
+			isa = PBXGroup;
+			children = (
+				S10000000000000000000001 /* Sources */,
+				F10000000000000000000002 /* Info.plist */,
+				F10000000000000000000003 /* Pennel.entitlements */,
+			);
+			path = Pennel;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000003 /* PennelKeyboard */ = {
+			isa = PBXGroup;
+			children = (
+				S10000000000000000000003 /* Sources */,
+				S10000000000000000000008 /* Model */,
+				F10000000000000000000004 /* Info.plist */,
+				F10000000000000000000005 /* PennelKeyboard.entitlements */,
+			);
+			path = PennelKeyboard;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000004 /* PennelWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				S10000000000000000000004 /* Sources */,
+				F10000000000000000000006 /* Info.plist */,
+			);
+			path = PennelWidgets;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000005 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000011 /* Figtree-Regular.ttf */,
+				F10000000000000000000012 /* Figtree-Medium.ttf */,
+				F10000000000000000000013 /* Figtree-SemiBold.ttf */,
+				F10000000000000000000014 /* InstrumentSerif-Regular.ttf */,
+			);
+			name = Fonts;
+			path = ../../assets/brand/fonts;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000006 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000001 /* PennelCoreFFI.xcframework */,
+			);
+			path = Frameworks;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000007 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				P10000000000000000000001 /* Pennel.app */,
+				P10000000000000000000002 /* PennelKeyboard.appex */,
+				P10000000000000000000003 /* PennelWidgets.appex */,
+				P10000000000000000000004 /* PennelTests.xctest */,
+				P10000000000000000000005 /* PennelKeyboardTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		T10000000000000000000001 /* Pennel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = L10000000000000000000002 /* Build configuration list for PBXNativeTarget "Pennel" */;
+			buildPhases = (
+				J10000000000000000000001 /* Sources */,
+				E10000000000000000000001 /* Frameworks */,
+				K10000000000000000000001 /* Resources */,
+				H10000000000000000000001 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				M10000000000000000000001 /* PBXTargetDependency */,
+				M10000000000000000000002 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				S10000000000000000000001 /* Sources */,
+				S10000000000000000000002 /* PennelCore */,
+				S10000000000000000000006 /* Shared */,
+			);
+			name = Pennel;
+			packageProductDependencies = (
+				D10000000000000000000001 /* PennelMobileKit */,
+			);
+			productName = Pennel;
+			productReference = P10000000000000000000001 /* Pennel.app */;
+			productType = "com.apple.product-type.application";
+		};
+		T10000000000000000000002 /* PennelKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = L10000000000000000000003 /* Build configuration list for PBXNativeTarget "PennelKeyboard" */;
+			buildPhases = (
+				J10000000000000000000002 /* Sources */,
+				E10000000000000000000002 /* Frameworks */,
+				K10000000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				S10000000000000000000003 /* Sources */,
+				S10000000000000000000008 /* Model */,
+			);
+			name = PennelKeyboard;
+			packageProductDependencies = (
+				D10000000000000000000002 /* PennelMobileKit */,
+			);
+			productName = PennelKeyboard;
+			productReference = P10000000000000000000002 /* PennelKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		T10000000000000000000003 /* PennelWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = L10000000000000000000004 /* Build configuration list for PBXNativeTarget "PennelWidgets" */;
+			buildPhases = (
+				J10000000000000000000003 /* Sources */,
+				E10000000000000000000003 /* Frameworks */,
+				K10000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				S10000000000000000000004 /* Sources */,
+				S10000000000000000000006 /* Shared */,
+			);
+			name = PennelWidgets;
+			packageProductDependencies = (
+				D10000000000000000000003 /* PennelMobileKit */,
+			);
+			productName = PennelWidgets;
+			productReference = P10000000000000000000003 /* PennelWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		T10000000000000000000004 /* PennelTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = L10000000000000000000005 /* Build configuration list for PBXNativeTarget "PennelTests" */;
+			buildPhases = (
+				J10000000000000000000004 /* Sources */,
+				E10000000000000000000004 /* Frameworks */,
+				K10000000000000000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				M10000000000000000000003 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				S10000000000000000000005 /* PennelTests */,
+			);
+			name = PennelTests;
+			productName = PennelTests;
+			productReference = P10000000000000000000004 /* PennelTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		T10000000000000000000005 /* PennelKeyboardTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = L10000000000000000000006 /* Build configuration list for PBXNativeTarget "PennelKeyboardTests" */;
+			buildPhases = (
+				J10000000000000000000005 /* Sources */,
+				E10000000000000000000005 /* Frameworks */,
+				K10000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				S10000000000000000000007 /* PennelKeyboardTests */,
+				S10000000000000000000008 /* Model */,
+			);
+			name = PennelKeyboardTests;
+			packageProductDependencies = (
+				D10000000000000000000004 /* PennelMobileKit */,
+			);
+			productName = PennelKeyboardTests;
+			productReference = P10000000000000000000005 /* PennelKeyboardTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					T10000000000000000000001 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					T10000000000000000000002 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					T10000000000000000000003 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					T10000000000000000000004 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = T10000000000000000000001;
+					};
+					T10000000000000000000005 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
+			};
+			buildConfigurationList = L10000000000000000000001 /* Build configuration list for PBXProject "Pennel" */;
+			developmentRegion = nl;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				nl,
+				Base,
+			);
+			mainGroup = G10000000000000000000001;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				N10000000000000000000001 /* XCLocalSwiftPackageReference "PennelMobileKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = G10000000000000000000007 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				T10000000000000000000001 /* Pennel */,
+				T10000000000000000000002 /* PennelKeyboard */,
+				T10000000000000000000003 /* PennelWidgets */,
+				T10000000000000000000004 /* PennelTests */,
+				T10000000000000000000005 /* PennelKeyboardTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		K10000000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000011 /* Figtree-Regular.ttf in Resources */,
+				B10000000000000000000012 /* Figtree-Medium.ttf in Resources */,
+				B10000000000000000000013 /* Figtree-SemiBold.ttf in Resources */,
+				B10000000000000000000014 /* InstrumentSerif-Regular.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		K10000000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000022 /* Figtree-Medium.ttf in Resources */,
+				B10000000000000000000023 /* Figtree-SemiBold.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		K10000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000024 /* Figtree-Medium.ttf in Resources */,
+				B10000000000000000000025 /* Figtree-SemiBold.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		K10000000000000000000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		K10000000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		J10000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		J10000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		J10000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		J10000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		J10000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		M10000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = T10000000000000000000002 /* PennelKeyboard */;
+			targetProxy = C10000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		M10000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = T10000000000000000000003 /* PennelWidgets */;
+			targetProxy = C10000000000000000000002 /* PBXContainerItemProxy */;
+		};
+		M10000000000000000000003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = T10000000000000000000001 /* Pennel */;
+			targetProxy = C10000000000000000000003 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		X10000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		X10000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		X10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Pennel/Pennel.entitlements;
+				INFOPLIST_FILE = Pennel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "PENNEL_APP $(inherited)";
+			};
+			name = Debug;
+		};
+		X10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Pennel/Pennel.entitlements;
+				INFOPLIST_FILE = Pennel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "PENNEL_APP $(inherited)";
+			};
+			name = Release;
+		};
+		X10000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PennelKeyboard/PennelKeyboard.entitlements;
+				INFOPLIST_FILE = PennelKeyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios.keyboard;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		X10000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PennelKeyboard/PennelKeyboard.entitlements;
+				INFOPLIST_FILE = PennelKeyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios.keyboard;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		X10000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = PennelWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		X10000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = PennelWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		X10000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pennel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pennel";
+			};
+			name = Debug;
+		};
+		X10000000000000000000010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pennel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pennel";
+			};
+			name = Release;
+		};
+		X10000000000000000000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios.keyboard.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		X10000000000000000000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = app.pennel.ios.keyboard.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		L10000000000000000000001 /* Build configuration list for PBXProject "Pennel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X10000000000000000000001 /* Debug */,
+				X10000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		L10000000000000000000002 /* Build configuration list for PBXNativeTarget "Pennel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X10000000000000000000003 /* Debug */,
+				X10000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		L10000000000000000000003 /* Build configuration list for PBXNativeTarget "PennelKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X10000000000000000000005 /* Debug */,
+				X10000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		L10000000000000000000004 /* Build configuration list for PBXNativeTarget "PennelWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X10000000000000000000007 /* Debug */,
+				X10000000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		L10000000000000000000005 /* Build configuration list for PBXNativeTarget "PennelTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X10000000000000000000009 /* Debug */,
+				X10000000000000000000010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		L10000000000000000000006 /* Build configuration list for PBXNativeTarget "PennelKeyboardTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X10000000000000000000011 /* Debug */,
+				X10000000000000000000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		N10000000000000000000001 /* XCLocalSwiftPackageReference "PennelMobileKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = PennelMobileKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D10000000000000000000001 /* PennelMobileKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PennelMobileKit;
+		};
+		D10000000000000000000002 /* PennelMobileKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PennelMobileKit;
+		};
+		D10000000000000000000003 /* PennelMobileKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PennelMobileKit;
+		};
+		D10000000000000000000004 /* PennelMobileKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PennelMobileKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A10000000000000000000001 /* Project object */;
+}

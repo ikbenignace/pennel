@@ -1154,6 +1154,9 @@ impl PennelEngine {
     }
 
     pub fn local_models(&self, language: Option<String>, supported_only: bool) -> Vec<LocalModel> {
+        if cfg!(not(feature = "local-models")) {
+            return Vec::new();
+        }
         self.models
             .local_models(language.as_deref(), supported_only)
     }
@@ -1188,6 +1191,9 @@ impl PennelEngine {
         id: String,
         listener: Arc<dyn DownloadListener>,
     ) -> Result<(), PennelError> {
+        if cfg!(not(feature = "local-models")) {
+            return Err(PennelError::local_models_unavailable());
+        }
         let (task, owner) = {
             let mut downloads = self.downloads.lock().unwrap();
             match downloads.entry(id.clone()) {
@@ -1929,7 +1935,7 @@ impl PennelEngine {
         &self,
         settings: &Settings,
         samples: &[f32],
-        cancel: &transcribe_cpp::CancelToken,
+        cancel: &crate::local_engine::CancelToken,
     ) -> Result<Option<String>, PennelError> {
         let Some((account, model)) = settings.resolve(&settings.dictation_stt) else {
             return Err(PennelError::NotFound);
@@ -1937,6 +1943,7 @@ impl PennelEngine {
         if account.kind != ProviderKind::Local {
             return Ok(None);
         }
+        crate::local_engine::ensure_available()?;
         let path = self
             .models
             .path(&model)
@@ -1983,6 +1990,7 @@ impl PennelEngine {
                 .map(|text| text.trim().to_owned());
         }
         if account.kind == ProviderKind::Local {
+            crate::local_engine::ensure_available()?;
             let path = self
                 .models
                 .path(&model)
@@ -2678,6 +2686,33 @@ mod tests {
         mock.assert();
     }
 
+    #[cfg(not(feature = "local-models"))]
+    #[test]
+    fn local_calls_without_feature_are_the_dutch_error() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server, DictationMode::Fast);
+        let mut settings = engine.settings();
+        settings.dictation_stt = crate::settings::ModelChoice {
+            provider_id: "local".into(),
+            model: "whisper-small-q5_1".into(),
+        };
+        engine.update_settings(settings.clone()).unwrap();
+        let unavailable = PennelError::local_models_unavailable();
+        assert_eq!(
+            engine.dictate(request(speech(), None)).unwrap_err(),
+            unavailable
+        );
+        assert_eq!(
+            engine.preview_local(
+                &settings,
+                &[0.1; 16_000],
+                &crate::local_engine::CancelToken::default()
+            ),
+            Err(unavailable)
+        );
+    }
+
+    #[cfg(feature = "local-models")]
     #[test]
     fn local_without_model_is_model_not_downloaded() {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
@@ -2702,12 +2737,14 @@ mod tests {
         fn on_progress(&self, _: u64, _: u64) {}
     }
 
+    #[cfg(feature = "local-models")]
     struct DownloadGate {
         entered: std::sync::Barrier,
         release: std::sync::Barrier,
         first: std::sync::atomic::AtomicBool,
     }
 
+    #[cfg(feature = "local-models")]
     impl DownloadGate {
         fn new() -> Self {
             Self {
@@ -2718,6 +2755,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "local-models")]
     impl DownloadListener for DownloadGate {
         fn on_progress(&self, _: u64, _: u64) {
             if self.first.swap(false, std::sync::atomic::Ordering::SeqCst) {
@@ -2727,11 +2765,13 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "local-models")]
     struct JoinedProgress {
         joined: std::sync::mpsc::Sender<()>,
         progress: Mutex<Vec<(u64, u64)>>,
     }
 
+    #[cfg(feature = "local-models")]
     impl DownloadListener for JoinedProgress {
         fn on_progress(&self, downloaded: u64, total: u64) {
             self.progress.lock().unwrap().push((downloaded, total));
@@ -2760,6 +2800,7 @@ mod tests {
         Arc::new(engine)
     }
 
+    #[cfg(feature = "local-models")]
     fn shared_download(cancel: bool, join_only: bool) {
         let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
         let bytes = vec![b'm'; 3 * 1024 * 1024];
@@ -2823,16 +2864,19 @@ mod tests {
         request.assert();
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn concurrent_model_downloads_share_one_writer_and_progress() {
         shared_download(false, false);
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn joining_an_active_download_waits_for_its_existing_worker() {
         shared_download(false, true);
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn cancelling_a_shared_download_releases_waiters_and_keeps_partial_model() {
         shared_download(true, true);
@@ -2853,6 +2897,7 @@ mod tests {
         request.assert();
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn engine_model_api_reports_state_and_unknown_ids() {
         let dir = tempfile::tempdir().unwrap();
@@ -2869,6 +2914,26 @@ mod tests {
         );
         engine.cancel_download("whisper-small-q5_1".into());
         engine.delete_model("whisper-small-q5_1".into()).unwrap();
+    }
+
+    #[cfg(not(feature = "local-models"))]
+    #[test]
+    fn local_models_list_empty_without_feature() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = PennelEngine::new(dir.path().to_string_lossy().into_owned()).unwrap();
+        assert!(engine.local_models(None, false).is_empty());
+        assert_eq!(
+            engine
+                .download_model("whisper-small-q5_1".into(), Arc::new(Silent))
+                .unwrap_err(),
+            PennelError::local_models_unavailable()
+        );
+        assert_eq!(
+            engine
+                .download_model(engine.diarizer_model_id(), Arc::new(Silent))
+                .unwrap_err(),
+            PennelError::local_models_unavailable()
+        );
     }
 
     #[test]
@@ -3380,6 +3445,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "local-models")]
     #[test]
     fn diarize_without_model_is_model_not_downloaded() {
         let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());

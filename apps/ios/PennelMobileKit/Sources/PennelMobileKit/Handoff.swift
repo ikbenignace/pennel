@@ -1,0 +1,213 @@
+import CoreFoundation
+import Foundation
+
+public enum SessionPhase: String, Codable, Sendable {
+    case off, ready, listening, processing
+}
+
+public struct SessionState: Codable, Equatable, Sendable {
+    public var phase: SessionPhase
+    public var expiresAt: Date?
+    public var heartbeatAt: Date
+    public var level: Float
+
+    public init(phase: SessionPhase, expiresAt: Date?, heartbeatAt: Date, level: Float) {
+        self.phase = phase
+        self.expiresAt = expiresAt
+        self.heartbeatAt = heartbeatAt
+        self.level = level
+    }
+}
+
+public struct HandoffCommand: Codable, Equatable, Sendable {
+    public enum Action: String, Codable, Sendable {
+        case start, stop, cancel
+    }
+
+    public var id: UUID
+    public var action: Action
+    public var at: Date
+
+    public init(id: UUID, action: Action, at: Date) {
+        self.id = id
+        self.action = action
+        self.at = at
+    }
+}
+
+public struct HandoffResult: Codable, Equatable, Sendable {
+    public var id: UUID
+    public var text: String?
+    public var error: String?
+    public var at: Date
+
+    public init(id: UUID, text: String?, error: String?, at: Date) {
+        self.id = id
+        self.text = text
+        self.error = error
+        self.at = at
+    }
+}
+
+public enum HandoffSignal: String, Sendable {
+    case command = "app.pennel.handoff.command"
+    case session = "app.pennel.handoff.session"
+    case result = "app.pennel.handoff.result"
+
+    public func post() {
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName(rawValue as CFString), nil, nil, true)
+    }
+
+    /// Notifications carry no content; the handler only means "read the file again". Keep the returned token alive to keep observing.
+    public func observe(_ handler: @escaping @Sendable () -> Void) -> Observation {
+        Observation(name: rawValue, handler: handler)
+    }
+
+    public final class Observation: @unchecked Sendable {
+        private let name: String
+        private let box: Unmanaged<HandlerBox>
+
+        fileprivate init(name: String, handler: @escaping @Sendable () -> Void) {
+            self.name = name
+            box = Unmanaged.passRetained(HandlerBox(handler))
+            CFNotificationCenterAddObserver(
+                CFNotificationCenterGetDarwinNotifyCenter(), box.toOpaque(),
+                { _, observer, _, _, _ in
+                    guard let observer else { return }
+                    Unmanaged<HandlerBox>.fromOpaque(observer).takeUnretainedValue().handler()
+                },
+                name as CFString, nil, .deliverImmediately)
+        }
+
+        deinit {
+            CFNotificationCenterRemoveObserver(
+                CFNotificationCenterGetDarwinNotifyCenter(), box.toOpaque(), CFNotificationName(name as CFString), nil)
+            box.release()
+        }
+    }
+
+    private final class HandlerBox: @unchecked Sendable {
+        let handler: @Sendable () -> Void
+        init(_ handler: @escaping @Sendable () -> Void) { self.handler = handler }
+    }
+}
+
+/// The id of the command a keyboard is waiting on. Re-created clients in one process share a slot per handoff
+/// directory, so a keyboard dismissed and shown again resumes the same dictation; a different slot never
+/// matches another instance's id.
+public final class PendingHandoff: @unchecked Sendable {
+    private let lock = NSLock()
+    private var id: UUID?
+    private var since: Date?
+
+    public init() {}
+
+    private static let registryLock = NSLock()
+    nonisolated(unsafe) private static var registry: [String: PendingHandoff] = [:]
+
+    static func shared(for directory: URL) -> PendingHandoff {
+        registryLock.withLock {
+            let key = directory.standardizedFileURL.path
+            if let existing = registry[key] { return existing }
+            let created = PendingHandoff()
+            registry[key] = created
+            return created
+        }
+    }
+
+    var current: UUID? { lock.withLock { id } }
+
+    /// The pending id, unless it was set longer than `lifetime` ago: a keyboard shown again much later must not
+    /// auto-insert an old dictation. An expired id is dropped.
+    func current(now: Date, lifetime: TimeInterval) -> UUID? {
+        lock.withLock {
+            if let since, now.timeIntervalSince(since) > lifetime {
+                id = nil
+                self.since = nil
+            }
+            return id
+        }
+    }
+
+    func set(_ new: UUID, at date: Date = Date()) {
+        lock.withLock {
+            id = new
+            since = date
+        }
+    }
+
+    /// Clears only if `expected` is still the pending id, so a late consumer cannot drop a newer command.
+    func clear(ifMatching expected: UUID) {
+        lock.withLock {
+            if id == expected {
+                id = nil
+                since = nil
+            }
+        }
+    }
+}
+
+public struct HandoffClient: Sendable {
+    public static let heartbeatTimeout: TimeInterval = 5
+    public static let resultLifetime: TimeInterval = 10 * 60
+
+    private let store: HandoffStore
+    private let pending: PendingHandoff
+
+    public init(store: HandoffStore, pending: PendingHandoff? = nil) {
+        self.store = store
+        self.pending = pending ?? PendingHandoff.shared(for: store.directory)
+    }
+
+    @discardableResult
+    public func send(_ action: HandoffCommand.Action, now: Date = Date()) throws -> UUID {
+        let id = UUID()
+        pending.set(id, at: now)
+        do {
+            try store.write(HandoffCommand(id: id, action: action, at: now), as: .command)
+        } catch {
+            pending.clear(ifMatching: id)
+            throw error
+        }
+        HandoffSignal.command.post()
+        return id
+    }
+
+    public func session(now: Date = Date()) -> SessionPhase {
+        guard let state = store.read(SessionState.self, as: .session) else { return .off }
+        if now.timeIntervalSince(state.heartbeatAt) > Self.heartbeatTimeout { return .off }
+        if let expiresAt = state.expiresAt, expiresAt <= now { return .off }
+        return state.phase
+    }
+
+    public func level() -> Float {
+        store.read(SessionState.self, as: .session)?.level ?? 0
+    }
+
+    /// Results older than `resultLifetime` are never inserted; they are removed and the pending id is dropped.
+    public func takeResult(now: Date = Date()) -> HandoffResult? {
+        store.purgeExpiredResult(now: now, lifetime: Self.resultLifetime)
+        guard let id = pending.current(now: now, lifetime: Self.resultLifetime),
+              let result = store.read(HandoffResult.self, as: .result),
+              result.id == id
+        else { return nil }
+        pending.clear(ifMatching: id)
+        store.clearResult(id: id)
+        return result
+    }
+
+    /// For the explicit "Laatste dictaat invoegen" tap after the keyboard was away. Call `markInserted` once it is typed.
+    public func lastUninserted(now: Date = Date()) -> HandoffResult? {
+        guard let result = store.read(HandoffResult.self, as: .result),
+              result.text != nil,
+              now.timeIntervalSince(result.at) <= Self.resultLifetime
+        else { return nil }
+        return result
+    }
+
+    public func markInserted(_ result: HandoffResult) {
+        pending.clear(ifMatching: result.id)
+        store.clearResult(id: result.id)
+    }
+}

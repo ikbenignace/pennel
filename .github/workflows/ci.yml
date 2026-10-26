@@ -36,6 +36,9 @@ jobs:
           # the build script's output, which would then link against a missing directory.
           cache-directories: core/target/sherpa-onnx-prebuilt
           key: sherpa-prebuilt
+      - name: Rerun sherpa-onnx's build script after a cache restore
+        shell: bash
+        run: bash scripts/ci-sherpa-cache.sh core/target
       - name: Rust format
         if: needs.changes.outputs.core == 'true'
         run: cargo fmt --manifest-path core/Cargo.toml -- --check
@@ -45,6 +48,10 @@ jobs:
       - name: Rust tests
         if: needs.changes.outputs.core == 'true'
         run: cargo test --manifest-path core/Cargo.toml --lib
+      - name: Rust lint without local models
+        run: cargo clippy --manifest-path core/Cargo.toml --lib --tests --no-default-features -- -D warnings
+      - name: Rust tests without local models
+        run: cargo test --manifest-path core/Cargo.toml --no-default-features --lib
       - name: Speaker pipeline
         if: needs.changes.outputs.core == 'true'
         run: |
