@@ -1,7 +1,7 @@
 import "./styles.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, fixtureClient, listen, listenToWindow, type AppInfo, type MeetingFinished, type Settings, type UpdateInfo } from "./api";
-import { LatestRequest, SerialQueue, persistAll } from "./async";
+import { LatestRequest, SerialQueue, fillWhenReady, persistAll } from "./async";
 import { errorText, h, section, select } from "./dom";
 import { dictationView, dictionaryView, stylesView } from "./views/dictation";
 import { historyView } from "./views/history";
@@ -70,6 +70,7 @@ if (fixtureClient() && query.has("section")) {
 let info: AppInfo;
 let mounted: Mounted | null = null;
 let generation = 0;
+let rerendering = false;
 let navigationGeneration = 0;
 let booted = false;
 let capabilitiesDirty = false;
@@ -233,10 +234,27 @@ function contextFor(target: Mounted): Context {
 async function settingsView(ctx: Context): Promise<HTMLElement> {
   const current = navigation.current.tab === "local" ? "providers" : navigation.current.tab ?? "providers";
   const nav = h("nav", { class: "settings-categories segmented", "aria-label": "Instellingencategorieën" }, tabs.map(([id, label]) => h("button", {
-    "aria-current": id === current ? "page" : null, onclick: () => navigate(id),
+    "aria-current": id === current ? "page" : null, onclick: (event: Event) => {
+      nav.querySelectorAll("button").forEach((button) => button.removeAttribute("aria-current"));
+      (event.currentTarget as HTMLElement).setAttribute("aria-current", "page");
+      navigate(id);
+    },
   }, label)));
   const selected = tabs.find(([id]) => id === current) ?? tabs[0];
-  const pane = h("section", { class: "settings-pane" }, await selected[2](ctx), settingsFooter(ctx));
+  const pane = h("section", { class: "settings-pane" });
+  const content = async () => [await selected[2](ctx), settingsFooter(ctx)];
+  // A re-render of the same category keeps its old content until the new one is ready, so the
+  // scroll position survives; a new category appears at once and fills in as its data arrives.
+  if (rerendering) pane.append(...await content());
+  else {
+    let live = true;
+    ctx.onDispose(() => { live = false; });
+    const loading = h("p", { class: "help settings-loading", role: "status" }, "Laden…");
+    void fillWhenReady(pane, loading, content, () => live).catch((error: unknown) => {
+      if (live) pane.replaceChildren(h("p", { class: "error", role: "status" }, errorText(error)));
+      report(error);
+    });
+  }
   return h("div", { class: "settings-workspace" }, h("h1", { class: "visually-hidden" }, "Instellingen"), h("div", { class: "settings-layout" }, nav, pane));
 }
 
@@ -266,6 +284,7 @@ async function render(allowed: () => boolean = () => true) {
   if (mine !== generation) return;
   const route = navigation.current;
   const target: Mounted = { key: routeKey(route), cleanup: [], flush: [], leave: [], info: [], focus: [], visibility: [] };
+  rerendering = mounted?.key === target.key;
   const ctx = contextFor(target);
   const view = mode === "onboarding" ? onboardingView : mode === "prompt" ? promptView
     : route.section === "settings" ? settingsView : route.section === "history" ? historyView
