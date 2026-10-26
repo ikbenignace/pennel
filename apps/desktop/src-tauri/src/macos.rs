@@ -75,6 +75,7 @@ unsafe extern "C" {
         sink: AudioSink,
         context: *mut c_void,
         error: *mut *mut c_char,
+        retryable: *mut bool,
     ) -> *mut c_void;
     fn pennel_mac_meeting_status(handle: *mut c_void) -> *mut c_char;
     fn pennel_mac_meeting_stop(handle: *mut c_void) -> *mut c_char;
@@ -539,12 +540,16 @@ impl MeetingCapture {
         app_id: Option<&str>,
         echo: bool,
         callback: impl FnMut(u32, &[f32], u64) + Send + 'static,
-    ) -> Result<Self, String> {
-        let directory = path_string(directory)?;
-        let app = app_id.map(c_string).transpose()?;
+    ) -> Result<Self, (String, bool)> {
+        let directory = path_string(directory).map_err(|error| (error, false))?;
+        let app = app_id
+            .map(c_string)
+            .transpose()
+            .map_err(|error| (error, false))?;
         let mut callback: Box<AudioCallback> = Box::new(Mutex::new(Box::new(callback)));
         let context = (&mut *callback as *mut AudioCallback).cast();
         let mut error = ptr::null_mut();
+        let mut retryable = false;
         let handle = NonNull::new(unsafe {
             pennel_mac_meeting_start(
                 directory.as_ptr(),
@@ -553,11 +558,16 @@ impl MeetingCapture {
                 audio_frame,
                 context,
                 &mut error,
+                &mut retryable,
             )
         });
         let error = unsafe { take_string(error) };
-        let handle = handle
-            .ok_or_else(|| error.unwrap_or_else(|| "Meeting opnemen kon niet starten".into()))?;
+        let handle = handle.ok_or_else(|| {
+            (
+                error.unwrap_or_else(|| "Meeting opnemen kon niet starten".into()),
+                retryable,
+            )
+        })?;
         Ok(Self {
             handle: Some(handle),
             callback,

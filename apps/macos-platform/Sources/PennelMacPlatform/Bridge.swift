@@ -367,7 +367,7 @@ public func captureStop(_ handle: UnsafeMutableRawPointer?) {
 }
 
 @_cdecl("pennel_mac_meeting_start")
-func meetingStart(_ rawDirectory: UnsafePointer<CChar>?, _ rawApp: UnsafePointer<CChar>?, _ echo: Bool, _ sink: @escaping AudioSink, _ context: UnsafeMutableRawPointer?, _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutableRawPointer? {
+func meetingStart(_ rawDirectory: UnsafePointer<CChar>?, _ rawApp: UnsafePointer<CChar>?, _ echo: Bool, _ sink: @escaping AudioSink, _ context: UnsafeMutableRawPointer?, _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?, _ retryableOut: UnsafeMutablePointer<Bool>?) -> UnsafeMutableRawPointer? {
     guard let directory = decodeString(rawDirectory) else { errorOut?.pointee = bridgeString("Geen meetingmap opgegeven"); return nil }
     let app = decodeString(rawApp)
     return onMain {
@@ -376,7 +376,12 @@ func meetingStart(_ rawDirectory: UnsafePointer<CChar>?, _ rawApp: UnsafePointer
             let processes: (() -> [AudioObjectID])? = app.map { app in { MicUsageMonitor.processObjects(bundleId: app) } }
             try capture.start(directory: URL(fileURLWithPath: directory), sink: sink, context: context, tapProcesses: processes, echoCancellation: echo)
             return Unmanaged.passRetained(capture).toOpaque()
-        } catch { _ = capture.stop(); writeError(errorOut, error); return nil }
+        } catch {
+            _ = capture.stop()
+            retryableOut?.pointee = (error as? MicrophoneStartError) == .failed
+            writeError(errorOut, error)
+            return nil
+        }
     }
 }
 

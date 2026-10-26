@@ -3,6 +3,64 @@ import XCTest
 @testable import PennelMacPlatform
 
 final class MeetingCaptureHealthTests: XCTestCase {
+    func testMicrophoneRecoveryUsesNewAudioEngine() {
+        let microphone = MeetingMicrophoneEngine()
+        let original = microphone.engine
+
+        microphone.replace()
+
+        XCTAssertFalse(microphone.engine === original)
+        XCTAssertFalse(microphone.engine.inputNode.isVoiceProcessingEnabled)
+    }
+
+    func testEchoStartupFailureRetriesPlainMicrophone() throws {
+        var echoEnabled = true
+        var attemptedModes: [Bool] = []
+
+        let echoActive = try MeetingMicrophoneStart.start(
+            echoCancellation: true,
+            start: {
+                attemptedModes.append(echoEnabled)
+                if echoEnabled { throw CocoaError(.fileReadUnknown) }
+            },
+            disableEcho: { echoEnabled = false }
+        )
+
+        XCTAssertFalse(echoActive)
+        XCTAssertEqual(attemptedModes, [true, false])
+    }
+
+    func testPlainMicrophoneStartupDoesNotAttemptEchoFallback() throws {
+        var attempts = 0
+        let echoRemovals = CapturedSamples()
+
+        let echoActive = try MeetingMicrophoneStart.start(
+            echoCancellation: false,
+            start: { attempts += 1 },
+            disableEcho: { echoRemovals.count += 1 }
+        )
+
+        XCTAssertFalse(echoActive)
+        XCTAssertEqual(attempts, 1)
+        XCTAssertEqual(echoRemovals.count, 0)
+    }
+
+    func testFailedPlainMicrophoneRetryPropagatesItsError() {
+        var attempts = 0
+
+        XCTAssertThrowsError(try MeetingMicrophoneStart.start(
+            echoCancellation: true,
+            start: {
+                attempts += 1
+                throw CocoaError(attempts == 1 ? .fileReadUnknown : .fileWriteUnknown)
+            },
+            disableEcho: {}
+        )) { error in
+            XCTAssertEqual((error as? CocoaError)?.code, .fileWriteUnknown)
+        }
+        XCTAssertEqual(attempts, 2)
+    }
+
     func testFailedMicrophoneRestartRemainsVisibleUntilCaptureActuallyStarts() {
         var health = MeetingCaptureHealth(echoRequested: true)
         health.microphoneStarted(echoActive: true)
