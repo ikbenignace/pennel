@@ -103,6 +103,7 @@ final class MeetingRuntime: DictationMeetingHook {
         static let interrupted = "Opname gepauzeerd door een oproep. Pennel neemt verder op zodra de oproep voorbij is."
         static let couldNotResume = "De opname is na een onderbreking gestopt omdat de microfoon niet terugkwam."
         static let microphoneLost = "Pennel hoort de microfoon niet meer. De opname gaat verder zodra hij terug is."
+        static let terminated = "De opname is gestopt omdat iOS Pennel heeft afgesloten."
         static let defaultTitle = "Meeting"
     }
 
@@ -554,6 +555,10 @@ final class MeetingRuntime: DictationMeetingHook {
                 guard let self, self.isRecording else { return }
                 self.capture.stop()
                 self.recorder?.finish()
+                // No finish runs after this, so the record is what tells the user after a relaunch that it is partial.
+                if let id = self.activeMeetingId {
+                    self.interruptions.save(.init(gaps: self.recorder?.gaps ?? [], stoppedEarly: Message.terminated), for: id)
+                }
             }
         })
     }

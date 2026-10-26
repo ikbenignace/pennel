@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import PennelMobileKit
 import Testing
+import UIKit
 @testable import Pennel
 
 private final class CountingCapture: AudioCapturing, @unchecked Sendable {
@@ -138,6 +139,17 @@ struct MeetingRuntimeTests {
         let retained = try #require(h.runtime.retainedId)
         #expect(h.runtime.activeMeetingId == nil)
         #expect(h.runtime.unfinalisedMeetingIds == [retained])
+    }
+
+    @Test func termination_mid_recording_marks_the_meeting_stopped_early() async throws {
+        let h = try MeetingHarness()
+        try await h.runtime.start(title: "Overleg")
+        let id = try #require(h.runtime.activeMeetingId)
+        h.speak(seconds: 3)
+
+        h.center.post(name: UIApplication.willTerminateNotification, object: nil)
+
+        #expect(h.interruptions.record(for: id)?.stoppedEarly == MeetingRuntime.Message.terminated)
     }
 
     @Test func live_notes_survive_a_reopened_view_and_stop() async throws {
