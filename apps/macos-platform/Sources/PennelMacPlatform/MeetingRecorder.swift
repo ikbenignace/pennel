@@ -225,6 +225,7 @@ final class NativeMeetingRecorder {
 
     private func startMicrophone() throws {
         guard let me else { return }
+        try MicrophoneAccess.ensureGranted()
         health.microphoneStarting()
         let input = engine.inputNode
         if echoCancellation {
@@ -257,7 +258,7 @@ final class NativeMeetingRecorder {
             }
         }
         engine.prepare()
-        try engine.start()
+        try MicrophoneAccess.start(engine)
         guard engine.isRunning else { throw NoInputDevice() }
         health.microphoneStarted(echoActive: input.isVoiceProcessingEnabled)
     }

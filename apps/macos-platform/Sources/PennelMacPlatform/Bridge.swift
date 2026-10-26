@@ -70,7 +70,12 @@ public func requestPermission(_ rawKind: UnsafePointer<CChar>?) -> Bool {
     guard let kind = decodeString(rawKind), ["microphone", "accessibility", "calendar", "speech", "system_audio"].contains(kind) else { return false }
     Task { @MainActor in
         switch kind {
-        case "microphone": _ = await AVCaptureDevice.requestAccess(for: .audio)
+        case "microphone":
+            if MicrophoneAccess.state == .denied {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") { NSWorkspace.shared.open(url) }
+            } else {
+                _ = await AVCaptureDevice.requestAccess(for: .audio)
+            }
         case "calendar": _ = try? await EKEventStore().requestFullAccessToEvents()
         case "speech":
             if speechPermissionShouldOpenSettings(SFSpeechRecognizer.authorizationStatus()) {
@@ -573,6 +578,31 @@ public func showPanelAtBottom(_ pointer: UnsafeMutableRawPointer?, _ width: Doub
         let mouse = NSEvent.mouseLocation
         if let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main {
             let frame = bottomOverlayFrame(visible: screen.visibleFrame, width: width, height: height)
+            window.setFrame(frame, display: false)
+        }
+        guard let host = overlayHost(window) else { window.orderFrontRegardless(); return }
+        host.panel.setFrame(window.frame, display: false)
+        host.panel.orderFrontRegardless()
+    }
+}
+
+/// Top-right corner of a screen's visible area with a margin, shrunk to fit it.
+func topRightOverlayFrame(visible: NSRect, width: CGFloat, height: CGFloat, margin: CGFloat) -> NSRect {
+    let size = NSSize(width: min(max(width, 1), visible.width), height: min(max(height, 1), visible.height))
+    let inset = min(margin, max(0, visible.width - size.width), max(0, visible.height - size.height))
+    return NSRect(x: (visible.maxX - size.width - inset).rounded(), y: (visible.maxY - size.height - inset).rounded(), width: size.width, height: size.height)
+}
+
+/// Places the record prompt top-right on the screen under the pointer before it is ordered in,
+/// for the same reason as `showPanelAtBottom`.
+@_cdecl("pennel_mac_show_panel_at_top_right")
+public func showPanelAtTopRight(_ pointer: UnsafeMutableRawPointer?, _ width: Double, _ height: Double, _ margin: Double) {
+    guard let pointer else { return }
+    onMain {
+        let window = Unmanaged<NSWindow>.fromOpaque(pointer).takeUnretainedValue()
+        let mouse = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main {
+            let frame = topRightOverlayFrame(visible: screen.visibleFrame, width: width, height: height, margin: margin)
             window.setFrame(frame, display: false)
         }
         guard let host = overlayHost(window) else { window.orderFrontRegardless(); return }

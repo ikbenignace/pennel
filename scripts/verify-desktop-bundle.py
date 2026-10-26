@@ -35,11 +35,20 @@ def inspect_bundle(app, expected_identifier):
     return plist, binary
 
 
+def designated_requirement(app):
+    output = subprocess.run(["codesign", "-d", "-r-", str(app)], check=True, capture_output=True, text=True)
+    for line in (output.stdout + output.stderr).splitlines():
+        if line.startswith("designated => "):
+            return line.removeprefix("designated => ").strip()
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("app", type=Path)
     parser.add_argument("--identifier", default="dev.pennel.Pennel")
     parser.add_argument("--require-developer-id", action="store_true")
+    parser.add_argument("--designated-requirement", help="Exact requirement the release signature must carry")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
@@ -52,13 +61,16 @@ def main():
             raise ValueError(f"Code signature is not valid: {verification.stderr.strip()}")
         signature = subprocess.run(["codesign", "-dv", "--verbose=4", str(args.app)], check=True, capture_output=True, text=True).stderr
         developer_id = "Authority=Developer ID Application:" in signature
+        requirement = designated_requirement(args.app)
+        if args.designated_requirement and requirement != args.designated_requirement:
+            raise ValueError(f"Designated requirement changed: {requirement!r}; macOS would forget granted permissions")
         if args.require_developer_id and not developer_id:
             raise ValueError("Release must be signed with Developer ID; an ad-hoc/development signature is not sufficient")
         receipt = {
             "bundle": str(args.app.resolve()), "identifier": args.identifier,
             "version": plist.get("CFBundleShortVersionString"), "build_number": plist.get("CFBundleVersion"),
             "architectures": architectures, "signature_valid": True,
-            "developer_id": developer_id, "app_launched": False, "device_tests_performed": False,
+            "developer_id": developer_id, "designated_requirement": requirement, "app_launched": False, "device_tests_performed": False,
         }
         rendered = json.dumps(receipt, indent=2) + "\n"
         if args.output:
