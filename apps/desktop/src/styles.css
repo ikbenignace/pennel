@@ -27,6 +27,7 @@ a { color: inherit; }
 .muted, .help { color: var(--muted); }
 .help { font-size: var(--font-label); line-height: 1.4; }
 .error, .live { color: var(--accent); }
+.success { color: var(--success); }
 .danger { color: var(--accent); }
 .empty-state { height: 100%; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; }
 .status-dot { display: inline-block; flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }

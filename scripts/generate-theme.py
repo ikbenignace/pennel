@@ -35,6 +35,8 @@ CONTRAST_PAIRS = (
     ("muted", "selection"),
     ("button-text", "button"),
     ("accent", "surface"),
+    ("success", "surface"),
+    ("success", "subtle"),
     ("disabled-text", "disabled"),
     ("pill-text", "pill-background"),
     ("pill-accent", "pill-background"),
