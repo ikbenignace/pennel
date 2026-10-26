@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import plistlib
+import re
 import tempfile
 import unittest
 from unittest import mock
@@ -90,31 +91,33 @@ class ReleaseConfigurationTests(unittest.TestCase):
 
 
 class PortableNativeBuildTests(unittest.TestCase):
-    def test_conservative_cpu_flag_applies_only_to_non_mac_x64_distribution_targets(self):
+    def test_x86_64_v3_baseline_applies_only_to_non_mac_x64_distribution_targets(self):
         original = {"TRANSCRIBE_CMAKE_ARGS": '-DCUSTOM="a path"', "CMAKE_ARGS": "-DOTHER=ON", "PATH": "/existing/tools"}
-        flag = "-DTRANSCRIBE_X86_CONSERVATIVE=ON"
+        flags = release.PORTABLE_CMAKE_FLAGS
+        for name in ("-DTRANSCRIBE_X86_CONSERVATIVE=ON", "-DGGML_NATIVE=OFF", "-DGGML_AVX2=ON", "-DGGML_FMA=ON", "-DGGML_F16C=ON", "-DGGML_BMI2=ON", "-DGGML_AVX512=OFF"):
+            self.assertIn(name, flags.split())
         for platform, target in (("win32", "x86_64-pc-windows-msvc"), ("linux", "x86_64-unknown-linux-gnu")):
             with self.subTest(platform=platform):
                 environment = release.portable_environment(platform, target, original)
-                self.assertEqual(environment["TRANSCRIBE_CMAKE_ARGS"], original["TRANSCRIBE_CMAKE_ARGS"] + " " + flag)
-                self.assertEqual(environment["CMAKE_ARGS"], original["CMAKE_ARGS"] + " " + flag)
+                self.assertEqual(environment["TRANSCRIBE_CMAKE_ARGS"], original["TRANSCRIBE_CMAKE_ARGS"] + " " + flags)
+                self.assertEqual(environment["CMAKE_ARGS"], original["CMAKE_ARGS"] + " " + flags)
                 self.assertEqual(environment["PATH"], original["PATH"])
         for platform, target in (("darwin", "aarch64-apple-darwin"), ("darwin", "x86_64-apple-darwin"), ("linux", "aarch64-unknown-linux-gnu")):
             with self.subTest(platform=platform, target=target):
                 self.assertEqual(release.portable_environment(platform, target, original), original)
         self.assertEqual(original["TRANSCRIBE_CMAKE_ARGS"], '-DCUSTOM="a path"')
 
-    def test_existing_disable_flag_cannot_override_the_distribution_floor(self):
+    def test_earlier_host_or_simd_flags_cannot_override_the_distribution_baseline(self):
         environment = release.portable_environment("linux", "x86_64-unknown-linux-gnu", {
-            "TRANSCRIBE_CMAKE_ARGS": "-DTRANSCRIBE_X86_CONSERVATIVE=OFF",
-            "CMAKE_ARGS": "-DTRANSCRIBE_X86_CONSERVATIVE=OFF",
+            "TRANSCRIBE_CMAKE_ARGS": "-DTRANSCRIBE_X86_CONSERVATIVE=OFF -DGGML_NATIVE=ON -DGGML_AVX512=ON",
+            "CMAKE_ARGS": "-DGGML_AVX2=OFF",
         })
         for name in ("TRANSCRIBE_CMAKE_ARGS", "CMAKE_ARGS"):
-            self.assertTrue(environment[name].endswith(" -DTRANSCRIBE_X86_CONSERVATIVE=ON"))
+            self.assertTrue(environment[name].endswith(" " + release.PORTABLE_CMAKE_FLAGS))
         environment = release.portable_environment("linux", "x86_64-unknown-linux-gnu", {})
-        self.assertEqual(environment, {"TRANSCRIBE_CMAKE_ARGS": "-DTRANSCRIBE_X86_CONSERVATIVE=ON"})
+        self.assertEqual(environment, {"TRANSCRIBE_CMAKE_ARGS": release.PORTABLE_CMAKE_FLAGS})
 
-    def test_native_cache_must_prove_a_conservative_baseline(self):
+    def test_native_cache_must_prove_the_x86_64_v3_baseline(self):
         target = "x86_64-unknown-linux-gnu"
         with tempfile.TemporaryDirectory() as temporary:
             target_dir = Path(temporary)
@@ -122,18 +125,36 @@ class PortableNativeBuildTests(unittest.TestCase):
                 release.verify_portable_caches(target_dir, target)
             cache = target_dir / target / "release" / "build" / "transcribe-cpp-sys-test" / "out" / "build" / "CMakeCache.txt"
             cache.parent.mkdir(parents=True)
-            safe = "TRANSCRIBE_X86_CONSERVATIVE:UNINITIALIZED=ON\nGGML_NATIVE:BOOL=OFF\nGGML_AVX2:BOOL=OFF\n"
+            safe = "TRANSCRIBE_X86_CONSERVATIVE:UNINITIALIZED=ON\n" + "".join(
+                f"{name}:BOOL={value}\n" for name, value in release.X86_64_BASELINE.items()) + "GGML_LLAMAFILE:BOOL=ON\n"
             cache.write_text(safe)
             self.assertEqual(release.verify_portable_caches(target_dir, target)["cmake_caches_checked"], 1)
-            for unsafe in (safe.replace("GGML_NATIVE:BOOL=OFF", "GGML_NATIVE:BOOL=ON"), safe.replace("GGML_AVX2:BOOL=OFF", "GGML_AVX2:BOOL=ON"), safe.replace("CONSERVATIVE:UNINITIALIZED=ON", "CONSERVATIVE:UNINITIALIZED=OFF")):
-                cache.write_text(unsafe)
-                with self.assertRaises(ValueError):
-                    release.verify_portable_caches(target_dir, target)
+            unsafe_variants = (
+                safe.replace("GGML_NATIVE:BOOL=OFF", "GGML_NATIVE:BOOL=ON"),
+                safe.replace("GGML_AVX2:BOOL=ON", "GGML_AVX2:BOOL=OFF"),
+                safe.replace("GGML_AVX512:BOOL=OFF", "GGML_AVX512:BOOL=ON"),
+                safe.replace("GGML_BMI2:BOOL=ON\n", ""),
+                safe + "GGML_AVX10:BOOL=ON\n",
+                safe.replace("CONSERVATIVE:UNINITIALIZED=ON", "CONSERVATIVE:UNINITIALIZED=OFF"),
+            )
+            for unsafe in unsafe_variants:
+                with self.subTest(unsafe=unsafe):
+                    cache.write_text(unsafe)
+                    with self.assertRaises(ValueError):
+                        release.verify_portable_caches(target_dir, target)
+
+    def test_runtime_processor_check_requires_exactly_the_enabled_simd_features(self):
+        source = (Path(__file__).resolve().parents[2] / "core" / "src" / "cpu_support.rs").read_text(encoding="utf-8")
+        declaration = re.search(r'#\[cfg\(all\(target_arch = "x86_64", not\(target_os = "macos"\)\)\)\]\s*const REQUIRED_X86_FEATURES: &\[&str\] = &\[([^\]]*)\]', source)
+        self.assertIsNotNone(declaration)
+        required = set(re.findall(r'"([^"]+)"', declaration.group(1)))
+        enabled = {release.X86_64_RUNTIME_FEATURES[name] for name, value in release.X86_64_BASELINE.items() if value == "ON"}
+        self.assertEqual(required, enabled)
 
     def test_distribution_build_cleans_only_native_dependency_for_selected_release_target(self):
         target = "x86_64-unknown-linux-gnu"
         environment = {"PATH": "/tools", "TRANSCRIBE_CMAKE_ARGS": "-DOTHER=ON"}
-        with mock.patch.object(release.shutil, "which", return_value="/tools/cargo"), mock.patch.object(release.subprocess, "check_output", return_value='{"target_directory":"/tmp/target"}'), mock.patch.object(release, "run") as run, mock.patch.object(release, "verify_portable_caches", return_value={"conservative_x86_64": True, "cmake_caches_checked": 1}) as verify:
+        with mock.patch.object(release.shutil, "which", return_value="/tools/cargo"), mock.patch.object(release.subprocess, "check_output", return_value='{"target_directory":"/tmp/target"}'), mock.patch.object(release, "run") as run, mock.patch.object(release, "verify_portable_caches", return_value={"x86_64_baseline": "x86-64-v3 (no AVX-512)", "cmake_caches_checked": 1}) as verify:
             result = release.build_distributable("/tools/npx", target, "deb,appimage", None, environment, "linux")
             self.assertIn("clean", run.call_args_list[0].args)
             self.assertIn("transcribe-cpp-sys", run.call_args_list[0].args)
@@ -142,7 +163,7 @@ class PortableNativeBuildTests(unittest.TestCase):
             self.assertEqual(run.call_args_list[1].args[:3], ("/tools/npx", "tauri", "build"))
             self.assertIn("-DOTHER=ON", run.call_args_list[1].kwargs["env"]["TRANSCRIBE_CMAKE_ARGS"])
             verify.assert_called_once_with(Path("/tmp/target"), target)
-            self.assertTrue(result["conservative_x86_64"])
+            self.assertEqual(result["x86_64_baseline"], "x86-64-v3 (no AVX-512)")
 
     def test_mac_distribution_build_keeps_existing_native_configuration(self):
         environment = {"TRANSCRIBE_CMAKE_ARGS": "-DMAC_OPTION=ON", "CMAKE_ARGS": "-DOTHER=ON"}

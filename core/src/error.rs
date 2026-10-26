@@ -24,6 +24,8 @@ pub enum PennelError {
     Cloud { code: String, message: String },
     #[error("Voer je herstelcode in om sync aan te zetten.")]
     VaultLocked,
+    #[error("Deze processor is te oud voor lokale modellen. Kies een cloudprovider.")]
+    UnsupportedProcessor,
 }
 
 impl PennelError {

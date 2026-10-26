@@ -2,7 +2,7 @@ import { api, fixtureClient, listen, type DictationSessionSnapshot, type KindInf
 import { errorCode, errorText, formatBytes, h, select } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
 import { icon } from "../icons";
-import { defaultModelId, manualPracticeAllowed, modelOptionLabel, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex } from "../onboarding-state";
+import { defaultModelId, initialEngine, manualPracticeAllowed, modelOptionLabel, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex, type Engine } from "../onboarding-state";
 import { trainedLabel } from "../speaker-state";
 import { EnrollmentPanel, SpeakerModels, enrollmentBlocker, enrollmentIntro, speakerDownload } from "./voices";
 import { hotkeyLabel, hotkeyKeyLabel } from "../presentation";
@@ -11,7 +11,6 @@ import type { Context } from "../main";
 import wordmarkSource from "../../../../assets/brand/wordmark.svg?raw";
 import { VisibilityPoll } from "../window-lifecycle";
 
-type Engine = "local" | "apple" | "custom";
 const languages: [string, string][] = [["", "Automatisch"], ["nl", "Nederlands"], ["en", "Engels"], ["fr", "Frans"], ["de", "Duits"]];
 const phrases: Record<string, string> = { nl: "Zullen we morgen om tien uur afspreken?", en: "Shall we meet tomorrow at ten?", fr: "On se retrouve demain à dix heures ?", de: "Treffen wir uns morgen um zehn Uhr?" };
 
@@ -75,7 +74,7 @@ class OnboardingWizard {
   constructor(private readonly ctx: Context) {
     const settings = ctx.info.settings;
     const account = settings.providers.find((provider) => provider.id === settings.dictation_stt.provider_id);
-    this.engine = account?.kind === "apple_speech" ? "apple" : account?.kind === "local" || !account ? "local" : "custom";
+    this.engine = initialEngine(account?.kind, ctx.info.kinds.find((kind) => kind.kind === "local")?.availability.status !== "unsupported");
     this.language = settings.language ?? "";
     this.localModelId = account?.kind === "local" ? settings.dictation_stt.model : ctx.info.kinds.find((kind) => kind.kind === "local")?.default_stt_model ?? "";
     this.providerChoice = account && this.customAccounts().some((item) => item.id === account.id) ? account.id
@@ -312,6 +311,9 @@ class OnboardingWizard {
     const apple = this.ctx.info.kinds.find((kind) => kind.kind === "apple_speech");
     const appleButton = this.localButtons.get("apple");
     if (appleButton) { appleButton.disabled = apple?.availability.status === "unsupported"; if (apple?.availability.reason) appleButton.title = apple.availability.reason; }
+    const local = this.ctx.info.kinds.find((kind) => kind.kind === "local");
+    const localButton = this.localButtons.get("local");
+    if (localButton) { localButton.disabled = local?.availability.status === "unsupported"; if (local?.availability.reason) localButton.title = local.availability.reason; }
     if (this.engine === "local") {
       const model = this.localModel();
       const downloaded = model?.state.kind === "downloaded";

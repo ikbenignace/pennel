@@ -1,5 +1,14 @@
 import type { LocalModel, OnboardingProgress, OnboardingStep, PermissionInfo, Settings, SetupReadiness } from "./api";
 
+export type Engine = "local" | "apple" | "custom";
+
+/** The saved recognizer, else local; a processor too old for local models starts on a provider instead. */
+export function initialEngine(accountKind: string | undefined, localAvailable: boolean): Engine {
+  if (accountKind === "apple_speech") return "apple";
+  if (accountKind === "local" || !accountKind) return localAvailable ? "local" : "custom";
+  return "custom";
+}
+
 export const onboardingSteps: OnboardingStep[] = ["welcome", "engine", "permissions", "practice", "voice"];
 
 /** Readiness knows setup up to the practice; after a practice the saved step may be the optional voice step. */

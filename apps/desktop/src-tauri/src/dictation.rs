@@ -111,6 +111,9 @@ pub fn notice_for_error(error: &PennelError) -> Option<String> {
                 "API-sleutel geweigerd — bewaard in geschiedenis"
             }
             PennelError::Network { .. } => "Geen verbinding — bewaard in geschiedenis",
+            PennelError::UnsupportedProcessor => {
+                "Processor te oud voor lokale modellen — bewaard in geschiedenis"
+            }
             PennelError::Http { .. } | PennelError::InvalidResponse { .. } => {
                 "Mislukt — bewaard in geschiedenis"
             }
@@ -168,6 +171,7 @@ fn failure_category(failure: &Failure) -> String {
         Failure::Core(PennelError::NotSignedIn) => "not_signed_in".into(),
         Failure::Core(PennelError::Cloud { .. }) => "cloud".into(),
         Failure::Core(PennelError::VaultLocked) => "vault_locked".into(),
+        Failure::Core(PennelError::UnsupportedProcessor) => "unsupported_processor".into(),
     }
 }
 
@@ -1892,6 +1896,10 @@ mod tests {
             })
             .as_deref(),
             Some("API-sleutel geweigerd — bewaard in geschiedenis")
+        );
+        assert_eq!(
+            notice_for_error(&PennelError::UnsupportedProcessor).as_deref(),
+            Some("Processor te oud voor lokale modellen — bewaard in geschiedenis")
         );
         assert_eq!(
             notice_for_cleanup(&CleanupStatus::Failed {

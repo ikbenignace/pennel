@@ -60,35 +60,68 @@ def portable_target(platform, target):
     return platform in ("win32", "linux") and target.startswith("x86_64-")
 
 
+# x86-64-v3 without AVX-512: every Intel Core since Haswell and AMD since Zen. The conservative option
+# keeps any ggml SIMD flag not listed here off; core/src/cpu_support.rs refuses local models at run
+# time on processors without these features (e.g. Pentium Gold/Celeron) instead of crashing.
+X86_64_BASELINE = {
+    "GGML_NATIVE": "OFF",
+    "GGML_SSE42": "ON",
+    "GGML_AVX": "ON",
+    "GGML_AVX2": "ON",
+    "GGML_FMA": "ON",
+    "GGML_F16C": "ON",
+    "GGML_BMI2": "ON",
+    "GGML_AVX_VNNI": "OFF",
+    "GGML_AVX512": "OFF",
+    "GGML_AVX512_VBMI": "OFF",
+    "GGML_AVX512_VNNI": "OFF",
+    "GGML_AVX512_BF16": "OFF",
+    "GGML_AMX_TILE": "OFF",
+    "GGML_AMX_INT8": "OFF",
+    "GGML_AMX_BF16": "OFF",
+}
+# Rust names of the features the runtime check requires for each enabled flag.
+X86_64_RUNTIME_FEATURES = {"GGML_SSE42": "sse4.2", "GGML_AVX": "avx", "GGML_AVX2": "avx2", "GGML_FMA": "fma", "GGML_F16C": "f16c", "GGML_BMI2": "bmi2"}
+PORTABLE_CMAKE_FLAGS = " ".join(["-DTRANSCRIBE_X86_CONSERVATIVE=ON"] + [f"-D{name}={value}" for name, value in X86_64_BASELINE.items()])
+
+
 def portable_environment(platform, target, environment):
     result = dict(environment)
     if portable_target(platform, target):
-        flag = "-DTRANSCRIBE_X86_CONSERVATIVE=ON"
-        result["TRANSCRIBE_CMAKE_ARGS"] = (result.get("TRANSCRIBE_CMAKE_ARGS", "").rstrip() + " " + flag).lstrip()
-        # The dependency applies CMAKE_ARGS afterwards; preserve it while keeping the same floor last.
+        # Appended last so earlier host-tuned or user values cannot change the shipped baseline.
+        result["TRANSCRIBE_CMAKE_ARGS"] = (result.get("TRANSCRIBE_CMAKE_ARGS", "").rstrip() + " " + PORTABLE_CMAKE_FLAGS).lstrip()
+        # The dependency applies CMAKE_ARGS afterwards; preserve it while keeping the same baseline last.
         if result.get("CMAKE_ARGS", "").strip():
-            result["CMAKE_ARGS"] = result["CMAKE_ARGS"].rstrip() + " " + flag
+            result["CMAKE_ARGS"] = result["CMAKE_ARGS"].rstrip() + " " + PORTABLE_CMAKE_FLAGS
     return result
 
 
 def verify_portable_caches(target_dir, target):
     caches = list((target_dir / target / "release" / "build").glob("transcribe-cpp-sys-*/out/**/CMakeCache.txt"))
     if not caches:
-        raise ValueError("Cannot verify the distributable native CPU floor: transcribe CMake cache is missing")
+        raise ValueError("Cannot verify the distributable native CPU baseline: transcribe CMake cache is missing")
+    enabled = ("ON", "TRUE", "1", "YES")
     for cache in caches:
         values = {}
         for line in cache.read_text(encoding="utf-8").splitlines():
             entry, separator, value = line.partition("=")
             if separator and not entry.startswith(("#", "//")):
                 values[entry.partition(":")[0]] = value.strip().upper()
-        if values.get("TRANSCRIBE_X86_CONSERVATIVE") not in ("ON", "TRUE", "1", "YES"):
+        if values.get("TRANSCRIBE_X86_CONSERVATIVE") not in enabled:
             raise ValueError("Native distribution build did not enable TRANSCRIBE_X86_CONSERVATIVE")
-        unsafe = [name for name, value in values.items()
+        wrong = []
+        for name, expected in X86_64_BASELINE.items():
+            if name not in values:
+                if expected == "ON" or name == "GGML_NATIVE":
+                    wrong.append(f"{name} missing")
+            elif (values[name] in enabled) != (expected == "ON"):
+                wrong.append(f"{name}={values[name]}")
+        wrong += [f"{name}={value}" for name, value in values.items()
                   if re.fullmatch(r"GGML_(?:NATIVE|SSE.*|AVX.*|BMI.*|FMA.*|F16C|AMX.*)", name)
-                  and value not in ("OFF", "FALSE", "0", "NO")]
-        if "GGML_NATIVE" not in values or unsafe:
-            raise ValueError("Native distribution CPU floor is not portable; remove host/SIMD overrides: " + ", ".join(unsafe or ["GGML_NATIVE missing"]))
-    return {"conservative_x86_64": True, "cmake_caches_checked": len(caches)}
+                  and name not in X86_64_BASELINE and value in enabled]
+        if wrong:
+            raise ValueError("Native distribution CPU baseline is not x86-64-v3: " + ", ".join(wrong))
+    return {"x86_64_baseline": "x86-64-v3 (no AVX-512)", "cmake_caches_checked": len(caches)}
 
 
 def build_distributable(npx, target, bundles, config_path, environment, platform):
@@ -103,7 +136,7 @@ def build_distributable(npx, target, bundles, config_path, environment, platform
             cargo, "metadata", "--manifest-path", str(manifest), "--format-version", "1", "--no-deps", "--locked",
         ], cwd=DESKTOP, env=env, text=True))
         target_dir = Path(metadata["target_directory"])
-        # The conservative option only defaults unset CMake flags, so restored host-tuned caches must not survive.
+        # Restored host-tuned caches must not survive into a distributable build.
         run(cargo, "clean", "--manifest-path", manifest, "--package", "transcribe-cpp-sys", "--release", "--target", target, cwd=DESKTOP, env=env)
     arguments = [npx, "tauri", "build", "--target", target, "--bundles", bundles]
     if config_path is not None:

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { manualPracticeAllowed, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex } from "../src/onboarding-state.ts";
+import { initialEngine, manualPracticeAllowed, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex } from "../src/onboarding-state.ts";
 
 const settings = { providers: [{ id: "local", kind: "local" }], dictation_stt: { provider_id: "local", model: "whisper" } };
 
@@ -65,4 +65,13 @@ test("finishing or skipping the voice step completes the onboarding", () => {
   const pending = { version: 1, status: "pending", resume_step: "voice" };
   assert.deepEqual(onboardingProgressChange(pending, "voice", "completed"), { version: 1, status: "completed", resume_step: "voice" });
   assert.deepEqual(onboardingProgressChange({ ...pending, resume_step: "practice" }, "voice"), pending);
+});
+
+test("a processor too old for local models starts onboarding on a provider", () => {
+  assert.equal(initialEngine(undefined, true), "local");
+  assert.equal(initialEngine("local", true), "local");
+  assert.equal(initialEngine(undefined, false), "custom");
+  assert.equal(initialEngine("local", false), "custom");
+  assert.equal(initialEngine("apple_speech", false), "apple");
+  assert.equal(initialEngine("open_ai", true), "custom");
 });

@@ -8,6 +8,7 @@ mod cleanup;
 mod cli_agent;
 mod cloud;
 mod command;
+mod cpu_support;
 mod diarize;
 mod dictation_pad;
 mod engine;
@@ -51,6 +52,7 @@ pub use cloud::SecretStore;
 pub use cloud::account::{CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart};
 pub use cloud::relay::{RelayAnswer, RelayRequest};
 pub use cloud::sync::{MASS_DELETE, MeetingSyncState, SyncItemState, SyncReport, SyncStatus};
+pub use cpu_support::{UNSUPPORTED_PROCESSOR, local_models_unavailable_reason};
 pub use engine::{
     ApiKeys, CleanupStatus, DictationRequest, DictationResult, LibrarySearch, PennelEngine,
 };

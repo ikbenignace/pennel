@@ -125,6 +125,7 @@ fn failure_message(error: &PennelError) -> &'static str {
             "Het gekozen model is niet beschikbaar. Controleer je provider en model."
         }
         PennelError::NoSpeech => "Het gekozen spraakmodel gaf geen tekst terug.",
+        PennelError::UnsupportedProcessor => crate::cpu_support::UNSUPPORTED_PROCESSOR,
     }
 }
 

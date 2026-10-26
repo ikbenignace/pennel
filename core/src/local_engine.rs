@@ -67,6 +67,7 @@ fn loaded_model<'a>(
 ) -> Result<&'a mut Loaded, PennelError> {
     if loaded.as_ref().is_none_or(|model| model.path != path) {
         *loaded = None;
+        crate::cpu_support::ensure_local_models_supported()?;
         static LOGGING: std::sync::Once = std::sync::Once::new();
         LOGGING.call_once(transcribe_cpp::init_logging);
         let model = Model::load(path).map_err(engine_error)?;
