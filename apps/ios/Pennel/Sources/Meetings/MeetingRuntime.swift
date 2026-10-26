@@ -88,12 +88,13 @@ final class MeetingRuntime: DictationMeetingHook {
     enum Phase { case idle, recording, interrupted, finishing }
 
     enum StartError: LocalizedError {
-        case busy, microphone
+        case busy, microphone, syncBusy
 
         var errorDescription: String? {
             switch self {
             case .busy: "Er wordt al een meeting opgenomen of afgerond."
             case .microphone: "Geen toegang tot de microfoon. Sta de microfoon toe in Instellingen."
+            case .syncBusy: "Pennel is nog aan het synchroniseren. Probeer over een paar seconden opnieuw."
             }
         }
     }
@@ -127,6 +128,8 @@ final class MeetingRuntime: DictationMeetingHook {
     @ObservationIgnored private(set) var finishing: Task<Void, Never>?
 
     @ObservationIgnored private let engine: PennelEngine
+    @ObservationIgnored private let syncGate: SyncHolding?
+    @ObservationIgnored private let syncHoldTimeout: Duration
     @ObservationIgnored private let capture: AudioCapturing
     @ObservationIgnored private let audioSession: AudioSessionControlling
     @ObservationIgnored private let activity: RecordingActivityControlling
@@ -159,8 +162,12 @@ final class MeetingRuntime: DictationMeetingHook {
         clock: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         timers: @escaping Timers = DictationSession.runLoopTimers,
         hasMicrophonePermission: @escaping @MainActor () -> Bool = { AVAudioApplication.shared.recordPermission == .granted },
-        languageModelReady: @escaping @MainActor (Settings) -> Bool = MeetingRuntime.languageModelReady
+        languageModelReady: @escaping @MainActor (Settings) -> Bool = MeetingRuntime.languageModelReady,
+        syncGate: SyncHolding? = nil,
+        syncHoldTimeout: Duration = .seconds(15)
     ) {
+        self.syncGate = syncGate
+        self.syncHoldTimeout = syncHoldTimeout
         self.engine = engine
         self.capture = capture
         self.audioSession = audioSession
@@ -181,7 +188,8 @@ final class MeetingRuntime: DictationMeetingHook {
             capture: SharedMicrophone.shared.client(),
             audioSession: SharedAudioSession.shared.client(.meeting),
             activity: SystemRecordingActivity(),
-            scheduler: SystemFinishScheduler())
+            scheduler: SystemFinishScheduler(),
+            syncGate: CloudSyncRunner.shared)
     }
 
     var isRecording: Bool { phase == .recording || phase == .interrupted }
@@ -203,9 +211,19 @@ final class MeetingRuntime: DictationMeetingHook {
 
     /// Foreground only, after the microphone permission was asked: iOS does not let an app start recording from
     /// the background.
-    func start(title requested: String) throws {
+    func start(title requested: String) async throws {
         guard phase == .idle, retained == nil else { throw StartError.busy }
         guard hasMicrophonePermission() else { throw StartError.microphone }
+        if let syncGate {
+            guard await syncGate.hold(maxWait: syncHoldTimeout) else { throw StartError.syncBusy }
+        }
+        defer { syncGate?.release() }
+        guard phase == .idle, retained == nil else { throw StartError.busy }
+        try startHoldingSync(title: requested)
+    }
+
+    /// Runs without suspending, so no sync pass can start between creating the folder and setting `activeMeetingId`.
+    private func startHoldingSync(title requested: String) throws {
         let keys = keys()
         try engine.validateMeetingSetup(keys: keys)
         let trimmed = requested.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -209,7 +209,7 @@ struct MeetingListView: View {
                 return
             }
             do {
-                try runtime.start(title: newMeetingTitle)
+                try await runtime.start(title: newMeetingTitle)
                 newMeetingTitle = ""
                 showsLive = true
             } catch {

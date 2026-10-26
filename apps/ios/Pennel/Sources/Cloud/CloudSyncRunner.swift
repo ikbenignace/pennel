@@ -5,9 +5,17 @@ import os
 
 /// Runs `cloud_sync_run` with at most one pass at a time and one queued rerun, whatever the number of triggers.
 /// The meeting being recorded is passed on every pass: its folder is never pushed before it is finalised (spec §5.6).
+/// Lets a recording create its folder while no sync pass can be scanning the meetings folder.
+@MainActor
+protocol SyncHolding: AnyObject {
+    /// Defers new passes and waits for the one in flight; false when it did not finish in time (nothing is held then).
+    func hold(maxWait: Duration) async -> Bool
+    func release()
+}
+
 @MainActor
 @Observable
-final class CloudSyncRunner {
+final class CloudSyncRunner: SyncHolding {
     typealias Pass = @Sendable ([String]) async -> SyncReport
     /// Schedules a repeating callback and returns its cancel closure.
     typealias Timers = @MainActor (TimeInterval, @escaping @MainActor () -> Void) -> () -> Void
@@ -31,6 +39,8 @@ final class CloudSyncRunner {
     @ObservationIgnored private var rerunQueued = false
     @ObservationIgnored private var cancelTimer: (() -> Void)?
     @ObservationIgnored private var attached = false
+    @ObservationIgnored private var holds = 0
+    @ObservationIgnored private var deferred = false
 
     private static let log = Logger(subsystem: "app.pennel.ios", category: "sync")
 
@@ -53,11 +63,36 @@ final class CloudSyncRunner {
 
     /// Every trigger ends up here: a pass in flight gets exactly one rerun, however many pokes arrive.
     func poke() {
+        if holds > 0 {
+            deferred = true
+            return
+        }
         if current != nil {
             rerunQueued = true
             return
         }
         current = Task { await drain() }
+    }
+
+    func hold(maxWait: Duration = .seconds(15)) async -> Bool {
+        holds += 1
+        let deadline = ContinuousClock.now + maxWait
+        while current != nil {
+            if ContinuousClock.now >= deadline {
+                release()
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return true
+    }
+
+    func release() {
+        holds = max(0, holds - 1)
+        if holds == 0, deferred {
+            deferred = false
+            poke()
+        }
     }
 
     /// Resolves when no pass is running or queued.
@@ -98,7 +133,8 @@ final class CloudSyncRunner {
             isRunning = true
             let ids = activeMeetingId().map { [$0] } ?? []
             report = await pass(ids)
-        } while rerunQueued
+        } while rerunQueued && holds == 0
+        if rerunQueued { deferred = true }
         isRunning = false
         current = nil
     }

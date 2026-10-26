@@ -93,4 +93,41 @@ struct CloudSyncRunnerTests {
         fixture.runner.enterBackground()
         #expect(fixture.cancelled == 1)
     }
+
+    @Test func pass_in_flight_never_overlaps_a_starting_recording() async {
+        let fixture = Fixture()
+        fixture.runner.poke()
+        await fixture.waitForCalls(1)
+
+        var events: [String] = []
+        let start = Task { @MainActor in
+            let held = await fixture.runner.hold(maxWait: .seconds(5))
+            events.append("held \(held)")
+            fixture.active = "new-meeting"
+            fixture.runner.poke()
+            events.append("folder created")
+            fixture.runner.release()
+        }
+        for _ in 0..<20 { await Task.yield() }
+        #expect(events.isEmpty)
+
+        await fixture.gate.open()
+        await start.value
+        await fixture.runner.idle()
+
+        #expect(events == ["held true", "folder created"])
+        #expect(await fixture.gate.calls == [[], ["new-meeting"]])
+    }
+
+    @Test func hold_gives_up_when_the_pass_does_not_finish() async {
+        let fixture = Fixture()
+        fixture.runner.poke()
+        await fixture.waitForCalls(1)
+
+        #expect(await fixture.runner.hold(maxWait: .milliseconds(100)) == false)
+        fixture.runner.poke()
+        await fixture.gate.open()
+        await fixture.runner.idle()
+        #expect(await fixture.gate.calls.count == 2)
+    }
 }

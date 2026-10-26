@@ -51,7 +51,7 @@ struct MeetingRuntimeTests {
     /// task is requested at Stop opname and keeps running if the user then leaves the app.
     @Test func stop_during_background_schedules_finish_task() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         h.speak(seconds: 5)
         await h.runtime.stop()
 
@@ -61,7 +61,7 @@ struct MeetingRuntimeTests {
 
     @Test func failed_capture_is_not_reported_complete() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         let id = try #require(h.runtime.activeMeetingId)
         h.speak(seconds: 16)
 
@@ -90,12 +90,12 @@ struct MeetingRuntimeTests {
     @Test func active_meeting_id_exposed_while_recording() async throws {
         let h = try MeetingHarness()
         #expect(h.runtime.activeMeetingId == nil)
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         let id = try #require(h.runtime.activeMeetingId)
         #expect(h.engine.meetings().map(\.id) == [id])
         #expect(h.runtime.isActive)
         #expect(h.activity.started.count == 1)
-        #expect(throws: (any Error).self) { try h.runtime.start(title: "Tweede") }
+        await #expect(throws: (any Error).self) { try await h.runtime.start(title: "Tweede") }
 
         h.speak(seconds: 3)
         await h.runtime.stop()
@@ -109,7 +109,7 @@ struct MeetingRuntimeTests {
 
     @Test func live_notes_survive_a_reopened_view_and_stop() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         let id = try #require(h.runtime.activeMeetingId)
         h.runtime.setNotes("Budget beslist")
 
@@ -126,7 +126,7 @@ struct MeetingRuntimeTests {
 
     @Test func stalled_capture_restarts_and_leaves_a_gap() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         h.speak(seconds: 5)
         h.silence(seconds: 3)
         h.runtime.tick()
@@ -145,7 +145,7 @@ struct MeetingRuntimeTests {
 
     @Test func stall_until_stop_is_not_reported_complete() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         h.speak(seconds: 5)
         h.silence(seconds: 1.5)
         await h.runtime.stop()
@@ -158,7 +158,7 @@ struct MeetingRuntimeTests {
 
     @Test func failed_restart_after_a_stall_finishes_once_as_stopped_early() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         h.speak(seconds: 5)
         h.silence(seconds: 3)
         h.capture.failNextStarts()

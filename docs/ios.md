@@ -118,7 +118,10 @@ page opens in the default browser and the app polls like the desktop (interval, 
 - **Sync runner:** `CloudSyncRunner` runs `cloud_sync_run` off the main actor, one pass at a time with at most one queued
   rerun. Triggers: app foreground, a finished meeting, writes (notes, summary, rename, delete, retranscribe, conflict
   removal), every 180 s while in the foreground, and `BGAppRefreshTask` `app.pennel.ios.sync` (iOS decides when it runs).
-  Every pass receives `MeetingRuntime.activeMeetingId`, so the meeting being recorded is never pushed.
+  Every pass receives `MeetingRuntime.activeMeetingId`, so the meeting being recorded is never pushed. The core only
+  excludes the ids it is given per pass, so `MeetingRuntime.start` first holds the runner: new passes are deferred and the
+  pass in flight is awaited (off the main thread, at most 15 s, then **Pennel is nog aan het synchroniseren…**), the folder
+  is created and `activeMeetingId` set without suspending, and then the hold is released.
 - **Badges and conflicts:** each meeting row shows **Gesynchroniseerd** / **Wacht op sync** / **Conflictversie**; the meeting
   page shows the desktop's conflict banner with **Bekijken** (the file's text in a sheet) and **Verwijderen**.
 - **Provider card:** Pennel Cloud shows `Ingelogd als …` or **Log in bij Pennel Cloud**, which opens Account.

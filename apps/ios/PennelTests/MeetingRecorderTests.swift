@@ -17,7 +17,7 @@ private final class RecordingSink: MeetingAudioSink, @unchecked Sendable {
 struct MeetingRecorderTests {
     @Test func meeting_audio_goes_to_others_track_with_timestamps() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         let id = try #require(h.runtime.activeMeetingId)
         #expect(h.capture.running)
         #expect(h.audio.active)
@@ -42,7 +42,7 @@ struct MeetingRecorderTests {
 
     @Test func interruption_leaves_gap_and_resumes() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         let id = try #require(h.runtime.activeMeetingId)
         h.speak(seconds: 16)
 
@@ -75,7 +75,7 @@ struct MeetingRecorderTests {
 
     @Test func dictation_keeps_meeting_audio_silent_and_marks_interval() async throws {
         let h = try MeetingHarness()
-        try h.runtime.start(title: "Overleg")
+        try await h.runtime.start(title: "Overleg")
         let id = try #require(h.runtime.activeMeetingId)
         let hook: DictationMeetingHook = h.runtime
         #expect(hook.isActive)
