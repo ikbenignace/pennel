@@ -1,7 +1,11 @@
 import Foundation
 
+protocol DictationRunning: Sendable {
+    func run(samples: [Float]) async -> Result<DictationResult, PennelError>
+}
+
 /// Sends one finished recording through the core's dictation pipeline.
-struct DictationRunner: Sendable {
+struct DictationRunner: DictationRunning {
     static let sampleRate: UInt32 = 16_000
 
     private let engine: PennelEngine

@@ -1,3 +1,4 @@
+import AVFoundation
 import os
 import PennelMobileKit
 import SwiftUI
@@ -15,13 +16,40 @@ final class DictationController {
     var noticeIsError = false
 
     private let model: AppModel
-    private let capture = MicCapture()
+    @ObservationIgnored private var capture: MicCapture?
     private let buffer = SampleBuffer()
     private var startedAt: Date?
+    @ObservationIgnored private var observers: [NSObjectProtocol] = []
     private static let log = Logger(subsystem: "app.pennel.ios", category: "dictation")
 
     init(model: AppModel) {
         self.model = model
+        observeInterruptions()
+    }
+
+    /// A call or a lost microphone ends the recording; what was said so far is still transcribed.
+    private func observeInterruptions() {
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .began
+            else { return }
+            MainActor.assumeIsolated { self?.interrupted() }
+        })
+        observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] note in
+            guard let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable
+            else { return }
+            MainActor.assumeIsolated { self?.interrupted() }
+        })
+        observers.append(center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.interrupted() }
+        })
+    }
+
+    private func interrupted() {
+        guard phase == .listening else { return }
+        Task { await stop() }
     }
 
     func toggle() {
@@ -75,6 +103,8 @@ final class DictationController {
         guard phase == .idle else { return }
         notice = nil
         buffer.reset()
+        // The keyboard session owns the audio session while it runs; deactivating it here would cut its microphone.
+        let capture = MicCapture(audioSession: DictationSession.shared.phase == .off ? SystemAudioSession(purpose: .dictation) : nil)
         do {
             let buffer = buffer
             try capture.start { buffer.append($0) }
@@ -83,12 +113,15 @@ final class DictationController {
             show("Mislukt", error: true)
             return
         }
+        self.capture = capture
         startedAt = Date()
         phase = .listening
     }
 
     private func stop() async {
-        capture.stop()
+        guard phase == .listening else { return }
+        capture?.stop()
+        capture = nil
         let samples = buffer.take()
         let seconds = Date().timeIntervalSince(startedAt ?? Date())
         phase = .processing

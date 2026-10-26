@@ -46,6 +46,8 @@
 	<string>Pennel gebruikt de microfoon om je dictaten en meetings op te nemen. Pennel luistert alleen als jij dat start.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Apple-dicteren zet je stem op dit toestel om in tekst.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Figtree-Regular.ttf</string>
