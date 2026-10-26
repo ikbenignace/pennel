@@ -43,6 +43,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core
+          # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
+          # the build script's output, which would then link against a missing directory.
+          cache-directories: core/target/sherpa-onnx-prebuilt
+          key: ios-sherpa-prebuilt
       # The iOS build compares its generated bindings with the Mac build's.
       - name: Mac core bindings
         run: make core
