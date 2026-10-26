@@ -310,9 +310,10 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const runtime = await api.meetingStatus();
   const active = runtime.busy && runtime.id === id;
   let state = detailState.get(id);
+  const firstVisit = !state;
   if (!state) { state = { tab: "notes", template: ctx.info.settings.default_template, working: false, message: "", scrollTop: { notes: 0, transcript: 0, ask: 0 } }; detailState.set(id, state); }
   const fixtureTab = fixtureClient()?.fixture?.meeting_tab;
-  if (["notes", "transcript", "ask"].includes(String(fixtureTab))) state.tab = fixtureTab as "notes" | "transcript" | "ask";
+  if (firstVisit && ["notes", "transcript", "ask"].includes(String(fixtureTab))) state.tab = fixtureTab as "notes" | "transcript" | "ask";
   const current = state;
   const playback = ctx.info.capabilities.audio_playback;
   const audioAvailable = detail.audio_tracks.some((track) => track.available);

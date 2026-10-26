@@ -170,7 +170,7 @@
     return {
       recording: retained && !storageError, phase: storageError ? "error" : retained ? "recording" : "idle", busy: retained && !storageError,
       error: persistenceError, notes, session_id: retained ? "qa-recording" : null, id: retained ? meetingId : null,
-      title: "Projectoverleg", elapsed_secs: 754, system_audio: true, heard_system_audio: true,
+      title: meeting.title, elapsed_secs: 754, system_audio: true, heard_system_audio: true,
       echo_cancellation_active: retained && !storageError, audio_warning: null, persistence_error: persistenceError,
       transcription_warning: paused ? "Transcriptie is tijdelijk gepauzeerd. Je audio en herstelbestanden blijven lokaal bewaard." : null,
       terminal_error: storageError ? "De opname is gestopt omdat bewaren niet lukt." : null, can_retry_persistence: storageError,
@@ -293,6 +293,7 @@
       case "detect_cli_agents": return [];
       case "check_cli_agent": return "Niet uitgevoerd in deze fixture.";
       case "meeting_status": return meetingStatus();
+      case "set_meeting_title": meeting.title = String(args.title ?? ""); return null;
       case "set_meeting_notes": case "save_meeting_notes": notes = String(args.text ?? ""); return null;
       case "retry_meeting_persistence": {
         const status = meetingStatus();
@@ -344,7 +345,7 @@
       case "delete_conflict_copy": case "open_url": case "copy_secret_text": return null;
       case "show_window": case "show_workspace": case "copy_text": case "play_meeting_audio": case "stop_audio":
       case "answer_record_prompt": case "toggle_dictation": case "install_update": case "share_meeting": case "open_log": case "open_path":
-      case "set_meeting_title": case "set_meeting_attendees": case "rename_speaker":
+      case "set_meeting_attendees": case "rename_speaker":
       case "delete_meeting": case "delete_template": case "test_apple_intelligence": case "stop_meeting": return null;
       default: unknown.push(command); throw new Error(`Onbekend fixturecommando: ${command}`);
     }

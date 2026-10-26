@@ -14,7 +14,7 @@ export interface WorkspaceRoute {
   source_target?: MeetingSourceTarget;
 }
 
-/** The original Pennel windows: the meeting library is the main window; the rest open in their own window. */
+/** Settings is a section of main; the legacy settings window name remains a route alias. */
 export type WindowMode = "workspace" | "settings" | "history" | "dictation";
 export const windowTitles: Record<WindowMode, string> = {
   workspace: "Pennel",
@@ -24,11 +24,11 @@ export const windowTitles: Record<WindowMode, string> = {
 };
 
 export function windowForSection(section: WorkspaceSection): WindowMode {
-  return section === "meetings" || section === "recording" ? "workspace" : section;
+  return section === "meetings" || section === "recording" || section === "settings" ? "workspace" : section;
 }
 
 export function windowMode(value: string | null): WindowMode {
-  return value === "settings" || value === "history" || value === "dictation" ? value : "workspace";
+  return value === "history" || value === "dictation" ? value : "workspace";
 }
 
 export const settingTabs = ["overview", "providers", "models", "dictation", "meeting-settings", "recording", "dictionary", "styles", "appearance", "account"] as const;
@@ -113,8 +113,10 @@ export class WorkspaceNavigation {
   current: WorkspaceRoute;
   constructor(initial: WorkspaceRoute = workspaceRoute("meetings")) { this.current = { ...initial }; }
   private readonly remembered = new Map<WorkspaceSection, WorkspaceRoute>();
+  private settingsOrigin: WorkspaceRoute | null = null;
 
   set(route: WorkspaceRoute): void {
+    if (route.section === "settings" && this.current.section !== "settings") this.settingsOrigin = { ...this.current };
     this.current = { ...route };
     if (route.section !== "recording") {
       const remembered = { ...route, jump_ms: null };
@@ -124,6 +126,14 @@ export class WorkspaceNavigation {
   }
 
   select(section: WorkspaceSection): WorkspaceRoute {
-    return this.remembered.get(section) ?? workspaceRoute(section, section === "settings" ? "overview" : null);
+    return this.remembered.get(section) ?? (this.current.section === section ? { ...this.current } : workspaceRoute(section, section === "settings" ? "overview" : null));
+  }
+
+  settingsBack(): WorkspaceRoute {
+    return this.settingsOrigin ? { ...this.settingsOrigin } : this.select("meetings");
+  }
+
+  recordingFinished(id: string): void {
+    if (this.settingsOrigin?.section === "recording") this.settingsOrigin = workspaceRoute("meetings", null, id);
   }
 }

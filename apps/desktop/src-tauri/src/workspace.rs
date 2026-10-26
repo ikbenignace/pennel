@@ -64,8 +64,8 @@ pub fn fit_window_size(
     }
 }
 
-/// Each product window, as in the original Pennel: the library is the main window and settings,
-/// history and dictation open in their own titled windows.
+/// Settings and the meeting library share the main window; dictation and history keep their
+/// task-specific windows.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WindowSpec {
     pub label: &'static str,
@@ -90,13 +90,6 @@ pub fn window_spec(kind: &str) -> WindowSpec {
             "Pennel",
             (420.0, 160.0),
             (420.0, 160.0),
-        ),
-        "settings" => (
-            "settings",
-            "settings",
-            "Instellingen",
-            (760.0, 600.0),
-            (640.0, 460.0),
         ),
         "history" => (
             "history",
@@ -201,8 +194,9 @@ impl WorkspaceRoute {
         match self.section {
             WorkspaceSection::Dictation => "dictation",
             WorkspaceSection::History => "history",
-            WorkspaceSection::Settings => "settings",
-            WorkspaceSection::Meetings | WorkspaceSection::Recording => "workspace",
+            WorkspaceSection::Settings
+            | WorkspaceSection::Meetings
+            | WorkspaceSection::Recording => "workspace",
         }
     }
 
@@ -513,6 +507,18 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
     Some(route)
 }
 
+/// A generic Settings request enters the main pane without replacing its remembered category.
+/// Other no-category task windows keep their current place, including an explicit pending route.
+pub fn window_request_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
+    if kind == "settings" && tab.is_none() {
+        return Some(WorkspaceRoute::section(WorkspaceSection::Settings));
+    }
+    if tab.is_none() && matches!(kind, "history" | "dictation") {
+        return None;
+    }
+    legacy_route(kind, tab)
+}
+
 pub fn request(app: &AppHandle, label: &str, route: Option<WorkspaceRoute>) {
     let navigation = app.state::<Navigation>();
     navigation.visibility.lock().unwrap().request(label);
@@ -820,9 +826,9 @@ mod tests {
     }
 
     #[test]
-    fn settings_history_and_dictation_open_their_own_titled_windows() {
+    fn settings_shares_main_while_history_and_dictation_keep_their_windows() {
         for (kind, label, title) in [
-            ("settings", "settings", "Instellingen"),
+            ("settings", "main", "Pennel"),
             ("history", "history", "Geschiedenis"),
             ("dictation", "dictation", "Dicteren"),
             ("onboarding", "onboarding", "Welkom bij Pennel"),
@@ -834,6 +840,7 @@ mod tests {
             assert_eq!((spec.label, spec.title), (label, title));
             assert_eq!(label_spec(label), Some(spec));
         }
+        assert_eq!(label_spec("settings"), None);
         assert_eq!(label_spec("pill"), None);
         assert_eq!(
             query_value("2026-10-25 Overleg/&x"),
@@ -843,7 +850,7 @@ mod tests {
             legacy_route("settings", Some("styles"))
                 .unwrap()
                 .window_kind(),
-            "settings"
+            "workspace"
         );
         assert_eq!(
             legacy_route("live", None).unwrap().window_kind(),
@@ -851,6 +858,39 @@ mod tests {
         );
         assert_eq!(
             legacy_route("dictation", Some("pad"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("pad")
+        );
+    }
+
+    #[test]
+    fn opening_settings_without_a_category_restores_the_frontend_category() {
+        let route = window_request_route("settings", None).unwrap();
+        assert_eq!(route.section, WorkspaceSection::Settings);
+        assert_eq!(route.tab, None);
+        assert_eq!(route.window_kind(), "workspace");
+        assert_eq!(window_spec("settings"), window_spec("workspace"));
+        assert_eq!(
+            window_request_route("settings", Some("models"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("models")
+        );
+    }
+
+    #[test]
+    fn presenting_main_keeps_an_explicit_pending_settings_route() {
+        let route = legacy_route("settings", Some("appearance")).unwrap();
+        let kind = route.window_kind();
+        assert_eq!(window_spec(kind).label, "main");
+        assert_eq!(window_request_route(kind, None), None);
+        assert_eq!(window_request_route("history", None), None);
+        assert_eq!(window_request_route("dictation", None), None);
+        assert_eq!(
+            window_request_route("dictation", Some("pad"))
                 .unwrap()
                 .tab
                 .as_deref(),

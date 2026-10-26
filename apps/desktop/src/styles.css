@@ -289,6 +289,9 @@ mark { background: none; color: inherit; font-weight: 600; }
 .settings-categories > button:hover { background: var(--hover); }
 .settings-categories > button[aria-current="page"] { background: var(--selection); font-weight: 500; }
 .settings-categories > button:focus-visible { outline-offset: -2px; }
+.settings-categories > .settings-back { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.settings-categories > .settings-recording { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.library-settings { flex-shrink: 0; min-height: var(--space-7); padding: var(--space-2) var(--space-1); gap: var(--space-2); }
 .settings-nav-group { flex-shrink: 0; margin: var(--space-5) var(--space-3) var(--space-1); color: var(--muted); font-size: var(--font-caption); }
 .settings-nav-group:first-child { margin-top: 0; }
 .settings-pane { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: var(--space-6); scroll-padding: var(--space-6); }

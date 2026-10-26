@@ -2,18 +2,42 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { WorkspaceNavigation, historyEntryId, historyRoute, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, windowForSection, windowMode, workspaceRoute } from "../src/workspace-state.ts";
 
-test("settings, history and dictation have their own windows; the main window is the meeting library", () => {
-  assert.equal(windowForSection("settings"), "settings");
+test("Settings belongs to the main workspace; History and Dictation retain their windows", () => {
+  assert.equal(windowForSection("settings"), "workspace");
   assert.equal(windowForSection("history"), "history");
   assert.equal(windowForSection("dictation"), "dictation");
   assert.equal(windowForSection("meetings"), "workspace");
   assert.equal(windowForSection("recording"), "workspace");
-  assert.equal(windowMode("settings"), "settings");
+  assert.equal(windowMode("settings"), "workspace");
   assert.equal(windowMode("library"), "workspace");
   assert.equal(windowMode(null), "workspace");
   assert.deepEqual(legacyWorkspaceRoute("workspace"), workspaceRoute("meetings"));
   assert.deepEqual(legacyWorkspaceRoute("dictation", "pad"), workspaceRoute("dictation", "pad"));
   assert.deepEqual(new WorkspaceNavigation(workspaceRoute("history")).current, workspaceRoute("history"));
+});
+
+test("inline Settings returns to the originating task and remembers its last category", () => {
+  const meeting = workspaceRoute("meetings", null, "2026-10-24 Projectoverleg");
+  const nav = new WorkspaceNavigation(meeting);
+  nav.set(workspaceRoute("settings", "models"));
+  nav.set(workspaceRoute("settings", "appearance"));
+  assert.deepEqual(nav.settingsBack(), meeting);
+  nav.set(nav.settingsBack());
+  assert.deepEqual(nav.select("settings"), workspaceRoute("settings", "appearance"));
+  assert.deepEqual(new WorkspaceNavigation(workspaceRoute("settings", "models")).select("settings"), workspaceRoute("settings", "models"));
+});
+
+test("a recording finished during Settings updates the return destination without leaving Settings", () => {
+  const settings = workspaceRoute("settings", "overview");
+  const nav = new WorkspaceNavigation(workspaceRoute("recording", null, "pending-meeting"));
+  nav.set(settings);
+  nav.recordingFinished("saved-meeting");
+  assert.deepEqual(nav.current, settings);
+  assert.deepEqual(nav.settingsBack(), workspaceRoute("meetings", null, "saved-meeting"));
+  const normal = new WorkspaceNavigation(workspaceRoute("meetings", null, "another-meeting"));
+  normal.set(settings); normal.recordingFinished("saved-meeting");
+  assert.equal(normal.settingsBack().meeting_id, "another-meeting");
+  assert.deepEqual(new WorkspaceNavigation(settings).settingsBack(), workspaceRoute("meetings"));
 });
 
 test("legacy windows and settings aliases now land in one workspace", () => {

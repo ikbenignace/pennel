@@ -14,6 +14,7 @@ export interface LibraryHost {
   current: () => WorkspaceRoute;
   go: (route: WorkspaceRoute) => void;
   report: (error: unknown) => void;
+  statusChanged?: (status: MeetingStatus) => void;
 }
 
 /** Persistent task actions stay above search and the grouped meeting library. */
@@ -51,7 +52,8 @@ export class LibrarySidebar {
       h("div", { class: "library-shortcuts" },
         h("button", { class: "text-button", onclick: () => host.go(workspaceRoute("dictation")) }, icon("mic"), l("meetings.open_dictation")),
         h("button", { class: "text-button", onclick: () => host.go(workspaceRoute("history")) }, icon("history"), l("meetings.open_history"))),
-      h("div", { class: "library-search" }, this.search), this.ask, this.list);
+      h("div", { class: "library-search" }, this.search), this.ask, this.list,
+      h("button", { class: "text-button library-settings", onclick: () => host.go(workspaceRoute("settings")) }, icon("settings"), l("common.settings")));
     bindLocalization(this.live, () => { if (this.status) this.showLive(this.status); });
     document.addEventListener("pointerdown", (event) => { if (this.menu && !this.menu.contains(event.target as Node)) this.closeMenu(false); });
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && this.menu) { event.preventDefault(); this.closeMenu(); } });
@@ -119,6 +121,7 @@ export class LibrarySidebar {
 
   private showLive(status: MeetingStatus) {
     this.status = status;
+    this.host.statusChanged?.(status);
     const entry = recordingEntry(status);
     const label = entry.kind === "new" ? l("meetings.new_recording") : entry.kind === "recovery" ? l("meetings.recording_needs_attention")
       : entry.kind === "finishing" ? l("meetings.return_finishing") : l("meetings.return_recording");

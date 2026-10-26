@@ -1,6 +1,6 @@
 import "./styles.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, fixtureClient, listen, listenToWindow, type AppInfo, type MeetingFinished, type Settings, type UpdateInfo } from "./api";
+import { api, fixtureClient, listen, listenToWindow, type AppInfo, type MeetingFinished, type MeetingStatus, type Settings, type UpdateInfo } from "./api";
 import { LatestRequest, SerialQueue, fillWhenReady, persistAll } from "./async";
 import { errorText, h, section, select } from "./dom";
 import { dictationView, dictionaryView, stylesView } from "./views/dictation";
@@ -9,6 +9,8 @@ import { displayedMeetingSession, finishMeetingDrafts, flushMeetingDrafts, meeti
 import { FrontendBarrier, canShowFinished, type FrontendBarrierKind } from "./session-events";
 import { deliveredRouteApplies, historyEntryId, historyRoute, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, settingTabs, WorkspaceNavigation, windowForSection, windowMode, windowTitles, workspaceRoute, type WorkspaceRoute, type MeetingSourceTarget } from "./workspace-state";
 import { LibrarySidebar } from "./views/library";
+import { recordingEntry } from "./voice-flow-state";
+import { icon } from "./icons";
 import { modelsView } from "./views/models";
 import { accountView } from "./views/account";
 import { providersView } from "./views/providers";
@@ -47,6 +49,7 @@ export interface Context {
 type View = (ctx: Context) => HTMLElement | Promise<HTMLElement>;
 interface Mounted {
   key: string;
+  scrollKey: string;
   cleanup: (() => void)[];
   flush: (() => Promise<void>)[];
   leave: (() => Promise<void>)[];
@@ -67,7 +70,7 @@ const query = new URLSearchParams(location.search);
 const requestedWindow = query.get("window") ?? "workspace";
 const mode = requestedWindow === "onboarding" ? "onboarding" : ["prompt", "record-prompt"].includes(requestedWindow) ? "prompt" : windowMode(requestedWindow);
 const windowKind = mode === "onboarding" || mode === "prompt" ? "workspace" : mode;
-const navigation = new WorkspaceNavigation(legacyWorkspaceRoute(windowKind, query.get("tab")) ?? workspaceRoute("meetings"));
+const navigation = new WorkspaceNavigation(legacyWorkspaceRoute(requestedWindow === "settings" ? "settings" : windowKind, query.get("tab")) ?? workspaceRoute("meetings"));
 if (fixtureClient() && query.has("section")) {
   const route = parseWorkspaceRoute({ section: query.get("section"), tab: query.get("tab"), meeting_id: query.get("meeting_id"), jump_ms: query.has("jump_ms") ? Number(query.get("jump_ms")) : null });
   if (route && windowForSection(route.section) === windowKind) navigation.set(route);
@@ -94,6 +97,13 @@ const recoveryBanner = h("div", { class: "notice-banner row", "data-recovery-ban
 type RecoveryNotice = { id: string; unsaved: boolean; reason: string };
 let recoveryNotice: RecoveryNotice | null = null;
 let library: LibrarySidebar | null = null;
+let currentMeetingStatus: MeetingStatus | null = null;
+const contentPositions = new Map<string, number>();
+const settingsPositions = new Map<string, number>();
+
+function scrollKey(route: WorkspaceRoute): string {
+  return JSON.stringify([route.section, route.section === "history" ? null : route.tab, route.meeting_id]);
+}
 let taskSetup: TaskSetupDialog | null = null;
 let setupOpening = false;
 let deferredRender = false;
@@ -178,6 +188,7 @@ async function refresh(allowed: () => boolean = () => true, preserveSameContent 
 }
 
 function navigate(tab: string, param?: string, jumpMs?: number, sourceTarget?: MeetingSourceTarget) {
+  if (tab === "settings-back") { void go(navigation.settingsBack()); return; }
   if (tab === "onboarding") { void api.showWindow("onboarding").catch(report); return; }
   if (tab === "meetings" || tab === "library" || tab === "chat") {
     void go(workspaceRoute("meetings", tab === "chat" ? "chat" : null, param ?? null, jumpMs ?? null, sourceTarget)); return;
@@ -192,10 +203,10 @@ function navigate(tab: string, param?: string, jumpMs?: number, sourceTarget?: M
 
 async function go(route: WorkspaceRoute) {
   if (mode === "onboarding" || mode === "prompt" || windowForSection(route.section) !== mode) {
-    // Settings opened without a category keeps the category its window already shows.
-    if (route.section === "settings" && route.tab === null) { await api.showWindow("settings").catch(report); return; }
     await api.showWorkspace(route).catch(report); return;
   }
+  if (route.section === "settings" && route.tab === null) route = navigation.select("settings");
+  if (route.section === "settings" && routeKey(navigation.current) === routeKey(route)) { restoreSettingsFocus(); return; }
   if (samePadRoute(navigation.current, route)) { ++navigationGeneration; content.inert = false; return; }
   const mine = ++navigationGeneration;
   try {
@@ -259,7 +270,7 @@ async function openSetup(task: SetupTask, origin: Mounted) {
   try {
     await flushAll();
     if (mounted !== origin) return;
-    const scope: Mounted = { key: `setup:${task}`, cleanup: [], flush: [], leave: [], info: [], focus: [], visibility: [] };
+    const scope: Mounted = { key: `setup:${task}`, scrollKey: origin.scrollKey, cleanup: [], flush: [], leave: [], info: [], focus: [], visibility: [] };
     // The setup owns error presentation; a repaired task must not leave an error behind its dialog.
     taskSetup = openTaskSetupDialog(contextFor(scope, () => undefined), task, flushAll, () => {
       taskSetup = null;
@@ -282,12 +293,18 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
   }, l(label));
   const group = (label: TranslationKey, ids: string[]) => [h("p", { class: "settings-nav-group" }, l(label)), ...ids.map((id) => tabButton(tabs.find((tab) => tab[0] === id)!))];
   const nav = h("nav", { class: "settings-categories", "aria-label": l("navigation.settings_categories") },
+    h("button", { class: "settings-back", "data-action": "back-to-work", onclick: () => navigate("settings-back") }, icon("arrowLeft"), l("navigation.back_to_work")),
+    h("button", { class: "settings-recording", hidden: true, onclick: async () => {
+      try { const status = await api.meetingStatus(); currentMeetingStatus = status; const entry = recordingEntry(status); await go(entry.kind === "new" ? navigation.settingsBack() : workspaceRoute("recording", null, entry.meetingId)); }
+      catch (error) { report(error); }
+    } }),
     tabButton(tabs[0]),
     ...group("navigation.your_work", ["dictation", "meeting-settings", "recording", "dictionary", "styles"]),
     ...group("navigation.app", ["appearance", "account"]),
     ...group("navigation.advanced", ["providers", "models"]));
   const selected = tabs.find(([id]) => id === current) ?? tabs[0];
   const pane = h("section", { class: "settings-pane" });
+  const positionKey = scrollKey(navigation.current);
   const content = async () => [await selected[2](ctx), settingsFooter(ctx)];
   // A re-render of the same category keeps its old content until the new one is ready, so the
   // scroll position survives; a new category appears at once and fills in as its data arrives.
@@ -296,7 +313,7 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
     let live = true;
     ctx.onDispose(() => { live = false; });
     const loading = h("p", { class: "help settings-loading", role: "status" }, l("common.loading"));
-    void fillWhenReady(pane, loading, content, () => live).then(() => refreshLocalization(pane)).catch((error: unknown) => {
+    void fillWhenReady(pane, loading, content, () => live).then(() => { refreshLocalization(pane); pane.scrollTop = settingsPositions.get(positionKey) ?? 0; }).catch((error: unknown) => {
       if (live) pane.replaceChildren(h("p", { class: "error", role: "status" }, errorText(error)));
       report(error);
     });
@@ -342,7 +359,7 @@ async function render(allowed: () => boolean = () => true) {
   await chooseMeeting().catch(report);
   if (mine !== generation) return;
   const route = navigation.current;
-  const target: Mounted = { key: routeKey(route), cleanup: [], flush: [], leave: [], info: [], focus: [], visibility: [] };
+  const target: Mounted = { key: routeKey(route), scrollKey: scrollKey(route), cleanup: [], flush: [], leave: [], info: [], focus: [], visibility: [] };
   rerendering = mounted?.key === target.key;
   const ctx = contextFor(target);
   const view = mode === "onboarding" ? onboardingView : mode === "prompt" ? promptView
@@ -351,14 +368,18 @@ async function render(allowed: () => boolean = () => true) {
   try {
     const node = await view(ctx);
     if (mine !== generation || !allowed()) { target.cleanup.forEach((cleanup) => cleanup()); return; }
-    const paneScroll = mounted?.key === target.key ? content.querySelector<HTMLElement>(".settings-pane")?.scrollTop : undefined;
+    if (mounted) {
+      contentPositions.set(mounted.scrollKey, content.scrollTop);
+      const previousPane = content.querySelector<HTMLElement>(".settings-pane");
+      if (previousPane) settingsPositions.set(mounted.scrollKey, previousPane.scrollTop);
+    }
+    const paneScroll = settingsPositions.get(target.scrollKey);
     mounted?.cleanup.forEach((cleanup) => cleanup());
     mounted = target;
     target.visibility.forEach((listener) => listener(presentationVisible()));
-    const scroll = content.scrollTop;
     content.replaceChildren(node);
     refreshLocalization(node);
-    content.scrollTop = scroll;
+    content.scrollTop = contentPositions.get(target.scrollKey) ?? 0;
     if (paneScroll !== undefined) { const pane = content.querySelector<HTMLElement>(".settings-pane"); if (pane) pane.scrollTop = paneScroll; }
     const selectedCategory = node.querySelector<HTMLButtonElement>('.settings-categories [aria-current="page"]');
     selectedCategory?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -375,7 +396,19 @@ async function render(allowed: () => boolean = () => true) {
 }
 
 function updateNavigation() {
+  if (library) library.element.hidden = navigation.current.section === "settings";
   library?.highlight();
+  updateSettingsRecording();
+  if (navigation.current.section === "settings" && !currentMeetingStatus) void library?.refreshLive().catch(report);
+}
+
+function updateSettingsRecording() {
+  const button = content.querySelector<HTMLButtonElement>(".settings-recording");
+  if (!button || !currentMeetingStatus) return;
+  const entry = recordingEntry(currentMeetingStatus);
+  button.hidden = entry.kind === "new";
+  button.replaceChildren(entry.kind === "recovery" ? icon("warning") : h("span", { class: "status-dot" }),
+    h("span", {}, l(entry.kind === "recovery" ? "meetings.recording_needs_attention" : "meetings.return_recording")));
 }
 
 /** On macOS the transparent system title bar overlays the webview; this strip keeps it draggable. */
@@ -384,7 +417,8 @@ function titlebarDragRegion(): HTMLElement {
 }
 
 function workspaceShell() {
-  library = new LibrarySidebar({ info: visibleInfo, current: () => navigation.current, go: (route) => { void go(route); }, report });
+  library = new LibrarySidebar({ info: visibleInfo, current: () => navigation.current, go: (route) => { void go(route); }, report,
+    statusChanged: (status) => { currentMeetingStatus = status; updateSettingsRecording(); } });
   app.replaceChildren(titlebarDragRegion(), h("div", { class: "workspace-shell" }, library.element, h("div", { class: "workspace-body" }, recoveryBanner, banner, content)));
 }
 
@@ -421,6 +455,7 @@ function meetingFinished(event: MeetingFinished) {
   finishMeetingDrafts(event);
   void finishedRequests.run(api.meetingStatus, (status) => {
     const accepted = canShowFinished(status, event.session_id, displayedMeetingSession());
+    if (accepted && event.id) navigation.recordingFinished(event.id);
     const showing = navigation.current.section === "recording" || (navigation.current.section === "meetings" && navigation.current.meeting_id === event.id);
     if (navigation.current.section === "recording" && accepted && event.id) navigation.set(workspaceRoute("meetings", null, event.id));
     if (accepted && showing && (barrier.kind === null || barrier.kind === "recording")) {
@@ -469,7 +504,7 @@ function windowShortcuts() {
   window.addEventListener("keydown", (event) => {
     if (!(info.platform === "macos" ? event.metaKey : event.ctrlKey) || event.altKey || event.shiftKey) return;
     const key = event.key.toLowerCase();
-    if (key === ",") { event.preventDefault(); void api.showWindow("settings").catch(report); }
+    if (key === ",") { event.preventDefault(); navigate("settings"); }
     if (key === "w" && !fixtureClient()) {
       event.preventDefault();
       try { void getCurrentWindow().close().catch(report); } catch { /* Window APIs are unavailable in a browser-only preview. */ }
