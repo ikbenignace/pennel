@@ -65,6 +65,7 @@ struct DictationRunnerTests {
         #expect(kind(settings.dictationStt) == .appleSpeech)
         #expect(kind(settings.meetingStt) == .appleSpeech)
         #expect(kind(settings.llm) == .appleIntelligence)
+        #expect(settings.mode == .clean)
 
         let unavailable = try tempEngine()
         try FirstRunDefaults.apply(to: unavailable, appleIntelligenceAvailable: false, hasKey: { _ in false })
@@ -81,5 +82,15 @@ struct DictationRunnerTests {
         #expect(kept.dictationStt == ModelChoice(providerId: groq.id, model: "whisper-large-v3"))
         #expect(kept.llm == ModelChoice(providerId: groq.id, model: "llama"))
         #expect(kept.mode == .clean)
+    }
+
+    @Test func first_run_defaults_keep_a_keyed_factory_llm() throws {
+        let engine = try tempEngine()
+        let before = engine.settings()
+        try FirstRunDefaults.apply(to: engine, appleIntelligenceAvailable: true, hasKey: { _ in true })
+        let after = engine.settings()
+        #expect(after.llm == before.llm)
+        #expect(after.providers.first { $0.id == after.llm.providerId }?.kind == .groq)
+        #expect(after.mode == before.mode)
     }
 }

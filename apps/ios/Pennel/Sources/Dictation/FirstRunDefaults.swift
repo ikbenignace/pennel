@@ -26,6 +26,7 @@ enum FirstRunDefaults {
             if appleIntelligenceAvailable {
                 let ai = appleAccount(.appleIntelligence, in: &settings)
                 settings.llm = ModelChoice(providerId: ai.id, model: defaultModel(kind: .appleIntelligence, task: .llm))
+                settings.mode = .clean
             } else {
                 settings.mode = .fast
             }
