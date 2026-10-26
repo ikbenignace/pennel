@@ -24,28 +24,6 @@ const LOG: Log = Log::new("meeting");
 #[cfg(any(not(target_os = "macos"), test))]
 const BATCH: usize = 16_000;
 
-#[cfg(any(target_os = "macos", test))]
-fn start_with_echo_recovery<T>(
-    echo: bool,
-    mut start: impl FnMut(bool) -> Result<T, (String, bool)>,
-    mut wait: impl FnMut(),
-) -> Result<T, String> {
-    match start(echo) {
-        Ok(capture) => return Ok(capture),
-        Err((error, retryable)) if !echo || !retryable => return Err(error),
-        Err(_) => {}
-    }
-    for attempt in 0..3 {
-        wait();
-        match start(false) {
-            Ok(capture) => return Ok(capture),
-            Err((error, retryable)) if !retryable || attempt == 2 => return Err(error),
-            Err(_) => {}
-        }
-    }
-    unreachable!()
-}
-
 #[cfg(target_os = "macos")]
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 #[serde(default)]
@@ -434,36 +412,29 @@ impl MeetingRecorder {
         #[cfg(target_os = "macos")]
         {
             let heard_system = Arc::new(AtomicBool::new(false));
+            let heard = heard_system.clone();
+            let sink = session.clone();
             let started = Instant::now();
-            let directory = std::path::PathBuf::from(session.dir());
-            let native = start_with_echo_recovery(
+            let native = crate::macos::MeetingCapture::start(
+                std::path::Path::new(&session.dir()),
+                detected_app.as_deref(),
                 echo,
-                |echo| {
-                    let heard = heard_system.clone();
-                    let sink = session.clone();
-                    crate::macos::MeetingCapture::start(
-                        &directory,
-                        detected_app.as_deref(),
-                        echo,
-                        move |track, samples, offset| {
-                            let speaker = if track == 0 {
-                                Speaker::Me
-                            } else {
-                                Speaker::Others
-                            };
-                            if track == 1 && samples.iter().any(|sample| *sample != 0.0) {
-                                heard.store(true, Ordering::Relaxed);
-                            }
-                            if sink
-                                .push_audio_at(speaker, offset, samples.to_vec())
-                                .is_err()
-                            {
-                                LOG.error("Audioblok kon niet aan de meeting worden toegevoegd");
-                            }
-                        },
-                    )
+                move |track, samples, offset| {
+                    let speaker = if track == 0 {
+                        Speaker::Me
+                    } else {
+                        Speaker::Others
+                    };
+                    if track == 1 && samples.iter().any(|sample| *sample != 0.0) {
+                        heard.store(true, Ordering::Relaxed);
+                    }
+                    if sink
+                        .push_audio_at(speaker, offset, samples.to_vec())
+                        .is_err()
+                    {
+                        LOG.error("Audioblok kon niet aan de meeting worden toegevoegd");
+                    }
                 },
-                || std::thread::sleep(Duration::from_secs(1)),
             )?;
             let native = MacCaptureMonitor::start(native);
             let has_system = native.snapshot().system_audio_available;
@@ -741,72 +712,6 @@ impl MeetingRecorder {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn echo_start_failure_retries_raw_microphone_after_device_recovers() {
-        let mut modes = Vec::new();
-        let mut waits = 0;
-        let result = start_with_echo_recovery(
-            true,
-            |echo| {
-                modes.push(echo);
-                if modes.len() < 3 {
-                    Err(("unavailable".to_owned(), true))
-                } else {
-                    Ok(42)
-                }
-            },
-            || waits += 1,
-        );
-        assert_eq!(result.unwrap(), 42);
-        assert_eq!(modes, [true, false, false]);
-        assert_eq!(waits, 2);
-    }
-
-    #[test]
-    fn permission_failure_is_not_retried() {
-        let mut attempts = 0;
-        let result: Result<(), _> = start_with_echo_recovery(
-            true,
-            |_| {
-                attempts += 1;
-                Err(("permission denied".to_owned(), false))
-            },
-            || panic!("permission failure must not be retried"),
-        );
-        assert_eq!(result.unwrap_err(), "permission denied");
-        assert_eq!(attempts, 1);
-    }
-
-    #[test]
-    fn raw_start_failure_without_echo_is_not_retried() {
-        let mut attempts = 0;
-        let result: Result<(), _> = start_with_echo_recovery(
-            false,
-            |_| {
-                attempts += 1;
-                Err(("microphone failed".to_owned(), true))
-            },
-            || panic!("raw-only start must not be retried as an echo fallback"),
-        );
-        assert_eq!(result.unwrap_err(), "microphone failed");
-        assert_eq!(attempts, 1);
-    }
-
-    #[test]
-    fn raw_capture_failure_is_bounded_and_reported() {
-        let mut attempts = 0;
-        let result: Result<(), _> = start_with_echo_recovery(
-            true,
-            |_| {
-                attempts += 1;
-                Err(("microphone failed".to_owned(), true))
-            },
-            || {},
-        );
-        assert_eq!(result.unwrap_err(), "microphone failed");
-        assert_eq!(attempts, 4);
-    }
 
     #[cfg(target_os = "macos")]
     #[test]

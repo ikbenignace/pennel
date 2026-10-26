@@ -4,13 +4,17 @@
 final class MonoResampler: @unchecked Sendable {
     static let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
 
-    private let converter: AVAudioConverter?
+    private var converter: AVAudioConverter?
 
     init(from input: AVAudioFormat) {
         converter = AVAudioConverter(from: input, to: Self.format)
     }
 
     func convert(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        // Bluetooth profile changes can alter callback formats after the tap is installed.
+        if converter?.inputFormat != buffer.format {
+            converter = AVAudioConverter(from: buffer.format, to: Self.format)
+        }
         guard let converter else { return nil }
         let ratio = Self.format.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
