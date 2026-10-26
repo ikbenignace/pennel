@@ -71,6 +71,10 @@ jobs:
         if: runner.environment == 'github-hosted'
         with:
           workspaces: core
+          # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
+          # the build script's output, which would then link against a missing directory.
+          cache-directories: core/target/sherpa-onnx-prebuilt
+          key: sherpa-prebuilt
           cache-bin: "false"
       - name: Rust lint
         run: cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
@@ -160,6 +164,10 @@ jobs:
         if: runner.environment == 'github-hosted'
         with:
           workspaces: apps/desktop/src-tauri
+          # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
+          # the build script's output, which would then link against a missing directory.
+          cache-directories: apps/desktop/src-tauri/target/sherpa-onnx-prebuilt
+          key: sherpa-prebuilt
           cache-bin: "false"
       - uses: actions/setup-node@v5
         with:
