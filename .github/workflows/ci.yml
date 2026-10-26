@@ -36,7 +36,7 @@ jobs:
           # the build script's output, which would then link against a missing directory.
           cache-directories: core/target/sherpa-onnx-prebuilt
           key: sherpa-prebuilt
-      - name: Rerun sherpa-onnx's download when the cache lacks it
+      - name: Rerun sherpa-onnx's build script after a cache restore
         shell: bash
         run: bash scripts/ci-sherpa-cache.sh core/target
       - name: Rust format
