@@ -90,6 +90,15 @@ struct AppearanceView: View {
                 Text("Volg systeem past de lichte of donkere weergave aan met je apparaat.")
             }
             .pennelRow()
+
+            Section {
+                Button(Copy.Onboarding.replay) { AppRouter.shared.showsOnboarding = true }
+            } header: {
+                Text(Copy.Onboarding.replaySection)
+            } footer: {
+                Text(Copy.Onboarding.replayDescription)
+            }
+            .pennelRow()
         }
         .pennelList()
     }

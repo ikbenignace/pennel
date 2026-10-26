@@ -23,6 +23,17 @@ struct RootView: View {
         .font(Theme.font(.body))
         .tint(Brand.accent.color)
         .preferredColorScheme(model.settings.appearance.colorScheme)
+        .onAppear {
+            if model.settings.onboarding.status == .pending { router.showsOnboarding = true }
+        }
+        .fullScreenCover(isPresented: $router.showsOnboarding) {
+            OnboardingView { status in
+                model.update { $0.onboarding.status = status }
+                router.showsOnboarding = false
+            }
+            .environment(model)
+            .preferredColorScheme(model.settings.appearance.colorScheme)
+        }
         .alert(
             model.errorMessage ?? "",
             isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })

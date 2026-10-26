@@ -48,6 +48,7 @@ final class KeyboardViewController: UIInputViewController {
         self.model = model
         // Without Full Access the shared container is off limits; the default layout applies.
         let layout = hasFullAccess ? KeyboardLayout.stored(in: KeyboardLayout.groupDefaults) : .qwerty
+        if hasFullAccess { KeyboardFullAccess.markSeen(in: KeyboardLayout.groupDefaults) }
         let root = KeyboardRoot(
             model: model, layout: layout, showsGlobe: needsInputModeSwitchKey,
             advance: { [weak self] in self?.advanceToNextInputMode() },

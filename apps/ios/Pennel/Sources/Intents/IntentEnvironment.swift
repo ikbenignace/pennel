@@ -12,7 +12,7 @@ protocol DictationSessionControlling: AnyObject {
     func stop()
 }
 
-/// Asks for the microphone first, like the Nieuwe opname button: an intent has no screen to show the system prompt.
+/// Asks for the microphone first, like the Start opname button: an intent has no screen to show the system prompt.
 @MainActor
 final class LiveMeetingControl: MeetingControlling {
     func start(title: String) async throws {

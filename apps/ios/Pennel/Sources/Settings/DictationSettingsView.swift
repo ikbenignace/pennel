@@ -8,6 +8,8 @@ struct DictationSettingsView: View {
     @Environment(\.openURL) private var openURL
     @State private var layout = KeyboardLayout.stored(in: KeyboardLayout.groupDefaults)
     @State private var sessionDuration = SessionClock.Duration.stored()
+    @State private var keyboard = KeyboardSetup.state(in: KeyboardLayout.groupDefaults)
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Form {
@@ -39,6 +41,10 @@ struct DictationSettingsView: View {
             .pennelRow()
 
             Section(Copy.Settings.keyboard) {
+                Label(
+                    keyboard == .fullAccess ? Copy.Onboarding.keyboardReady : Copy.Onboarding.keyboardNotSeen,
+                    systemImage: keyboard == .fullAccess ? "checkmark" : "keyboard")
+                    .foregroundStyle(keyboard == .fullAccess ? Brand.foreground.color : Brand.muted.color)
                 Picker("Indeling", selection: $layout) {
                     Text("QWERTY").tag(KeyboardLayout.qwerty)
                     Text("AZERTY").tag(KeyboardLayout.azerty)
@@ -62,6 +68,9 @@ struct DictationSettingsView: View {
             .pennelRow()
         }
         .pennelList()
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { keyboard = KeyboardSetup.state(in: KeyboardLayout.groupDefaults) }
+        }
     }
 
     private func binding<Value: Equatable>(_ keyPath: WritableKeyPath<Settings, Value>) -> Binding<Value> {

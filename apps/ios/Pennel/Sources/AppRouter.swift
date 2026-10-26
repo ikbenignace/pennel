@@ -10,6 +10,7 @@ final class AppRouter {
 
     var selectedTab = AppTab.meetings
     var showsSessionReturn = false
+    var showsOnboarding = false
     private(set) var dictationRequests = 0
     @ObservationIgnored private var handledDictationRequests = 0
     private(set) var liveMeetingRequests = 0

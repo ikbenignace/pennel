@@ -14,7 +14,7 @@ enum FirstRunDefaults {
         let dictationUnset = isUnset(settings.dictationStt, in: settings, unavailable: [.local])
         let meetingUnset = isUnset(settings.meetingStt, in: settings, unavailable: [.local])
         if dictationUnset || meetingUnset {
-            let speech = appleAccount(.appleSpeech, in: &settings)
+            let speech = account(.appleSpeech, in: &settings)
             let choice = ModelChoice(providerId: speech.id, model: defaultModel(kind: .appleSpeech, task: .dictationStt))
             if dictationUnset { settings.dictationStt = choice }
             if meetingUnset { settings.meetingStt = choice }
@@ -24,7 +24,7 @@ enum FirstRunDefaults {
         let untouchedFactoryLlm = original.llm == defaultSettings().llm && !hasKey(original.llm.providerId)
         if untouchedFactoryLlm || isUnset(original.llm, in: original, unavailable: [.local], includingCliAgents: true) {
             if appleIntelligenceAvailable {
-                let ai = appleAccount(.appleIntelligence, in: &settings)
+                let ai = account(.appleIntelligence, in: &settings)
                 settings.llm = ModelChoice(providerId: ai.id, model: defaultModel(kind: .appleIntelligence, task: .llm))
                 settings.mode = .clean
             } else {
@@ -44,7 +44,7 @@ enum FirstRunDefaults {
         return unavailable.contains(account.kind) || (includingCliAgents && isCliAgent(kind: account.kind))
     }
 
-    private static func appleAccount(_ kind: ProviderKind, in settings: inout Settings) -> ProviderAccount {
+    static func account(_ kind: ProviderKind, in settings: inout Settings) -> ProviderAccount {
         if let existing = settings.providers.first(where: { $0.kind == kind }) { return existing }
         let account = newAccount(kind: kind, existing: settings.providers)
         settings.providers.append(account)
