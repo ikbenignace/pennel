@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct PennelApp: App {
     @State private var model = AppModel.shared
-    @State private var showsSessionReturn = false
+    @State private var router = AppRouter.shared
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -17,11 +17,11 @@ struct PennelApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView(router: router)
                 .environment(model)
                 .onOpenURL { url in
                     guard DictationSession.isStartLink(url) else { return }
-                    showsSessionReturn = true
+                    router.showsSessionReturn = true
                     Task { await DictationSession.shared.start() }
                 }
                 .onChange(of: scenePhase, initial: true) { _, phase in
@@ -33,7 +33,7 @@ struct PennelApp: App {
                     default: break
                     }
                 }
-                .sheet(isPresented: $showsSessionReturn) {
+                .sheet(isPresented: $router.showsSessionReturn) {
                     SessionReturnView(session: DictationSession.shared)
                         .presentationDragIndicator(.visible)
                 }

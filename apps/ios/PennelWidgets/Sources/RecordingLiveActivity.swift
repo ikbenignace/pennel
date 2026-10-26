@@ -79,7 +79,7 @@ private struct RecordingStopButton: View {
 
     var body: some View {
         if state.phase != .finishing {
-            Button(intent: StopRecordingIntent()) {
+            Button(intent: StopMeetingIntent()) {
                 Text(Copy.Meetings.stopRecording)
                     .font(.figtree(Brand.FontSize.content, weight: .semibold))
             }

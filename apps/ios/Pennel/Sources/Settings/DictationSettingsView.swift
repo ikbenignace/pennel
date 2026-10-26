@@ -7,6 +7,7 @@ struct DictationSettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
     @State private var layout = KeyboardLayout.stored(in: KeyboardLayout.groupDefaults)
+    @State private var sessionDuration = SessionClock.Duration.stored()
 
     var body: some View {
         Form {
@@ -50,7 +51,13 @@ struct DictationSettingsView: View {
             .pennelRow()
 
             Section(Copy.Settings.quickStart) {
-                LabeledContent("Sessieduur", value: Copy.Settings.sessionDuration5)
+                Picker("Sessieduur", selection: $sessionDuration) {
+                    ForEach(SessionClock.Duration.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .onChange(of: sessionDuration) { _, new in new.store() }
+                Text(Copy.Settings.quickStartExplanation)
+                    .font(Theme.font(.footnote))
+                    .foregroundStyle(Brand.muted.color)
             }
             .pennelRow()
         }

@@ -35,7 +35,7 @@ final class DictationSession {
     @ObservationIgnored private let runner: @MainActor () -> DictationRunning
     @ObservationIgnored private let server: HandoffServer
     @ObservationIgnored private let activity: SessionActivityControlling
-    @ObservationIgnored private let duration: TimeInterval
+    @ObservationIgnored private let duration: @MainActor () -> TimeInterval
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private let timers: Timers
     @ObservationIgnored private let meeting: @MainActor () -> DictationMeetingHook?
@@ -59,6 +59,7 @@ final class DictationSession {
         activity: SessionActivityControlling,
         notifications: NotificationCenter = .default,
         duration: TimeInterval = SessionClock.Duration.fiveMinutes.rawValue,
+        durationSource: (@MainActor () -> TimeInterval)? = nil,
         now: @escaping @MainActor () -> Date = { Date() },
         timers: @escaping Timers = DictationSession.runLoopTimers,
         meeting: @escaping @MainActor () -> DictationMeetingHook? = { nil },
@@ -70,7 +71,7 @@ final class DictationSession {
         self.runner = runner
         server = HandoffServer(store: store, observesSignals: observeCommands)
         self.activity = activity
-        self.duration = duration
+        self.duration = durationSource ?? { duration }
         self.now = now
         self.timers = timers
         self.meeting = meeting
@@ -85,6 +86,7 @@ final class DictationSession {
             runner: { DictationRunner(engine: AppModel.shared.engine) },
             store: HandoffStore(directory: AppPaths.handoffDirectory),
             activity: SystemSessionActivity(),
+            durationSource: { SessionClock.Duration.stored().rawValue },
             meeting: { MeetingRuntime.shared })
     }
 
@@ -116,7 +118,7 @@ final class DictationSession {
             return false
         }
         let now = now()
-        clock = SessionClock(duration: duration, now: now)
+        clock = SessionClock(duration: duration(), now: now)
         phase = .ready
         server.ignorePendingCommand()
         server.startObserving { [weak self] in
@@ -125,7 +127,7 @@ final class DictationSession {
         publish(at: now)
         activity.start(activityState)
         cancelHeartbeat = timers(1) { [weak self] in self?.tick() }
-        Self.log.info("session ready, \(Int(self.duration), privacy: .public)s")
+        Self.log.info("session ready, \(Int(self.clock?.duration ?? 0), privacy: .public)s")
         return true
     }
 

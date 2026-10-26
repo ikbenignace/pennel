@@ -157,3 +157,14 @@ App Store size: pending device acceptance.
 Pending device acceptance (no physical device available yet): memory profile in Instruments, 60-minute
 meeting with the screen locked and a phone call in the middle, dictation through the keyboard on a device, archive and App Store size, and the session check (start a
 session, lock the phone for 2 minutes, unlock, dictate from the keyboard; the orange dot disappears at expiry).
+
+## Shortcuts, Action Button, Back Tap and Control Center
+
+- Intents live in `apps/ios/Shared/` (compiled into the app and the widgets extension; the action runs in the app only under `PENNEL_APP`): **Dicteer naar klembord**, **Start dicteersessie**, **Start opname** (`supportedModes = .foreground`, iOS 26 API) and **Stop dicteersessie**, **Stop opname** (`AudioRecordingIntent` + `LiveActivityIntent`, `.background`, bound to the Live Activity buttons). `IntentEnvironment` makes their dependencies injectable for tests.
+- `PennelShortcuts` offers Dutch phrases, each with the app name; the test reads them from the built `Metadata.appintents`.
+- Control Center: **Dicteer**, **Dicteersessie**, **Opname** (`ControlWidgetButton`, `PennelWidgets/Sources/Controls.swift`). There is no stop button in Control Center yet; Stop sessie is in the app and the Live Activity.
+- Settings › Dicteren › Snel starten: session duration 5 min (default), 15 min, 1 uur (`SessionClock.Duration`, stored in `UserDefaults.standard`, read at every session start) and the Action Button / Tik achterop / bedieningspaneel explanation.
+
+Pending device acceptance (no device available):
+- Spike: start a meeting from the Action Button with the phone locked and unlocked, with `StartMeetingIntent.supportedModes = .background` as an `AudioRecordingIntent` that starts its Live Activity before `AVAudioSession.setActive(true)`. Record the result per iOS version here. Until it works on iOS 26 and 27 the foreground hop stays.
+- Manual: each intent from the Action Button, Back Tap (via Opdrachten), Siri and Control Center; the Stop buttons on the Lock Screen Live Activities with the phone locked.

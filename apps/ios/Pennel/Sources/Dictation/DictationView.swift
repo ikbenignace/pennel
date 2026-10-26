@@ -62,6 +62,12 @@ final class DictationController {
         }
     }
 
+    /// A Shortcut or the Action Button asks for a dictation; one already running keeps going.
+    func startIfIdle() {
+        guard phase == .idle else { return }
+        Task { await start() }
+    }
+
     func loadHistory() {
         let engine = model.engine
         Task {
@@ -181,6 +187,7 @@ private final class SampleBuffer: @unchecked Sendable {
 struct DictationView: View {
     @Environment(AppModel.self) private var model
     @State private var controller: DictationController?
+    private let router = AppRouter.shared
 
     var body: some View {
         NavigationStack {
@@ -196,7 +203,14 @@ struct DictationView: View {
         .task {
             if controller == nil { controller = DictationController(model: model) }
             controller?.loadHistory()
+            startRequestedDictation()
         }
+        .onChange(of: router.dictationRequests) { startRequestedDictation() }
+    }
+
+    private func startRequestedDictation() {
+        guard router.takeDictationRequest() else { return }
+        controller?.startIfIdle()
     }
 
     private func content(_ controller: DictationController) -> some View {
