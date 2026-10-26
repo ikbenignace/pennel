@@ -224,8 +224,8 @@ struct ProviderDetailView: View {
 /// The Pennel Cloud card: who is signed in, or the way to the Account screen.
 private struct CloudProviderCard: View {
     @Environment(AppModel.self) private var model
-    private enum State { case loading, signedIn(String), signedOut, failed(String) }
-    @State private var state = State.loading
+    private enum CardState { case loading, signedIn(String), signedOut, failed(String) }
+    @State private var state = CardState.loading
 
     var body: some View {
         Section {
