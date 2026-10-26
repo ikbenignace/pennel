@@ -85,12 +85,14 @@ Which track is diarized (decided in the core, `recognize_speakers(id, microphone
 
 - System track present and not silent (a call): split "Anderen" as before; "Ik" lines are never touched.
 - No system audio (in-person meeting on one microphone) and the user trained their voice: split the microphone track; the user's speakers stay "Ik", everybody else becomes "Anderen N". Without a trained voice nothing changes (we cannot tell which speaker is the user).
-- A rerun is idempotent: on the microphone route all lines take part, including lines an earlier run already moved to "Anderen N".
+- The microphone route only relabels when the user's voice is actually found among the speakers; otherwise every line stays as it was (no "Ik" can turn into somebody else). It needs voiceprints, so it never runs on the Sortformer fallback.
+- A rerun is idempotent: on the microphone route "Ik" lines and lines an earlier microphone run gave a voice take part; plain "Anderen" lines (from a system track) are left alone, and a line no speaker overlaps keeps its side.
+- Recognition and "Onthoud deze stem" are serialised so their read-relabel-write steps never interleave.
 
 ### Data model
 
 - Transcript Markdown is unchanged: `[mm:ss] **Ik:** …`, `[mm:ss] **Anderen 2:** …`, names in the meeting frontmatter `speakers: 1=Jan; 2=Anna`. Older Pennel versions read new files; only voices 5–12 (new) are unknown to them, which their existing guard treats as unparsed lines (shown as missing, never rewritten).
-- Names survive reruns: a recognised known voice brings its name; otherwise a new voice takes the name of the old voice most of its lines had.
+- Names survive reruns: a recognised known voice brings its name (recognised voices are named first); otherwise a new voice takes the name of the old voice most of its lines had. Each name is used once.
 - Voiceprints never enter the meeting folder (which syncs). `<data dir>/voices/voiceprints.json` (0600, atomic write) holds `{version, model, me: {embedding, speech_ms, created}, known: [{id, name, embedding, meetings, updated}]}`. A file of another embedding model is ignored (voiceprints of different models are not comparable); an unreadable file is never overwritten.
 - `<data dir>/voices/meetings/<sha256(meeting uid)>.json` keeps the voiceprint of each voice of a meeting so the user can still choose "Onthoud deze stem" later. Hashed names keep titles out of file names. Deleted with the meeting.
 - Remembering the same name again (case-insensitive) blends the new voiceprint into the stored one (weight grows with the number of meetings, capped at 10) instead of creating a duplicate.

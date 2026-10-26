@@ -65,6 +65,11 @@ fn post(session: &Session, wav: &[u8]) -> Result<Diarization, PennelError> {
         serde_json::from_slice(&body).map_err(|_| PennelError::InvalidResponse {
             message: "Pennel Cloud gaf een onleesbaar sprekersresultaat.".into(),
         })?;
+    if !consistent(&parsed.diarization) {
+        return Err(PennelError::InvalidResponse {
+            message: "Pennel Cloud gaf een onleesbaar sprekersresultaat.".into(),
+        });
+    }
     if parsed.model != EMBEDDING_ID {
         return Err(PennelError::Cloud {
             code: "speaker_model".into(),
@@ -72,6 +77,13 @@ fn post(session: &Session, wav: &[u8]) -> Result<Diarization, PennelError> {
         });
     }
     Ok(parsed.diarization)
+}
+
+/// Every turn names a listed speaker, and no speaker is listed twice.
+fn consistent(diarization: &Diarization) -> bool {
+    let ids: Vec<u32> = diarization.speakers.iter().map(|s| s.speaker).collect();
+    let unique = ids.iter().enumerate().all(|(i, id)| !ids[..i].contains(id));
+    unique && diarization.turns.iter().all(|t| ids.contains(&t.speaker))
 }
 
 /// Diarizes 16 kHz mono audio in chunks and joins the voices across them.
@@ -152,6 +164,17 @@ mod tests {
             "Je limiet is bereikt."
         );
         quota.remove();
+        let broken = server
+            .mock("POST", "/v1/audio/diarize")
+            .with_body(format!(
+                r#"{{"model":"{EMBEDDING_ID}","turns":[{{"start_ms":0,"end_ms":900,"speaker":3}}],"speakers":[]}}"#
+            ))
+            .create();
+        assert!(matches!(
+            diarize(&session, &[0.0; 16_000]),
+            Err(PennelError::InvalidResponse { .. })
+        ));
+        broken.remove();
         server
             .mock("POST", "/v1/audio/diarize")
             .with_body(r#"{"model":"other","turns":[],"speakers":[]}"#)

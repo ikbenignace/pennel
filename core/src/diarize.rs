@@ -147,7 +147,12 @@ pub fn apply(
     track: impl Into<Track>,
 ) -> Applied {
     let track = track.into();
-    let include = |s: &Segment| track == Track::Microphone || s.speaker == Speaker::Others;
+    // On the microphone only "Ik" lines and lines an earlier microphone run gave a voice take part;
+    // a plain "Anderen" line came from a system track and is not this recording's to relabel.
+    let include = |s: &Segment| match track {
+        Track::Microphone => s.speaker == Speaker::Me || s.voice.is_some(),
+        Track::System => s.speaker == Speaker::Others,
+    };
     let dominant = dominant_speakers(segments, turns, include);
     let is_me = |speaker: u32| {
         track == Track::Microphone && identities.get(speaker as usize) == Some(&Identity::Me)
@@ -158,7 +163,9 @@ pub fn apply(
             continue;
         }
         let Some(speaker) = speaker else {
-            segment.voice = None;
+            if segment.speaker == Speaker::Others {
+                segment.voice = None;
+            }
             continue;
         };
         if is_me(speaker) {
@@ -183,8 +190,9 @@ pub fn apply(
     applied
 }
 
-/// Names for the new voices: a recognised known voice keeps its name; otherwise a voice takes the
-/// name the user gave the voice most of its lines had before, so naming survives a rerun.
+/// Names for the new voices: a recognised known voice keeps its name; every other voice takes the
+/// name the user gave the voice most of its lines had before, so naming survives a rerun. A name is
+/// used once, recognised voices first.
 pub fn carry_names(
     before: &[Segment],
     after: &[Segment],
@@ -194,39 +202,43 @@ pub fn carry_names(
     let mut voices: Vec<u32> = after.iter().filter_map(|s| s.voice).collect();
     voices.sort_unstable();
     voices.dedup();
-    let mut taken: Vec<String> = Vec::new();
-    let mut names = Vec::new();
-    for voice in voices {
-        let name = known
-            .iter()
-            .find(|(v, _)| *v == voice)
-            .map(|(_, name)| name.clone())
-            .or_else(|| {
-                let mut counts: Vec<(u32, usize)> = Vec::new();
-                for (old, new) in before.iter().zip(after) {
-                    if new.voice != Some(voice) {
-                        continue;
-                    }
-                    if let Some(old) = old.voice.filter(|_| old.speaker == Speaker::Others) {
-                        match counts.iter_mut().find(|(v, _)| *v == old) {
-                            Some((_, n)) => *n += 1,
-                            None => counts.push((old, 1)),
-                        }
-                    }
-                }
-                counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-                counts.into_iter().find_map(|(old, _)| {
-                    names_before
-                        .iter()
-                        .find(|n| n.voice == old)
-                        .map(|n| n.name.clone())
-                })
+    let mut names: Vec<SpeakerName> = Vec::new();
+    for (voice, name) in known {
+        if voices.contains(voice) && !names.iter().any(|n| n.voice == *voice || n.name == *name) {
+            names.push(SpeakerName {
+                voice: *voice,
+                name: name.clone(),
             });
-        if let Some(name) = name.filter(|n| !taken.contains(n)) {
-            taken.push(name.clone());
+        }
+    }
+    for voice in voices {
+        if names.iter().any(|n| n.voice == voice) {
+            continue;
+        }
+        let mut counts: Vec<(u32, usize)> = Vec::new();
+        for (old, new) in before.iter().zip(after) {
+            if new.voice != Some(voice) {
+                continue;
+            }
+            if let Some(old) = old.voice.filter(|_| old.speaker == Speaker::Others) {
+                match counts.iter_mut().find(|(v, _)| *v == old) {
+                    Some((_, n)) => *n += 1,
+                    None => counts.push((old, 1)),
+                }
+            }
+        }
+        counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        let inherited = counts.into_iter().find_map(|(old, _)| {
+            names_before
+                .iter()
+                .find(|n| n.voice == old)
+                .map(|n| n.name.clone())
+        });
+        if let Some(name) = inherited.filter(|name| !names.iter().any(|n| n.name == *name)) {
             names.push(SpeakerName { voice, name });
         }
     }
+    names.sort_by_key(|n| n.voice);
     names
 }
 
@@ -362,7 +374,10 @@ mod tests {
             me(0, "goedemorgen allemaal"),
             me(4_000, "dank je"),
             me(8_000, "ik ben het niet eens"),
-            others(12_000, "vroeger anders gelabeld"),
+            Segment {
+                voice: Some(3),
+                ..others(12_000, "vroeger anders gelabeld")
+            },
         ];
         let turns = [
             turn(0, 3_500, 0),
@@ -452,6 +467,54 @@ mod tests {
                     voice: 2,
                     name: "Jan".into()
                 },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_recognised_voice_wins_its_name_over_an_inherited_one() {
+        let before = vec![Segment {
+            voice: Some(1),
+            ..others(0, "a")
+        }];
+        let mut after = before.clone();
+        after.push(Segment {
+            voice: Some(2),
+            ..others(5_000, "b")
+        });
+        let jan = vec![SpeakerName {
+            voice: 1,
+            name: "Jan".into(),
+        }];
+        let names = carry_names(&before, &after, &jan, &[(2, "Jan".into())]);
+        assert_eq!(
+            names,
+            [SpeakerName {
+                voice: 2,
+                name: "Jan".into()
+            }]
+        );
+    }
+
+    #[test]
+    fn microphone_leaves_system_lines_and_unheard_lines_alone() {
+        let mut segments = vec![
+            me(0, "hallo"),
+            others(5_000, "van de call"),
+            me(20_000, "niemand gehoord"),
+        ];
+        apply(
+            &mut segments,
+            &[turn(0, 9_000, 0)],
+            &[Identity::Unknown],
+            Speaker::Me,
+        );
+        assert_eq!(
+            labels(&segments),
+            [
+                (Speaker::Others, Some(1)),
+                (Speaker::Others, None),
+                (Speaker::Me, None)
             ]
         );
     }

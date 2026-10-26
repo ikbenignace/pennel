@@ -51,15 +51,9 @@ pub struct MeetingVoice {
     pub can_remember: bool,
 }
 
-#[cfg(feature = "speakers")]
-fn model_error(error: pennel_speakers::Error) -> PennelError {
-    match error {
-        pennel_speakers::Error::Model(_) => PennelError::ModelNotDownloaded,
-        other => PennelError::InvalidResponse {
-            message: other.to_string(),
-        },
-    }
-}
+/// One recognition or "Onthoud deze stem" at a time: each reads, relabels and writes the transcript,
+/// its names and the meeting's voiceprints, which must not interleave.
+static RECOGNITION: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(feature = "speakers")]
 pub(crate) fn diarize_local(
@@ -67,12 +61,18 @@ pub(crate) fn diarize_local(
     embedding: &Path,
     samples: &[f32],
 ) -> Result<Diarization, PennelError> {
+    if !segmentation.is_file() || !embedding.is_file() {
+        return Err(PennelError::ModelNotDownloaded);
+    }
     let models = pennel_speakers::Models {
         segmentation,
         embedding,
     };
-    pennel_speakers::diarize(&models, samples, &pennel_speakers::Options::default())
-        .map_err(model_error)
+    pennel_speakers::diarize(&models, samples, &pennel_speakers::Options::default()).map_err(
+        |error| PennelError::InvalidResponse {
+            message: error.to_string(),
+        },
+    )
 }
 
 #[cfg(not(feature = "speakers"))]
@@ -101,13 +101,28 @@ impl PennelEngine {
     /// Whether [`PennelEngine::recognize_speakers`] would use the microphone track, so a caller can
     /// skip decoding it (an hour of 16 kHz audio is 230 MB as samples).
     pub fn wants_microphone_track(&self, system: Option<&[f32]>) -> bool {
-        system.is_none_or(mostly_silent) && self.voice_store().my_voiceprint().is_some()
+        system.is_none_or(mostly_silent)
+            && self.voiceprints_ready()
+            && self.voice_store().my_voiceprint().is_some()
+    }
+
+    /// Whether the chosen route yields voiceprints (Sortformer does not).
+    fn voiceprints_ready(&self) -> bool {
+        match self.settings().speaker_recognition {
+            SpeakerRecognitionMode::Cloud => self.cloud_signed_in(),
+            SpeakerRecognitionMode::Local => {
+                cfg!(feature = "speakers")
+                    && self.models.path(SEGMENTATION_ID).is_some()
+                    && self.models.path(EMBEDDING_ID).is_some()
+            }
+        }
     }
 
     pub(crate) fn voice_store(&self) -> VoiceStore {
         VoiceStore::new(&self.data_dir())
     }
 
+    /// Meeting voiceprints follow the meeting's sync identity, which survives a rename.
     fn meeting_key(&self, id: &str) -> String {
         self.meeting_store()
             .uid_of(id)
@@ -245,13 +260,28 @@ impl PennelEngine {
             }
             _ => return Ok(SpeakerRecognition::default()),
         };
-        let diarization = self.speaker_diarization(&samples, false)?;
+        let diarization = self.speaker_diarization(&samples, track == Track::Microphone)?;
         drop(samples);
         let known = voices.known_voiceprints();
         let prints: Vec<&[f32]> = known.iter().map(|(_, _, print)| print.as_slice()).collect();
         let me = my_voice.as_deref().filter(|_| track == Track::Microphone);
         let identities = pennel_speakers::identify(&diarization.speakers, me, &prints);
+        // Without the user's own voice in a shared-microphone recording there is no telling which
+        // lines are theirs; relabelling would turn every "Ik" into somebody else.
+        if track == Track::Microphone && !identities.contains(&Identity::Me) {
+            return Ok(SpeakerRecognition::default());
+        }
 
+        let _gate = RECOGNITION.lock().unwrap_or_else(|e| e.into_inner());
+        if store.unparsed_transcript_lines(&id) > 0 {
+            return Err(PennelError::InvalidResponse {
+                message: "transcript bevat regels die Pennel niet herkent".into(),
+            });
+        }
+        let key = match store.ensure_uid(&id) {
+            Ok(uid) => uid,
+            Err(_) => self.meeting_key(&id),
+        };
         let before = store.read_transcript(&id);
         let mut after = before.clone();
         let applied = apply(&mut after, &diarization.turns, &identities, track);
@@ -279,7 +309,7 @@ impl PennelEngine {
                 })
             })
             .collect();
-        voices.set_meeting_voiceprints(&self.meeting_key(&id), prints)?;
+        voices.set_meeting_voiceprints(&key, prints)?;
         Ok(SpeakerRecognition {
             voices: applied.voices.len() as u32,
             named: names.len() as u32,
@@ -334,6 +364,7 @@ impl PennelEngine {
         if !VOICES.contains(&voice) {
             return Err(PennelError::NotFound);
         }
+        let _gate = RECOGNITION.lock().unwrap_or_else(|e| e.into_inner());
         let voices = self.voice_store();
         let key = self.meeting_key(&id);
         let mut prints = voices.meeting_voiceprints(&key);
@@ -343,8 +374,17 @@ impl PennelEngine {
             .ok_or_else(|| PennelError::InvalidResponse {
                 message: NO_VOICEPRINT.into(),
             })?;
-        let known_id = voices.remember(&name, &print.embedding)?;
-        print.known_id = Some(known_id);
+        let clean = crate::voices::clean_name(&name).to_lowercase();
+        let already = print.known_id.as_ref().is_some_and(|known| {
+            voices
+                .known()
+                .iter()
+                .any(|v| v.id == *known && v.name.to_lowercase() == clean)
+        });
+        // The same meeting voice learned twice would weigh one meeting double.
+        if !already {
+            print.known_id = Some(voices.remember(&name, &print.embedding)?);
+        }
         self.meeting_store().rename_speaker(&id, voice, &name)?;
         voices.set_meeting_voiceprints(&key, prints)
     }
@@ -549,12 +589,19 @@ mod tests {
         engine
             .remember_speaker(id.clone(), 2, "Anna".into())
             .unwrap();
+        engine
+            .remember_speaker(id.clone(), 2, "anna".into())
+            .unwrap();
+        engine
+            .remember_speaker(id.clone(), 1, "Jan".into())
+            .unwrap();
+        assert!(engine.known_voices().iter().all(|v| v.meetings == 1));
         assert!(engine.meeting_voices(id.clone())[1].remembered);
         let known: Vec<String> = engine.known_voices().into_iter().map(|v| v.name).collect();
         assert_eq!(known, ["Anna", "Jan"]);
         assert_eq!(
             engine.meeting_speakers(id),
-            [name(1, "Jan"), name(2, "Anna")]
+            [name(1, "Jan"), name(2, "anna")]
         );
     }
 
@@ -588,6 +635,41 @@ mod tests {
             SpeakerRecognition::default()
         );
         untouched.assert();
+    }
+
+    #[test]
+    fn a_shared_microphone_without_my_voice_keeps_every_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let engine = engine_with_cloud(&dir, &mut server);
+        engine
+            .voice_store()
+            .set_my_voiceprint(vec![1.0, 0.0], 20_000)
+            .unwrap();
+        let id = engine
+            .meeting_store()
+            .create("Zaal", chrono::Local::now())
+            .unwrap();
+        let lines = [
+            line(0, Speaker::Me, "eerste"),
+            line(5_000, Speaker::Me, "tweede"),
+        ];
+        engine
+            .meeting_store()
+            .write_transcript(&id, &lines)
+            .unwrap();
+        server
+            .mock("POST", "/v1/audio/diarize")
+            .with_body(cloud_result(
+                &[turn(0, 4_500, 0), turn(5_000, 9_500, 1)],
+                &[(0, vec![0.0, 1.0]), (1, vec![-1.0, 0.0])],
+            ))
+            .create();
+        let result = engine
+            .recognize_speakers(id.clone(), Some(speech(10)), None)
+            .unwrap();
+        assert_eq!(result, SpeakerRecognition::default());
+        assert_eq!(engine.meeting_store().read_transcript(&id), lines);
     }
 
     #[test]
