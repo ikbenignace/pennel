@@ -68,9 +68,14 @@ final class KeyboardModel {
             reset()
             pad = fallbackShown ? .openPennelFallback : .sessionOff
         case .listening:
-            pad = .listening
+            // The app may still read listening for a moment after our stop; it must not look tappable again.
+            if let stoppedAt, current.timeIntervalSince(stoppedAt) < Self.resultGrace {
+                pad = .processing
+            } else {
+                stoppedAt = nil
+                pad = .listening
+            }
         case .processing:
-            stoppedAt = stoppedAt ?? current
             pad = .processing
         case .ready:
             fallbackShown = false
@@ -146,7 +151,8 @@ final class KeyboardModel {
     }
 
     private func end() {
-        guard send(.stop) else { return }
+        // A second stop would replace the pending id and orphan the first result.
+        guard stoppedAt == nil, send(.stop) else { return }
         gesture = .none
         stoppedAt = now()
         pad = .processing

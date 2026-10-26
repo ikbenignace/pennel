@@ -209,6 +209,45 @@ struct KeyboardModelTests {
         #expect(reappeared.lastResult == nil)
     }
 
+    @Test func stop_in_flight_is_not_undone_by_a_listening_session_and_never_sent_twice() throws {
+        try h.session(.ready)
+        let model = h.model()
+        model.refresh()
+        model.tapPill()
+        try h.session(.listening)
+        model.tapPill()
+        let stop = try #require(h.lastCommand)
+        #expect(stop.action == .stop)
+        model.refresh()
+        #expect(model.pad == .processing)
+        model.tapPill()
+        model.holdEnded()
+        #expect(try #require(h.lastCommand).id == stop.id)
+        try h.answer("eerste stop", to: stop.id)
+        model.refresh()
+        #expect(h.inserted == ["eerste stop"])
+    }
+
+    @Test func consumed_result_does_not_rearm_processing() throws {
+        try h.session(.ready)
+        let model = h.model()
+        model.refresh()
+        model.tapPill()
+        model.tapPill()
+        let stop = try #require(h.lastCommand)
+        try h.session(.processing)
+        try h.answer("klaar", to: stop.id)
+        model.refresh()
+        #expect(h.inserted == ["klaar"])
+        try h.session(.ready)
+        h.now = h.start.addingTimeInterval(0.2)
+        try h.session(.ready)
+        model.refresh()
+        #expect(model.pad == .ready)
+        model.tapPill()
+        #expect(h.lastCommand?.action == .start)
+    }
+
     @Test func stale_session_reads_off() throws {
         try h.session(.ready)
         let model = h.model()

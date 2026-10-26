@@ -72,10 +72,18 @@ struct DictationPad: View {
                     .font(.figtree(Brand.FontSize.section, weight: .semibold))
                     .foregroundStyle(Brand.pillText.color)
             } else {
-                Bars(level: active ? model.level : 0)
-                    .frame(height: 36)
+                if model.pad == .processing {
+                    PenMark()
+                        .frame(height: 40)
+                        .transition(.opacity)
+                } else {
+                    Bars(level: active ? model.level : 0)
+                        .frame(height: 36)
+                        .transition(.opacity)
+                }
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: model.pad == .processing)
         .frame(height: 76)
         .padding(.horizontal, Brand.Spacing.s6)
         .contentShape(Capsule())
@@ -118,5 +126,44 @@ struct PadButtonStyle: ButtonStyle {
             .padding(.horizontal, Brand.Spacing.s5)
             .frame(minHeight: 40)
             .background(Brand.button.color.opacity(configuration.isPressed ? 0.8 : 1), in: Capsule())
+    }
+}
+
+/// The stroke and full stop of `assets/brand/mark.svg`, in Soft wave because orange never sits on ink.
+private struct PenMark: View {
+    private static let strokeWidth: CGFloat = 7
+    private static let dot = CGRect(x: 74 - 7.5, y: 90 - 7.5, width: 15, height: 15)
+
+    private static let stroke: Path = {
+        var path = Path()
+        path.move(to: CGPoint(x: 16, y: 76))
+        path.addCurve(to: CGPoint(x: 30, y: 56), control1: CGPoint(x: 21, y: 68), control2: CGPoint(x: 26, y: 62))
+        path.addCurve(to: CGPoint(x: 25, y: 134), control1: CGPoint(x: 29, y: 82), control2: CGPoint(x: 27, y: 112))
+        path.addCurve(to: CGPoint(x: 35, y: 70), control1: CGPoint(x: 28, y: 112), control2: CGPoint(x: 31, y: 86))
+        path.addCurve(to: CGPoint(x: 66, y: 72), control1: CGPoint(x: 40, y: 56), control2: CGPoint(x: 66, y: 52))
+        path.addCurve(to: CGPoint(x: 36, y: 88), control1: CGPoint(x: 66, y: 92), control2: CGPoint(x: 44, y: 98))
+        path.addCurve(to: CGPoint(x: 56, y: 90), control1: CGPoint(x: 42, y: 92), control2: CGPoint(x: 50, y: 92))
+        // The SVG group is translate(12 -44) skewX(-8).
+        let skew = CGAffineTransform(a: 1, b: 0, c: tan(-8 * .pi / 180), d: 1, tx: 12, ty: -44)
+        return path.applying(skew)
+    }()
+
+    private static let dotPath = Path(ellipseIn: dot).applying(CGAffineTransform(a: 1, b: 0, c: tan(-8 * .pi / 180), d: 1, tx: 12, ty: -44))
+
+    var body: some View {
+        GeometryReader { proxy in
+            // The mark occupies roughly x 6..76, y 8..92 of the 96 box.
+            let box = CGRect(x: 6, y: 6, width: 76, height: 88)
+            let scale = proxy.size.height / box.height
+            let transform = CGAffineTransform(translationX: -box.minX, y: -box.minY).scaledBy(x: scale, y: scale)
+            ZStack {
+                Self.stroke.applying(transform)
+                    .stroke(Brand.pillAccent.color, style: StrokeStyle(lineWidth: Self.strokeWidth * scale, lineCap: .round, lineJoin: .round))
+                Self.dotPath.applying(transform).fill(Brand.pillAccent.color)
+            }
+            .frame(width: box.width * scale, height: proxy.size.height, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .accessibilityHidden(true)
     }
 }
