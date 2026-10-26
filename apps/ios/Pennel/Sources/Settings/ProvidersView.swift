@@ -165,10 +165,7 @@ struct ProviderDetailView: View {
             }
             .pennelRow()
         case .pennelCloud:
-            Section {
-                Text(model.engine.cloudSignedIn() ? "Ingelogd" : "Log in bij Pennel Cloud")
-            }
-            .pennelRow()
+            CloudProviderCard()
         default:
             Section {
                 Button(testing ? "Testen…" : "Test verbinding") { test(account) }
@@ -220,6 +217,38 @@ struct ProviderDetailView: View {
             }.value
             status = outcome
             testing = false
+        }
+    }
+}
+
+/// The Pennel Cloud card: who is signed in, or the way to the Account screen.
+private struct CloudProviderCard: View {
+    @Environment(AppModel.self) private var model
+    private enum State { case loading, signedIn(String), signedOut, failed(String) }
+    @State private var state = State.loading
+
+    var body: some View {
+        Section {
+            switch state {
+            case .loading:
+                ProgressView()
+            case .signedIn(let email):
+                Text(email.isEmpty ? "Ingelogd" : "Ingelogd als \(email)")
+            case .signedOut:
+                Text("Log in bij Pennel Cloud")
+                NavigationLink(value: SettingsSection.account) { Text("Log in bij Pennel Cloud") }
+            case .failed(let message):
+                Text(message).foregroundStyle(Brand.muted.color)
+            }
+        }
+        .pennelRow()
+        .task {
+            let engine = model.engine
+            state = await Task.detached { () -> State in
+                do { return .signedIn(try engine.cloudAccount().email) }
+                catch PennelError.NotSignedIn { return .signedOut }
+                catch { return .failed(ErrorText.failed(error)) }
+            }.value
         }
     }
 }

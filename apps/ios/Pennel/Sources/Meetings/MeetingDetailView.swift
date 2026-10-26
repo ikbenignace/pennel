@@ -24,11 +24,13 @@ struct MeetingDetailView: View {
     @State private var message = ""
     @State private var saveNotes: Task<Void, Never>?
     @State private var player = MeetingPlayer()
+    @State private var conflicts: [String] = []
 
     private static let log = Logger(subsystem: "app.pennel.ios", category: "meeting")
 
     private var busy: Bool { runtime.isRecording || runtime.phase == .finishing }
     private var canSummarize: Bool { MeetingRuntime.languageModelReady(model.settings) }
+    private var meetingDirectory: URL { URL(fileURLWithPath: model.engine.meetingDir(id: id)) }
     private var audioURL: URL {
         URL(fileURLWithPath: model.engine.meetingDir(id: id)).appendingPathComponent(AACArchive.fileName)
     }
@@ -63,6 +65,12 @@ struct MeetingDetailView: View {
                     .foregroundStyle(Brand.muted.color)
                 if let record = runtime.interruption(for: id) {
                     InterruptionNotice(record: record)
+                }
+                ForEach(conflicts, id: \.self) { name in
+                    ConflictBanner(name: name, directory: meetingDirectory, removable: runtime.activeMeetingId != id) {
+                        loadConflicts()
+                        CloudSyncRunner.shared.poke()
+                    }
                 }
                 Picker("Meeting", selection: $tab) {
                     Text(Copy.Meetings.notes).tag(Tab.notes)
@@ -194,6 +202,11 @@ struct MeetingDetailView: View {
         if template.isEmpty { template = model.settings.defaultTemplate }
         if jumpMs != nil, !self.loaded { tab = .transcript }
         self.loaded = true
+        loadConflicts()
+    }
+
+    private func loadConflicts() {
+        conflicts = model.settings.cloudSync ? ConflictCopies.list(in: meetingDirectory) : []
     }
 
     private func scheduleNotesSave() {
@@ -252,7 +265,7 @@ struct MeetingDetailView: View {
         let id = id
         Task {
             let result = await Task.detached { Result { try engine.retranscribeFailed(id: id, keys: Keychain.apiKeys()) } }.value
-            if case .failure(let error) = result { message = ErrorText.failed(error) }
+            if case .failure(let error) = result { message = ErrorText.failed(error) } else { CloudSyncRunner.shared.poke() }
             working = false
             await load()
         }

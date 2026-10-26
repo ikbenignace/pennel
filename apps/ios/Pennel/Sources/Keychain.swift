@@ -46,17 +46,38 @@ enum Keychain {
     @discardableResult
     static func set(key: String?, for providerId: String) -> Bool {
         guard !providerId.isEmpty else { return false }
+        return write(key?.trimmingCharacters(in: .whitespacesAndNewlines), account: apiKeyAccount(providerId))
+    }
+
+    static func secret(account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: apiKeyAccount(providerId),
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
         ]
-        guard let key = key?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// A nil or empty value deletes the entry.
+    @discardableResult
+    static func write(_ value: String?, account: String) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        guard let value, !value.isEmpty else {
             let status = SecItemDelete(query as CFDictionary)
             return status == errSecSuccess || status == errSecItemNotFound
         }
         let attributes: [String: Any] = [
-            kSecValueData as String: Data(key.utf8),
+            kSecValueData as String: Data(value.utf8),
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)

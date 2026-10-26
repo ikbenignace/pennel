@@ -23,6 +23,7 @@ final class AppModel {
         templates = engine.meetingTemplates()
         pinMeetingsDirectory()
         registerSystemProviders()
+        registerSecretStore()
         applyFirstRunDefaults()
     }
 
@@ -54,6 +55,19 @@ final class AppModel {
     private func registerSystemProviders() {
         engine.setSystemTranscriber(transcriber: AppleSpeechTranscriber())
         engine.setSystemLanguageModel(model: AppleIntelligenceModel())
+    }
+
+    private func registerSecretStore() {
+        do {
+            try engine.setSecretStore(store: KeychainSecretStore())
+        } catch {
+            Self.log.error("secret store: \(ErrorText.code(error), privacy: .public)")
+        }
+    }
+
+    /// The core changes settings itself when sync is switched on or off.
+    func reloadSettings() {
+        settings = engine.settings()
     }
 
     private static let defaultsAppliedKey = "firstRunDefaultsApplied"

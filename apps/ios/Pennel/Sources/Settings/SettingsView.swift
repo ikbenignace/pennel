@@ -94,16 +94,3 @@ struct AppearanceView: View {
         .pennelList()
     }
 }
-
-/// Filled in with Pennel Cloud sign-in, usage, sync and devices.
-struct AccountView: View {
-    var body: some View {
-        Form {
-            Section {
-                Text("Log in om je meetings op al je toestellen te hebben en Pennel Cloud als provider te gebruiken, zonder eigen API-sleutel.")
-            }
-            .pennelRow()
-        }
-        .pennelList()
-    }
-}

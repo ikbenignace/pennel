@@ -46,6 +46,8 @@ struct MeetingListView: View {
     @State private var deleting: MeetingInfo?
     @State private var showsLive = false
     @State private var pruned = false
+    @State private var syncStates: [String: SyncItemState] = [:]
+    @State private var syncRunner = CloudSyncRunner.shared
 
     nonisolated private static let log = Logger(subsystem: "app.pennel.ios", category: "meeting")
 
@@ -104,7 +106,7 @@ struct MeetingListView: View {
                     Section(group.title) {
                         ForEach(group.meetings, id: \.id) { meeting in
                             NavigationLink(value: MeetingRoute(id: meeting.id, startMs: nil)) {
-                                MeetingRow(meeting: meeting)
+                                MeetingRow(meeting: meeting, sync: syncStates[meeting.id], syncOn: syncOn)
                             }
                             .pennelRow()
                             .swipeActions {
@@ -152,10 +154,27 @@ struct MeetingListView: View {
         .task(id: query) { await load() }
         .task { prune() }
         .onChange(of: runtime.phase) { reload() }
+        .onChange(of: syncRunner.report) { loadSyncStates() }
+    }
+
+    private var syncOn: Bool {
+        SyncBadges.active(settingOn: model.settings.cloudSync, status: syncRunner.report?.status)
     }
 
     private func reload() {
         Task { await load() }
+    }
+
+    private func loadSyncStates() {
+        guard syncOn else {
+            syncStates = [:]
+            return
+        }
+        let engine = model.engine
+        Task {
+            let states = await Task.detached { engine.meetingSyncStates() }.value
+            syncStates = Dictionary(states.map { ($0.id, $0.state) }, uniquingKeysWith: { $1 })
+        }
     }
 
     private func load() async {
@@ -164,6 +183,7 @@ struct MeetingListView: View {
         meetings = await Task.detached {
             query.trimmingCharacters(in: .whitespaces).isEmpty ? engine.meetings() : engine.searchMeetings(query: query)
         }.value
+        loadSyncStates()
     }
 
     /// Audio older than the retention setting is removed, as on the desktop; notes and transcripts stay.
@@ -207,6 +227,7 @@ struct MeetingListView: View {
         do {
             let id = try model.engine.renameMeeting(id: meeting.id, title: title)
             runtime.renamed(from: meeting.id, to: id)
+            syncRunner.poke()
         } catch {
             model.errorMessage = ErrorText.failed(error)
         }
@@ -219,6 +240,7 @@ struct MeetingListView: View {
         do {
             try model.engine.deleteMeeting(id: meeting.id)
             runtime.deleted(meeting.id)
+            syncRunner.poke()
         } catch {
             model.errorMessage = ErrorText.failed(error)
         }
@@ -228,8 +250,18 @@ struct MeetingListView: View {
 
 private struct MeetingRow: View {
     let meeting: MeetingInfo
+    let sync: SyncItemState?
+    let syncOn: Bool
 
     var body: some View {
+        HStack {
+            details
+            Spacer()
+            SyncBadge(state: sync, syncOn: syncOn)
+        }
+    }
+
+    private var details: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(meeting.title).font(Theme.font(.body, weight: .medium))
             Text([MeetingDates.dayLabel(meeting.startIso), MeetingDates.timeLabel(meeting.startIso),

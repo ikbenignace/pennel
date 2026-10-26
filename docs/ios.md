@@ -104,6 +104,29 @@ continues with the screen locked (background mode `audio`). The Live Activity sh
 Device acceptance pending: a 60-minute meeting with the screen locked on the oldest supported iPhone, with one phone call
 in the middle; also whether iOS accepts the finish task identifier without a wildcard suffix.
 
+## Pennel Cloud
+
+The **Account** screen in Settings follows the desktop's Account tab (`apps/desktop/src/views/account.ts`) section for
+section: sign-in, usage, **Meetings synchroniseren**, **Herstelcode**, **Toestellen**, **Account verwijderen**. The device name
+defaults to `iPhone` (iOS no longer gives the real name) and can be changed; the platform sent is `ios`. The verification
+page opens in the default browser and the app polls like the desktop (interval, +5 s on `slow_down`, stop after 15 minutes).
+
+- **Secrets:** `KeychainSecretStore` is the core's `SecretStore` (accounts `pennel-cloud-refresh`, `pennel-cloud-vault-key`),
+  service `app.pennel.ios`, `AfterFirstUnlockThisDeviceOnly`, so sync works with the screen locked during a recording.
+- **Recovery code:** shown once from memory, never stored. **Kopiëren** puts it on the pasteboard as local-only with a
+  2-minute expiry; **Afdrukken** uses the system print sheet.
+- **Sync runner:** `CloudSyncRunner` runs `cloud_sync_run` off the main actor, one pass at a time with at most one queued
+  rerun. Triggers: app foreground, a finished meeting, writes (notes, summary, rename, delete, retranscribe, conflict
+  removal), every 180 s while in the foreground, and `BGAppRefreshTask` `app.pennel.ios.sync` (iOS decides when it runs).
+  Every pass receives `MeetingRuntime.activeMeetingId`, so the meeting being recorded is never pushed.
+- **Badges and conflicts:** each meeting row shows **Gesynchroniseerd** / **Wacht op sync** / **Conflictversie**; the meeting
+  page shows the desktop's conflict banner with **Bekijken** (the file's text in a sheet) and **Verwijderen**.
+- **Provider card:** Pennel Cloud shows `Ingelogd als …` or **Log in bij Pennel Cloud**, which opens Account.
+- Not on iPhone: the Account screen has no Claude access section.
+
+Pending device acceptance: record on the iPhone and see the meeting on the Mac within a minute of finishing; edit notes on
+the Mac and see them on the iPhone at the next foreground; whether `BGAppRefreshTask` ever runs for a given user.
+
 ## Not available on iPhone
 
 Shown disabled with the reason, never hidden (also listed in `docs/desktop.md`): CLI agents, local models,
