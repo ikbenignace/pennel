@@ -1,5 +1,13 @@
-type Child = Node | string | null | undefined | false;
-type Attrs = Record<string, string | number | boolean | EventListener | null | undefined>;
+import { bindLocalization, formatNumber, l, liveText, LiveText, localizeBackendText, type UiText } from "./i18n.ts";
+
+type Child = Node | UiText | null | undefined | false;
+type Attrs = Record<string, UiText | number | boolean | EventListener | null | undefined>;
+
+function localizedAttribute(el: HTMLElement, key: string, value: UiText): void {
+  const update = () => el.setAttribute(key, String(value));
+  update();
+  if (value instanceof LiveText) bindLocalization(el, update);
+}
 
 export function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -16,17 +24,21 @@ export function h<K extends keyof HTMLElementTagNameMap>(
     } else if (key === "checked" && "checked" in el) {
       (el as HTMLInputElement).checked = Boolean(value);
     } else {
-      el.setAttribute(key, value === true ? "" : String(value));
+      localizedAttribute(el, key, value === true ? "" : value as UiText);
     }
   }
   for (const child of children.flat()) {
     if (child === null || child === undefined || child === false) continue;
-    el.append(child);
+    if (child instanceof LiveText) {
+      const text = document.createTextNode(String(child));
+      bindLocalization(text, () => { text.data = String(child); });
+      el.append(text);
+    } else el.append(child);
   }
   return el;
 }
 
-export function section(title: string, subtitle: string | null, ...body: (Child | Child[])[]) {
+export function section(title: UiText, subtitle: UiText | null, ...body: (Child | Child[])[]) {
   const headingId = `section-${++sectionNumber}`;
   const node = h(
     "section",
@@ -36,7 +48,7 @@ export function section(title: string, subtitle: string | null, ...body: (Child 
     ...body,
   );
   for (const choice of node.querySelectorAll<HTMLElement>(".choice")) {
-    if (!choice.closest(".field") && !choice.hasAttribute("aria-label")) choice.setAttribute("aria-label", title);
+    if (!choice.closest(".field") && !choice.hasAttribute("aria-label")) localizedAttribute(choice, "aria-label", title);
   }
   for (const control of node.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea")) {
     if (!control.closest("label") && !control.labels?.length && !control.hasAttribute("aria-label") && !control.hasAttribute("aria-labelledby")) control.setAttribute("aria-labelledby", headingId);
@@ -46,13 +58,13 @@ export function section(title: string, subtitle: string | null, ...body: (Child 
 
 let sectionNumber = 0;
 
-export function field(label: string, control: HTMLElement) {
+export function field(label: UiText, control: HTMLElement) {
   const formControl = control.matches("input,textarea");
-  if (control.classList.contains("choice") && !control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
+  if (control.classList.contains("choice") && !control.hasAttribute("aria-label")) localizedAttribute(control, "aria-label", label);
   return h(formControl ? "label" : "div", { class: "field" }, h("span", { class: "field-label" }, label), control);
 }
 
-export interface ChoiceOption { readonly value: string; readonly label: string; disabled: boolean }
+export interface ChoiceOption { readonly value: string; label: string; disabled: boolean }
 /** A choice control with the subset of the select element's interface the views use. */
 export interface ChoiceElement<T extends string = string> extends HTMLElement {
   value: T;
@@ -66,7 +78,7 @@ export type ChoiceStyle = "auto" | "segmented" | "menu";
  * a menu. Neither uses a system dropdown, so both keep the brand look on every platform.
  */
 export function select<T extends string>(
-  options: [T, string][],
+  options: [T, UiText][],
   value: T,
   onChange: (value: T) => void,
   style: ChoiceStyle = "auto",
@@ -75,7 +87,7 @@ export function select<T extends string>(
   return segmented ? segmentedChoice(options, value, onChange) : menuChoice(options, value, onChange);
 }
 
-function segmentedChoice<T extends string>(options: [T, string][], value: T, onChange: (value: T) => void): ChoiceElement<T> {
+function segmentedChoice<T extends string>(options: [T, UiText][], value: T, onChange: (value: T) => void): ChoiceElement<T> {
   let current = value;
   let disabled = false;
   const root = h("div", { class: "segmented choice", role: "radiogroup" }) as unknown as ChoiceElement<T>;
@@ -105,8 +117,10 @@ function segmentedChoice<T extends string>(options: [T, string][], value: T, onC
     current = option; draw(); onChange(option);
   };
   draw();
-  const choices = options.map(([option, label], index): ChoiceOption => ({
-    value: option, label,
+  const choices = options.map(([option], index): ChoiceOption => ({
+    value: option,
+    get label() { return String(options[index][1]); },
+    set label(next: string) { options[index][1] = next; buttons[index].textContent = next; },
     get disabled() { return buttons[index].disabled; },
     set disabled(next: boolean) { buttons[index].disabled = next || disabled; },
   }));
@@ -118,7 +132,7 @@ function segmentedChoice<T extends string>(options: [T, string][], value: T, onC
   return root;
 }
 
-function menuChoice<T extends string>(options: [T, string][], value: T, onChange: (value: T) => void): ChoiceElement<T> {
+function menuChoice<T extends string>(options: [T, UiText][], value: T, onChange: (value: T) => void): ChoiceElement<T> {
   let current = value;
   let name = "";
   const disabledOptions = new Set<string>();
@@ -127,7 +141,7 @@ function menuChoice<T extends string>(options: [T, string][], value: T, onChange
   const setAttribute = root.setAttribute.bind(root);
   const draw = () => {
     const label = options.find(([option]) => option === current)?.[1] ?? current;
-    text.textContent = label;
+    text.textContent = String(label);
     if (name) setAttribute("aria-label", `${name}: ${label}`);
   };
   root.setAttribute = (attribute: string, next: string) => { if (attribute === "aria-label") { name = next; draw(); } else setAttribute(attribute, next); };
@@ -137,8 +151,11 @@ function menuChoice<T extends string>(options: [T, string][], value: T, onChange
   }));
   root.addEventListener("keydown", (event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); root.click(); } });
   draw();
-  const choices = options.map(([option, label]): ChoiceOption => ({
-    value: option, label,
+  bindLocalization(root, draw);
+  const choices = options.map(([option], index): ChoiceOption => ({
+    value: option,
+    get label() { return String(options[index][1]); },
+    set label(next: string) { options[index][1] = next; draw(); },
     get disabled() { return disabledOptions.has(option); },
     set disabled(next: boolean) { if (next) disabledOptions.add(option); else disabledOptions.delete(option); },
   }));
@@ -150,7 +167,7 @@ function menuChoice<T extends string>(options: [T, string][], value: T, onChange
 }
 
 /** A pill button that offers a list of actions in a menu, such as Delen or Provider toevoegen…. */
-export function menuButton(label: string, items: { label: string; disabled?: boolean; title?: string | null; run: () => unknown }[], className = ""): HTMLButtonElement {
+export function menuButton(label: UiText, items: { label: UiText; disabled?: boolean; title?: UiText | null; run: () => unknown }[], className = ""): HTMLButtonElement {
   const button = h("button", { type: "button", class: `menu-button ${className}`.trim(), "aria-haspopup": "menu", "aria-expanded": "false" }, h("span", { class: "menu-button-label" }, label), chevron());
   button.addEventListener("click", () => openList(button, items.map((item, index) => ({ value: String(index), label: item.label, disabled: !!item.disabled, title: item.title ?? undefined })), null, (index) => { void items[Number(index)].run(); }, "menu"));
   button.addEventListener("keydown", (event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); button.click(); } });
@@ -169,7 +186,7 @@ function chevron(): SVGSVGElement {
 
 let openMenu: { close: () => void } | null = null;
 
-function openList(anchor: HTMLElement, items: { value: string; label: string; disabled: boolean; title?: string }[], current: string | null, choose: (value: string) => void, role: "listbox" | "menu" = "listbox") {
+function openList(anchor: HTMLElement, items: { value: string; label: UiText; disabled: boolean; title?: UiText }[], current: string | null, choose: (value: string) => void, role: "listbox" | "menu" = "listbox") {
   openMenu?.close();
   const itemRole = role === "listbox" ? "option" : "menuitem";
   const list = h("div", { class: "context-menu choice-list", role });
@@ -210,8 +227,8 @@ function openList(anchor: HTMLElement, items: { value: string; label: string; di
 }
 
 export function formatBytes(bytes: number): string {
-  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
-  return `${Math.round(bytes / 1e6)} MB`;
+  if (bytes >= 1e9) return `${formatNumber(bytes / 1e9, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GB`;
+  return `${formatNumber(Math.round(bytes / 1e6))} MB`;
 }
 
 export function formatClock(seconds: number): string {
@@ -223,10 +240,10 @@ export function formatClock(seconds: number): string {
 }
 
 export function errorText(e: unknown): string {
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return localizeBackendText(e);
+  if (e instanceof Error) return localizeBackendText(e.message);
   if (typeof e === "object" && e !== null && typeof (e as { message?: unknown }).message === "string") {
-    return (e as { message: string }).message;
+    return localizeBackendText((e as { message: string }).message);
   }
   return JSON.stringify(e);
 }
@@ -236,8 +253,12 @@ export function errorCode(e: unknown): string | null {
   return typeof code === "string" ? code : null;
 }
 
+export function isCancellation(error: unknown): boolean {
+  return errorCode(error) === "cancelled" || /^(cancelled|canceled|geannuleerd)$/i.test(errorText(error).trim());
+}
+
 export function toggle(
-  label: string,
+  label: UiText,
   checked: boolean,
   change: (value: boolean) => void,
   capability?: { status: string; reason: string | null },
@@ -247,7 +268,7 @@ export function toggle(
   input.addEventListener("change", () => change(input.checked));
   return h("div", { class: "toggle-field" },
     h("label", { class: "checkbox" }, input, label),
-    capability?.reason ? h("p", { class: "help" }, capability.reason) : null);
+    capability?.reason ? h("p", { class: "help" }, liveText(() => localizeBackendText(capability.reason ?? ""))) : null);
 }
 
 function inline(text: string): DocumentFragment {
@@ -273,7 +294,7 @@ export function markdown(text: string): HTMLElement {
     const bullet = clean.match(/^[-*•]\s+(.+)/);
     const task = bullet?.[1].match(/^\[([ xX])\]\s+(.+)/);
     const node = heading ? h("h4", {}) : h("p", { class: bullet ? "bullet" : null });
-    if (task) node.append(h("span", { class: "markdown-check", role: "img", "aria-label": task[1].trim() ? "Voltooid" : "Open actiepunt" }, task[1].trim() ? "☑ " : "□ "));
+    if (task) node.append(h("span", { class: "markdown-check", role: "img", "aria-label": l(task[1].trim() ? "dom.task_done" : "dom.task_open") }, task[1].trim() ? "☑ " : "□ "));
     else if (bullet) node.append(h("span", { class: "bullet-mark" }, "• "));
     node.append(inline(heading?.[1] ?? task?.[2] ?? bullet?.[1] ?? clean));
     block.append(node);
@@ -292,7 +313,7 @@ export function snippet(text: string): HTMLElement {
 
 let dialogNumber = 0;
 
-function namedDialog(title: string, detail: string) {
+function namedDialog(title: UiText, detail: UiText) {
   const id = `dialog-${++dialogNumber}`;
   const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const dialog = h("dialog", { class: "editor-dialog", "aria-modal": "true", "aria-labelledby": `${id}-title`, "aria-describedby": detail ? `${id}-detail` : null });
@@ -305,11 +326,11 @@ function namedDialog(title: string, detail: string) {
   return { dialog, heading, description, close };
 }
 
-export function confirmDialog(title: string, detail: string, action = "Verwijder"): Promise<boolean> {
+export function confirmDialog(title: UiText, detail: UiText, action: UiText = l("common.delete")): Promise<boolean> {
   return new Promise((resolve) => {
     const { dialog, heading, description, close } = namedDialog(title, detail);
     const finish = (value: boolean) => { close(); resolve(value); };
-    const cancel = h("button", { class: "btn", onclick: () => finish(false) }, "Annuleren");
+    const cancel = h("button", { class: "btn", onclick: () => finish(false) }, l("common.cancel"));
     dialog.append(heading, ...(description ? [description] : []),
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
         cancel,
@@ -321,15 +342,15 @@ export function confirmDialog(title: string, detail: string, action = "Verwijder
   });
 }
 
-export function askText(title: string, value: string, detail = ""): Promise<string | null> {
+export function askText(title: UiText, value: string, detail: UiText = ""): Promise<string | null> {
   return new Promise((resolve) => {
     const { dialog, heading, description, close } = namedDialog(title, detail);
     const input = h("input", { type: "text", value, "aria-label": title });
     const finish = (result: string | null) => { close(); resolve(result); };
     const form = h("form", {}, heading, description, input,
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
-        h("button", { class: "btn", type: "button", onclick: () => finish(null) }, "Annuleren"),
-        h("button", { class: "btn primary", type: "submit" }, "Bewaar")));
+        h("button", { class: "btn", type: "button", onclick: () => finish(null) }, l("common.cancel")),
+        h("button", { class: "btn primary", type: "submit" }, l("common.save"))));
     form.addEventListener("submit", (event) => { event.preventDefault(); finish(input.value.trim()); });
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(null); });
     dialog.append(form);
@@ -341,7 +362,7 @@ export function askText(title: string, value: string, detail = ""): Promise<stri
 }
 
 /** A name dialog with one opt-in switch below the field, such as Onthoud deze stem. */
-export function askTextWithSwitch(title: string, value: string, detail: string, label: string, checked = false): Promise<{ text: string; on: boolean } | null> {
+export function askTextWithSwitch(title: UiText, value: string, detail: UiText, label: UiText, checked = false): Promise<{ text: string; on: boolean } | null> {
   return new Promise((resolve) => {
     const { dialog, heading, description, close } = namedDialog(title, detail);
     const input = h("input", { type: "text", value, "aria-label": title });
@@ -349,8 +370,8 @@ export function askTextWithSwitch(title: string, value: string, detail: string, 
     const finish = (result: { text: string; on: boolean } | null) => { close(); resolve(result); };
     const form = h("form", {}, heading, description, input, h("label", { class: "checkbox" }, option, label),
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
-        h("button", { class: "btn", type: "button", onclick: () => finish(null) }, "Annuleren"),
-        h("button", { class: "btn primary", type: "submit" }, "Bewaar")));
+        h("button", { class: "btn", type: "button", onclick: () => finish(null) }, l("common.cancel")),
+        h("button", { class: "btn primary", type: "submit" }, l("common.save"))));
     form.addEventListener("submit", (event) => { event.preventDefault(); finish({ text: input.value.trim(), on: option.checked }); });
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(null); });
     dialog.append(form);

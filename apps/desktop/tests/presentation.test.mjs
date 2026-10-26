@@ -1,3 +1,5 @@
+import { setInterfaceLanguage } from "../src/i18n.ts";
+setInterfaceLanguage("nl");
 import assert from "node:assert/strict";
 import test from "node:test";
 import { appInfoContentEqual, appearanceIsDark, applicationLabel, hotkeyLabel, languageModelConfigured } from "../src/presentation.ts";
@@ -44,4 +46,12 @@ test("actual dictionary and credential availability changes still refresh their 
   const previous = { settings: { appearance: "system", dictionary: ["Pennel"] }, keys: { a: false } };
   assert.equal(appInfoContentEqual(previous, { ...previous, settings: { ...previous.settings, dictionary: ["Pennel", "Nieuw"] } }), false);
   assert.equal(appInfoContentEqual(previous, { ...previous, keys: { a: true } }), false);
+});
+
+
+test("interface-only changes relabel existing views while actual settings changes still refresh", () => {
+  const before = { interface_language: "en", system_interface_language: "en", settings: { ui_language: "system", appearance: "system", language: "fr", dictionary: ["Kopiëren"] }, keys: {} };
+  const after = { ...before, interface_language: "nl", settings: { ...before.settings, ui_language: "nl" } };
+  assert.equal(appInfoContentEqual(before, after), true);
+  assert.equal(appInfoContentEqual(before, { ...after, settings: { ...after.settings, language: "en" } }), false);
 });

@@ -484,7 +484,10 @@ pub fn retry_persistence(
         MeetingFinished {
             id: result.clone().ok(),
             session_id: session_id.to_owned(),
-            error: result.as_ref().err().cloned(),
+            error: result
+                .as_ref()
+                .err()
+                .map(crate::commands::localize_error_message),
             flush_warning: None,
         },
     );
@@ -533,8 +536,11 @@ pub fn stop(
         let finished = MeetingFinished {
             id: result.clone().ok(),
             session_id: token,
-            error: result.as_ref().err().cloned(),
-            flush_warning,
+            error: result
+                .as_ref()
+                .err()
+                .map(crate::commands::localize_error_message),
+            flush_warning: flush_warning.map(crate::commands::localize_error_message),
         };
         let _ = app.emit("meeting-finished", finished);
         crate::cloud::poke(&app);
@@ -992,6 +998,7 @@ mod tests {
         let (dictation, _) = std::sync::mpsc::channel();
         let shared = Arc::new(Shared {
             engine,
+            system_interface_language: Default::default(),
             version: "0.2.0-test".into(),
             preview: true,
             migration_warning: None,

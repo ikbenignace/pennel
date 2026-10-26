@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
+import { setInterfaceLanguage } from "../src/i18n.ts";
+
+beforeEach(() => setInterfaceLanguage("nl"));
 import { claudeInstructions, claudeStatusText } from "../src/claude-access.ts";
 import { relativeTime } from "../src/cloud-login.ts";
 
@@ -24,4 +27,15 @@ test("instructions use the server's MCP URL", () => {
     connectorUrl: "https://api.pennel.app/mcp",
     command: "claude mcp add --transport http pennel https://api.pennel.app/mcp",
   });
+});
+
+
+test("Claude status is localized without changing connector instructions", () => {
+  const url = "https://example.invalid/mcp";
+  const instructions = claudeInstructions(url);
+  setInterfaceLanguage("en");
+  assert.equal(claudeStatusText({ kind: "connecting" }, true, ago), "Connecting to Pennel Cloud…");
+  assert.equal(claudeStatusText({ kind: "connected", last_request_ms: NOW - 120000 }, true, ago), "Connected · last question from Claude 2 min ago");
+  setInterfaceLanguage("nl");
+  assert.deepEqual(claudeInstructions(url), instructions);
 });

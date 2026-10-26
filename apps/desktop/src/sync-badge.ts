@@ -1,15 +1,18 @@
+import { t, type TranslationKey } from "./i18n.ts";
 import type { IconName } from "./icons";
 
 export type SyncItemState = "synced" | "pending" | "conflict";
 
-const badges: Record<SyncItemState, { icon: IconName; label: string }> = {
-  synced: { icon: "check", label: "Gesynchroniseerd" },
-  pending: { icon: "rotate", label: "Wacht op sync" },
-  conflict: { icon: "warning", label: "Conflictversie" },
+const badges: Record<SyncItemState, { icon: IconName; key: TranslationKey }> = {
+  synced: { icon: "check", key: "meetings.sync.synced" },
+  pending: { icon: "rotate", key: "meetings.sync.pending" },
+  conflict: { icon: "warning", key: "meetings.sync.conflict" },
 };
 
 export function badgeFor(state: SyncItemState | undefined, syncOn: boolean) {
-  return syncOn && state ? badges[state] : null;
+  if (!syncOn || !state) return null;
+  const badge = badges[state];
+  return { icon: badge.icon, label: t(badge.key) };
 }
 
 /** The setting can stay on after logout, account deletion or a revoked device; the report tells whether sync can still happen. */

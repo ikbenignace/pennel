@@ -5,6 +5,7 @@ import type { ClaudeStatus } from "./claude-access";
 import type { LoginPoll } from "./cloud-login";
 export type { ClaudeStatus };
 import type { WorkspaceRoute } from "./workspace-state";
+import { localizeUiResponse } from "./ui-response.ts";
 
 interface PlatformClient {
   invoke(command: string, args?: Record<string, unknown>): Promise<unknown>;
@@ -20,9 +21,10 @@ export function fixtureClient(): PlatformClient | undefined {
   return import.meta.env.DEV ? window.__PENNEL_PLATFORM__ : undefined;
 }
 
-function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const client = fixtureClient();
-  return client ? client.invoke(command, args) as Promise<T> : tauriInvoke<T>(command, args);
+  const value = client ? await client.invoke(command, args) : await tauriInvoke<T>(command, args);
+  return localizeUiResponse(command, value) as T;
 }
 
 export function listen<T>(event: string, handler: (event: Event<T>) => void): Promise<() => void> {
@@ -70,7 +72,7 @@ export type AppWindow = "library" | "settings" | "history" | "dictation" | "live
 export type MeetingPhase = "idle" | "starting" | "recording" | "stopping" | "finalizing" | "error";
 export type Speaker = "me" | "others";
 export type AppearancePreference = "system" | "light" | "dark";
-export type OnboardingStep = "welcome" | "engine" | "permissions" | "practice" | "voice";
+export type OnboardingStep = "language" | "welcome" | "engine" | "permissions" | "practice" | "voice";
 export type SpeakerRecognitionMode = "local" | "cloud";
 
 export interface OnboardingProgress {
@@ -147,6 +149,7 @@ export interface ClaudeAccessView {
 }
 
 export interface Settings {
+  ui_language: "system" | "en" | "nl";
   appearance: AppearancePreference;
   onboarding: OnboardingProgress;
   dictation_pad_auto_paste: boolean;
@@ -192,6 +195,8 @@ export interface KindInfo {
 }
 
 export interface AppInfo {
+  interface_language: "en" | "nl";
+  system_interface_language: "en" | "nl";
   settings: Settings;
   keys: Record<string, boolean>;
   provider_revisions?: Record<string, number>;

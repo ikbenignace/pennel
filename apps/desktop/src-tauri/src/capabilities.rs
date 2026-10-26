@@ -25,6 +25,9 @@ pub struct Capability {
 }
 
 impl Capability {
+    fn localize(&mut self) {
+        self.reason = self.reason.take().map(crate::ui::message);
+    }
     pub fn available() -> Self {
         Self {
             status: CapabilityStatus::Available,
@@ -166,6 +169,31 @@ pub struct PlatformCapabilities {
     pub diarization: Capability,
     pub local_models: Capability,
     pub local_acceleration: &'static str,
+}
+
+impl PlatformCapabilities {
+    pub fn localized(mut self) -> Self {
+        for capability in [
+            &mut self.global_hotkey,
+            &mut self.record_shortcut,
+            &mut self.microphone,
+            &mut self.system_audio,
+            &mut self.echo_cancellation,
+            &mut self.call_detection,
+            &mut self.calendar,
+            &mut self.apple_speech,
+            &mut self.apple_intelligence,
+            &mut self.selection,
+            &mut self.pad_external_paste,
+            &mut self.rich_clipboard,
+            &mut self.audio_playback,
+            &mut self.diarization,
+            &mut self.local_models,
+        ] {
+            capability.localize();
+        }
+        self
+    }
 }
 
 fn local_models_capability(unavailable_reason: Option<String>) -> Capability {

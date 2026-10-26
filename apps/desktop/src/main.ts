@@ -18,6 +18,7 @@ import { onboardingView } from "./views/onboarding";
 import { padView } from "./views/pad";
 import { appInfoContentEqual } from "./presentation";
 import { VisibilityPoll } from "./window-lifecycle";
+import { bindLocalization, l, liveText, localizeBackendText, refreshLocalization, setInterfaceLanguage, t, type InterfaceLanguagePreference, type TranslationKey } from "./i18n.ts";
 
 export interface Context {
   info: AppInfo;
@@ -51,12 +52,12 @@ interface Mounted {
   visibility: ((visible: boolean) => void)[];
 }
 
-const tabs: [string, string, View][] = [
-  ["providers", "Providers", providersView], ["models", "Modellen", modelsView],
-  ["dictation", "Dicteren", dictationView], ["meeting-settings", "Meetings", meetingSettingsView],
-  ["recording", "Opnemen", recordingSettingsView], ["dictionary", "Woordenlijst", dictionaryView],
-  ["styles", "Stijlen", stylesView], ["appearance", "Weergave", appearanceView],
-  ["account", "Account", accountView],
+const tabs: [string, TranslationKey, View][] = [
+  ["providers", "navigation.providers", providersView], ["models", "navigation.models", modelsView],
+  ["dictation", "navigation.dictation", dictationView], ["meeting-settings", "navigation.meetings", meetingSettingsView],
+  ["recording", "navigation.recording", recordingSettingsView], ["dictionary", "navigation.dictionary", dictionaryView],
+  ["styles", "navigation.styles", stylesView], ["appearance", "navigation.appearance", appearanceView],
+  ["account", "navigation.account", accountView],
 ];
 const query = new URLSearchParams(location.search);
 const requestedWindow = query.get("window") ?? "workspace";
@@ -97,14 +98,14 @@ function showRecovery() {
   if (recoveryBanner.hidden) return;
   const notice = recoveryNotice;
   recoveryBanner.replaceChildren(
-    h("span", { class: "grow" }, notice?.reason ?? "Je hebt dictaten die nog niet bewaard zijn. Ze blijven beschikbaar zolang Pennel open is."),
+    h("span", { class: "grow" }, notice ? liveText(() => localizeBackendText(notice.reason)) : l("recovery.unsaved")),
     ...(notice ? [h("button", { class: "text-button", onclick: async () => {
       try {
         await api.copyHistory(notice.id);
         if (!notice.unsaved) { recoveryNotice = null; showRecovery(); }
       } catch (error) { report(error); }
-    } }, "Kopiëren")] : []),
-    h("button", { class: "text-button", onclick: () => { void api.showWindow("history").catch(report); } }, "Open geschiedenis"),
+    } }, l("common.copy"))] : []),
+    h("button", { class: "text-button", onclick: () => { void api.showWindow("history").catch(report); } }, l("common.open_history")),
   );
 }
 
@@ -125,6 +126,7 @@ function applyAppearance() {
 }
 
 function notifyInfo() {
+  setInterfaceLanguage(info.interface_language);
   showRecovery();
   applyAppearance();
   mounted?.info.forEach((listener) => listener(visibleInfo()));
@@ -233,13 +235,13 @@ function contextFor(target: Mounted): Context {
 
 async function settingsView(ctx: Context): Promise<HTMLElement> {
   const current = navigation.current.tab === "local" ? "providers" : navigation.current.tab ?? "providers";
-  const nav = h("nav", { class: "settings-categories segmented", "aria-label": "Instellingencategorieën" }, tabs.map(([id, label]) => h("button", {
+  const nav = h("nav", { class: "settings-categories segmented", "aria-label": l("navigation.settings_categories") }, tabs.map(([id, label]) => h("button", {
     "aria-current": id === current ? "page" : null, onclick: (event: Event) => {
       nav.querySelectorAll("button").forEach((button) => button.removeAttribute("aria-current"));
       (event.currentTarget as HTMLElement).setAttribute("aria-current", "page");
       navigate(id);
     },
-  }, label)));
+  }, l(label))));
   const selected = tabs.find(([id]) => id === current) ?? tabs[0];
   const pane = h("section", { class: "settings-pane" });
   const content = async () => [await selected[2](ctx), settingsFooter(ctx)];
@@ -249,24 +251,35 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
   else {
     let live = true;
     ctx.onDispose(() => { live = false; });
-    const loading = h("p", { class: "help settings-loading", role: "status" }, "Laden…");
-    void fillWhenReady(pane, loading, content, () => live).catch((error: unknown) => {
+    const loading = h("p", { class: "help settings-loading", role: "status" }, l("common.loading"));
+    void fillWhenReady(pane, loading, content, () => live).then(() => refreshLocalization(pane)).catch((error: unknown) => {
       if (live) pane.replaceChildren(h("p", { class: "error", role: "status" }, errorText(error)));
       report(error);
     });
   }
-  return h("div", { class: "settings-workspace" }, h("h1", { class: "visually-hidden" }, "Instellingen"), h("div", { class: "settings-layout" }, nav, pane));
+  return h("div", { class: "settings-workspace" }, h("h1", { class: "visually-hidden" }, l("window.settings")), h("div", { class: "settings-layout" }, nav, pane));
 }
 
 function appearanceView(ctx: Context): HTMLElement {
-  const picker = select([["system", "Volg systeem"], ["light", "Licht"], ["dark", "Donker"]], ctx.info.settings.appearance ?? "system", (value) => {
-    void ctx.save((settings) => { settings.appearance = value; });
+  const picker = select([["system", l("appearance.system")], ["light", l("appearance.light")], ["dark", l("appearance.dark")]], ctx.info.settings.appearance ?? "system", (value) => {
+    void ctx.save((settings) => { settings.appearance = value; }).catch(ctx.report);
   });
-  picker.setAttribute("aria-label", "Weergave");
-  ctx.onInfoChange((next) => { picker.value = next.settings.appearance; });
-  return h("div", {}, section("Weergave", "Volg systeem past de lichte of donkere weergave aan met je apparaat.", h("div", { class: "preference-row" }, h("span", {}, "Weergave"), picker)),
-    section("Introductie", "Toon de eerste stappen opnieuw: spraakherkenning, toegang en een oefendictaat.",
-      h("button", { class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "welcome") }, "Introductie opnieuw openen")));
+  picker.setAttribute("aria-label", t("appearance.title"));
+  const systemLabel = l("interface.system", () => ({ language: ctx.info.system_interface_language === "nl" ? "Nederlands" : "English" }));
+  const interfacePicker = select<InterfaceLanguagePreference>([["system", systemLabel], ["en", "English"], ["nl", "Nederlands"]], ctx.info.settings.ui_language ?? "system", (value) => {
+    void ctx.save((settings) => { settings.ui_language = value; }).catch(ctx.report);
+  }, "menu");
+  const updateLabels = () => {
+    picker.setAttribute("aria-label", t("appearance.title"));
+    interfacePicker.setAttribute("aria-label", t("interface.language"));
+  };
+  updateLabels();
+  bindLocalization(interfacePicker, updateLabels);
+  ctx.onInfoChange((next) => { picker.value = next.settings.appearance; interfacePicker.value = next.settings.ui_language ?? "system"; });
+  return h("div", {}, section(l("interface.language"), l("interface.language_help"), interfacePicker),
+    section(l("appearance.title"), l("appearance.help"), h("div", { class: "preference-row" }, h("span", {}, l("appearance.title")), picker)),
+    section(l("intro.title"), l("intro.help"),
+      h("button", { class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "language") }, l("intro.open"))));
 }
 
 /** As in the original library, the main window opens on the newest meeting when none is chosen. */
@@ -298,6 +311,7 @@ async function render(allowed: () => boolean = () => true) {
     target.visibility.forEach((listener) => listener(presentationVisible()));
     const scroll = content.scrollTop;
     content.replaceChildren(node);
+    refreshLocalization(node);
     content.scrollTop = scroll;
     if (paneScroll !== undefined) { const pane = content.querySelector<HTMLElement>(".settings-pane"); if (pane) pane.scrollTop = paneScroll; }
     if (ctx.jumpMs === route.jump_ms) navigation.current.jump_ms = null;
@@ -344,7 +358,7 @@ function prepareFlush(requestId: number, kind: FrontendBarrierKind) {
   void (async () => {
     try {
       const success = await preparing;
-      await api.frontendFlushed(requestId, success, success ? null : "Een andere vensteractie is al bezig.");
+      await api.frontendFlushed(requestId, success, success ? null : t("common.transition_busy"));
     }
     catch (error) {
       if (barrier.isCurrent(requestId)) report(error);
@@ -368,25 +382,28 @@ function meetingFinished(event: MeetingFinished) {
 }
 
 function settingsFooter(ctx: Context) {
-  const status = h("span", { class: "help", role: "status" }, info.preview ? "Updates uitgeschakeld in de preview." : "");
-  const install = h("button", { class: "btn", hidden: true, disabled: info.preview }, "Update installeren");
+  let message = () => info.preview ? t("updates.preview_disabled") : "";
+  const status = h("span", { class: "help", role: "status" }, liveText(() => message()));
+  const showStatus = (next: () => string) => { message = next; status.textContent = message(); };
+  bindLocalization(status, () => { status.textContent = message(); });
+  const install = h("button", { class: "btn", hidden: true, disabled: info.preview }, l("updates.install"));
   install.addEventListener("click", async () => {
-    install.disabled = true; status.textContent = "Update downloaden…";
-    try { await api.installUpdate(); status.textContent = "Update geïnstalleerd. Start Pennel opnieuw."; }
-    catch (error) { status.textContent = errorText(error); install.disabled = false; }
+    install.disabled = true; showStatus(() => t("updates.downloading"));
+    try { await api.installUpdate(); showStatus(() => t("updates.installed")); }
+    catch (error) { showStatus(() => errorText(error)); install.disabled = false; }
   });
-  const check = h("button", { class: "btn", disabled: info.preview, title: info.preview ? "Updates uitgeschakeld in de preview." : null, onclick: async () => {
-    check.disabled = true; status.textContent = "Zoeken…";
-    try { const update: UpdateInfo = await api.checkForUpdates(); status.textContent = update.available ? `Versie ${update.version} is beschikbaar.` : "Pennel is bijgewerkt."; install.hidden = !update.available; }
-    catch (error) { status.textContent = errorText(error); }
+  const check = h("button", { class: "btn", disabled: info.preview, title: info.preview ? l("updates.preview_disabled") : null, onclick: async () => {
+    check.disabled = true; showStatus(() => t("updates.checking"));
+    try { const update: UpdateInfo = await api.checkForUpdates(); showStatus(() => update.available ? t("updates.available", { version: update.version ?? "" }) : t("updates.current")); install.hidden = !update.available; }
+    catch (error) { showStatus(() => errorText(error)); }
     check.disabled = false;
-  } }, "Zoek naar updates…");
+  } }, l("updates.check"));
   let disposed = false;
   ctx.onDispose(() => { disposed = true; });
   void listen<UpdateInfo>("update-available", (event) => {
     if (disposed || info.preview) return;
     install.hidden = !event.payload.available;
-    if (event.payload.available) status.textContent = `Versie ${event.payload.version} is beschikbaar.`;
+    if (event.payload.available) showStatus(() => t("updates.available", { version: event.payload.version ?? "" }));
   }).then((unlisten) => { if (disposed) unlisten(); else ctx.onDispose(unlisten); }).catch(report);
   return h("footer", { class: "settings-footer row" }, h("span", { class: "help" }, `Pennel ${info.version}${info.preview ? " · Preview" : ""}`), h("span", { class: "grow" }), status, check, install);
 }
@@ -421,8 +438,12 @@ function notifyVisibility() {
 
 async function boot() {
   document.body.dataset.window = mode;
-  document.title = mode === "onboarding" ? "Welkom bij Pennel" : mode === "prompt" ? "Pennel" : windowTitles[mode];
   info = await api.info(); applyAppearance();
+  setInterfaceLanguage(info.interface_language ?? "en");
+  const updateTitle = () => { document.title = mode === "onboarding" ? t("window.onboarding") : mode === "prompt" ? "Pennel" : windowTitles[mode]; };
+  updateTitle();
+  bindLocalization(document.documentElement, updateTitle);
+  bindLocalization(banner, () => { if (banner.textContent) banner.textContent = localizeBackendText(banner.textContent); });
   document.documentElement.dataset.platform = info.platform;
   windowVisible = !!fixtureClient() || info.platform !== "macos" || mode === "prompt";
   if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "prompt" ? [] : [titlebarDragRegion(), recoveryBanner]), banner, content);
@@ -462,7 +483,12 @@ async function boot() {
       const id = event.payload;
       void barrier.resume(id, () => refresh(() => barrier.isCurrent(id))).then(() => { lockInterface(); }).catch((error) => { if (barrier.isCurrent(id)) { report(error); barrier.complete(id); lockInterface(); } });
     });
-    for (const event of ["exit-cancelled", "update-cancelled"]) await listen<number>(event, (value) => { if (barrier.complete(value.payload)) lockInterface(); });
+    for (const event of ["exit-cancelled", "update-cancelled"]) await listen<number>(event, (value) => {
+      if (barrier.complete(value.payload)) {
+        lockInterface();
+        if (event === "exit-cancelled") window.dispatchEvent(new Event("pennel-exit-cancelled"));
+      }
+    });
   }
   await render();
   if (mode !== "prompt") await api.frontendReady();

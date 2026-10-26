@@ -6,10 +6,10 @@ import { visualModels } from "./model-catalog.mjs";
 
 const script = await readFile(new URL("./desktop-platform.js", import.meta.url), "utf8");
 const cases = JSON.parse(await readFile(new URL("./visual-cases.json", import.meta.url), "utf8"));
-function fixture(name) {
+function fixture(name, overrides = {}, storage) {
   const item = cases.find(item => item.name === name);
-  const context = vm.createContext({ location: { hostname: "127.0.0.1" }, structuredClone, queueMicrotask,
-    __PENNEL_FIXTURE_OPTIONS__: { ...item, appearance: "dark" } });
+  const context = vm.createContext({ location: { hostname: "127.0.0.1" }, structuredClone, queueMicrotask, localStorage: storage,
+    __PENNEL_FIXTURE_OPTIONS__: { ...item, appearance: "dark", ...overrides } });
   vm.runInContext(script, context);
   return context;
 }
@@ -31,6 +31,7 @@ test("fixture app information is synthetic and never returns an API key", async 
   assert.equal(info.settings.dictation_stt.provider_id, "openai");
   assert.equal(info.settings.mode, "fast");
   assert.equal(info.preview, true);
+  assert.equal(info.capabilities.local_models.status, "available");
   assert.ok(Object.values(info.keys).every(value => typeof value === "boolean"));
   await context.__PENNEL_PLATFORM__.invoke("set_key", { account: "openai", key: "synthetic-only" });
   assert.equal(JSON.stringify(await context.__PENNEL_PLATFORM__.invoke("app_info")).includes("synthetic-only"), false);
@@ -254,4 +255,56 @@ test("task tests are explicit synthetic requests and reject unsupported task nam
   assert.match(result.message, /voorbeeld/);
   await assert.rejects(() => api.invoke("test_provider_task", { slot: "unexpected-service" }), /taak/);
   assert.equal(context.__PENNEL_FIXTURE__.unknown.length, 0);
+});
+
+
+test("interface language defaults to the first supported system preference without changing speech", async () => {
+  for (const [languages, expected] of [
+    [["nl-BE", "en-US"], "nl"], [["fr-FR", "EN_us.UTF-8"], "en"],
+    [["fr", "nl_NL.UTF-8"], "nl"], [["fr", "de"], "en"], [[], "en"],
+  ]) {
+    const context = fixture("onboarding-language", { system_languages: languages });
+    const info = await context.__PENNEL_PLATFORM__.invoke("app_info");
+    assert.equal(info.settings.ui_language, "system");
+    assert.equal(info.system_interface_language, expected);
+    assert.equal(info.interface_language, expected);
+    assert.equal(info.settings.language, "nl");
+    assert.equal(info.settings.onboarding.resume_step, "language");
+  }
+});
+
+test("saving interface preferences applies immediately, emits settings changes and retains active sessions", async () => {
+  const context = fixture("dictation-pad", { locale: "nl-BE" });
+  const api = context.__PENNEL_PLATFORM__;
+  const before = await api.invoke("app_info");
+  const session = await api.invoke("open_dictation_session", { kind: "pad" });
+  await api.invoke("toggle_dictation_session", { sessionId: session.session_id });
+  const events = [];
+  await api.listen("settings-changed", event => events.push(event.payload));
+  const settings = { ...before.settings, ui_language: "en" };
+  const after = await api.invoke("save_settings", { settings });
+  assert.equal(after.interface_language, "en");
+  assert.equal(after.system_interface_language, "nl");
+  assert.equal(events.length, 1);
+  assert.deepEqual(after.settings, settings);
+  assert.equal((await api.invoke("get_dictation_session", { sessionId: session.session_id })).phase, "listening");
+  assert.equal(after.settings.language, "nl");
+  assert.deepEqual(after.settings.dictation_stt, before.settings.dictation_stt);
+  await api.invoke("save_settings", { settings: { ...settings, ui_language: "system" } });
+  assert.equal((await api.invoke("app_info")).interface_language, "nl");
+  assert.ok(!context.__PENNEL_FIXTURE__.calls.includes("close_dictation_session"));
+});
+
+test("an explicitly named synthetic fixture profile retains language after reopening", async () => {
+  const values = new Map();
+  const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
+  const first = fixture("onboarding-language", { locale: "nl", profile: "language-persistence" }, storage);
+  const info = await first.__PENNEL_PLATFORM__.invoke("app_info");
+  await first.__PENNEL_PLATFORM__.invoke("save_settings", { settings: { ...info.settings, ui_language: "en" } });
+  const reopened = fixture("onboarding-language", { locale: "nl", profile: "language-persistence" }, storage);
+  const after = await reopened.__PENNEL_PLATFORM__.invoke("app_info");
+  assert.equal(after.interface_language, "en");
+  assert.equal(after.system_interface_language, "nl");
+  assert.equal(after.settings.ui_language, "en");
+  assert.equal(after.settings.language, "nl");
 });

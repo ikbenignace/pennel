@@ -22,6 +22,10 @@ const LOG: Log = Log::new("speakers");
 
 /// The core's own messages are Dutch, but its error type prefixes some of them in English.
 pub fn speaker_error(error: PennelError) -> String {
+    crate::commands::localize_error_message(speaker_error_source(error))
+}
+
+fn speaker_error_source(error: PennelError) -> String {
     match error {
         PennelError::InvalidResponse { message } | PennelError::Cloud { message, .. } => message,
         PennelError::ModelNotDownloaded => {
@@ -241,16 +245,18 @@ mod tests {
     }
 
     #[test]
-    fn speaker_errors_read_as_plain_dutch() {
+    fn speaker_error_sources_remain_plain_text() {
         assert_eq!(
-            speaker_error(PennelError::InvalidResponse {
+            speaker_error_source(PennelError::InvalidResponse {
                 message: "Pennel hoorde te weinig spraak.".into()
             }),
             "Pennel hoorde te weinig spraak."
         );
-        assert!(speaker_error(PennelError::ModelNotDownloaded).starts_with("Download eerst"));
+        assert!(
+            speaker_error_source(PennelError::ModelNotDownloaded).starts_with("Download eerst")
+        );
         assert_eq!(
-            speaker_error(PennelError::NotSignedIn),
+            speaker_error_source(PennelError::NotSignedIn),
             PennelError::NotSignedIn.to_string()
         );
     }

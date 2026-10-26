@@ -1,9 +1,10 @@
+import { bindLocalization, l, t, localizeBackendText } from "../i18n.ts";
 import { api, listen, type EnrollmentProgress, type ModelState, type SpeakerSetup, type VoiceProfile } from "../api";
 import { errorText, formatClock, h } from "../dom";
 import { afterPaint } from "../async";
 import { combinedProgress, enrollmentButton, enrollmentStatus, enrollmentStep, enrollmentTone, percent, speakerModelsReady, type DownloadProgress, type Enrollment } from "../speaker-state";
 
-export const speakerDownloadLabel = "Sprekermodellen downloaden · 34 MB";
+export function speakerDownloadLabel() { return l("settings.voice.download_models"); }
 
 /** Downloads the speaker models one after the other as a single download. */
 export class SpeakerModels {
@@ -67,10 +68,10 @@ export class SpeakerModels {
 
 /** Download button, progress and cancel for the speaker models; redraw with `update`. */
 export function speakerDownload(models: SpeakerModels) {
-  const button = h("button", { class: "btn", onclick: () => { void models.download(); } }, speakerDownloadLabel);
-  const progress = h("progress", { class: "engine-download-progress", "aria-label": "Sprekermodellen downloaden", max: 1, value: 0 });
+  const button = h("button", { class: "btn", onclick: () => { void models.download(); } }, speakerDownloadLabel());
+  const progress = h("progress", { class: "engine-download-progress", "aria-label": l("settings.voice.download_label"), max: 1, value: 0 });
   const caption = h("span", {});
-  const cancel = h("button", { class: "text-button", onclick: () => models.cancel() }, "Annuleer");
+  const cancel = h("button", { class: "text-button", onclick: () => models.cancel() }, l("onboarding.cancel_download"));
   const error = h("p", { class: "error", role: "status" });
   const track = h("div", { class: "speaker-download" }, progress, h("div", { class: "engine-download-caption" }, caption, cancel));
   const element = h("div", { class: "speaker-download-block" }, h("div", { class: "row" }, button), track, error);
@@ -79,11 +80,12 @@ export function speakerDownload(models: SpeakerModels) {
     track.hidden = !models.downloading;
     const combined = models.combined;
     progress.max = combined.total || 1; progress.value = combined.downloaded;
-    caption.textContent = combined.downloaded ? `${percent(combined)}%` : "Download voorbereiden…";
-    error.textContent = models.error ?? ""; error.hidden = !models.error;
-    button.textContent = models.error ? "Opnieuw proberen" : speakerDownloadLabel;
+    caption.textContent = combined.downloaded ? `${percent(combined)}%` : t("onboarding.preparing_download");
+    error.textContent = localizeBackendText(models.error ?? ""); error.hidden = !models.error;
+    button.textContent = models.error ? t("onboarding.retry") : String(speakerDownloadLabel());
   };
   update();
+  bindLocalization(element, update);
   return { element, update };
 }
 
@@ -95,18 +97,20 @@ export class EnrollmentPanel {
   private readonly status = h("p", { class: "help enrollment-status", role: "status", "aria-live": "polite" });
   private stopListening: (() => void) | null = null;
   private disposed = false;
+  private blocked = false;
 
   constructor(text: string, private readonly finished: (profile: VoiceProfile) => void, private readonly changed: (state: Enrollment) => void = () => {}) {
     this.button.addEventListener("click", () => { void this.toggle(); });
     this.element = h("div", { class: "enrollment" }, h("blockquote", { class: "enrollment-text" }, text), h("div", { class: "row enrollment-controls" }, this.button, this.status));
     this.draw();
+    bindLocalization(this.element, () => { if (!this.disposed) this.draw(); });
   }
 
   get busy(): boolean { return this.state.phase === "starting" || this.state.phase === "recording" || this.state.phase === "working"; }
 
   private get waiting(): boolean { return this.state.phase === "starting" || this.state.phase === "working"; }
 
-  set disabled(value: boolean) { this.button.disabled = value || this.waiting; }
+  set disabled(value: boolean) { this.blocked = value; this.button.disabled = value || this.waiting; }
 
   private apply(state: Enrollment) {
     if (this.disposed) return;
@@ -115,7 +119,7 @@ export class EnrollmentPanel {
 
   private draw() {
     this.button.textContent = enrollmentButton(this.state, formatClock);
-    this.button.disabled = this.waiting;
+    this.button.disabled = this.blocked || this.waiting;
     this.button.dataset.phase = this.state.phase;
     this.button.classList.toggle("primary", this.state.phase !== "done");
     this.button.setAttribute("aria-busy", String(this.waiting));
@@ -163,27 +167,27 @@ export class EnrollmentPanel {
 
 /** Why the user's voice cannot be learned right now, or null. */
 export function enrollmentBlocker(setup: SpeakerSetup, mode: string, models: SpeakerModels | null): string | null {
-  if (mode === "cloud") return setup.signed_in ? null : "Log eerst in bij Pennel Cloud in Instellingen → Account.";
-  if (!setup.local_available) return "Sprekers herkennen op dit toestel zit niet in deze versie van Pennel. Kies ‘Via Pennel Cloud’.";
-  return models?.ready ? null : "Download eerst de sprekermodellen.";
+  if (mode === "cloud") return setup.signed_in ? null : t("backend.sign_in_to_pennel_cloud_under_settings_account_first");
+  if (!setup.local_available) return t("settings.voice.unavailable");
+  return models?.ready ? null : t("settings.voice.download_first");
 }
 
-export const enrollmentIntro = "Pennel herkent je dan altijd als ‘Ik’, ook als iedereen rond één microfoon zit. Alleen een stemafdruk blijft op dit toestel, nooit de opname.";
+export function enrollmentIntro() { return l("settings.voice.intro"); }
 
 export function enrollmentDialog(text: string): Promise<VoiceProfile | null> {
   return new Promise((resolve) => {
     const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = h("dialog", { class: "editor-dialog enrollment-dialog", "aria-modal": "true", "aria-labelledby": "enrollment-title" });
     let learned: VoiceProfile | null = null;
-    const done = h("button", { class: "btn primary", disabled: true, onclick: () => close() }, "Klaar");
-    const cancel = h("button", { class: "btn", onclick: () => close() }, "Annuleren");
+    const done = h("button", { class: "btn primary", disabled: true, onclick: () => close() }, l("onboarding.done"));
+    const cancel = h("button", { class: "btn", onclick: () => close() }, l("common.cancel"));
     const panel = new EnrollmentPanel(text, (profile) => { learned = profile; done.disabled = false; }, () => { cancel.disabled = panel.busy; });
     const close = () => {
       panel.dispose(); dialog.close(); dialog.remove();
       if (invoker?.isConnected) invoker.focus({ preventScroll: true });
       resolve(learned);
     };
-    dialog.append(h("h2", { id: "enrollment-title" }, "Leer je stem"), h("p", { class: "muted" }, enrollmentIntro), panel.element,
+    dialog.append(h("h2", { id: "enrollment-title" }, l("settings.voice.learn")), h("p", { class: "muted" }, enrollmentIntro()), panel.element,
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }), cancel, done));
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); if (!panel.busy) close(); });
     document.body.append(dialog);

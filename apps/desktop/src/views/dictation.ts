@@ -1,3 +1,4 @@
+import { bindLocalization, l, localizeBackendText, type UiText } from "../i18n.ts";
 import { api, type HotkeyTrigger, type Style } from "../api";
 import { errorText, h, section, select, toggle } from "../dom";
 import type { Context } from "../main";
@@ -5,19 +6,26 @@ import { icon } from "../icons";
 import { appBadge } from "../app-icon";
 import { applicationLabel } from "../presentation";
 
-function hotkeys(platform: string): [HotkeyTrigger, string][] {
-  return platform === "macos" ? [["fn", "fn"], ["right_option", "Rechter Option"], ["right_command", "Rechter Command"], ["right_control", "Rechter Ctrl"]]
-    : [["right_control", "Rechter Ctrl"], ["right_option", "Rechter Alt"], ["control_super", platform === "windows" ? "Ctrl + Windows" : "Ctrl + Super"]];
+function hotkeys(platform: string): [HotkeyTrigger, UiText][] {
+  return platform === "macos"
+    ? [["fn", "fn"], ["right_option", l("dictation.shortcut.option.right_option")], ["right_command", l("dictation.shortcut.option.right_command")], ["right_control", l("dictation.shortcut.option.right_control")]]
+    : [["right_control", l("dictation.shortcut.option.right_control")], ["right_option", l("dictation.shortcut.option.right_alt")], ["control_super", platform === "windows" ? "Ctrl + Windows" : "Ctrl + Super"]];
 }
 
-const styles: [Style, string][] = [
-  ["neutral", "Neutraal"],
-  ["casual", "Los"],
-  ["formal", "Netjes"],
-  ["literal", "Letterlijk"],
-];
+function styleOptions(): [Style, UiText][] { return [
+  ["neutral", l("dictation.style.neutral")],
+  ["casual", l("dictation.style.casual")],
+  ["formal", l("dictation.style.formal")],
+  ["literal", l("dictation.style.literal")],
+]; }
 
-function radio(name: string, value: string, current: string, label: string, onPick: () => void) {
+function backendMessage(source: string, className: string): HTMLElement {
+  const node = h("p", { class: className }, localizeBackendText(source));
+  bindLocalization(node, () => { node.textContent = localizeBackendText(source); });
+  return node;
+}
+
+function radio(name: string, value: string, current: string, label: UiText, onPick: () => void) {
   return h(
     "label",
     { class: "radio" },
@@ -33,16 +41,16 @@ export function dictationView(ctx: Context): HTMLElement {
     "div",
     { class: "dictation-settings" },
     section(
-      "Stand",
+      l("dictation.mode.title"),
       null,
-      radio("mode", "clean", s.mode, "Opgekuist — euh's weg, zelfcorrecties verwerkt, stijl per app", () =>
+      radio("mode", "clean", s.mode, l("dictation.mode.clean"), () =>
         ctx.save((n) => (n.mode = "clean")),
       ),
-      radio("mode", "fast", s.mode, "Snel — letterlijk wat je zei, zonder taalmodel", () => ctx.save((n) => (n.mode = "fast"))),
+      radio("mode", "fast", s.mode, l("dictation.mode.fast"), () => ctx.save((n) => (n.mode = "fast"))),
     ),
     section(
-      "Sneltoets",
-      "Ingedrukt houden om te praten, twee keer tikken voor handenvrij. Houd Shift erbij voor een opdracht over de geselecteerde tekst.",
+      l("dictation.shortcut.title"),
+      l("dictation.shortcut.help"),
       h(
         "div",
         { class: "segmented" },
@@ -55,54 +63,50 @@ export function dictationView(ctx: Context): HTMLElement {
         ),
       ),
       linux && ctx.info.capabilities.global_hotkey.reason
-        ? h(
-            "p",
-            { class: "subtitle", style: "margin-top:10px" },
-            ctx.info.capabilities.global_hotkey.reason,
-          )
+        ? backendMessage(ctx.info.capabilities.global_hotkey.reason, "subtitle")
         : null,
-      ctx.info.hotkey_error ? h("p", { class: "error" }, ctx.info.hotkey_error) : null,
+      ctx.info.hotkey_error ? backendMessage(ctx.info.hotkey_error, "error") : null,
     ),
     section(
-      "Taal",
+      l("dictation.language.title"),
       null,
       select<string>(
         [
-          ["", "Automatisch"],
-          ["nl", "Nederlands"],
-          ["en", "Engels"],
-          ["fr", "Frans"],
-          ["de", "Duits"],
+          ["", l("common.automatic")],
+          ["nl", l("dictation.language.dutch")],
+          ["en", l("dictation.language.english")],
+          ["fr", l("dictation.language.french")],
+          ["de", l("dictation.language.german")],
         ],
         s.language ?? "",
         (v) => ctx.save((n) => (n.language = v || null)),
       ),
     ),
     section(
-      "Geschiedenis bewaren",
+      l("dictation.history.retention"),
       null,
       select<string>(
         [
-          ["7", "7 dagen"],
-          ["30", "30 dagen"],
-          ["90", "90 dagen"],
-          ["0", "Altijd"],
+          ["7", l("dictation.history.days", { days: 7 })],
+          ["30", l("dictation.history.days", { days: 30 })],
+          ["90", l("dictation.history.days", { days: 90 })],
+          ["0", l("dictation.history.always")],
         ],
         String(s.history_retention_days),
         (v) => ctx.save((n) => (n.history_retention_days = Number(v))),
       ),
     ),
-    section("Dicteerpad", "Deze instelling geldt alleen voor het dicteerpad in Pennel. Fn-dicteren vanuit andere apps blijft direct invoegen.",
-      toggle("Dicteerpad ook extern plakken", s.dictation_pad_auto_paste, (value) => { void ctx.save((settings) => { settings.dictation_pad_auto_paste = value; }); }, ctx.info.capabilities.pad_external_paste),
-      h("p", { class: "help" }, "De tekst blijft in Pennel en wordt ook in de vastgelegde vorige app geplaatst.")),
-    section("Toegang", "Controleer microfoon en toegang om tekst in andere apps te plakken.",
-      h("button", { class: "btn", onclick: () => api.showWindow("onboarding", "resume") }, "Controleer toegang…")),
+    section(l("dictation.pad.title"), l("dictation.pad.preference_help"),
+      toggle(l("dictation.pad.paste_externally"), s.dictation_pad_auto_paste, (value) => { void ctx.save((settings) => { settings.dictation_pad_auto_paste = value; }); }, ctx.info.capabilities.pad_external_paste),
+      h("p", { class: "help" }, l("dictation.pad.paste_help"))),
+    section(l("dictation.access.title"), l("dictation.access.help"),
+      h("button", { class: "btn", onclick: () => api.showWindow("onboarding", "resume") }, l("dictation.access.check_ellipsis"))),
   );
 }
 
 export function dictionaryView(ctx: Context): HTMLElement {
   const terms = ctx.info.settings.dictionary;
-  const input = h("input", { type: "text", placeholder: "Bv. Pennel, Kubernetes, Sarah", class: "grow" });
+  const input = h("input", { type: "text", placeholder: l("dictation.dictionary.example"), class: "grow" });
   const add = () => {
     const term = input.value.trim();
     if (!term || terms.includes(term)) return;
@@ -115,9 +119,9 @@ export function dictionaryView(ctx: Context): HTMLElement {
     "div",
     { class: "dictionary-settings" },
     section(
-      "Woordenlijst",
-      "Namen en vaktermen die Pennel exact zo moet schrijven.",
-      h("div", { class: "row" }, input, h("button", { class: "btn", onclick: add }, "Toevoegen")),
+      l("dictation.dictionary.title"),
+      l("dictation.dictionary.help"),
+      h("div", { class: "row" }, input, h("button", { class: "btn", onclick: add }, l("dictation.add"))),
       h(
         "div",
         { class: "dictionary-list" },
@@ -128,7 +132,7 @@ export function dictionaryView(ctx: Context): HTMLElement {
             h("span", { class: "grow" }, term),
             h(
               "button",
-              { class: "button-icon", "aria-label": `${term} verwijderen`, onclick: () => ctx.save((n) => (n.dictionary = n.dictionary.filter((t) => t !== term))) },
+              { class: "button-icon", "aria-label": l("dictation.dictionary.remove", { term }), onclick: () => ctx.save((n) => (n.dictionary = n.dictionary.filter((t) => t !== term))) },
               icon("close"),
             ),
           ),
@@ -140,7 +144,7 @@ export function dictionaryView(ctx: Context): HTMLElement {
 
 export function stylesView(ctx: Context): HTMLElement {
   const rules = ctx.info.settings.style_rules;
-  const input = h("input", { type: "text", placeholder: ctx.info.platform === "macos" ? "App-id, bv. com.apple.TextEdit" : "Programmanaam, bv. notepad", class: "grow" });
+  const input = h("input", { type: "text", placeholder: ctx.info.platform === "macos" ? l("dictation.style.app_id") : l("dictation.style.program_name"), class: "grow" });
   const add = () => {
     const value = input.value.trim();
     const id = ctx.info.platform === "macos" || (value.includes(".") && !/\.exe$/i.test(value)) ? value : value.toLowerCase().replace(/\.exe$/, "");
@@ -159,13 +163,13 @@ export function stylesView(ctx: Context): HTMLElement {
       }
     } catch (error) { pickerStatus.textContent = errorText(error); }
     finally { pick.disabled = unavailable; }
-  } }, "App toevoegen…");
+  } }, l("dictation.style.add_app"));
   return h(
     "div",
     { class: "style-settings" },
     section(
-      "Stijl per app",
-      "Andere apps gebruiken Neutraal. Pennel kijkt enkel naar welke app actief is, nooit naar je scherm.",
+      l("dictation.style.title"),
+      l("dictation.style.help"),
       rules.map((rule) => {
         const app = appBadge(rule.bundle_id);
         app.name.classList.add("grow");
@@ -174,14 +178,14 @@ export function stylesView(ctx: Context): HTMLElement {
           { class: "row style-rule" },
           app.icon,
           app.name,
-          select(styles, rule.style, (style) =>
+          select(styleOptions(), rule.style, (style) =>
             ctx.save((n) => { const item = n.style_rules.find((r) => r.bundle_id === rule.bundle_id); if (item) item.style = style; }),
           ),
           h(
             "button",
             {
               class: "button-icon",
-              "aria-label": `Stijl voor ${applicationLabel(rule.bundle_id)} verwijderen`,
+              "aria-label": l("dictation.style.remove", { app: applicationLabel(rule.bundle_id) }),
               onclick: () => ctx.save((n) => (n.style_rules = n.style_rules.filter((r) => r.bundle_id !== rule.bundle_id))),
             },
             icon("close"),
@@ -189,9 +193,9 @@ export function stylesView(ctx: Context): HTMLElement {
         );
       }),
       h("div", { class: "row style-add" }, pick), pickerStatus,
-      h("details", { class: "advanced-style" }, h("summary", {}, "App-ID handmatig toevoegen"),
-        h("div", { class: "row" }, input, h("button", { class: "btn", disabled: unavailable, onclick: add }, "Toevoegen"))),
-      unavailable ? h("p", { class: "help" }, "Op Wayland is de actieve app niet beschikbaar. Appstijlen worden daar niet toegepast.") : null,
+      h("details", { class: "advanced-style" }, h("summary", {}, l("dictation.style.manual")),
+        h("div", { class: "row" }, input, h("button", { class: "btn", disabled: unavailable, onclick: add }, l("dictation.add")))),
+      unavailable ? h("p", { class: "help" }, l("dictation.style.wayland")) : null,
     ),
   );
 }

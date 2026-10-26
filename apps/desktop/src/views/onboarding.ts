@@ -1,5 +1,5 @@
 import { api, fixtureClient, listen, type DictationSessionSnapshot, type KindInfo, type LocalModel, type OnboardingStep, type PermissionInfo, type ProviderAccount, type ProviderKind, type SetupReadiness } from "../api";
-import { errorCode, errorText, formatBytes, h, select } from "../dom";
+import { errorText, formatBytes, h, isCancellation, select, type ChoiceElement } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
 import { icon } from "../icons";
 import { defaultModelId, initialEngine, manualPracticeAllowed, modelOptionLabel, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex, type Engine } from "../onboarding-state";
@@ -10,9 +10,14 @@ import { workspaceRoute } from "../workspace-state";
 import type { Context } from "../main";
 import wordmarkSource from "../../../../assets/brand/wordmark.svg?raw";
 import { VisibilityPoll } from "../window-lifecycle";
+import { bindLocalization, getInterfaceLanguage, l, liveText, localizeBackendText, t, type LocalizedText, type TranslationKey, type UiText } from "../i18n";
 
-const languages: [string, string][] = [["", "Automatisch"], ["nl", "Nederlands"], ["en", "Engels"], ["fr", "Frans"], ["de", "Duits"]];
+function languageOptions(): [string, string | LocalizedText][] { return [["", l("onboarding.language_auto")], ["nl", l("onboarding.language_dutch")], ["en", l("onboarding.language_english")], ["fr", l("onboarding.language_french")], ["de", l("onboarding.language_german")]]; }
 const phrases: Record<string, string> = { nl: "Zullen we morgen om tien uur afspreken?", en: "Shall we meet tomorrow at ten?", fr: "On se retrouve demain à dix heures ?", de: "Treffen wir uns morgen um zehn Uhr?" };
+
+function validationError(key: TranslationKey): Error {
+  return Object.defineProperty(new Error(), "message", { get: () => t(key), configurable: true });
+}
 
 /** The wordmark follows the text colour so it stays legible in dark mode; the full stop keeps the brand orange. */
 function wordmark(): HTMLElement {
@@ -27,10 +32,10 @@ class OnboardingWizard {
   private readonly body = h("div", { class: "onboarding-body" });
   private readonly progress = h("div", { class: "onboarding-progress", role: "img" });
   private readonly next = h("button", { class: "btn primary onboarding-next", onclick: () => { void this.advance().catch(this.fail); } });
-  private readonly back = h("button", { class: "text-button", onclick: () => { void this.move(Math.max(0, this.index - 1)).catch(this.fail); } }, "Terug");
+  private readonly back = h("button", { class: "text-button", onclick: () => { void this.move(Math.max(0, this.index - 1)).catch(this.fail); } }, l("onboarding.back"));
   private readonly skip = h("button", { class: "text-button", onclick: () => { void this.leave().catch(this.fail); } });
   private readonly count = h("span", { class: "help onboarding-count" });
-  private readonly theme = h("button", { class: "button-icon", "aria-label": "Weergave wijzigen", onclick: () => {
+  private readonly theme = h("button", { class: "button-icon", "aria-label": l("onboarding.change_appearance"), onclick: () => {
     const dark = this.ctx.info.settings.appearance === "dark" || (this.ctx.info.settings.appearance === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
     void this.ctx.save((settings) => { settings.appearance = dark ? "light" : "dark"; }).catch(this.fail);
   } });
@@ -39,6 +44,7 @@ class OnboardingWizard {
   private readonly engineDetail = h("section", { class: "onboarding-engine-detail", id: "onboarding-engine-detail" });
   private readonly localButtons = new Map<Engine, HTMLButtonElement>();
   private index: number;
+  private get step(): OnboardingStep { return onboardingSteps[this.index]; }
   private engine: Engine;
   private language: string;
   private localModelId: string;
@@ -52,6 +58,7 @@ class OnboardingWizard {
   private readonly attachedDownloads = new Set<string>();
   private downloadProgress = { downloaded: 0, total: 0 };
   private downloadError: string | null = null;
+  private lastError: unknown = null;
   private actionBusy = false;
   private disposed = false;
   private renderGeneration = 0;
@@ -69,6 +76,8 @@ class OnboardingWizard {
   private practiceKey: HTMLButtonElement | null = null;
   private fresh: boolean;
   private voicePanel: EnrollmentPanel | null = null;
+  private interfacePicker: ChoiceElement<"system" | "en" | "nl"> | null = null;
+  private refreshPracticePresentation: (() => void) | null = null;
   private voiceModels: SpeakerModels | null = null;
 
   constructor(private readonly ctx: Context) {
@@ -85,37 +94,38 @@ class OnboardingWizard {
     this.index = stepIndex(settings.onboarding?.resume_step);
     this.fresh = settings.onboarding?.status === "pending";
     const requested = new URLSearchParams(location.search).get("tab");
-    if (requested === "welcome") { this.index = 0; this.fresh = false; }
+    if (requested === "welcome" || requested === "language") { this.index = stepIndex("language"); this.fresh = false; }
     const fixture = fixtureClient()?.fixture?.name ?? "";
     if (fixture.includes("engine-apple")) this.engine = "apple";
     if (fixture.includes("engine-custom")) this.engine = "custom";
-    if (fixture.includes("download-error")) this.downloadError = "Het model kon niet worden gedownload. Controleer je verbinding en probeer opnieuw.";
+    if (fixture.includes("download-error")) this.downloadError = t("onboarding.download_error");
     this.progress.append(...onboardingSteps.map(() => h("span")));
     this.root.append(this.progress,
       this.body, this.message, h("footer", { class: "onboarding-footer" }, h("div", { class: "onboarding-footer-left" }, this.theme, this.back, this.skip, this.count), this.next));
-    ctx.onInfoChange(() => { if (ctx.info.settings.onboarding.status !== "pending") this.fresh = false; this.updateCommon(); if (this.index === 2) void this.refreshPermissions().catch(this.fail); });
+    ctx.onInfoChange(() => { if (ctx.info.settings.onboarding.status !== "pending") this.fresh = false; this.updateCommon(); if (this.step === "permissions") void this.refreshPermissions().catch(this.fail); });
     ctx.onFocusChange((focused) => {
-      if (this.index === 2 && focused) void this.refreshPermissions().catch(this.fail);
-      if (this.index === 3) {
+      if (this.step === "permissions" && focused) void this.refreshPermissions().catch(this.fail);
+      if (this.step === "practice") {
         if (!focused) { if (this.practiceText) this.practiceText.disabled = true; void this.practice?.close().catch(this.fail); }
         else void this.practice?.open().catch(this.fail);
       }
     });
     ctx.onVisibilityChange((visible) => {
       this.poll?.setVisible(visible);
-      if (visible && this.index === 3) {
+      if (visible && this.step === "practice") {
         if (this.practice) void this.practice.open().catch(this.fail);
         else void this.renderStep().catch(this.fail);
       }
     });
     ctx.beforeLeave(async () => { this.fresh = false; await this.closePractice(); });
-    ctx.onFlush(() => this.persist(onboardingSteps[this.index]));
+    ctx.onFlush(() => this.persist(this.step === "practice" && this.practiceDone ? "voice" : this.step));
     ctx.onDispose(() => this.dispose());
+    bindLocalization(this.root, () => { this.updateCommon(); this.updateDownload(); this.refreshPracticePresentation?.(); });
   }
 
   private readonly fail = (error: unknown) => {
     if (this.disposed) return;
-    this.message.textContent = errorText(error); this.message.hidden = false;
+    this.lastError = error; this.message.textContent = localizeBackendText(errorText(error)); this.message.hidden = false;
     this.actionBusy = false; this.updateCommon();
   };
 
@@ -128,13 +138,13 @@ class OnboardingWizard {
       this.attachedDownloads.delete(event.payload.id);
       if (event.payload.id !== this.localModelId || this.disposed) return;
       this.downloading = false;
-      this.downloadError = event.payload.error && !event.payload.error.toLowerCase().includes("cancel") ? event.payload.error : null;
-      void this.ctx.refresh().then(() => this.loadModels()).then(() => { if (this.index === 1 && this.engine === "local") this.renderEngineDetail(); this.updateCommon(); }).catch(this.fail);
+      this.downloadError = event.payload.error && !isCancellation(event.payload.error) ? event.payload.error : null;
+      void this.ctx.refresh().then(() => this.loadModels()).then(() => { if (this.step === "engine" && this.engine === "local") this.renderEngineDetail(); this.updateCommon(); }).catch(this.fail);
     }));
     const route = (event: Event) => {
       const step = (event as CustomEvent<unknown>).detail;
       if (step === "resume") { this.fresh = false; void this.resume().catch(this.fail); }
-      else if (onboardingSteps.includes(step as OnboardingStep)) { if (step === "welcome") this.fresh = false; void this.move(stepIndex(step)).catch(this.fail); }
+      else if (onboardingSteps.includes(step as OnboardingStep)) { if (step === "welcome" || step === "language") this.fresh = false; void this.move(stepIndex(step === "welcome" ? "language" : step)).catch(this.fail); }
     };
     window.addEventListener("pennel-onboarding-route", route);
     this.cleanup.push(() => window.removeEventListener("pennel-onboarding-route", route));
@@ -187,22 +197,30 @@ class OnboardingWizard {
     const generation = ++this.renderGeneration;
     this.poll?.dispose(); this.poll = undefined;
     this.root.dataset.step = onboardingSteps[this.index];
-    this.body.className = `onboarding-body onboarding-${onboardingSteps[this.index]}`;
-    if (this.index === 0) this.renderWelcome();
-    if (this.index === 1) { await this.loadModels(); if (generation !== this.renderGeneration || this.disposed) return; this.renderEngine(); }
-    if (this.index === 2) {
-      this.body.replaceChildren(this.title("Luisteren. En tekst plaatsen.", "Zo kan Pennel ook in je andere apps werken."), this.readyRow,
-        h("p", { class: "help onboarding-permission-help" }, "Agenda en systeemaudio vragen we pas wanneer je meetings wilt opnemen."));
+    this.body.className = `onboarding-body onboarding-${this.step}`;
+    this.interfacePicker = null; this.refreshPracticePresentation = null;
+    if (this.step === "language") this.renderLanguage();
+    if (this.step === "welcome") this.renderWelcome();
+    if (this.step === "engine") { await this.loadModels(); if (generation !== this.renderGeneration || this.disposed) return; this.renderEngine(); }
+    if (this.step === "permissions") {
+      this.body.replaceChildren(this.title(l("onboarding.permissions_title"), l("onboarding.permissions_intro")), this.readyRow,
+        h("p", { class: "help onboarding-permission-help" }, l("onboarding.permissions_later")));
       this.permissionSignature = ""; await this.refreshPermissions();
       this.poll = new VisibilityPoll(1500, () => this.refreshPermissions(), this.fail);
       this.poll.setVisible(this.ctx.visible, false);
     }
-    if (this.index === 3) await this.renderPractice();
-    if (this.index === 4) { await this.renderVoice(generation); if (generation !== this.renderGeneration || this.disposed) return; }
+    if (this.step === "practice") await this.renderPractice();
+    if (this.step === "voice") { await this.renderVoice(generation); if (generation !== this.renderGeneration || this.disposed) return; }
     this.updateCommon();
   }
 
-  private title(text: string, description: string) {
+  private ownedStatus(read: () => string): HTMLElement {
+    const node = h("span", {}, localizeBackendText(read()));
+    bindLocalization(node, () => { node.textContent = localizeBackendText(read()); });
+    return node;
+  }
+
+  private title(text: string | LocalizedText, description: string | LocalizedText) {
     return h("div", { class: "onboarding-heading" }, h("h1", {}, text), h("p", { class: "muted" }, description));
   }
 
@@ -211,20 +229,35 @@ class OnboardingWizard {
   }
 
   private keycap(): HTMLButtonElement {
-    return h("button", { class: "keycap", type: "button", "aria-label": "Houd ingedrukt om te dicteren" }, icon("globe"), h("span", {}, this.keyLabel()));
+    return h("button", { class: "keycap", type: "button", "aria-label": l("onboarding.hold_to_dictate") }, icon("globe"), h("span", {}, this.keyLabel()));
   }
 
   private keyLabel(): string {
     return hotkeyKeyLabel(this.ctx.info.settings.hotkey, this.ctx.info.platform);
   }
 
+  private renderLanguage() {
+    const system = this.ctx.info.system_interface_language === "nl" ? "Nederlands" : "English";
+    const picker = select<"system" | "en" | "nl">([
+      ["system", l("onboarding.interface_system", { language: system })], ["en", "English"], ["nl", "Nederlands"],
+    ], this.ctx.info.settings.ui_language ?? "system", (value) => {
+      void this.ctx.save((settings) => { settings.ui_language = value; }).catch(this.fail);
+    }, "menu");
+    picker.setAttribute("aria-label", t("onboarding.interface_language"));
+    bindLocalization(picker, () => picker.setAttribute("aria-label", t("onboarding.interface_language")));
+    this.interfacePicker = picker;
+    this.body.replaceChildren(wordmark(), this.title(l("onboarding.interface_title"), l("onboarding.interface_intro")),
+      h("div", { class: "preference-row onboarding-interface-language" }, h("span", {}, l("onboarding.interface_language")), picker),
+      h("p", { class: "help" }, l("onboarding.interface_speech_note")));
+  }
+
   private renderWelcome() {
     this.body.replaceChildren(wordmark(),
-      h("h1", {}, "Welkom bij Pennel"), h("p", { class: "onboarding-intro" }, "Spreek. Pennel schrijft waar je cursor staat."),
+      h("h1", {}, l("onboarding.welcome_title")), h("p", { class: "onboarding-intro" }, l("onboarding.welcome_intro")),
       h("div", { class: "onboarding-demo" }, h("div", { class: "keycap", "aria-hidden": "true" }, icon("globe"), h("span", {}, this.keyLabel())),
-        h("div", { class: "onboarding-demo-document" }, h("span", { class: "help" }, "Je volgende bericht"), h("p", {}, phrases.nl, h("span", { class: "typing-caret", "aria-hidden": "true" })))),
-      h("p", { class: "help" }, `Hou ${this.hotkey()} in. Praat. Laat los.`),
-      h("p", { class: "help onboarding-welcome-note" }, "Dicteren en meetingnotities. Zonder verplicht account."));
+        h("div", { class: "onboarding-demo-document" }, h("span", { class: "help" }, l("onboarding.next_message")), h("p", {}, liveText(() => phrases[this.language] ?? phrases[getInterfaceLanguage()]), h("span", { class: "typing-caret", "aria-hidden": "true" })))),
+      h("p", { class: "help" }, l("onboarding.welcome_gesture", { shortcut: this.hotkey() })),
+      h("p", { class: "help onboarding-welcome-note" }, l("onboarding.welcome_note")));
   }
 
   private async loadModels() {
@@ -249,12 +282,12 @@ class OnboardingWizard {
       if (id === this.localModelId) this.downloading = false;
       await this.ctx.refresh();
       await this.loadModels();
-      if (this.index === 1 && this.engine === "local") this.renderEngineDetail();
+      if (this.step === "engine" && this.engine === "local") this.renderEngineDetail();
       this.updateCommon();
     }).catch((error) => {
       this.attachedDownloads.delete(id);
       if (id === this.localModelId) this.downloading = false;
-      if (errorCode(error) === "cancelled" || errorText(error).toLowerCase() === "cancelled") { this.updateCommon(); return; }
+      if (isCancellation(error)) { this.updateCommon(); return; }
       this.fail(error);
     });
   }
@@ -280,14 +313,15 @@ class OnboardingWizard {
   }
 
   private renderEngine() {
-    const language = select(languages, this.language, (value) => {
+    const language = select(languageOptions(), this.language, (value) => {
       this.language = value;
       void this.loadModels().then(() => { if (this.engine === "local") this.renderEngineDetail(); this.updateCommon(); }).catch(this.fail);
     }, "menu");
-    language.setAttribute("aria-label", "Taal");
-    const choices = h("div", { class: "engine-choices", role: "group", "aria-label": "Spraakherkenning" });
+    language.setAttribute("aria-label", t("onboarding.language"));
+    bindLocalization(language, () => language.setAttribute("aria-label", t("onboarding.language")));
+    const choices = h("div", { class: "engine-choices", role: "group", "aria-label": l("onboarding.speech_recognition") });
     this.localButtons.clear();
-    for (const [value, label] of [["local", "Lokaal"], ["apple", "Apple-dicteren"], ["custom", "Eigen provider"]] as [Engine, string][]) {
+    for (const [value, label] of [["local", l("onboarding.local")], ["apple", l("onboarding.apple_dictation")], ["custom", l("onboarding.own_provider")]] as [Engine, string | LocalizedText][]) {
       const button = h("button", { class: "engine-choice", "aria-controls": "onboarding-engine-detail", onclick: () => { void this.chooseEngine(value).catch(this.fail); } }, label);
       button.addEventListener("keydown", (event) => {
         const order: Engine[] = ["local", "apple", "custom"];
@@ -295,10 +329,11 @@ class OnboardingWizard {
         const next = event.key === "ArrowRight" ? (index + 1) % 3 : event.key === "ArrowLeft" ? (index + 2) % 3 : event.key === "Home" ? 0 : event.key === "End" ? 2 : -1;
         if (next >= 0) { event.preventDefault(); const target = order[next]; if (!this.localButtons.get(target)?.disabled) void this.chooseEngine(target).then(() => this.localButtons.get(target)?.focus()).catch(this.fail); }
       });
+      if (value !== "custom") bindLocalization(button, () => { button.title = this.ctx.info.kinds.find((kind) => kind.kind === (value === "local" ? "local" : "apple_speech"))?.availability.reason ?? ""; });
       this.localButtons.set(value, button); choices.append(button);
     }
-    this.body.replaceChildren(this.title("Hoe wil je dicteren?", "Kies je spraakherkenning. Je kunt dit later aanpassen."),
-      h("div", { class: "engine-language" }, h("span", {}, "Taal"), language), choices, this.engineDetail);
+    this.body.replaceChildren(this.title(l("onboarding.engine_title"), l("onboarding.engine_intro")),
+      h("div", { class: "engine-language" }, h("span", {}, l("onboarding.language")), language), choices, this.engineDetail);
     this.renderEngineDetail();
   }
 
@@ -317,34 +352,35 @@ class OnboardingWizard {
     if (this.engine === "local") {
       const model = this.localModel();
       const downloaded = model?.state.kind === "downloaded";
-      const picker = select(this.models.map((item): [string, string] => [item.id, modelOptionLabel(item, formatBytes)]), this.localModelId, (value) => { void this.chooseModel(value).catch(this.fail); }, "menu");
-      picker.setAttribute("aria-label", "Spraakmodel");
+      const picker = select(this.models.map((item): [string, UiText] => [item.id, liveText(() => modelOptionLabel(item, formatBytes))]), this.localModelId, (value) => { void this.chooseModel(value).catch(this.fail); }, "menu");
+      picker.setAttribute("aria-label", t("onboarding.speech_model"));
+      bindLocalization(picker, () => picker.setAttribute("aria-label", t("onboarding.speech_model")));
       picker.disabled = this.models.length === 0;
-      const name = h("div", {}, picker, h("small", {}, model ? (downloaded ? formatBytes(model.size_bytes) : `${formatBytes(model.size_bytes)} · eenmalige download`) : "Geen passend lokaal model beschikbaar."));
+      const name = h("div", {}, picker, h("small", {}, model ? (downloaded ? liveText(() => formatBytes(model.size_bytes)) : l("onboarding.model_download_size", () => ({ size: formatBytes(model.size_bytes) }))) : l("onboarding.no_local_model")));
       const status = h("span", { class: "engine-model-status", "data-download-state": true });
-      const track = h("progress", { class: "engine-download-progress", "aria-label": "Model downloaden", hidden: !this.downloading });
+      const track = h("progress", { class: "engine-download-progress", "aria-label": l("onboarding.download_model"), hidden: !this.downloading });
       const caption = h("div", { class: "engine-download-caption", hidden: !this.downloading }, h("span", { "data-download-caption": true }), h("button", { class: "text-button", onclick: () => {
         void api.cancelDownload(this.localModelId).then(() => { this.downloading = false; this.updateDownload(); this.updateCommon(); }).catch(this.fail);
-      } }, "Annuleer"));
-      this.engineDetail.replaceChildren(h("h2", {}, "Je audio blijft op je apparaat."), h("p", { class: "engine-description" }, "Pennel zet je spraak zelf om naar tekst. Daarvoor download je eenmalig een spraakmodel."),
-        h("p", { class: "help" }, "De eerste oefening gebruikt alleen spraakherkenning. Opkuisen kies je later bij Modellen; daarvoor kan een andere provider worden gebruikt."),
+      } }, l("onboarding.cancel_download")));
+      this.engineDetail.replaceChildren(h("h2", {}, l("onboarding.local_audio_title")), h("p", { class: "engine-description" }, l("onboarding.local_audio_intro")),
+        h("p", { class: "help" }, l("onboarding.practice_speech_only")),
         h("div", { class: "engine-model" }, icon("download"), name, status), track, caption,
-        ...(this.downloadError ? [h("div", { class: "engine-error", role: "alert" }, h("p", {}, this.downloadError),
-          h("button", { class: "text-button", disabled: apple?.availability.status === "unsupported", onclick: () => { void this.chooseEngine("apple"); } }, "Gebruik Apple-dicteren"))] : []));
+        ...(this.downloadError ? [h("div", { class: "engine-error", role: "alert" }, h("p", {}, this.ownedStatus(() => this.downloadError ?? "")),
+          h("button", { class: "text-button", disabled: apple?.availability.status === "unsupported", onclick: () => { void this.chooseEngine("apple"); } }, l("onboarding.use_apple")))] : []));
       this.updateDownload();
     } else if (this.engine === "apple") {
-      this.engineDetail.replaceChildren(h("h2", {}, "Met de spraakherkenning van macOS."),
-        h("p", { class: "engine-description" }, "Laat Apple je spraak omzetten naar tekst. macOS beheert de benodigde taalmodellen."),
-        h("p", { class: "help" }, "De eerste oefening gebruikt alleen spraakherkenning. Opkuisen kies je later bij Modellen; daarvoor kan een andere provider worden gebruikt."),
-        h("div", { class: "engine-model" }, icon("audioLines"), h("div", {}, h("strong", {}, "Apple-dicteren"), h("small", {}, "Beschikbaar vanaf macOS 26"))),
-        ...(apple?.availability.reason ? [h("p", { class: "help" }, apple.availability.reason)] : []));
+      this.engineDetail.replaceChildren(h("h2", {}, l("onboarding.apple_title")),
+        h("p", { class: "engine-description" }, l("onboarding.apple_intro")),
+        h("p", { class: "help" }, l("onboarding.practice_speech_only")),
+        h("div", { class: "engine-model" }, icon("audioLines"), h("div", {}, h("strong", {}, l("onboarding.apple_dictation")), h("small", {}, l("onboarding.apple_available")))),
+        ...(apple?.availability.reason ? [h("p", { class: "help" }, this.ownedStatus(() => this.ctx.info.kinds.find((kind) => kind.kind === "apple_speech")?.availability.reason ?? ""))] : []));
     } else this.renderProvider();
   }
 
   private renderProvider() {
-    const options: [string, string][] = [
+    const options: [string, UiText][] = [
       ...this.customAccounts().map((account): [string, string] => [account.id, account.name]),
-      ...this.customKinds().filter((kind) => !this.customAccounts().some((account) => account.kind === kind.kind)).map((kind): [string, string] => [`new:${kind.kind}`, kind.label]),
+      ...this.customKinds().filter((kind) => !this.customAccounts().some((account) => account.kind === kind.kind)).map((kind): [string, UiText] => [`new:${kind.kind}`, liveText(() => this.ctx.info.kinds.find((current) => current.kind === kind.kind)?.label ?? kind.label)]),
     ];
     const picker = select(options, this.providerChoice, (value) => {
       this.providerChoice = value;
@@ -353,91 +389,101 @@ class OnboardingWizard {
       this.providerBaseUrl = account?.base_url ?? kind?.default_base_url ?? "";
       this.renderProvider(); this.updateCommon();
     }, "menu");
-    picker.setAttribute("aria-label", "Eigen provider");
+    picker.setAttribute("aria-label", t("onboarding.own_provider"));
+    bindLocalization(picker, () => picker.setAttribute("aria-label", t("onboarding.own_provider")));
     const kind = this.customKind(); const account = this.customAccount();
     const keySet = !!account && this.ctx.info.keys[account.id];
-    const key = h("input", { type: "password", "data-onboarding-key": true, "aria-label": "API-sleutel", autocomplete: "off", placeholder: keySet ? "Ingesteld · laat leeg om te behouden" : "Plak je API-sleutel" });
-    const model = h("input", { type: "text", value: this.providerModel, "aria-label": "Model", placeholder: "Modelnaam", oninput: (event) => { this.providerModel = (event.target as HTMLInputElement).value; } });
-    const url = h("input", { type: "text", value: this.providerBaseUrl, "aria-label": "Serveradres", placeholder: "https://…", oninput: (event) => { this.providerBaseUrl = (event.target as HTMLInputElement).value; } });
+    const key = h("input", { type: "password", "data-onboarding-key": true, "aria-label": l("onboarding.api_key"), autocomplete: "off", placeholder: keySet ? l("onboarding.key_saved") : l("onboarding.paste_key") });
+    const model = h("input", { type: "text", value: this.providerModel, "aria-label": l("onboarding.model"), placeholder: l("onboarding.model_name"), oninput: (event) => { this.providerModel = (event.target as HTMLInputElement).value; } });
+    const url = h("input", { type: "text", value: this.providerBaseUrl, "aria-label": l("onboarding.server_address"), placeholder: "https://…", oninput: (event) => { this.providerBaseUrl = (event.target as HTMLInputElement).value; } });
     for (const option of picker.options) {
       const optionKind = option.value.startsWith("new:") ? this.customKinds().find((item) => item.kind === option.value.slice(4)) : this.customKinds().find((item) => item.kind === this.customAccounts().find((item) => item.id === option.value)?.kind);
       option.disabled = optionKind?.availability.status === "unsupported";
     }
-    this.engineDetail.replaceChildren(h("h2", {}, "Gebruik de provider die je al kent."), h("p", { class: "engine-description" }, "Je audio wordt naar je gekozen provider gestuurd. De eerste oefening gebruikt geen opkuisbeurt."),
-      h("div", { class: "onboarding-provider-fields" }, h("label", { class: "preference-row" }, "Provider", picker),
-        kind?.requires_key ? h("label", { class: "preference-row" }, "API-sleutel", key) : null,
-        h("label", { class: "preference-row" }, "Model", model),
-        ["custom", "ollama", "lm_studio"].includes(kind?.kind ?? "") ? h("label", { class: "preference-row" }, "Serveradres", url) : null),
-      h("p", { class: "help provider-key-note" }, "Je API-sleutel wordt alleen in de sleutelopslag van je apparaat bewaard."));
+    this.engineDetail.replaceChildren(h("h2", {}, l("onboarding.provider_title")), h("p", { class: "engine-description" }, l("onboarding.provider_intro")),
+      h("div", { class: "onboarding-provider-fields" }, h("label", { class: "preference-row" }, l("onboarding.provider"), picker),
+        kind?.requires_key ? h("label", { class: "preference-row" }, l("onboarding.api_key"), key) : null,
+        h("label", { class: "preference-row" }, l("onboarding.model"), model),
+        ["custom", "ollama", "lm_studio"].includes(kind?.kind ?? "") ? h("label", { class: "preference-row" }, l("onboarding.server_address"), url) : null),
+      h("p", { class: "help provider-key-note" }, l("onboarding.key_storage_note")));
   }
 
   private updateDownload() {
-    if (this.engine !== "local" || this.index !== 1) return;
+    if (this.engine !== "local" || this.step !== "engine") return;
     const progress = this.engineDetail.querySelector<HTMLProgressElement>("progress");
     if (progress) { progress.hidden = !this.downloading; progress.max = this.downloadProgress.total || this.localModel()?.size_bytes || 1; progress.value = this.downloadProgress.downloaded; }
     const caption = this.engineDetail.querySelector<HTMLElement>(".engine-download-caption");
     if (caption) caption.hidden = !this.downloading;
     const label = this.engineDetail.querySelector("[data-download-caption]");
-    if (label) label.textContent = this.downloadProgress.total ? `${Math.min(100, Math.round(this.downloadProgress.downloaded / this.downloadProgress.total * 100))}%` : "Download voorbereiden…";
+    if (label) label.textContent = this.downloadProgress.total ? `${Math.min(100, Math.round(this.downloadProgress.downloaded / this.downloadProgress.total * 100))}%` : t("onboarding.preparing_download");
     const status = this.engineDetail.querySelector("[data-download-state]");
-    if (status) status.replaceChildren(...(this.localModel()?.state.kind === "downloaded" ? [icon("check"), document.createTextNode("Gedownload")] : []));
+    if (status) status.replaceChildren(...(this.localModel()?.state.kind === "downloaded" ? [icon("check"), document.createTextNode(t("onboarding.downloaded"))] : []));
   }
 
   private async refreshPermissions() {
     const [permissions, readiness] = await Promise.all([api.permissions(), api.onboardingReadiness("practice")]);
-    if (this.disposed || this.index !== 2) return;
+    if (this.disposed || this.step !== "permissions") return;
     this.permissions = permissions; this.readiness = readiness;
     const signature = JSON.stringify([permissions, readiness]);
     if (signature !== this.permissionSignature) {
       this.permissionSignature = signature;
-      const kinds: [PermissionInfo["kind"], string, string][] = [["microphone", "Microfoon", "Zodat Pennel kan horen wat je zegt."], ["accessibility", "Toegankelijkheid", "Voor de sneltoets en om tekst in andere apps te plaatsen."]];
-      if (this.engine === "apple") kinds.push(["speech", "Spraakherkenning", "Nodig om Apple-dicteren te gebruiken."]);
+      const kinds: [PermissionInfo["kind"], string | LocalizedText, string | LocalizedText][] = [["microphone", l("onboarding.microphone"), l("onboarding.microphone_description")], ["accessibility", l("onboarding.accessibility"), l("onboarding.accessibility_description")]];
+      if (this.engine === "apple") kinds.push(["speech", l("onboarding.speech_recognition"), l("onboarding.apple_permission_description")]);
       this.readyRow.replaceChildren(...kinds.map(([kind, label, description]) => this.permissionRow(kind, label, description)),
-        ...(!readiness.can_use_shortcut ? [h("p", { class: "help" }, this.ctx.info.capabilities.global_hotkey.reason ?? "Je kunt de knop gebruiken en je sneltoets later instellen.")] : []));
+        ...(!readiness.can_use_shortcut ? [h("p", { class: "help" }, this.ctx.info.capabilities.global_hotkey.reason ? this.ownedStatus(() => this.ctx.info.capabilities.global_hotkey.reason ?? "") : l("onboarding.manual_shortcut_help"))] : []));
     }
     this.updateCommon();
   }
 
-  private permissionRow(kind: PermissionInfo["kind"], label: string, description: string): HTMLElement {
+  private permissionRow(kind: PermissionInfo["kind"], label: string | LocalizedText, description: string | LocalizedText): HTMLElement {
     const permission = this.permissions.find((item) => item.kind === kind);
     const granted = permission?.status === "granted" || permission?.status === "not_required";
     const unsupported = permission?.status === "unsupported";
     const unknown = permission?.status === "unknown";
-    const status = h("span", { class: "permission-status" }, ...(granted ? [icon("check"), document.createTextNode("In orde")] : []));
+    const status = h("span", { class: "permission-status" }, ...(granted ? [icon("check"), h("span", {}, l("onboarding.permission_ready"))] : []));
     const button = h("button", { class: "btn", disabled: unsupported || (this.ctx.info.platform === "linux" && kind === "microphone"), onclick: async () => {
       button.disabled = true;
       try { await api.requestPermission(kind); await this.refreshPermissions(); }
       catch (error) { this.fail(error); button.disabled = false; }
-    } }, permission?.status === "denied" || kind === "accessibility" || this.ctx.info.platform === "windows" ? "Open instellingen" : "Geef toegang");
+    } }, permission?.status === "denied" || kind === "accessibility" || this.ctx.info.platform === "windows" ? l("onboarding.open_settings") : l("onboarding.grant_access"));
     return h("div", { class: "permission-row" }, icon(kind === "microphone" ? "mic" : kind === "speech" ? "audioLines" : "keyboard"),
       h("div", { class: "grow" }, h("strong", {}, label), h("p", { class: "help" }, description),
-        granted ? null : unsupported ? h("p", { class: "help" }, "Niet nodig of niet ondersteund op dit platform.")
-          : unknown && this.ctx.info.platform === "linux" ? h("p", { class: "help" }, "Je microfoon wordt bij de oefening gecontroleerd.") : button,
-        kind === "microphone" && unknown && this.ctx.info.platform === "windows" ? h("p", { class: "help" }, "Je microfoon wordt bij de oefening gecontroleerd.") : null), status);
+        granted ? null : unsupported ? h("p", { class: "help" }, l("onboarding.permission_unsupported"))
+          : unknown && this.ctx.info.platform === "linux" ? h("p", { class: "help" }, l("onboarding.microphone_checked_later")) : button,
+        kind === "microphone" && unknown && this.ctx.info.platform === "windows" ? h("p", { class: "help" }, l("onboarding.microphone_checked_later")) : null), status);
   }
 
   private async renderPractice() {
     this.practiceDone = false;
-    this.practiceText = h("textarea", { class: "practice-text", "aria-label": "Je eerste dictaat", placeholder: "Je woorden verschijnen hier…", spellcheck: true, disabled: true });
+    this.practiceText = h("textarea", { class: "practice-text", "aria-label": l("onboarding.first_dictation"), placeholder: l("onboarding.practice_placeholder"), spellcheck: true, disabled: true });
     this.practiceStatus = h("p", { class: "practice-status help", role: "status", "aria-live": "polite" });
     this.practiceKey = this.keycap();
-    this.practiceButton = h("button", { class: "text-button", onclick: () => { void this.practice?.toggle().catch(this.fail); } }, "Start dicteren");
+    this.practiceButton = h("button", { class: "text-button", onclick: () => { void this.practice?.toggle().catch(this.fail); } }, l("onboarding.start_dictation"));
     const apply = (snapshot: DictationSessionSnapshot) => {
-      if (this.disposed || this.index !== 3 || !this.practiceText || !this.practiceStatus || !this.practiceButton) return;
+      if (this.disposed || this.step !== "practice" || !this.practiceText || !this.practiceStatus || !this.practiceButton) return;
       const busy = snapshot.phase === "listening" || snapshot.phase === "working";
       this.practiceText.disabled = busy;
       if (snapshot.phase === "done") this.practiceText.value = snapshot.text;
-      this.practiceStatus.textContent = snapshot.error ?? (snapshot.phase === "listening" ? "Luistert… laat de toets los." : snapshot.phase === "working" ? "Je woorden worden uitgeschreven…" : snapshot.phase === "done" ? "Dit is je eerste dictaat." : `Hou de toets hieronder in of gebruik ${this.hotkey()}.`);
+      this.refreshPracticePresentation = () => {
+        if (!this.practiceStatus || !this.practiceButton || this.step !== "practice") return;
+        this.practiceStatus.textContent = snapshot.error ? localizeBackendText(snapshot.error) : snapshot.phase === "listening" ? t("onboarding.listening_release") : snapshot.phase === "working" ? t("onboarding.writing_words") : snapshot.phase === "done" ? t("onboarding.first_dictation_done") : t("onboarding.practice_gesture_help", { shortcut: this.hotkey() });
+        this.practiceButton.textContent = snapshot.phase === "listening" ? t("onboarding.stop_dictation") : snapshot.phase === "working" ? t("onboarding.processing_text") : t("onboarding.start_dictation");
+        if (this.practiceDone) {
+          this.body.querySelector("h1")!.textContent = t("onboarding.practice_success_title");
+          const introduction = this.body.querySelector(".onboarding-heading p");
+          if (introduction) introduction.textContent = t("onboarding.practice_success_intro");
+        }
+      };
+      this.refreshPracticePresentation();
       this.practiceStatus.classList.toggle("error", !!snapshot.error);
       this.practiceKey?.setAttribute("data-pressed", String(snapshot.phase === "listening"));
-      this.practiceButton.textContent = snapshot.phase === "listening" ? "Stop dicteren" : snapshot.phase === "working" ? "Tekst verwerken…" : "Start dicteren";
       this.practiceButton.disabled = snapshot.phase === "working";
       if (snapshot.phase === "done" && snapshot.text.trim() && !this.practiceDone) {
         this.fresh = false;
         this.practiceDone = true;
-        this.body.querySelector("h1")!.textContent = "Precies. Zo werkt Pennel.";
+        this.body.querySelector("h1")!.textContent = t("onboarding.practice_success_title");
         const introduction = this.body.querySelector(".onboarding-heading p");
-        if (introduction) introduction.textContent = "Dezelfde sneltoets werkt waar je ook typt.";
+        if (introduction) introduction.textContent = t("onboarding.practice_success_intro");
         void this.persist("voice").catch(this.fail);
       }
       this.updateCommon();
@@ -458,12 +504,12 @@ class OnboardingWizard {
     this.practiceKey.addEventListener("keydown", (event) => { if ([" ", "Enter"].includes(event.key)) { event.preventDefault(); if (!event.repeat) press(); } });
     this.practiceKey.addEventListener("keyup", (event) => { if ([" ", "Enter"].includes(event.key)) { event.preventDefault(); release(); } });
     this.practiceKey.addEventListener("click", (event) => { if (event.detail === 0 && !this.held) void this.practice?.toggle().catch(this.fail); });
-    this.body.replaceChildren(this.title("Probeer je eerste dictaat.", `Hou ${this.hotkey()} in, spreek de zin uit en laat los.`),
-      h("div", { class: "practice-gesture" }, this.practiceKey, h("div", {}, h("p", { class: "practice-phrase" }, `“${phrases[this.language] ?? phrases.nl}”`), h("p", { class: "help" }, "Je kunt natuurlijk ook iets anders zeggen."))),
+    this.body.replaceChildren(this.title(l("onboarding.practice_title"), l("onboarding.practice_gesture", { shortcut: this.hotkey() })),
+      h("div", { class: "practice-gesture" }, this.practiceKey, h("div", {}, h("p", { class: "practice-phrase" }, liveText(() => `“${phrases[this.language] ?? phrases[getInterfaceLanguage()]}”`)), h("p", { class: "help" }, l("onboarding.practice_free_speech")))),
       this.practiceText, this.practiceStatus, h("div", { class: "row practice-help" }, this.practiceButton,
-        h("details", {}, h("summary", {}, `Werkt ${this.hotkey()} nog niet?`), h("p", { class: "help" }, this.ctx.info.platform === "macos"
-          ? "Zet bij Systeeminstellingen → Toetsenbord de fn-toets op ‘Doe niets’. Je kunt ook een andere sneltoets kiezen bij Dicteren."
-          : this.ctx.info.capabilities.global_hotkey.reason ?? "Gebruik de knop om te oefenen. Je kunt je sneltoets later instellen."))));
+        h("details", {}, h("summary", {}, l("onboarding.shortcut_not_working", { shortcut: this.hotkey() })), h("p", { class: "help" }, this.ctx.info.platform === "macos"
+          ? l("onboarding.mac_shortcut_help")
+          : this.ctx.info.capabilities.global_hotkey.reason ? this.ownedStatus(() => this.ctx.info.capabilities.global_hotkey.reason ?? "") : l("onboarding.manual_practice_help")))));
     try { await this.practice.open(); } catch (error) { this.fail(error); }
   }
 
@@ -484,21 +530,21 @@ class OnboardingWizard {
       if (view === shown) return;
       shown = view;
       if (view === "download") {
-        detail.replaceChildren(h("section", { class: "onboarding-engine-detail" }, h("h2", {}, "Eerst de sprekermodellen."),
-          h("p", { class: "engine-description" }, "Pennel herkent stemmen op je computer. Daarvoor download je eenmalig twee kleine modellen; je audio verlaat je toestel niet."),
+        detail.replaceChildren(h("section", { class: "onboarding-engine-detail" }, h("h2", {}, l("onboarding.voice_models_title")),
+          h("p", { class: "engine-description" }, l("onboarding.voice_models_intro")),
           download.element));
       } else if (view === "blocked") {
-        detail.replaceChildren(h("section", { class: "onboarding-engine-detail" }, h("h2", {}, mode === "cloud" ? "Via Pennel Cloud." : "Niet op dit toestel."),
-          h("p", { class: "engine-description" }, mode === "cloud" ? "Je koos om sprekers via Pennel Cloud te herkennen. Log in bij Instellingen → Account om je stem te leren." : blocker),
-          h("p", { class: "help" }, "Sla deze stap gerust over. Je kunt je stem later leren bij Instellingen → Meetings.")));
+        detail.replaceChildren(h("section", { class: "onboarding-engine-detail" }, h("h2", {}, mode === "cloud" ? l("onboarding.voice_cloud_title") : l("onboarding.voice_unavailable_title")),
+          h("p", { class: "engine-description" }, mode === "cloud" ? l("onboarding.voice_cloud_intro") : this.ownedStatus(() => enrollmentBlocker(setup, mode, models) ?? "")),
+          h("p", { class: "help" }, l("onboarding.voice_later"))));
       } else {
         this.voicePanel ??= new EnrollmentPanel(setup.enrollment_text, () => { this.fresh = false; }, () => this.updateCommon());
         detail.replaceChildren(this.voicePanel.element,
-          ...setup.profile ? [h("p", { class: "help voice-step-note" }, `${trainedLabel(setup.profile)}. Neem opnieuw op om bij te werken.`)] : []);
+          ...setup.profile ? [h("p", { class: "help voice-step-note" }, l("onboarding.voice_update_note", () => ({ profile: trainedLabel(setup.profile!) })))] : []);
       }
     };
     this.voiceModels = models;
-    this.body.replaceChildren(this.title("Leer je stem", enrollmentIntro), detail);
+    this.body.replaceChildren(this.title(l("onboarding.voice_title"), enrollmentIntro()), detail);
     await models.start(this.ctx.info.active_model_downloads ?? []);
   }
 
@@ -507,24 +553,24 @@ class OnboardingWizard {
     let model: string;
     if (this.engine === "local") {
       account = this.ctx.info.settings.providers.find((item) => item.kind === "local"); model = this.localModelId;
-      if ((await api.modelState(model)).kind !== "downloaded") { await this.loadModels(); this.renderEngineDetail(); throw new Error("Download eerst het spraakmodel om verder te gaan."); }
+      if ((await api.modelState(model)).kind !== "downloaded") { await this.loadModels(); this.renderEngineDetail(); throw validationError("onboarding.model_download_required"); }
     }
     else if (this.engine === "apple") { account = this.ctx.info.settings.providers.find((item) => item.kind === "apple_speech"); model = this.ctx.info.kinds.find((item) => item.kind === "apple_speech")?.default_stt_model ?? "dictation"; }
     else { account = this.customAccount(); model = this.providerModel.trim(); }
     const kind: ProviderKind = this.engine === "local" ? "local" : this.engine === "apple" ? "apple_speech" : this.customKind()?.kind ?? "open_ai";
-    if (!model) throw new Error("Kies een model om verder te gaan.");
+    if (!model) throw validationError("onboarding.model_required");
     const infoKind = this.ctx.info.kinds.find((item) => item.kind === kind);
     if (this.engine === "custom" && ["custom", "ollama", "lm_studio"].includes(kind)) {
       try { if (!["http:", "https:"].includes(new URL(this.providerBaseUrl.trim()).protocol)) throw new Error(); }
-      catch { throw new Error("Vul een geldig serveradres in om verder te gaan."); }
+      catch { throw validationError("onboarding.server_required"); }
     }
     const key = this.body.querySelector<HTMLInputElement>("[data-onboarding-key]")?.value.trim() ?? "";
-    if (infoKind?.requires_key && !key && (!account || !this.ctx.info.keys[account.id])) throw new Error("Vul je API-sleutel in om verder te gaan.");
+    if (infoKind?.requires_key && !key && (!account || !this.ctx.info.keys[account.id])) throw validationError("onboarding.key_required");
     if (!account) {
       const next = await api.addProvider(kind); this.ctx.update(next);
       account = [...next.settings.providers].reverse().find((item) => item.kind === kind);
     }
-    if (!account) throw new Error("De provider kon niet worden toegevoegd.");
+    if (!account) throw validationError("onboarding.provider_add_failed");
     const id = account.id;
     if (key) this.ctx.update(await api.setKey(id, key));
     await this.ctx.save((settings) => {
@@ -542,7 +588,7 @@ class OnboardingWizard {
     if (this.actionBusy || this.disposed) return;
     this.actionBusy = true; this.message.hidden = true; this.updateCommon();
     try {
-      if (this.index === 1) {
+      if (this.step === "engine") {
         const model = this.localModel();
         if (this.engine === "local" && model?.state.kind !== "downloaded") {
           if (!model || this.downloading) return;
@@ -554,8 +600,8 @@ class OnboardingWizard {
         }
         await this.commitEngine();
       }
-      if (this.index === 3 && !this.practiceDone) return;
-      if (this.index === 4) {
+      if (this.step === "practice" && !this.practiceDone) return;
+      if (this.step === "voice") {
         if (this.voicePanel?.busy) return;
         this.closeVoice(); await this.persist("voice", "completed"); await api.showWorkspace(workspaceRoute("dictation")); return;
       }
@@ -566,34 +612,36 @@ class OnboardingWizard {
 
   private updateCommon() {
     if (this.disposed) return;
+    if (this.interfacePicker) this.interfacePicker.value = this.ctx.info.settings.ui_language ?? "system";
+    if (!this.message.hidden && this.lastError) this.message.textContent = localizeBackendText(errorText(this.lastError));
     this.body.inert = this.actionBusy;
-    this.progress.hidden = this.index === 0;
-    this.progress.setAttribute("aria-label", `Stap ${this.index + 1} van ${onboardingSteps.length}`);
+    this.progress.hidden = this.step === "language";
+    this.progress.setAttribute("aria-label", t("onboarding.step_accessibility", { current: this.index + 1, total: onboardingSteps.length }));
     [...this.progress.children].forEach((segment, index) => segment.setAttribute("data-active", String(index <= this.index)));
-    this.back.hidden = this.index === 0; this.back.disabled = this.actionBusy;
-    this.skip.textContent = this.index === 3 ? "Later proberen" : this.index === 4 ? "Overslaan" : "Later instellen";
+    this.back.hidden = this.step === "language"; this.back.disabled = this.actionBusy;
+    this.skip.textContent = this.step === "practice" ? t("onboarding.practice_later") : this.step === "voice" ? t("onboarding.skip") : t("onboarding.setup_later");
     this.skip.disabled = this.actionBusy || !!this.voicePanel?.busy;
-    this.count.textContent = `${this.index + 1} van ${onboardingSteps.length}`;
+    this.count.textContent = t("onboarding.step_count", { current: this.index + 1, total: onboardingSteps.length });
     const dark = this.ctx.info.settings.appearance === "dark" || (this.ctx.info.settings.appearance === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
     this.theme.replaceChildren(icon(dark ? "sun" : "moon"));
-    let label = this.index === 0 ? "Aan de slag" : this.index === 4 ? "Klaar" : "Verder";
+    let label = this.step === "welcome" ? t("onboarding.get_started") : this.step === "voice" ? t("onboarding.done") : t("onboarding.continue");
     let disabled = this.actionBusy;
-    if (this.index === 1 && this.engine === "local") {
+    if (this.step === "engine" && this.engine === "local") {
       const model = this.localModel(); disabled ||= !model || this.downloading;
-      if (model?.state.kind !== "downloaded") label = this.downloading ? "Downloaden…" : this.downloadError ? "Opnieuw proberen" : model?.state.kind === "partial" ? "Verder downloaden" : "Download model";
+      if (model?.state.kind !== "downloaded") label = this.downloading ? t("onboarding.downloading") : this.downloadError ? t("onboarding.retry") : model?.state.kind === "partial" ? t("onboarding.resume_download") : t("onboarding.download_action");
     }
-    if (this.index === 1 && this.engine === "custom") { label = "Gebruik provider"; disabled ||= !this.customKind(); }
-    if (this.index === 1 && this.engine === "apple") {
+    if (this.step === "engine" && this.engine === "custom") { label = t("onboarding.use_provider"); disabled ||= !this.customKind(); }
+    if (this.step === "engine" && this.engine === "apple") {
       const availability = this.ctx.info.kinds.find((kind) => kind.kind === "apple_speech")?.availability;
       disabled ||= !availability || ["unsupported", "unavailable"].includes(availability.status);
     }
-    if (this.index === 2) {
+    if (this.step === "permissions") {
       const manualAllowed = manualPracticeAllowed(this.readiness, this.permissions, this.ctx.info.settings);
       disabled ||= !manualAllowed;
-      if (manualAllowed && this.ctx.info.platform === "macos" && this.readiness?.can_use_shortcut === false) label = `Verder zonder ${this.hotkey()}`;
+      if (manualAllowed && this.ctx.info.platform === "macos" && this.readiness?.can_use_shortcut === false) label = t("onboarding.continue_without_shortcut", { shortcut: this.hotkey() });
     }
-    if (this.index === 3) disabled ||= !this.practiceDone;
-    if (this.index === 4) disabled ||= !!this.voicePanel?.busy || !!this.voiceModels?.downloading;
+    if (this.step === "practice") disabled ||= !this.practiceDone;
+    if (this.step === "voice") disabled ||= !!this.voicePanel?.busy || !!this.voiceModels?.downloading;
     this.next.disabled = disabled; this.next.replaceChildren(label, icon("arrowRight"));
   }
 

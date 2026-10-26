@@ -22,6 +22,8 @@ def classify(paths):
             selected.update(('platform', 'app'))
         elif path.startswith('apps/macos/'):
             selected.add('legacy')
+        elif path.startswith('assets/locales/'):
+            selected.update(('core', 'legacy', 'app'))
         elif path.startswith('assets/'):
             selected.update(('legacy', 'app'))
         elif path.startswith(('.github/workflows/', '.cargo/', 'scripts/')) or path == 'Makefile':

@@ -27,10 +27,28 @@ func styleApplicationSelection(bundleID: String?, name: String?, fallbackName: S
 }
 
 @MainActor
-func pickStyleApplication() throws -> StyleApplicationSelection? {
+private enum StyleApplicationPickerState {
+    static weak var panel: NSOpenPanel?
+}
+
+@MainActor
+func updateStyleApplicationPicker(title: String, prompt: String) {
+    guard let panel = StyleApplicationPickerState.panel else { return }
+    applyStyleApplicationPickerLabels(panel, title: title, prompt: prompt)
+}
+
+@MainActor
+func applyStyleApplicationPickerLabels(_ panel: NSOpenPanel, title: String, prompt: String) {
+    panel.title = title
+    panel.prompt = prompt
+}
+
+@MainActor
+func pickStyleApplication(title: String, prompt: String) throws -> StyleApplicationSelection? {
     let panel = NSOpenPanel()
-    panel.title = "App toevoegen…"
-    panel.prompt = "Toevoegen"
+    applyStyleApplicationPickerLabels(panel, title: title, prompt: prompt)
+    StyleApplicationPickerState.panel = panel
+    defer { if StyleApplicationPickerState.panel === panel { StyleApplicationPickerState.panel = nil } }
     panel.allowedContentTypes = [.applicationBundle]
     panel.canChooseFiles = true
     panel.canChooseDirectories = false

@@ -1,3 +1,5 @@
+import { t } from "./i18n.ts";
+
 export type WorkspaceSection = "dictation" | "meetings" | "history" | "settings" | "recording";
 export interface MeetingSourceTarget {
   kind: "notes" | "summary" | "transcript";
@@ -14,7 +16,12 @@ export interface WorkspaceRoute {
 
 /** The original Pennel windows: the meeting library is the main window; the rest open in their own window. */
 export type WindowMode = "workspace" | "settings" | "history" | "dictation";
-export const windowTitles: Record<WindowMode, string> = { workspace: "Pennel", settings: "Instellingen", history: "Geschiedenis", dictation: "Dicteren" };
+export const windowTitles: Record<WindowMode, string> = {
+  workspace: "Pennel",
+  get settings() { return t("window.settings"); },
+  get history() { return t("window.history"); },
+  get dictation() { return t("window.dictation"); },
+};
 
 export function windowForSection(section: WorkspaceSection): WindowMode {
   return section === "meetings" || section === "recording" ? "workspace" : section;

@@ -1,3 +1,4 @@
+import { t } from "./i18n.ts";
 import type { LocalModel, OnboardingProgress, OnboardingStep, PermissionInfo, Settings, SetupReadiness } from "./api";
 
 export type Engine = "local" | "apple" | "custom";
@@ -9,7 +10,7 @@ export function initialEngine(accountKind: string | undefined, localAvailable: b
   return "custom";
 }
 
-export const onboardingSteps: OnboardingStep[] = ["welcome", "engine", "permissions", "practice", "voice"];
+export const onboardingSteps: OnboardingStep[] = ["language", "welcome", "engine", "permissions", "practice", "voice"];
 
 /** Readiness knows setup up to the practice; after a practice the saved step may be the optional voice step. */
 export function resumeStep(ready: OnboardingStep, saved: OnboardingStep | undefined): OnboardingStep {
@@ -47,5 +48,6 @@ export function defaultModelId(models: LocalModel[], current: string): string {
 }
 
 export function modelOptionLabel(model: LocalModel, formatSize: (bytes: number) => string): string {
-  return [model.name, formatSize(model.size_bytes), model.recommended ? "Aanbevolen" : null].filter(Boolean).join(" · ");
+  const size = formatSize(model.size_bytes);
+  return model.recommended ? t("onboarding.model_option_recommended", { name: model.name, size }) : [model.name, size].join(" · ");
 }

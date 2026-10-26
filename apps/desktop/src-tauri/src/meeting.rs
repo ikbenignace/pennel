@@ -58,8 +58,9 @@ impl MacCaptureHealth {
         .into_iter()
         .flatten()
         {
-            if !warnings.contains(warning) {
-                warnings.push(warning.clone());
+            let warning = crate::commands::localize_error_message(warning);
+            if !warnings.contains(&warning) {
+                warnings.push(warning);
             }
         }
         (!warnings.is_empty()).then(|| warnings.join(" "))
@@ -729,7 +730,7 @@ mod tests {
         assert_eq!(status.terminal_error, None);
         assert_eq!(
             status.warning().as_deref(),
-            Some("Alleen de microfoon wordt opgenomen. Echo-onderdrukking is niet actief.")
+            Some("Only the microphone is being recorded. Echo cancellation is not active.")
         );
     }
 
@@ -744,7 +745,7 @@ mod tests {
             "terminal_error": failure
         }));
         assert_eq!(status.terminal_error.as_deref(), Some(failure));
-        assert_eq!(status.warning().as_deref(), Some(failure));
+        assert_eq!(status.warning().as_deref(), Some("Saving audio failed."));
         assert!(status.microphone_active);
         assert!(status.system_audio_available);
     }

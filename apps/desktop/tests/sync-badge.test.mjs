@@ -1,3 +1,5 @@
+import { setInterfaceLanguage } from "../src/i18n.ts";
+setInterfaceLanguage("nl");
 import assert from "node:assert/strict";
 import test from "node:test";
 import { badgeFor, resolveOpenMeeting, syncActive } from "../src/sync-badge.ts";

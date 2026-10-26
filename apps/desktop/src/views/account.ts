@@ -3,6 +3,7 @@ import { claudeInstructions, claudeStatusText } from "../claude-access";
 import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, planSyncRedraw, pollLogin, recoveryNeedsConfirmation, relativeTime, type LoginPoll } from "../cloud-login";
 import { confirmDialog, errorCode, errorText, h, section, toggle } from "../dom";
 import type { Context } from "../main";
+import { bindLocalization, liveText, l, localizeBackendText, t, uiLocale, type UiText } from "../i18n";
 
 const LOGIN_LIFETIME_MS = 15 * 60 * 1000;
 const SYNC_NOW_TIMEOUT_MS = 60 * 1000;
@@ -33,7 +34,7 @@ let redraw: (() => void) | null = null;
 let listening = false;
 let shownReport: SyncReport | null = null;
 let syncBlock: { element: HTMLElement; build: (report: SyncReport) => HTMLElement } | null = null;
-let claudeShown: { line: HTMLElement; enabled: boolean } | null = null;
+let claudeShown: { line: HTMLElement; enabled: boolean; status: ClaudeStatus } | null = null;
 let listeningClaude = false;
 
 function update() { redraw?.(); }
@@ -72,6 +73,7 @@ function listenForClaude() {
   listeningClaude = true;
   void api.onClaudeAccessChanged((status) => {
     if (!claudeShown?.line.isConnected) return;
+    claudeShown.status = status;
     const text = claudeLine(status, claudeShown.enabled);
     claudeShown.line.textContent = text ?? "";
     claudeShown.line.className = status.kind === "error" ? "error" : "muted";
@@ -177,33 +179,33 @@ function signedOut(ctx: Context): HTMLElement {
   if (ui.login.kind === "code") {
     const { start } = ui.login;
     return h("div", {}, heading(), plainSection(
-      h("p", {}, "Je browser is geopend. Controleer daar deze code:"),
+      h("p", {}, l("account.login.browser_code")),
       h("p", { class: "login-code", "aria-live": "polite" }, start.user_code),
       h("div", { class: "row" },
-        h("button", { class: "btn", onclick: () => void api.openUrl(start.verification_uri).catch(ctx.report) }, "Browser opnieuw openen"),
-        h("button", { class: "btn", onclick: cancelLogin }, "Annuleren"))));
+        h("button", { class: "btn", onclick: () => void api.openUrl(start.verification_uri).catch(ctx.report) }, l("account.login.reopen_browser")),
+        h("button", { class: "btn", onclick: cancelLogin }, l("account.login.cancel")))));
   }
   return h("div", {}, heading(), plainSection(
     ...(ui.login.kind === "expired"
-      ? [h("p", { class: "error", role: "alert" }, "De code is verlopen."),
-         h("button", { class: "btn primary", onclick: () => void beginLogin(ctx) }, "Opnieuw beginnen")]
-      : [h("p", {}, "Log in om je meetings op al je toestellen te hebben en Pennel Cloud als provider te gebruiken, zonder eigen API-sleutel."),
+      ? [h("p", { class: "error", role: "alert" }, l("account.login.expired")),
+         h("button", { class: "btn primary", onclick: () => void beginLogin(ctx) }, l("account.login.start_again"))]
+      : [h("p", {}, l("account.login.intro")),
          ui.notice ? h("p", { class: "error", role: "alert" }, ui.notice) : null,
-         h("button", { class: "btn primary", onclick: () => void beginLogin(ctx) }, "Inloggen")])));
+         h("button", { class: "btn primary", onclick: () => void beginLogin(ctx) }, l("account.login.sign_in"))])));
 }
 
-const SLOTS: [keyof Pick<Settings, "dictation_stt" | "llm" | "meeting_stt">, string][] = [
-  ["dictation_stt", "dicteren"],
-  ["llm", "opkuisen en samenvatten"],
-  ["meeting_stt", "meetings"],
-];
+function slots(): [keyof Pick<Settings, "dictation_stt" | "llm" | "meeting_stt">, string][] { return [
+  ["dictation_stt", t("account.slot.dictation")],
+  ["llm", t("account.slot.text")],
+  ["meeting_stt", t("account.slot.meetings")],
+]; }
 
 function emptySlots(settings: Settings) {
-  return SLOTS.filter(([key]) => !settings.providers.some((provider) => provider.id === settings[key].provider_id));
+  return slots().filter(([key]) => !settings.providers.some((provider) => provider.id === settings[key].provider_id));
 }
 
-function dutchList(items: string[]): string {
-  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} en ${items.at(-1)}`;
+function localizedList(items: string[]): string {
+  return new Intl.ListFormat(uiLocale(), { style: "long", type: "conjunction" }).format(items);
 }
 
 function cloudPrompt(ctx: Context): HTMLElement | null {
@@ -227,51 +229,60 @@ function cloudPrompt(ctx: Context): HTMLElement | null {
     });
   };
   return plainSection(
-    h("p", {}, `Pennel Cloud gebruiken voor ${dutchList(empty.map(([, label]) => label))}?`),
+    h("p", {}, l("account.cloud_offer", () => ({ tasks: localizedList(emptySlots(ctx.info.settings).map(([, label]) => label)) }))),
     h("div", { class: "row" },
-      h("button", { class: "btn primary", onclick: adopt }, "Ja"),
-      h("button", { class: "btn", onclick: close }, "Nee")));
+      h("button", { class: "btn primary", onclick: adopt }, l("common.yes")),
+      h("button", { class: "btn", onclick: close }, l("common.no"))));
 }
 
 function accountSection(ctx: Context, account: CloudAccount | null, error: unknown): HTMLElement {
-  const logout = h("button", { class: "btn" }, "Uitloggen");
+  let signingOut = false;
+  const logout = h("button", { class: "btn" }, liveText(() => t(signingOut ? "account.logout.busy" : "account.logout.action")));
+  bindLocalization(logout, () => { logout.textContent = t(signingOut ? "account.logout.busy" : "account.logout.action"); });
   logout.addEventListener("click", async () => {
     const unconfirmed = recoveryNeedsConfirmation({ signedIn: true, syncOn: ctx.info.settings.cloud_sync === true, confirmed: confirmedFlag() });
-    if (unconfirmed && !await confirmDialog("Uitloggen?",
-      "Je hebt je herstelcode nog niet bevestigd. Na uitloggen heb je hem nodig om je meetings terug te krijgen. Toch uitloggen?",
-      "Uitloggen")) return;
-    logout.disabled = true;
-    logout.textContent = "Bezig met uitloggen…";
+    if (unconfirmed && !await confirmDialog(l("account.logout.title"),
+      l("account.logout.unconfirmed"),
+      l("account.logout.action"))) return;
+    signingOut = true; logout.disabled = true;
+    logout.textContent = t("account.logout.busy");
     try { await api.cloudLogout(); resetLocalState(); await ctx.refresh(); }
     catch (e) {
-      logout.disabled = false;
-      logout.textContent = "Uitloggen";
+      signingOut = false; logout.disabled = false;
+      logout.textContent = t("account.logout.action");
       ctx.report(e);
     }
   });
-  return section("Account", null,
-    account ? h("p", {}, `Ingelogd als ${account.email}`) : h("p", { class: "error", role: "alert" }, errorText(error)),
+  return section(l("account.account_title"), null,
+    account ? h("p", {}, l("account.signed_in_as", () => ({ email: account.email }))) : h("p", { class: "error", role: "alert" }, errorText(error)),
     logout);
 }
 
 function usageSection(account: CloudAccount): HTMLElement {
-  const usage = formatUsage(account);
-  return section("Gebruik deze maand", null,
-    h("p", {}, usage.audio), h("p", {}, usage.tokens), h("p", {}, usage.storage));
+  const audio = h("p", {});
+  const tokens = h("p", {});
+  const storage = h("p", {});
+  const update = () => {
+    const usage = formatUsage(account);
+    audio.textContent = usage.audio; tokens.textContent = usage.tokens; storage.textContent = usage.storage;
+  };
+  const root = section(l("account.usage_title"), null, audio, tokens, storage);
+  update(); bindLocalization(root, update);
+  return root;
 }
 
 function statusLine(report: SyncReport, enabled: boolean): string | null {
-  if (ui.syncing) return "Bezig…";
+  if (ui.syncing) return t("account.sync.busy");
   if (!enabled) return null;
   const status = report.status;
   switch (status.kind) {
-    case "pending": return "Wacht op eerste sync…";
+    case "pending": return t("account.sync.first_pending");
     case "synced":
-      return report.last_success_ms === null ? "Gesynchroniseerd"
-        : `Gesynchroniseerd · ${relativeTime(report.last_success_ms, Date.now())}`;
-    case "offline": return "Offline — probeert later opnieuw";
+      return report.last_success_ms === null ? t("account.sync.synced")
+        : t("account.sync.synced_at", { time: relativeTime(report.last_success_ms, Date.now()) });
+    case "offline": return t("account.sync.offline");
     case "storage_full":
-    case "error": return status.message;
+    case "error": return localizeBackendText(status.message);
     default: return null;
   }
 }
@@ -284,7 +295,7 @@ async function action(ctx: Context, work: () => Promise<void>) {
 }
 
 function syncSection(ctx: Context, report: SyncReport, enabled: boolean, warning: string | null, showNotice: boolean): HTMLElement {
-  const control = toggle("Meetings synchroniseren", enabled, (checked) => void action(ctx, async () => {
+  const control = toggle(l("account.sync.title"), enabled, (checked) => void action(ctx, async () => {
     if (!checked) { await api.cloudSyncDisable(); return; }
     try { showCode(await api.cloudSyncEnable()); ui.askCode = false; }
     catch (error) {
@@ -293,46 +304,62 @@ function syncSection(ctx: Context, report: SyncReport, enabled: boolean, warning
     }
   }));
   const line = statusLine(report, enabled);
+  const lineElement = line ? h("p", { class: report.brake || report.status.kind === "error" || report.status.kind === "storage_full" ? "error" : "muted", role: "status" }, line) : null;
+  if (lineElement) bindLocalization(lineElement, () => { lineElement.textContent = statusLine(report, enabled) ?? ""; });
   const brake = report.brake;
   const setup = enabled && report.status.kind === "needs_setup" && !ui.shownCode;
-  return section("Meetings synchroniseren", null,
+  return section(l("account.sync.title"), null,
     control,
-    h("p", { class: "help" }, "End-to-end versleuteld: Pennel Cloud kan je meetings niet lezen. Audio blijft op dit toestel."),
-    line ? h("p", { class: brake || report.status.kind === "error" || report.status.kind === "storage_full" ? "error" : "muted", role: "status" }, line) : null,
+    h("p", { class: "help" }, l("account.sync.privacy")),
+    lineElement,
     showNotice && ui.notice ? h("p", { class: "error", role: "alert" }, ui.notice) : null,
-    warning ? h("p", { class: "help" }, warning) : null,
+    warning ? h("p", { class: "help" }, liveText(() => localizeBackendText(warning))) : null,
     brake ? h("button", { class: "btn", onclick: async () => {
-      const ok = await confirmDialog("Verwijderingen bevestigen?",
-        "Pennel verwijdert deze meetings dan ook in Pennel Cloud en op je andere toestellen. Ze blijven 30 dagen in de prullenbak op elk toestel.",
-        "Verwijderingen bevestigen");
+      const ok = await confirmDialog(l("account.sync.confirm_deletes_title"),
+        l("account.sync.confirm_deletes_detail"),
+        l("account.sync.confirm_deletes"));
       if (ok) await action(ctx, () => api.cloudSyncConfirmDeletes());
-    } }, "Verwijderingen bevestigen") : null,
+    } }, l("account.sync.confirm_deletes")) : null,
     setup ? h("button", { class: "btn", onclick: () => void action(ctx, async () => {
       try { showCode(await api.cloudSyncEnable()); }
       catch (error) {
         if (errorCode(error) !== "vault_locked") throw error;
         ui.askCode = true;
       }
-    }) }, "Herstelcode maken") : null,
+    }) }, l("account.recovery.create")) : null,
     enabled && !needsVault(report) ? h("button", { class: "btn", disabled: ui.syncing, onclick: () => {
       ui.syncing = true;
       window.clearTimeout(syncingTimer);
       syncingTimer = window.setTimeout(() => { ui.syncing = false; update(); }, SYNC_NOW_TIMEOUT_MS);
       update();
       void api.cloudSyncNow().catch((error) => { ui.syncing = false; ctx.report(error); update(); });
-    } }, "Nu synchroniseren") : null);
+    } }, l("account.sync.now")) : null);
+}
+
+const copyFeedback = new WeakMap<HTMLElement, { failure: string | null }>();
+
+function showCopyStatus(status: HTMLElement, failure: string | null) {
+  let feedback = copyFeedback.get(status);
+  if (!feedback) {
+    feedback = { failure };
+    copyFeedback.set(status, feedback);
+    const current = feedback;
+    bindLocalization(status, () => { status.textContent = copyStatusText(current.failure); });
+  }
+  feedback.failure = failure;
+  status.textContent = copyStatusText(failure);
 }
 
 async function copyRecoveryCode(code: string, status: HTMLElement) {
-  try { await api.copySecretText(code); status.textContent = copyStatusText(null); }
-  catch (error) { status.textContent = copyStatusText(errorText(error)); }
+  try { await api.copySecretText(code); showCopyStatus(status, null); }
+  catch (error) { showCopyStatus(status, errorText(error)); }
 }
 
 function printRecoveryCode(code: string) {
   const page = h("div", { id: "print-sheet" },
-    h("h1", {}, "Pennel Cloud herstelcode"),
+    h("h1", {}, l("account.recovery.print_title")),
     h("p", { class: "print-code" }, code),
-    h("p", {}, "Bewaar deze code op een veilige plek."));
+    h("p", {}, l("account.recovery.store_safely")));
   document.body.append(page);
   document.body.classList.add("printing-sheet");
   const finish = () => { document.body.classList.remove("printing-sheet"); page.remove(); window.removeEventListener("afterprint", finish); };
@@ -343,13 +370,13 @@ function printRecoveryCode(code: string) {
 
 function recoverySheet(ctx: Context, code: string): HTMLElement {
   const status = h("span", { class: "muted", role: "status" });
-  return section("Herstelcode", null,
-    h("p", {}, "Bewaar deze herstelcode. Je hebt hem nodig om sync op een ander toestel aan te zetten. Zonder deze code en zonder ingelogd toestel kan niemand je clouddata nog lezen, ook wij niet."),
-    h("div", { class: "recovery-code", "aria-label": "Herstelcode" }, code.split("-").map((group) => h("span", {}, group))),
+  return section(l("account.recovery.title"), null,
+    h("p", {}, l("account.recovery.description")),
+    h("div", { class: "recovery-code", "aria-label": l("account.recovery.title") }, code.split("-").map((group) => h("span", {}, group))),
     h("div", { class: "row" },
-      h("button", { class: "btn", onclick: () => void copyRecoveryCode(code, status) }, "Kopiëren"),
-      h("button", { class: "btn primary", onclick: () => { ui.shownCode = null; setConfirmed(true); update(); void ctx.refresh().catch(ctx.report); } }, "Ik heb hem bewaard"),
-      h("button", { class: "text-button", onclick: () => printRecoveryCode(code) }, "Afdrukken"),
+      h("button", { class: "btn", onclick: () => void copyRecoveryCode(code, status) }, l("account.recovery.copy")),
+      h("button", { class: "btn primary", onclick: () => { ui.shownCode = null; setConfirmed(true); update(); void ctx.refresh().catch(ctx.report); } }, l("account.recovery.saved")),
+      h("button", { class: "text-button", onclick: () => printRecoveryCode(code) }, l("account.recovery.print")),
       status));
 }
 
@@ -361,7 +388,7 @@ function unlockVisible(report: SyncReport, enabled: boolean): boolean {
 function unlockSection(ctx: Context, report: SyncReport, enabled: boolean): HTMLElement | null {
   const reset = enabled && report.status.kind === "vault_reset";
   if (!unlockVisible(report, enabled)) return null;
-  const input = h("input", { type: "text", value: ui.codeDraft, autocomplete: "off", spellcheck: "false", autocapitalize: "characters", "aria-label": "Herstelcode" });
+  const input = h("input", { type: "text", value: ui.codeDraft, autocomplete: "off", spellcheck: "false", autocapitalize: "characters", "aria-label": l("account.recovery.title") });
   input.addEventListener("input", () => { ui.codeDraft = input.value; });
   const submit = () => void action(ctx, async () => {
     await api.cloudSyncUnlock(input.value);
@@ -370,73 +397,75 @@ function unlockSection(ctx: Context, report: SyncReport, enabled: boolean): HTML
     ui.askCode = false;
   });
   const form = h("form", { class: "row", onsubmit: (event: Event) => { event.preventDefault(); submit(); } },
-    input, h("button", { class: "btn primary", type: "submit" }, "Ontgrendelen"));
-  return section("Herstelcode", null,
-    reset ? h("p", {}, "De kluis is opnieuw begonnen op een ander toestel. Voer de nieuwe herstelcode in.") : null,
+    input, h("button", { class: "btn primary", type: "submit" }, l("account.recovery.unlock")));
+  return section(l("account.recovery.title"), null,
+    reset ? h("p", {}, l("account.recovery.vault_reset")) : null,
     form,
     ui.notice ? h("p", { class: "error", role: "alert" }, ui.notice) : null,
-    h("button", { class: "text-button", onclick: () => { ui.lostCode = !ui.lostCode; update(); } }, "Herstelcode kwijt?"),
+    h("button", { class: "text-button", onclick: () => { ui.lostCode = !ui.lostCode; update(); } }, l("account.recovery.lost")),
     ui.lostCode ? [
-      h("p", { class: "help" }, "Zonder herstelcode kan niemand de meetings in Pennel Cloud nog lezen. Je kunt de kluis opnieuw beginnen."),
+      h("p", { class: "help" }, l("account.recovery.lost_detail")),
       h("button", { class: "btn danger", onclick: async () => {
-        const ok = await confirmDialog("Kluis opnieuw beginnen?",
-          "Dit wist alle meetings in Pennel Cloud. Meetings op je toestellen blijven bestaan en worden opnieuw geüpload. Andere toestellen hebben daarna de nieuwe herstelcode nodig.",
-          "Kluis opnieuw beginnen");
+        const ok = await confirmDialog(l("account.recovery.reset_title"),
+          l("account.recovery.reset_detail"),
+          l("account.recovery.reset"));
         if (!ok) return;
         await action(ctx, async () => { showCode(await api.cloudSyncReset()); ui.askCode = false; ui.lostCode = false; ui.codeDraft = ""; });
-      } }, "Kluis opnieuw beginnen")] : null);
+      } }, l("account.recovery.reset"))] : null);
 }
 
 function recoverySection(ctx: Context): HTMLElement {
-  return section("Herstelcode", null,
+  return section(l("account.recovery.title"), null,
     recoveryNeedsConfirmation({ signedIn: true, syncOn: true, confirmed: confirmedFlag() })
-      ? h("p", { class: "error", role: "status" }, "Je hebt je herstelcode nog niet bevestigd.") : null,
+      ? h("p", { class: "error", role: "status" }, l("account.recovery.unconfirmed")) : null,
     h("button", { class: "btn", onclick: async () => {
-      const ok = await confirmDialog("Nieuwe herstelcode maken?", "De oude herstelcode werkt daarna niet meer.", "Nieuwe herstelcode maken");
+      const ok = await confirmDialog(l("account.recovery.new_title"), l("account.recovery.new_detail"), l("account.recovery.new"));
       if (ok) await action(ctx, async () => { showCode(await api.cloudSyncNewRecoveryCode()); });
-    } }, "Nieuwe herstelcode maken"));
+    } }, l("account.recovery.new")));
 }
 
-function copyField(label: string, value: string): HTMLElement {
+function copyField(label: UiText, value: string): HTMLElement {
   const status = h("span", { class: "muted", role: "status" });
   return h("div", {},
     h("p", { class: "help" }, label),
     h("div", { class: "row" },
       h("input", { type: "text", class: "grow", readonly: true, value, "aria-label": label, spellcheck: "false" }),
       h("button", { class: "btn", onclick: async () => {
-        try { await api.copyText(value); status.textContent = copyStatusText(null); }
-        catch (error) { status.textContent = copyStatusText(errorText(error)); }
-      } }, "Kopiëren"),
+        try { await api.copyText(value); showCopyStatus(status, null); }
+        catch (error) { showCopyStatus(status, errorText(error)); }
+      } }, l("common.copy")),
       status));
 }
 
 function claudeSection(ctx: Context, view: ClaudeAccessView): HTMLElement {
-  const control = toggle("Claude-toegang", view.enabled, (checked) => void action(ctx, async () => {
+  const control = toggle(l("account.claude.title"), view.enabled, (checked) => void action(ctx, async () => {
     await api.setClaudeAccess(checked);
   }));
   const text = claudeLine(view.status, view.enabled);
   const line = h("p", { class: view.status.kind === "error" && view.enabled ? "error" : "muted", role: "status" }, text ?? "");
-  claudeShown = { line, enabled: view.enabled };
+  const current = { line, enabled: view.enabled, status: view.status };
+  claudeShown = current;
+  bindLocalization(line, () => { line.textContent = claudeLine(current.status, current.enabled) ?? ""; });
   const steps = claudeInstructions(view.mcp_url);
-  return section("Claude-toegang", null,
+  return section(l("account.claude.title"), null,
     control,
-    h("p", { class: "help" }, "Laat Claude je meetings doorzoeken en samenvatten. Claude stelt zijn vragen aan deze computer, die antwoordt vanuit de meetings die hier staan. In Pennel Cloud blijven je meetings end-to-end versleuteld. Werkt zolang Pennel op deze computer open is."),
+    h("p", { class: "help" }, l("account.claude.help")),
     line,
     view.enabled ? [
-      copyField("In claude.ai: Instellingen → Connectors → Eigen connector toevoegen, met deze URL:", steps.connectorUrl),
-      copyField("In Claude Code:", steps.command),
-      h("p", { class: "help" }, "Claude vraagt je daarna één keer om in te loggen bij Pennel."),
+      copyField(l("account.claude.connector_help"), steps.connectorUrl),
+      copyField(l("account.claude.code_help"), steps.command),
+      h("p", { class: "help" }, l("account.claude.sign_in_help")),
     ] : null);
 }
 
 function seenText(device: CloudDevice): string {
   const time = Date.parse(device.last_seen_iso);
-  return `laatst gezien ${Number.isNaN(time) ? device.last_seen_iso : relativeTime(time, Date.now())}`;
+  return t("account.devices.last_seen", { time: Number.isNaN(time) ? device.last_seen_iso : relativeTime(time, Date.now()) });
 }
 
 function devicesSection(ctx: Context, devices: CloudDevice[]): HTMLElement {
-  return section("Toestellen", null, h("div", { class: "list" }, devices.map((device) => {
-    const name = h("input", { type: "text", class: "device-name", value: device.name, "aria-label": "Naam van toestel" });
+  return section(l("account.devices.title"), null, h("div", { class: "list" }, devices.map((device) => {
+    const name = h("input", { type: "text", class: "device-name", value: device.name, "aria-label": l("account.devices.name") });
     name.dataset.original = device.name;
     name.addEventListener("change", () => {
       const next = name.value.trim();
@@ -445,23 +474,23 @@ function devicesSection(ctx: Context, devices: CloudDevice[]): HTMLElement {
     });
     return h("div", { class: "row device-row" },
       name,
-      h("span", { class: "muted" }, `${device.platform} · ${seenText(device)}`),
-      device.current ? h("span", { class: "muted" }, "(dit toestel)") : null,
+      h("span", { class: "muted" }, liveText(() => `${device.platform} · ${seenText(device)}`)),
+      device.current ? h("span", { class: "muted" }, l("account.devices.current")) : null,
       device.current ? null : h("button", { class: "btn", onclick: async () => {
-        const ok = await confirmDialog("Toestel afmelden?",
-          "Dit toestel kan dan niet meer synchroniseren. Wat het al had, blijft erop staan. Vrees je dat het gestolen is, begin dan de kluis opnieuw.",
-          "Afmelden");
+        const ok = await confirmDialog(l("account.devices.revoke_title"),
+          l("account.devices.revoke_detail"),
+          l("account.devices.revoke"));
         if (ok) await action(ctx, () => api.cloudRevokeDevice(device.id));
-      } }, "Afmelden"));
+      } }, l("account.devices.revoke")));
   })));
 }
 
 function deleteSection(ctx: Context): HTMLElement {
-  return section("Account verwijderen", null, h("button", { class: "btn danger", onclick: async () => {
-    const ok = await confirmDialog("Account verwijderen?",
-      "Je account en alle versleutelde data in Pennel Cloud worden gewist. Meetings op dit toestel blijven staan.",
-      "Account verwijderen");
+  return section(l("account.delete.title"), null, h("button", { class: "btn danger", onclick: async () => {
+    const ok = await confirmDialog(l("account.delete.confirm_title"),
+      l("account.delete.detail"),
+      l("account.delete.title"));
     if (!ok) return;
     try { await api.cloudDeleteAccount(); resetLocalState(); await ctx.refresh(); } catch (error) { ctx.report(error); }
-  } }, "Account verwijderen"));
+  } }, l("account.delete.title")));
 }

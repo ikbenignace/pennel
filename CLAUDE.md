@@ -19,7 +19,7 @@ The shared application must look and behave **near-identically** on every platfo
 
 - Same windows, tabs, sections, order, labels and empty/error states on every platform. Platform differences are limited to what the OS forces (window chrome, hotkey names: `fn` on Mac, Right Ctrl on Windows/Linux, system permission prompts).
 - Same visual system: palette, typography (Figtree + Instrument Serif), spacing, radii, component shapes, pill, icons. Values come from the brand guide `assets/brand/brand.md`; never hard-code a new colour or size in only one app.
-- Same copy: UI text is Dutch-first and identical on every platform.
+- Same copy: the shared UI supports English and Dutch, defaults to the system’s first supported language (English fallback), and uses identical copy for the selected interface language on every platform. Interface language stays independent of speech recognition and user content.
 - When a feature exists in the core, the shared app exposes it on every platform. If one platform cannot support it yet (e.g. echo cancellation, Apple dictation), show the same control disabled with a short reason rather than hiding it silently, and record the gap in `docs/desktop.md`.
 - Review the look with screenshots of the app's own windows or headless renders, never by capturing the user's screen.
 

@@ -1,5 +1,7 @@
+import { bindLocalization, liveText, l, t, uiLocale, formatNumber, localizeBackendText, type LocalizedText } from "../i18n.ts";
+import { localModelLanguageName } from "../settings-presentation.ts";
 import { api, listen, type LocalModel } from "../api";
-import { confirmDialog, errorCode, errorText, field, h, section, select } from "../dom";
+import { confirmDialog, errorText, field, h, isCancellation, section, select } from "../dom";
 import type { Context } from "../main";
 
 const progress = new Map<string, { downloaded: number; total: number }>();
@@ -27,23 +29,18 @@ async function listenOnce() {
   await listen<{ id: string; error: string | null }>("download-done", (e) => {
     progress.delete(e.payload.id);
     attached.delete(e.payload.id);
-    if (e.payload.error && !e.payload.error.toLowerCase().includes("cancel")) failures.set(e.payload.id, e.payload.error);
+    if (e.payload.error && !isCancellation(e.payload.error)) failures.set(e.payload.id, e.payload.error);
     else failures.delete(e.payload.id);
     refresh?.();
   });
 }
 
-function bar(label: string, value: number | null) {
+function bar(label: string | LocalizedText, value: number | null) {
   return h("div", { class: "model-score" },
-    h("div", { class: "model-score-label" }, h("span", {}, label), h("span", {}, value === null ? "niet gemeten" : String(value))),
+    h("div", { class: "model-score-label" }, h("span", {}, label), h("span", {}, value === null ? l("providers.local.not_measured") : formatNumber(value))),
     h("div", { class: "model-score-track" }, h("span", { style: `width:${value ?? 0}%` })));
 }
 
-function languageName(code: string): string {
-  const names: Record<string, string> = { nl: "Nederlands", en: "Engels", fr: "Frans", de: "Duits", es: "Spaans", it: "Italiaans", pt: "Portugees", pl: "Pools" };
-  const name = names[code] ?? new Intl.DisplayNames(["nl"], { type: "language" }).of(code) ?? code;
-  return name.charAt(0).toLocaleUpperCase("nl-BE") + name.slice(1);
-}
 
 export async function localView(ctx: Context, embedded = false): Promise<HTMLElement> {
   if (!languageInitialized) { language = ctx.info.settings.language ?? "nl"; languageInitialized = true; }
@@ -60,7 +57,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       if (ctx.visible) await ctx.refresh();
     }).catch((error) => {
       attached.delete(id); progress.delete(id);
-      if (errorCode(error) !== "cancelled" && errorText(error).toLowerCase() !== "cancelled") failures.set(id, errorText(error));
+      if (!isCancellation(error)) failures.set(id, errorText(error));
       ctx.rerender();
     });
   }
@@ -83,21 +80,21 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     let actions: (Node | string)[];
     if (active) {
       actions = [
-        h("button", { class: "btn", onclick: () => api.cancelDownload(model.id) }, "Annuleren"),
+        h("button", { class: "btn", onclick: () => api.cancelDownload(model.id) }, l("common.cancel")),
       ];
     } else if (model.state.kind === "downloaded") {
       actions = [
-        ...inUse.has(model.id) ? [] : [h("button", { class: "btn", disabled: !!unsupported, onclick: () => use(model) }, "Gebruik")],
+        ...inUse.has(model.id) ? [] : [h("button", { class: "btn", disabled: !!unsupported, onclick: () => use(model) }, l("providers.local.use"))],
         h(
           "button",
           {
             class: "btn danger",
             onclick: async () => {
-              if (inUse.has(model.id) && !await confirmDialog("Dit model is in gebruik. Verwijderen?", "Dicteren schakelt over naar een ander gedownload model, of werkt niet meer tot je er een downloadt.")) return;
+              if (inUse.has(model.id) && !await confirmDialog(l("providers.local.in_use_delete"), l("providers.local.in_use_delete_help"))) return;
               await ctx.mutate(() => api.deleteModel(model.id));
             },
           },
-          "Verwijder",
+          l("providers.local.delete"),
         ),
       ];
     } else {
@@ -111,39 +108,45 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       actions =
         model.state.kind === "partial"
           ? [
-              h("button", { class: "btn", disabled: !!unsupported, onclick: start }, "Verder downloaden"),
-              h("button", { class: "btn danger", onclick: async () => await ctx.mutate(() => api.deleteModel(model.id)) }, "Verwijder"),
+              h("button", { class: "btn", disabled: !!unsupported, onclick: start }, l("providers.local.resume")),
+              h("button", { class: "btn danger", onclick: async () => await ctx.mutate(() => api.deleteModel(model.id)) }, l("settings.template.delete")),
             ]
-          : [h("button", { class: "btn", disabled: !!unsupported, onclick: start }, "Downloaden")];
+          : [h("button", { class: "btn", disabled: !!unsupported, onclick: start }, l("providers.local.download"))];
     }
     const inUseHere = inUse.has(model.id);
-    const metadata = [model.description, `${Math.floor(model.size_bytes / 1e6)} MB`, model.parameters ? `${model.parameters} parameters` : null].filter(Boolean).join(" · ");
-    const languages = [...model.languages].map(languageName).sort((a, b) => a.localeCompare(b, "nl"));
-    const languageDetails = languages.length ? h("details", { class: "model-languages" },
-      h("summary", {}, languages.length === 1 ? `Alleen ${languages[0]}` : `${languages.length} talen ›`), h("p", {}, languages.join(", "))) : null;
-    if (languageDetails) languageDetails.addEventListener("toggle", () => {
-      languageDetails.querySelector("summary")!.textContent = languageDetails.open ? "Verberg talen" : languages.length === 1 ? `Alleen ${languages[0]}` : `${languages.length} talen ›`;
-    });
+    const metadata = liveText(() => [localizeBackendText(model.description), `${formatNumber(Math.floor(model.size_bytes / 1e6))} MB`, model.parameters ? t("providers.local.parameters", { count: model.parameters }) : null].filter(Boolean).join(" · "));
+    const languages = () => [...model.languages].map(localModelLanguageName).sort((a, b) => a.localeCompare(b, uiLocale()));
+    const languageDetails = model.languages.length ? h("details", { class: "model-languages" }, h("summary", {}), h("p", {})) : null;
+    if (languageDetails) {
+      const update = () => {
+        const names = languages();
+        languageDetails.querySelector("summary")!.textContent = languageDetails.open ? t("providers.local.hide_languages")
+          : names.length === 1 ? t("providers.local.one_language", { language: names[0] }) : t("providers.local.languages", { count: formatNumber(names.length) });
+        languageDetails.querySelector("p")!.textContent = names.join(", ");
+      };
+      languageDetails.addEventListener("toggle", update);
+      update(); bindLocalization(languageDetails, update);
+    }
     return h("div", { class: "model-card" },
       h("div", { class: "model-card-heading" }, h("div", { class: "grow" },
-        h("div", { class: "row" }, h("strong", {}, model.name), inUseHere || model.recommended ? h("span", { class: "model-badge" }, inUseHere ? "In gebruik" : "Aanbevolen") : null),
+        h("div", { class: "row" }, h("strong", {}, model.name), inUseHere || model.recommended ? h("span", { class: "model-badge" }, inUseHere ? l("providers.local.in_use") : l("providers.local.recommended")) : null),
         h("p", { class: "model-details" }, metadata)),
         h("div", { class: "row model-actions" }, actions)),
-      h("div", { class: "model-scores" }, bar("Snelheid", model.speed), bar("Nauwkeurigheid", model.accuracy)), languageDetails,
-      active ? h("progress", { "data-model": model.id, max: active.total || 1, value: active.downloaded, "aria-label": `${model.name} downloaden` }) : null,
-      failures.has(model.id) ? h("div", { class: "error" }, `Download mislukt: ${failures.get(model.id)}`) : null);
+      h("div", { class: "model-scores" }, bar(l("providers.local.speed"), model.speed), bar(l("providers.local.accuracy"), model.accuracy)), languageDetails,
+      active ? h("progress", { "data-model": model.id, max: active.total || 1, value: active.downloaded, "aria-label": l("providers.local.downloading_model", () => ({ model: model.name })) }) : null,
+      failures.has(model.id) ? h("div", { class: "error" }, l("providers.local.download_failed", () => ({ error: errorText(failures.get(model.id)) }))) : null);
   };
 
   const languagePicker = select<string>(
     [
-      ["nl", "Nederlands"],
-      ["en", "Engels"],
-      ["fr", "Frans"],
-      ["de", "Duits"],
-      ["es", "Spaans"],
-      ["it", "Italiaans"],
-      ["pt", "Portugees"],
-      ["pl", "Pools"],
+      ["nl", liveText(() => localModelLanguageName("nl"))],
+      ["en", liveText(() => localModelLanguageName("en"))],
+      ["fr", liveText(() => localModelLanguageName("fr"))],
+      ["de", liveText(() => localModelLanguageName("de"))],
+      ["es", liveText(() => localModelLanguageName("es"))],
+      ["it", liveText(() => localModelLanguageName("it"))],
+      ["pt", liveText(() => localModelLanguageName("pt"))],
+      ["pl", liveText(() => localModelLanguageName("pl"))],
     ],
     language ?? "",
     (value) => {
@@ -152,7 +155,8 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     },
     "menu",
   );
-  languagePicker.setAttribute("aria-label", "Nauwkeurigheid voor");
+  languagePicker.setAttribute("aria-label", t("providers.local.accuracy_for"));
+  bindLocalization(languagePicker, () => languagePicker.setAttribute("aria-label", t("providers.local.accuracy_for")));
   const onlyThis = h("input", {
     type: "checkbox",
     role: "switch",
@@ -166,30 +170,30 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
   const root = h(
     "div",
     {},
-    embedded ? null : h("h1", {}, "Lokale modellen"),
+    embedded ? null : h("h1", {}, l("providers.local.title")),
     section(
-      "Modellen",
-      "Draaien volledig op je computer. Je audio verlaat je computer niet.",
+      l("providers.local.models"),
+      l("providers.local.offline_help"),
       unsupported ? h("p", { class: "help" }, unsupported) : null,
-      h("p", { class: "help" }, "Opkuisen, samenvatten en vragen gebruiken het taalmodel dat je bij Modellen kiest. Dat kan een server zijn."),
-      h("div", { class: "row model-filters" }, h("div", { class: "model-language" }, h("span", { "aria-hidden": "true" }, "Nauwkeurigheid voor"), languagePicker), h("label", { class: "row" }, onlyThis, "Alleen deze taal")),
-      h("p", { class: "help model-benchmark-note" }, "Scores uit onafhankelijke benchmarks: snelheid op Apple Silicon, nauwkeurigheid in de gekozen taal (hoger is beter)."),
+      h("p", { class: "help" }, l("providers.local.text_help")),
+      h("div", { class: "row model-filters" }, h("div", { class: "model-language" }, h("span", { "aria-hidden": "true" }, l("providers.local.accuracy_for")), languagePicker), h("label", { class: "row" }, onlyThis, l("providers.local.only_language"))),
+      h("p", { class: "help model-benchmark-note" }, l("providers.local.benchmark_help")),
       models.filter((model) => model.recommended || model.state.kind === "downloaded").map(card),
-      h("details", { class: "all-models" }, h("summary", {}, `Alle modellen (${models.filter((model) => !model.recommended && model.state.kind !== "downloaded").length})`), models.filter((model) => !model.recommended && model.state.kind !== "downloaded").map(card)),
+      h("details", { class: "all-models" }, h("summary", {}, l("providers.local.all_models", () => ({ count: formatNumber(models.filter((model) => !model.recommended && model.state.kind !== "downloaded").length) }))), models.filter((model) => !model.recommended && model.state.kind !== "downloaded").map(card)),
       field(
-        "Vrijgeven na",
+        l("providers.local.release_after"),
         select<string>(
           [
             ["1", "1 min"],
             ["5", "5 min"],
             ["15", "15 min"],
-            ["60", "1 uur"],
+            ["60", l("providers.local.hour")],
           ],
           String(ctx.info.settings.local_unload_minutes),
           (v) => ctx.save((s) => (s.local_unload_minutes = Number(v))),
         ),
       ),
-      h("p", { class: "help" }, "Het model wordt geladen bij je eerste dictaat en daarna uit het geheugen gehaald als je het niet gebruikt."),
+      h("p", { class: "help" }, l("providers.local.unload_help")),
     ),
   );
   const onRefresh = () => { if (root.isConnected) void ctx.refresh().catch(ctx.report); };

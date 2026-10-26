@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
+import { setInterfaceLanguage } from "../src/i18n.ts";
+
+beforeEach(() => setInterfaceLanguage("nl"));
 import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, pollLogin, planSyncRedraw, recoveryNeedsConfirmation } from "../src/cloud-login.ts";
 
 function clock(start = 0) {
@@ -129,4 +132,13 @@ test("a layout change redraws the tab unless a device name is being edited", () 
 
 test("signing out redraws even while a device name is being edited", () => {
   assert.equal(planSyncRedraw(report("synced"), report("signed_out"), false, true), "full");
+});
+
+
+test("usage formatting follows the interface language", () => {
+  const usage = { audio_seconds: 3660, limit_audio_seconds: 7200, tokens: 1500000, limit_tokens: 2000000, storage_bytes: 1500000000, limit_storage_bytes: 2000000000 };
+  setInterfaceLanguage("en");
+  assert.deepEqual(formatUsage(usage), { audio: "1 h 1 min of 2 h", tokens: "1.5M of 2M tokens", storage: "1.5 GB of 2 GB" });
+  setInterfaceLanguage("nl");
+  assert.deepEqual(formatUsage(usage), { audio: "1 u 1 min van 2 u", tokens: "1,5 mln van 2 mln tokens", storage: "1,5 GB van 2 GB" });
 });

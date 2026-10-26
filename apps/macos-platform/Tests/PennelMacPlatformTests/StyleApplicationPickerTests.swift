@@ -1,7 +1,22 @@
+import AppKit
 import XCTest
 @testable import PennelMacPlatform
 
 final class StyleApplicationPickerTests: XCTestCase {
+    @MainActor
+    func testPickerRelabelsWithoutReplacingItsSelectionOrRules() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        for (title, prompt) in [("Add app…", "Add"), ("App toevoegen…", "Toevoegen"), ("Add app…", "Add")] {
+            applyStyleApplicationPickerLabels(panel, title: title, prompt: prompt)
+            XCTAssertEqual(panel.title, title)
+            XCTAssertEqual(panel.prompt, prompt)
+            XCTAssertFalse(panel.canChooseDirectories)
+            XCTAssertFalse(panel.allowsMultipleSelection)
+        }
+    }
+
     func testBundleIdentityKeepsCaseAndUsesDisplayName() throws {
         let app = try styleApplicationSelection(bundleID: "com.microsoft.VSCode", name: " Visual Studio Code ", fallbackName: "Code")
         XCTAssertEqual(app.id, "com.microsoft.VSCode")

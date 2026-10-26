@@ -15,28 +15,31 @@ const localModels = visualModels(JSON.parse(await readFile(join(root, "core/src/
 const recordingAppIds = visualCallApps(await readFile(join(root, "core/src/rules.rs"), "utf8"));
 const pillMetrics = JSON.parse(await readFile(join(root, "assets/brand/tokens.json"), "utf8")).pill;
 const argumentsList = process.argv.slice(2);
-const options = { output: join(root, "build/visual-parity/desktop"), appearance: "both", cases: [], port: 0, serve: false, browser: process.env.PENNEL_CHROME };
+const options = { output: join(root, "build/visual-parity/desktop"), appearance: "both", locale: "both", cases: [], port: 0, serve: false, browser: process.env.PENNEL_CHROME };
 for (let index = 0; index < argumentsList.length; index++) {
   const name = argumentsList[index];
   if (name === "--serve") options.serve = true;
   else if (name === "--output") options.output = resolve(argumentsList[++index]);
   else if (name === "--case") options.cases.push(argumentsList[++index]);
   else if (name === "--appearance") options.appearance = argumentsList[++index];
+  else if (name === "--locale") options.locale = argumentsList[++index];
   else if (name === "--port") options.port = Number(argumentsList[++index]);
   else if (name === "--browser") options.browser = argumentsList[++index];
   else if (name === "--list") { console.log(cases.map(item => item.name).join("\n")); process.exit(0); }
   else throw new Error(`Unknown option: ${name}`);
 }
 if (!["both", "light", "dark"].includes(options.appearance)) throw new Error("--appearance must be light, dark, or both");
+if (!["both", "en", "nl"].includes(options.locale)) throw new Error("--locale must be en, nl, or both");
+const locales = options.locale === "both" ? ["en", "nl"] : [options.locale];
 const selected = options.cases.length ? cases.filter(item => options.cases.includes(item.name)) : cases;
 if (!selected.length || options.cases.some(name => !cases.some(item => item.name === name))) throw new Error("Unknown or empty visual case selection");
 const appearances = options.appearance === "both" ? ["light", "dark"] : [options.appearance];
 const meetingId = "2026-10-24 0900 Projectoverleg";
 // Default sizes of the shared app's windows (apps/desktop/src-tauri/src/workspace.rs).
 const windowSizes = { workspace: [980, 640], settings: [760, 600], history: [560, 560], dictation: [640, 560], onboarding: [640, 660] };
-const urlFor = (base, item, appearance) => {
+const urlFor = (base, item, appearance, locale) => {
   const url = new URL(item.window === "pill" ? "/pill.html" : "/index.html", base);
-  for (const [key, value] of Object.entries({ qa: item.name, theme: appearance, window: item.window, section: item.section, tab: item.tab, meeting_id: item.meeting_tab ? meetingId : undefined, meeting_tab: item.meeting_tab })) if (value) url.searchParams.set(key, value);
+  for (const [key, value] of Object.entries({ qa: item.name, theme: appearance, locale, window: item.window, section: item.section, tab: item.tab, meeting_id: item.meeting_tab ? meetingId : undefined, meeting_tab: item.meeting_tab })) if (value) url.searchParams.set(key, value);
   return url.href;
 };
 const { createServer } = await import(pathToFileURL(join(appRoot, "node_modules/vite/dist/node/index.js")).href);
@@ -59,7 +62,7 @@ const server = await createServer({
         const item = cases.find(item => item.name === url.searchParams.get("qa"));
         if (!item) return;
         const appearance = url.searchParams.get("theme") === "dark" ? "dark" : "light";
-        const data = JSON.stringify({ ...item, appearance, local_models: localModels, recording_app_ids: recordingAppIds }).replaceAll("<", "\\u003c");
+        const data = JSON.stringify({ ...item, appearance, locale: url.searchParams.get("locale") || "nl", ui_language: url.searchParams.get("ui_language") || undefined, profile: url.searchParams.get("profile") || undefined, model_state_delay_ms: Math.min(2000, Math.max(0, Number(url.searchParams.get("model_state_delay_ms")) || 0)), local_models: localModels, recording_app_ids: recordingAppIds }).replaceAll("<", "\\u003c");
         return [{ tag: "script", attrs: { "data-pennel-fixture": item.name }, children: `globalThis.__PENNEL_FIXTURE_OPTIONS__=${data};\n${fixtureScript}`, injectTo: "head-prepend" }];
       },
     },
@@ -88,7 +91,7 @@ process.on("SIGINT", () => { void cleanup().finally(() => process.exit(0)); });
 process.on("SIGTERM", () => { void cleanup().finally(() => process.exit(0)); });
 
 if (options.serve) {
-  console.log(JSON.stringify({ url: base, example: urlFor(base, selected[0], appearances[0]), cases: selected.length, appearances }, null, 2));
+  console.log(JSON.stringify({ url: base, example: urlFor(base, selected[0], appearances[0], locales[0]), cases: selected.length, appearances, locales }, null, 2));
   await new Promise(() => {});
 } else {
   let captureManifest;
@@ -122,19 +125,20 @@ if (options.serve) {
     await send("Page.enable");
     await send("Runtime.enable");
     await send("Log.enable");
-    await send("Emulation.setLocaleOverride", { locale: "nl-BE" });
     await send("Emulation.setTimezoneOverride", { timezoneId: "Europe/Brussels" });
     const manifest = captureManifest;
-    for (const appearance of appearances) {
-      await mkdir(join(options.output, appearance), { recursive: true });
+    for (const locale of locales) {
+      await send("Emulation.setLocaleOverride", { locale: locale === "nl" ? "nl-BE" : "en-GB" });
+      for (const appearance of appearances) {
+      await mkdir(join(options.output, locale, appearance), { recursive: true });
       await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: appearance }] });
       for (const item of selected) {
-        currentCase = `${appearance}/${item.name}`;
+        currentCase = `${locale}/${appearance}/${item.name}`;
         connection.events.length = 0;
         const [width, height] = item.window === "pill" ? [pillMetrics["window-width"], pillMetrics["window-height"]] : windowSizes[item.window];
         await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
         await send("Emulation.setDefaultBackgroundColorOverride", item.window === "pill" ? { color: { r: 0, g: 0, b: 0, a: 0 } } : {});
-        const url = urlFor(base, item, appearance);
+        const url = urlFor(base, item, appearance, locale);
         await send("Page.navigate", { url });
         let rendered = false;
         for (let attempt = 0; attempt < 100; attempt++) {
@@ -153,19 +157,20 @@ if (options.serve) {
           await send("Runtime.evaluate", { expression: step.eval, awaitPromise: true });
           await new Promise(resolve => setTimeout(resolve, step.wait || 300));
         }
-        const metadata = await send("Runtime.evaluate", { expression: "(()=>{const pill=document.getElementById('pill'),preview=document.getElementById('preview'),text=document.getElementById('preview-text'),bounds=pill?.getBoundingClientRect();const pillError=pill?(bounds.left<0||bounds.top<0||bounds.right>innerWidth||bounds.bottom>innerHeight?'Pill exceeds the viewport':text?.querySelector('*')?'Preview interpreted markup':window.__PENNEL_FIXTURE__.options.preview_text&&preview.hidden?'Expected preview is hidden':''):'';return {width:innerWidth,height:innerHeight,horizontal_overflow:document.documentElement.scrollWidth>innerWidth,unknown_commands:window.__PENNEL_FIXTURE__.unknown,calls:window.__PENNEL_FIXTURE__.calls,runtime_banner:document.querySelector('.notice-banner:not([hidden]):not([data-recovery-banner])')?.textContent||'',recovery_banner:document.querySelector('[data-recovery-banner]:not([hidden])')?.textContent||'',surface_error:pillError,pill_preview:text?{text:text.textContent,visible:!preview.hidden,height:preview.getBoundingClientRect().height}:null,body:document.body.innerText.slice(0,300)}})()", returnByValue: true });
+        const metadata = await send("Runtime.evaluate", { expression: "(()=>{const pill=document.getElementById('pill'),preview=document.getElementById('preview'),text=document.getElementById('preview-text'),bounds=pill?.getBoundingClientRect();const pillError=pill?(bounds.left<0||bounds.top<0||bounds.right>innerWidth||bounds.bottom>innerHeight?'Pill exceeds the viewport':text?.querySelector('*')?'Preview interpreted markup':window.__PENNEL_FIXTURE__.options.preview_text&&preview.hidden?'Expected preview is hidden':''):'';return {document_language:document.documentElement.lang,width:innerWidth,height:innerHeight,horizontal_overflow:document.documentElement.scrollWidth>innerWidth,unknown_commands:window.__PENNEL_FIXTURE__.unknown,calls:window.__PENNEL_FIXTURE__.calls,runtime_banner:document.querySelector('.notice-banner:not([hidden]):not([data-recovery-banner])')?.textContent||'',recovery_banner:document.querySelector('[data-recovery-banner]:not([hidden])')?.textContent||'',surface_error:pillError,pill_preview:text?{text:text.textContent,visible:!preview.hidden,height:preview.getBoundingClientRect().height}:null,body:document.body.innerText.slice(0,300)}})()", returnByValue: true });
         const image = await send("Page.captureScreenshot", { format: "png", fromSurface: true, captureBeyondViewport: false });
-        const file = `${appearance}/${item.name}.png`;
+        const file = `${locale}/${appearance}/${item.name}.png`;
         await writeFile(join(options.output, file), Buffer.from(image.data, "base64"));
-        manifest.images.push({ case: item.name, appearance, file, ...metadata.result.value, runtime_errors: [...connection.events] });
+        manifest.images.push({ case: item.name, locale, appearance, file, ...metadata.result.value, runtime_errors: [...connection.events] });
         await writeFile(join(options.output, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
         if (metadata.result.value.unknown_commands.length) console.error(`${item.name}: unknown fixture commands ${metadata.result.value.unknown_commands.join(", ")}`);
       }
     }
+    }
     manifest.complete = true;
     await writeFile(join(options.output, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-    const failures = manifest.images.filter(item => item.horizontal_overflow || item.unknown_commands.length || item.runtime_errors.length || item.runtime_banner || item.surface_error);
-    console.log(JSON.stringify({ output: options.output, images: manifest.images.length, failures: failures.map(item => ({ case: item.case, appearance: item.appearance, horizontal_overflow: item.horizontal_overflow, unknown_commands: item.unknown_commands, runtime_errors: item.runtime_errors, runtime_banner: item.runtime_banner, surface_error: item.surface_error })) }, null, 2));
+    const failures = manifest.images.filter(item => item.horizontal_overflow || item.unknown_commands.length || item.runtime_errors.length || item.runtime_banner || item.surface_error || item.document_language !== item.locale);
+    console.log(JSON.stringify({ output: options.output, images: manifest.images.length, failures: failures.map(item => ({ case: item.case, locale: item.locale, appearance: item.appearance, document_language: item.document_language, horizontal_overflow: item.horizontal_overflow, unknown_commands: item.unknown_commands, runtime_errors: item.runtime_errors, runtime_banner: item.runtime_banner, surface_error: item.surface_error })) }, null, 2));
     process.exitCode = failures.length ? 1 : 0;
   } catch (error) {
     if (captureManifest) {

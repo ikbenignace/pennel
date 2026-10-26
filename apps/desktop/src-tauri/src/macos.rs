@@ -19,9 +19,15 @@ unsafe extern "C" {
     fn pennel_mac_string_free(value: *mut c_char);
     fn pennel_mac_is_main_thread() -> bool;
     fn pennel_mac_permissions() -> *mut c_char;
+    fn pennel_mac_preferred_languages() -> *mut c_char;
     fn pennel_mac_request_permission(kind: *const c_char) -> bool;
     fn pennel_mac_foreground() -> *mut c_char;
-    fn pennel_mac_pick_style_application(error: *mut *mut c_char) -> *mut c_char;
+    fn pennel_mac_pick_style_application(
+        title: *const c_char,
+        prompt: *const c_char,
+        error: *mut *mut c_char,
+    ) -> *mut c_char;
+    fn pennel_mac_localize_style_application_picker(title: *const c_char, prompt: *const c_char);
     fn pennel_mac_app_identity(id: *const c_char, points: i32) -> *mut c_char;
     fn pennel_mac_external_target_start();
     fn pennel_mac_external_target_capture() -> *mut c_char;
@@ -144,6 +150,11 @@ unsafe fn take_json(value: *mut c_char) -> Value {
         .unwrap_or(Value::Null)
 }
 
+pub fn preferred_languages() -> Vec<String> {
+    let value = unsafe { take_json(pennel_mac_preferred_languages()) };
+    serde_json::from_value(value).unwrap_or_default()
+}
+
 pub fn permissions() -> Value {
     unsafe { take_json(pennel_mac_permissions()) }
 }
@@ -179,7 +190,16 @@ pub fn app_identity(id: &str, points: i32) -> Option<crate::app_identity::AppIde
 pub fn pick_style_application() -> Result<Option<crate::style_application::StyleApplication>, String>
 {
     let mut error = ptr::null_mut();
-    let selected = unsafe { take_string(pennel_mac_pick_style_application(&mut error)) };
+    let (title, prompt) = crate::style_application::picker_labels(crate::ui::language());
+    let title = c_string(&title)?;
+    let prompt = c_string(&prompt)?;
+    let selected = unsafe {
+        take_string(pennel_mac_pick_style_application(
+            title.as_ptr(),
+            prompt.as_ptr(),
+            &mut error,
+        ))
+    };
     if let Some(error) = unsafe { take_string(error) } {
         return Err(error);
     }
@@ -189,6 +209,14 @@ pub fn pick_style_application() -> Result<Option<crate::style_application::Style
             .ok_or("De appkiezer gaf geen antwoord.")?,
     )
     .map_err(|_| "De gekozen app heeft geen bruikbare app-ID.".into())
+}
+
+pub fn localize_style_application_picker() -> Result<(), String> {
+    let (title, prompt) = crate::style_application::picker_labels(crate::ui::language());
+    let title = c_string(&title)?;
+    let prompt = c_string(&prompt)?;
+    unsafe { pennel_mac_localize_style_application_picker(title.as_ptr(), prompt.as_ptr()) };
+    Ok(())
 }
 
 #[derive(Clone, Debug, Deserialize)]

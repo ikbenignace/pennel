@@ -10,6 +10,13 @@ pub struct StyleApplication {
     pub name: String,
 }
 
+pub(crate) fn picker_labels(language: pennel_core::InterfaceLanguage) -> (String, String) {
+    (
+        pennel_core::ui_text(language, "backend.add_app", &[]),
+        pennel_core::ui_text(language, "backend.picker.add", &[]),
+    )
+}
+
 #[tauri::command]
 pub async fn pick_style_application(app: AppHandle) -> Result<Option<StyleApplication>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -20,14 +27,17 @@ pub async fn pick_style_application(app: AppHandle) -> Result<Option<StyleApplic
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let dialog = app.dialog().file().set_title("App toevoegen…");
+            let dialog = app
+                .dialog()
+                .file()
+                .set_title(picker_labels(crate::ui::language()).0);
             #[cfg(windows)]
-            let dialog = dialog.add_filter("Apps", &["exe"]);
+            let dialog = dialog.add_filter(crate::ui::message("Apps"), &["exe"]);
             #[cfg(target_os = "linux")]
             let dialog = dialog
                 .set_directory("/usr/share/applications")
-                .add_filter("Apps", &["desktop"])
-                .add_filter("Alle bestanden", &["*"]);
+                .add_filter(crate::ui::message("Apps"), &["desktop"])
+                .add_filter(crate::ui::message("Alle bestanden"), &["*"]);
             resolve_selection(dialog.blocking_pick_file(), |selection| {
                 let path = selection.into_path().map_err(|error| error.to_string())?;
                 selected_application(&path)
@@ -195,6 +205,17 @@ fn desktop_exec_words(exec: &str) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_picker_uses_interface_labels_in_both_languages() {
+        use pennel_core::InterfaceLanguage::{Dutch, English};
+        assert_eq!(picker_labels(English), ("Add app…".into(), "Add".into()));
+        assert_eq!(
+            picker_labels(Dutch),
+            ("App toevoegen…".into(), "Toevoegen".into())
+        );
+        assert_eq!(picker_labels(English), ("Add app…".into(), "Add".into()));
+    }
 
     #[test]
     fn cancellation_never_resolves_or_changes_a_rule() {

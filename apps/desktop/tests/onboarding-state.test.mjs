@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setInterfaceLanguage } from "../src/i18n.ts";
 import { initialEngine, manualPracticeAllowed, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex } from "../src/onboarding-state.ts";
 
 const settings = { providers: [{ id: "local", kind: "local" }], dictation_stt: { provider_id: "local", model: "whisper" } };
@@ -20,8 +21,10 @@ test("Apple speech requires its own authorization, unlike local speech", () => {
   assert.equal(manualPracticeAllowed(null, [{ kind: "microphone", status: "granted" }, { kind: "speech", status: "granted" }], apple), true);
 });
 
-test("unknown saved wizard steps fall back to Welcome", () => {
-  assert.equal(stepIndex("practice"), 3);
+test("language is the first step while saved named steps keep their meaning", () => {
+  assert.deepEqual(onboardingSteps, ["language", "welcome", "engine", "permissions", "practice", "voice"]);
+  assert.equal(stepIndex("welcome"), 1);
+  assert.equal(stepIndex("practice"), 4);
   assert.equal(stepIndex("old-step"), 0);
 });
 
@@ -45,13 +48,17 @@ test("model chooser keeps a valid selection and defaults to the recommended mode
   assert.equal(defaultModelId(models, "zzz"), "b");
   assert.equal(defaultModelId([], "x"), "x");
   const size = (bytes) => `${bytes / 1e6} MB`;
+  setInterfaceLanguage("nl");
   assert.equal(modelOptionLabel(models[1], size), "Groot · 1200 MB · Aanbevolen");
+  setInterfaceLanguage("en");
+  assert.equal(modelOptionLabel(models[1], size), "Groot · 1200 MB · Recommended");
+  assert.equal(defaultModelId(models, "a"), "a");
   assert.equal(modelOptionLabel(models[0], size), "Klein · 150 MB");
 });
 
 test("learning your voice is the optional last step, after the practice", () => {
   assert.deepEqual(onboardingSteps.slice(-2), ["practice", "voice"]);
-  assert.equal(stepIndex("voice"), 4);
+  assert.equal(stepIndex("voice"), 5);
 });
 
 test("resume returns to the voice step once the practice is done", () => {
@@ -74,4 +81,10 @@ test("a processor too old for local models starts onboarding on a provider", () 
   assert.equal(initialEngine("local", false), "custom");
   assert.equal(initialEngine("apple_speech", false), "apple");
   assert.equal(initialEngine("open_ai", true), "custom");
+});
+
+test("language step persistence preserves completed status without redoing setup", () => {
+  const current = { version: 1, status: "completed", resume_step: "voice" };
+  assert.deepEqual(onboardingProgressChange(current, "language"), { version: 1, status: "completed", resume_step: "language" });
+  assert.equal(resumeStep("engine", "language"), "engine");
 });

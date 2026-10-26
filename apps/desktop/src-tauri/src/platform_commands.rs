@@ -249,7 +249,7 @@ pub async fn choose_meetings_dir(
     tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
-            .set_title("Kies de meetingmap")
+            .set_title(crate::ui::message("Kies de meetingmap"))
             .blocking_pick_folder()
             .map(|file| {
                 file.into_path()

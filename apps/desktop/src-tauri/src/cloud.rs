@@ -28,7 +28,7 @@ impl CloudError {
     pub(crate) fn other(message: impl std::fmt::Display) -> Self {
         Self {
             code: "error".into(),
-            message: message.to_string(),
+            message: crate::commands::localize_error_message(message.to_string()),
         }
     }
 }
@@ -43,7 +43,7 @@ impl From<PennelError> for CloudError {
         };
         Self {
             code,
-            message: error.to_string(),
+            message: crate::commands::localize_error_message(error.to_string()),
         }
     }
 }
@@ -212,8 +212,12 @@ impl From<SyncStatus> for SyncStatusView {
             SyncStatus::Pending => Self::Pending,
             SyncStatus::Synced => Self::Synced,
             SyncStatus::Offline => Self::Offline,
-            SyncStatus::StorageFull { message } => Self::StorageFull { message },
-            SyncStatus::Error { message } => Self::Error { message },
+            SyncStatus::StorageFull { message } => Self::StorageFull {
+                message: crate::commands::localize_error_message(message),
+            },
+            SyncStatus::Error { message } => Self::Error {
+                message: crate::commands::localize_error_message(message),
+            },
         }
     }
 }
@@ -566,7 +570,7 @@ fn settings_changed(app: &AppHandle) {
 #[tauri::command]
 pub async fn cloud_folder_warning(shared: State<'_, Arc<Shared>>) -> Result<Option<String>> {
     let shared = shared.inner().clone();
-    blocking(move || Ok(shared.engine.cloud_folder_warning())).await
+    blocking(move || Ok(shared.engine.cloud_folder_warning().map(crate::ui::message))).await
 }
 
 #[tauri::command]
@@ -794,10 +798,7 @@ mod tests {
         let map = |e: PennelError| CloudError::from(e);
         let locked = map(PennelError::VaultLocked);
         assert_eq!(locked.code, "vault_locked");
-        assert_eq!(
-            locked.message,
-            "Voer je herstelcode in om sync aan te zetten."
-        );
+        assert_eq!(locked.message, "Enter your recovery code to turn on sync.");
         assert_eq!(map(PennelError::NotSignedIn).code, "not_signed_in");
         let cloud = map(PennelError::Cloud {
             code: "quota".into(),
@@ -805,7 +806,7 @@ mod tests {
         });
         assert_eq!(
             (cloud.code.as_str(), cloud.message.as_str()),
-            ("quota", "Je tegoed is op.")
+            ("quota", "Your credit has run out.")
         );
         assert_eq!(map(PennelError::NoSpeech).code, "error");
         let json = serde_json::to_value(&locked).unwrap();
