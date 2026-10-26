@@ -9,6 +9,10 @@ Pennel ships one product on three platforms from one Rust core:
 
 **Decision (2026-10-25): Pennel goes all-in on Tauri.** The shared application is the only product UI on every platform; there will be no separate Swift app. Swift remains only inside `apps/macos-platform/` for Apple system integrations.
 
+## Roadmap tracking (mandatory)
+
+Before implementing user-authorized features, fixes, or substantial documentation/configuration changes, read and follow the [agent workflow](docs/desktop-roadmap.md#agent-workflow). It governs issue reuse or creation, status updates, verification and handoff on the [Pennel roadmap](https://github.com/orgs/pennel-app/projects/1). If tracking access fails, continue authorized repository work and report the pending updates as the protocol describes.
+
 ## UI parity and look (mandatory)
 
 The shared application must look and behave **near-identically** on every platform, and must look and feel native: real system window chrome (no in-content title bar), Figtree for UI text and Instrument Serif for large titles, one calm warm background with a barely darker sidebar, no bordered panels, native-looking controls, real app icons where apps are listed. The visual reference is the original Swift app at commit `91775c1`.
