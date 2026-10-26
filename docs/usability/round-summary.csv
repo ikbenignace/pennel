@@ -1,0 +1,1 @@
+round,candidate_commit,task_id,valid_attempts,unassisted,assisted,failed,omitted,omission_reason,meets_four_of_five,critical_incident_present,accessibility_blocker,change_or_retest,owning_issue

@@ -10,11 +10,11 @@ Pennel is a desktop product. The shared Tauri interface targets macOS, Windows a
 
 ## Users
 
-People who prefer speaking while writing messages, notes and other text, and people who want transcripts and useful notes from meetings. Everyday use happens inside other applications as well as Pennel's own workspace.
+Professionals and small teams who write and meet regularly, including people with no knowledge of speech models, providers or API keys. Everyday use happens inside other applications as well as Pennel's own windows. Dutch, English and mixed-language work are initial evaluation cases; quality claims require measured evidence.
 
 ## Product Purpose
 
-Turn spoken words into text where the user is writing, and keep meetings as local transcripts and notes. The first-use experience should prove this with one successful dictation rather than require users to learn the full settings model.
+Turn spoken words into text where the user is writing, and keep meetings as local transcripts and notes. First use starts with the job the person wants to do: try dictation or record a meeting. Guide only the relevant setup and prove the task with an actual result, rather than require knowledge of the settings model.
 
 ## Positioning
 
@@ -25,15 +25,15 @@ Local speech models and user-chosen providers share the same product logic. No a
 - The app stays available through its menu/tray and shortcuts after the main window closes.
 - Global shortcut dictation serves the external app where the user is working. On Wayland, the configured desktop shortcut and clipboard path remain explicit.
 - Meetings use microphone and, where available, system audio. Calendar, speaker recognition, model availability and permissions depend on the platform and current setup.
-- The shared UI and native reference use the same Dutch labels, fonts, colors, ordering and product capabilities. OS chrome, shortcut names and system permission prompts may differ.
+- The shared UI uses the same selected-language copy, layout and capabilities across macOS, Windows and Linux. Interface language follows the first supported system language, with English fallback and an explicit English/Dutch choice; it never changes speech language or user content. OS chrome, shortcut names and system permission prompts may differ.
 
 ## Capabilities and Constraints
 
-Providers, processing, dictation history, meeting lifecycle, search, cited questions, templates, exports and model management belong in the Rust core. Tauri and SwiftUI render state and use native capture, clipboard, focus, permissions and credential services.
+Providers, processing, dictation history, meeting lifecycle, search, cited questions, templates, exports and model management belong in the Rust core. Tauri is the product interface and uses native capture, clipboard, focus, permissions and credential services. Swift remains behind Apple integrations; the frozen native application remains a buildable comparison and recovery reference.
 
-The approved redesign uses one workspace with Dicteren, Vergaderingen, Geschiedenis and Instellingen, plus a separate headerless onboarding window. The native Mac app must remain available throughout migration.
+The main window is the meeting library, with visible dictation, history and recording entry points. Dictation, History and Settings retain separate native windows and the dictation pill never activates. Settings opens to task readiness and keeps detailed model/provider configuration available through advanced categories. Setup detours return to the originating task with its draft, selection and reading position intact.
 
-New profiles begin with local speech recognition and Snel. Existing settings and provider relationships survive upgrades. Existing users enter the workspace directly; incomplete access produces a recovery action rather than a forced first-run reset.
+New profiles recommend compatible local speech recognition and Fast / Snel, with advanced alternatives available. First use carries the chosen dictation or meeting task through relevant setup; optional calendar access, speaker enrollment and summary setup appear when needed. Existing settings, providers and unfinished setup remain recoverable after upgrades. Existing users enter their ordinary windows directly; incomplete access produces a recovery action rather than a forced first-run reset.
 
 The main dictation route explains speaking in another app; the editable, locally persistent pad is optional. Its external-paste preference defaults off and applies only to pad recordings. Global shortcut dictation freezes the active external destination when recording stops. A small non-activating pill shows real provisional text where the selected recognition provider supports it. Practice always targets its own field.
 
@@ -41,9 +41,9 @@ Untrusted dictated, selected and meeting text cannot authorize actions. CLI lang
 
 ## Brand Commitments
 
-Pennel retains its checked-in marks, circular orange dot, Figtree UI and Instrument Serif wordmark. The approved interface is a compact neutral desktop tool with matching light and dark appearances. Raycast and FluidVoice establish the expected level of native familiarity and guided first use; they do not supply Pennel's identity or product claims.
+Pennel retains its checked-in marks, circular orange dot, Figtree UI and Instrument Serif large titles and wordmark. Warm paper and ink, a barely darker sidebar, restrained orange and familiar controls follow the original Swift app at `91775c1`, with matching light/dark structure across platforms. Reference products inform hierarchy, alignment and continuity; they do not replace Pennel's identity or justify product claims.
 
-Dutch is the first product language. Copy is concrete, calm and direct; use "je" and the user's task vocabulary.
+English and Dutch are equal interface languages, selected independently of speech and content. Copy is concrete, calm and direct; Dutch uses "je". Name the person's task before exposing implementation terminology.
 
 ## Evidence on Hand
 
@@ -60,6 +60,8 @@ Dutch is the first product language. Copy is concrete, calm and direct; use "je"
 - Reveal advanced setup when it matters; unavailable controls remain visible with a reason.
 - Make output destinations explicit and preserve ownership through asynchronous work.
 - Claim only behavior supported by the relevant build and acceptance evidence.
+- Optimize first for useful open-source adoption. Keep the local app free, account-free and without telemetry; optional Cloud convenience has separate availability and acceptance evidence.
+- Evaluate visual impressions separately from task completion. The [usability and adoption protocol](docs/ux-adoption.md) contains the uncompleted human study work and initial targets.
 
 ## Accessibility & Inclusion
 
