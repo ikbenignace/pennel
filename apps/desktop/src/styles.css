@@ -394,7 +394,7 @@ mark { background: none; color: inherit; font-weight: 600; }
 .pad-target { margin: 8px 0 0; }
 
 /* Record prompt */
-body[data-window="prompt"], body[data-window="prompt"] html { background: transparent; }
+body[data-window="prompt"], :root:has(> body[data-window="prompt"]) { background: transparent; }
 body[data-window="prompt"] main { overflow: hidden; padding: 10px; }
 .record-prompt { min-height: 120px; padding: 14px 16px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 .5px var(--control-edge), 0 6px 18px var(--shadow); }
 .record-prompt > .row > strong { font-size: var(--font-content); font-weight: 600; }

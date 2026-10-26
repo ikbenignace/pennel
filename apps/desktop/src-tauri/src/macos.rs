@@ -105,6 +105,12 @@ unsafe extern "C" {
     fn pennel_mac_configure_panel(window: *mut c_void, interactive: bool);
     fn pennel_mac_show_panel(window: *mut c_void);
     fn pennel_mac_show_panel_at_bottom(window: *mut c_void, width: f64, height: f64);
+    fn pennel_mac_show_panel_at_top_right(
+        window: *mut c_void,
+        width: f64,
+        height: f64,
+        margin: f64,
+    );
     fn pennel_mac_hide_panel(window: *mut c_void);
     fn pennel_mac_set_accessory();
 }
@@ -708,6 +714,12 @@ pub unsafe fn show_panel(window: *mut c_void) {
 /// `window` must be a live NSWindow obtained from this process's Tauri window.
 pub unsafe fn show_panel_at_bottom(window: *mut c_void, width: f64, height: f64) {
     unsafe { pennel_mac_show_panel_at_bottom(window, width, height) };
+}
+
+/// Shows the panel top-right on the screen under the pointer, sized and inset in points.
+/// `window` must be a live NSWindow obtained from this process's Tauri window.
+pub unsafe fn show_panel_at_top_right(window: *mut c_void, width: f64, height: f64, margin: f64) {
+    unsafe { pennel_mac_show_panel_at_top_right(window, width, height, margin) };
 }
 
 /// `window` must be a live NSWindow obtained from this process's Tauri window.

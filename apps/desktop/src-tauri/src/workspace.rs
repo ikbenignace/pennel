@@ -14,6 +14,32 @@ pub struct FittedWindow {
     pub min_height: f64,
 }
 
+/// Gap between the record prompt and the work area's top-right corner, in logical points.
+pub const PROMPT_MARGIN: f64 = 12.0;
+
+/// Physical top-left of the record prompt in the work area's top-right corner, kept on screen.
+/// macOS places the prompt natively before its first show instead.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+pub fn prompt_origin(
+    area_position: (i32, i32),
+    area_size: (u32, u32),
+    scale: f64,
+    size: (f64, f64),
+) -> (i32, i32) {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let width = (size.0 * scale).round() as i64;
+    let margin = (PROMPT_MARGIN * scale).round() as i64;
+    let free = (i64::from(area_size.0) - width).max(0);
+    let x = i64::from(area_position.0) + free - margin.min(free);
+    let free_height = (i64::from(area_size.1) - (size.1 * scale).round() as i64).max(0);
+    let y = i64::from(area_position.1) + margin.min(free_height);
+    (x as i32, y as i32)
+}
+
 /// Monitor work areas are physical pixels; builder sizes and minima are logical points.
 pub fn fit_window_size(
     requested: (f64, f64),
@@ -62,8 +88,8 @@ pub fn window_spec(kind: &str) -> WindowSpec {
             "record-prompt",
             "prompt",
             "Pennel",
-            (420.0, 210.0),
-            (420.0, 210.0),
+            (420.0, 160.0),
+            (420.0, 160.0),
         ),
         "settings" => (
             "settings",
@@ -497,6 +523,22 @@ pub fn requested(app: &AppHandle, label: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn prompt_sits_top_right_inside_the_work_area() {
+        assert_eq!(
+            prompt_origin((0, 25), (2880, 1750), 2.0, (420.0, 160.0)),
+            (2880 - 840 - 24, 25 + 24)
+        );
+        assert_eq!(
+            prompt_origin((-1920, 0), (1920, 1040), 1.0, (420.0, 160.0)),
+            (-432, 12)
+        );
+        assert_eq!(
+            prompt_origin((0, 0), (300, 100), 1.0, (420.0, 160.0)),
+            (0, 0)
+        );
+    }
     use super::*;
 
     #[test]
