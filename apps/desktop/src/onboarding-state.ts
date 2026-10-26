@@ -1,5 +1,5 @@
 import { t } from "./i18n.ts";
-import type { LocalModel, OnboardingProgress, OnboardingStep, PermissionInfo, Settings, SetupReadiness } from "./api";
+import type { LocalModel, OnboardingGoal, OnboardingProgress, OnboardingStep, PermissionInfo, Settings, SetupReadiness } from "./api";
 
 export type Engine = "local" | "apple" | "custom";
 
@@ -12,7 +12,39 @@ export function initialEngine(accountKind: string | undefined, localAvailable: b
 
 export const onboardingSteps: OnboardingStep[] = ["language", "welcome", "engine", "permissions", "practice", "voice"];
 
-/** Readiness knows setup up to the practice; after a practice the saved step may be the optional voice step. */
+export function onboardingGoal(progress: OnboardingProgress): OnboardingGoal {
+  return progress.goal ?? "dictation";
+}
+
+export interface OnboardingRouteIntent {
+  goal: OnboardingGoal;
+  preserveProgress: boolean;
+  step: OnboardingStep | "resume";
+}
+
+/** Task repair must not inherit the job selected during first use. */
+export function onboardingRouteIntent(route: unknown, progress: OnboardingProgress): OnboardingRouteIntent {
+  const dictation = route === "practice" || route === "dictation-setup" || route === "dictation-permissions";
+  return {
+    goal: dictation ? "dictation" : onboardingGoal(progress),
+    preserveProgress: dictation,
+    step: route === "dictation-permissions" ? "permissions"
+      : route === "dictation-setup" || route === "practice" || route === "resume" ? "resume"
+      : onboardingSteps.includes(route as OnboardingStep) ? route as OnboardingStep : progress.resume_step ?? "welcome",
+  };
+}
+
+export function onboardingResumeStep(readiness: SetupReadiness, saved: OnboardingStep | undefined, intent: OnboardingRouteIntent): OnboardingStep {
+  if (intent.preserveProgress && intent.step === "permissions" && readiness.resume_step !== "engine") return "permissions";
+  return resumeStep(readiness.resume_step, intent.preserveProgress ? undefined : saved);
+}
+
+/** Named legacy steps remain resumable without adding them to new first use. */
+export function onboardingFlow(saved?: OnboardingStep): OnboardingStep[] {
+  return [...(saved === "language" ? ["language" as const] : []), "welcome", "engine", "permissions", "practice", ...(saved === "voice" ? ["voice" as const] : [])];
+}
+
+/** Older profiles may have saved optional voice enrollment after their practice. */
 export function resumeStep(ready: OnboardingStep, saved: OnboardingStep | undefined): OnboardingStep {
   return ready === "practice" && saved === "voice" ? "voice" : ready;
 }
@@ -22,10 +54,11 @@ export function stepIndex(step: unknown): number {
   return index < 0 ? 0 : index;
 }
 
-export function onboardingProgressChange(current: OnboardingProgress, step: OnboardingStep, status?: "skipped" | "completed"): OnboardingProgress | null {
+export function onboardingProgressChange(current: OnboardingProgress, step: OnboardingStep, status?: "skipped" | "completed", goal?: OnboardingGoal): OnboardingProgress | null {
   const next: OnboardingProgress = { version: 1, resume_step: step,
-    status: status === "completed" ? "completed" : current.status === "completed" ? "completed" : status ?? current.status };
-  return current.version === next.version && current.resume_step === next.resume_step && current.status === next.status ? null : next;
+    status: status === "completed" ? "completed" : current.status === "completed" ? "completed" : status ?? current.status,
+    ...(goal || current.goal ? { goal: goal ?? current.goal } : {}) };
+  return current.version === next.version && current.resume_step === next.resume_step && current.status === next.status && current.goal === next.goal ? null : next;
 }
 
 export function permissionGranted(permissions: PermissionInfo[], kind: string): boolean {
@@ -33,13 +66,14 @@ export function permissionGranted(permissions: PermissionInfo[], kind: string): 
   return status === "granted" || status === "not_required";
 }
 
-export function manualPracticeAllowed(readiness: SetupReadiness | null, permissions: PermissionInfo[], settings: Settings): boolean {
+export function manualPracticeAllowed(readiness: SetupReadiness | null, permissions: PermissionInfo[], settings: Settings, goal: OnboardingGoal = "dictation"): boolean {
   if (readiness) return readiness.configured && readiness.can_record;
   const microphone = permissions.find((permission) => permission.kind === "microphone")?.status;
   const speech = permissions.find((permission) => permission.kind === "speech")?.status;
-  const apple = settings.providers.find((provider) => provider.id === settings.dictation_stt.provider_id)?.kind === "apple_speech";
+  const choice = goal === "meeting" ? settings.meeting_stt : settings.dictation_stt;
+  const apple = settings.providers.find((provider) => provider.id === choice?.provider_id)?.kind === "apple_speech";
   return !["denied", "restricted", "unsupported"].includes(microphone ?? "unknown")
-    && (!apple || speech === "granted") && !!settings.dictation_stt.model;
+    && (!apple || speech === "granted") && !!choice?.model;
 }
 
 export function defaultModelId(models: LocalModel[], current: string): string {

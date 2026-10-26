@@ -283,14 +283,13 @@ pub fn complete(app: &AppHandle, shared: &Shared, capture: &OwnedCapture, text: 
     }
     if capture.kind == SessionKind::Practice {
         let mut settings = shared.settings();
-        // Onboarding completes after the optional voice step, which comes next.
-        settings.onboarding.version = 1;
-        settings.onboarding.resume_step = pennel_core::OnboardingStep::Voice;
-        if let Err(error) = shared.engine.update_settings(settings) {
-            failed(app, &capture.id, error.to_string());
-            return false;
+        if settings.onboarding.finish_dictation_practice() {
+            if let Err(error) = shared.engine.update_settings(settings) {
+                failed(app, &capture.id, error.to_string());
+                return false;
+            }
+            let _ = app.emit("settings-changed", ());
         }
-        let _ = app.emit("settings-changed", ());
     }
     let external_notice = if capture.external_requested && capture.external.is_none() {
         Some("Geen doelapp beschikbaar. Je tekst staat in Pennel.".into())

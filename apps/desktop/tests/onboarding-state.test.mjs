@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setInterfaceLanguage } from "../src/i18n.ts";
-import { initialEngine, manualPracticeAllowed, onboardingProgressChange, onboardingSteps, resumeStep, stepIndex } from "../src/onboarding-state.ts";
+import { initialEngine, manualPracticeAllowed, onboardingFlow, onboardingGoal, onboardingProgressChange, onboardingResumeStep, onboardingRouteIntent, onboardingSteps, resumeStep, stepIndex } from "../src/onboarding-state.ts";
 
 const settings = { providers: [{ id: "local", kind: "local" }], dictation_stt: { provider_id: "local", model: "whisper" } };
 
@@ -21,11 +21,47 @@ test("Apple speech requires its own authorization, unlike local speech", () => {
   assert.equal(manualPracticeAllowed(null, [{ kind: "microphone", status: "granted" }, { kind: "speech", status: "granted" }], apple), true);
 });
 
-test("language is the first step while saved named steps keep their meaning", () => {
+test("legacy named language and voice steps keep their meaning", () => {
   assert.deepEqual(onboardingSteps, ["language", "welcome", "engine", "permissions", "practice", "voice"]);
   assert.equal(stepIndex("welcome"), 1);
   assert.equal(stepIndex("practice"), 4);
   assert.equal(stepIndex("old-step"), 0);
+});
+
+test("new first use starts with a task choice and does not require optional voice enrollment", () => {
+  assert.deepEqual(onboardingFlow(), ["welcome", "engine", "permissions", "practice"]);
+  assert.deepEqual(onboardingFlow("language"), ["language", "welcome", "engine", "permissions", "practice"]);
+  assert.deepEqual(onboardingFlow("voice"), ["welcome", "engine", "permissions", "practice", "voice"]);
+});
+
+test("old progress defaults to dictation while a selected meeting goal survives progress updates", () => {
+  assert.equal(onboardingGoal({ version: 1, status: "pending", resume_step: "engine" }), "dictation");
+  const meeting = { version: 1, status: "pending", resume_step: "welcome", goal: "meeting" };
+  assert.deepEqual(onboardingProgressChange(meeting, "engine"), { ...meeting, resume_step: "engine" });
+  assert.deepEqual(onboardingProgressChange(meeting, "permissions", undefined, "dictation"), { ...meeting, resume_step: "permissions", goal: "dictation" });
+});
+
+test("explicit dictation setup and permission repair ignore the saved meeting goal without rewriting it", () => {
+  const saved = { version: 1, status: "completed", resume_step: "practice", goal: "meeting" };
+  const before = structuredClone(saved);
+  for (const route of ["practice", "dictation-setup", "dictation-permissions"]) {
+    const intent = onboardingRouteIntent(route, saved);
+    assert.equal(intent.goal, "dictation");
+    assert.equal(intent.preserveProgress, true);
+    assert.deepEqual(saved, before);
+  }
+  assert.deepEqual(onboardingRouteIntent("resume", saved), { goal: "meeting", preserveProgress: false, step: "resume" });
+  assert.equal(onboardingRouteIntent("permissions", saved).goal, "meeting");
+});
+
+test("dictation access repair opens relevant permissions but repairs a missing recognizer first", () => {
+  const saved = { version: 1, status: "completed", resume_step: "voice", goal: "meeting" };
+  const permissions = onboardingRouteIntent("dictation-permissions", saved);
+  assert.equal(onboardingResumeStep({ configured: true, resume_step: "practice" }, saved.resume_step, permissions), "permissions");
+  assert.equal(onboardingResumeStep({ configured: false, resume_step: "engine" }, saved.resume_step, permissions), "engine");
+  assert.equal(onboardingResumeStep({ configured: true, resume_step: "permissions" }, saved.resume_step, permissions), "permissions");
+  assert.equal(onboardingResumeStep({ configured: true, resume_step: "practice" }, saved.resume_step, onboardingRouteIntent("dictation-setup", saved)), "practice");
+  assert.equal(onboardingResumeStep({ configured: true, resume_step: "practice" }, saved.resume_step, onboardingRouteIntent("resume", saved)), "voice");
 });
 
 test("a successful initial practice snapshot completes once without an identical persistence loop", () => {
@@ -56,9 +92,16 @@ test("model chooser keeps a valid selection and defaults to the recommended mode
   assert.equal(modelOptionLabel(models[0], size), "Klein · 150 MB");
 });
 
-test("learning your voice is the optional last step, after the practice", () => {
+test("saved optional voice enrollment remains addressable after practice", () => {
   assert.deepEqual(onboardingSteps.slice(-2), ["practice", "voice"]);
   assert.equal(stepIndex("voice"), 5);
+});
+
+test("meeting readiness fallback inspects the selected meeting recognizer", () => {
+  const meeting = { ...settings, providers: [...settings.providers, { id: "apple", kind: "apple_speech" }], meeting_stt: { provider_id: "apple", model: "dictation" } };
+  const permissions = [{ kind: "microphone", status: "granted" }, { kind: "speech", status: "denied" }];
+  assert.equal(manualPracticeAllowed(null, permissions, meeting, "dictation"), true);
+  assert.equal(manualPracticeAllowed(null, permissions, meeting, "meeting"), false);
 });
 
 test("resume returns to the voice step once the practice is done", () => {

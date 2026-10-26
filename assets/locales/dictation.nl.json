@@ -79,7 +79,7 @@
   "dictation.pad.no_target": "Geen doelapp beschikbaar. Je tekst blijft hier.",
   "dictation.pad.local_target": "Je tekst blijft in Pennel. Kopieer wanneer je wilt.",
   "dictation.pad.intro": "Spreek, lees na en werk je tekst bij.",
-  "dictation.pad.settings": "Dicteren instellen",
+  "dictation.pad.settings": "Dicteerinstellingen",
   "dictation.home.title": "Dicteren waar je typt.",
   "dictation.home.intro": "Klik in een tekstveld in een andere app. Houd je sneltoets ingedrukt en spreek. Laat los om je tekst daar te plakken.",
   "dictation.home.shortcut": "Houd in om te spreken. Laat los om te plakken.",
@@ -113,5 +113,16 @@
   "dictation.shortcut.option.right_option": "Rechter Option",
   "dictation.shortcut.option.right_command": "Rechter Command",
   "dictation.shortcut.option.right_control": "Rechter Ctrl",
-  "dictation.shortcut.option.right_alt": "Rechter Alt"
+  "dictation.shortcut.option.right_alt": "Rechter Alt",
+  "dictation.home.try_here": "Probeer het hier",
+  "dictation.home.practice_help": "Oefen in Pennel. Je tekst wordt nooit in een andere app geplakt.",
+  "dictation.home.ready": "Klaar om te dicteren",
+  "dictation.home.ready_here": "Klaar om in Pennel te oefenen",
+  "dictation.home.needs_setup": "Dicteren vraagt nog instellingen",
+  "dictation.home.checking": "Dicteren controleren…",
+  "dictation.home.copy_intro": "Dicteer in Pennel en kopieer je tekst naar een andere app. Automatisch invoegen is nog niet beschikbaar.",
+  "dictation.home.shortcut_copy": "Spreek en kopieer daarna je tekst.",
+  "dictation.history.entry_label": "Dictaat van {time}",
+  "dictation.history.target_found": "Je dictaat is hieronder gemarkeerd.",
+  "dictation.history.target_missing": "Dit dictaat staat niet in de recente geschiedenis."
 }

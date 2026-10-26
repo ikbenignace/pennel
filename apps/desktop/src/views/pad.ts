@@ -33,9 +33,12 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
     catch (error) { showError(error); }
   } }, icon("copy"), l("common.copy"));
   const setup = h("div", { class: "pad-setup", hidden: true }, icon("warning"), h("span", {}, l("dictation.pad.not_ready")),
-    h("button", { class: "btn", onclick: () => api.showWindow("onboarding", "resume") }, l("dictation.pad.setup")));
+    h("button", { class: "btn", onclick: () => {
+      if (readiness?.configured) void api.showWindow("onboarding", "dictation-permissions").catch(showError);
+      else ctx.openSetup("dictation_stt");
+    } }, l("dictation.pad.setup")));
   const shortcutText = h("span");
-  const shortcutRecovery = h("button", { class: "text-button", onclick: () => api.showWindow("onboarding", "permissions") }, l("dictation.access.check"));
+  const shortcutRecovery = h("button", { class: "text-button", onclick: () => api.showWindow("onboarding", "dictation-permissions") }, l("dictation.access.check"));
   const shortcutHelp = h("div", { class: "pad-setup pad-shortcut-help", hidden: true, role: "status", "aria-live": "polite" }, icon("warning"), shortcutText, shortcutRecovery);
   const shortcutKey = h("kbd", {}, hotkeyLabel(ctx.info.settings.hotkey, ctx.info.platform));
   const shortcutInstruction = h("span", {}, l("dictation.pad.shortcut_help"));
@@ -136,14 +139,29 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
 function dictationHome(ctx: Context): HTMLElement {
   const key = h("kbd", {}, hotkeyLabel(ctx.info.settings.hotkey, ctx.info.platform));
   const detail = h("p", { class: "help", hidden: true });
-  const repair = h("button", { class: "btn dictation-home-repair", hidden: true, onclick: () => api.showWindow("onboarding", "resume") }, l("dictation.pad.setup"));
+  const readiness = h("p", { class: "dictation-home-status help", role: "status", "aria-live": "polite" }, l("dictation.home.checking"));
+  let latestReadiness: SetupReadiness | null = null;
+  const introduction = h("p", { class: "dictation-home-intro muted" }, l("dictation.home.intro"));
+  const shortcutInstruction = h("span", { class: "muted" }, l("dictation.home.shortcut"));
+  const repair = h("button", { class: "btn dictation-home-repair", hidden: true, onclick: () => {
+    if (latestReadiness?.configured) void api.showWindow("onboarding", "dictation-permissions").catch(ctx.report);
+    else ctx.openSetup("dictation_stt");
+  } }, l("dictation.pad.setup"));
+  const practice = h("button", { class: "btn primary", onclick: async () => {
+    practice.disabled = true;
+    try { await api.showWindow("onboarding", "practice"); }
+    catch (error) { ctx.report(error); }
+    finally { practice.disabled = false; }
+  } }, icon("mic"), l("dictation.home.try_here"));
   const processing = h("p", { class: "help processing-path" });
   const root = h("div", { class: "pad-workspace dictation-home" },
     h("h1", {}, l("dictation.home.title")),
-    h("p", { class: "dictation-home-intro muted" }, l("dictation.home.intro")),
-    h("div", { class: "dictation-home-shortcut" }, key, h("span", { class: "muted" }, l("dictation.home.shortcut"))),
-    detail, repair, processing,
-    h("button", { class: "btn dictation-home-settings", onclick: () => ctx.navigate("dictation") }, l("dictation.pad.settings")),
+    introduction,
+    h("div", { class: "dictation-home-shortcut" }, key, shortcutInstruction),
+    readiness, detail, repair,
+    h("div", { class: "dictation-home-actions row" }, practice,
+      h("button", { class: "text-button dictation-home-settings", onclick: () => ctx.navigate("dictation") }, l("dictation.pad.settings"))),
+    h("p", { class: "help" }, l("dictation.home.practice_help")), processing,
     h("div", { class: "dictation-pad-option" }, h("button", { class: "text-button", onclick: () => ctx.navigate("dictation-pad") }, l("dictation.home.open_pad")),
       h("p", { class: "help" }, l("dictation.home.pad_help"))));
   let disposed = false;
@@ -156,12 +174,23 @@ function dictationHome(ctx: Context): HTMLElement {
     try {
       const ready = await api.onboardingReadiness("dictation_pad");
       if (disposed || mine !== revision) return;
+      latestReadiness = ready;
       const shortcut = shortcutAccessHint(ready, ctx.info.capabilities.global_hotkey);
+      const anywhere = ready.can_record && ready.can_use_shortcut && ready.can_paste_externally;
+      readiness.textContent = ready.can_record ? t(anywhere ? "dictation.home.ready" : "dictation.home.ready_here") : t("dictation.home.needs_setup");
+      readiness.classList.toggle("success", anywhere);
+      introduction.textContent = t(ready.can_record && !ready.can_paste_externally ? "dictation.home.copy_intro" : "dictation.home.intro");
+      shortcutInstruction.textContent = t(ready.can_record && !ready.can_paste_externally ? "dictation.home.shortcut_copy" : "dictation.home.shortcut");
       detail.textContent = ready.can_record ? shortcut?.message ?? "" : ready.reason ? localizeBackendText(ready.reason) : t("dictation.home.speech_setup");
       detail.hidden = !detail.textContent;
       repair.hidden = ready.can_record && !shortcut?.recoverable;
       repair.textContent = ready.can_record ? t("dictation.access.check") : t("dictation.pad.setup");
-    } catch (error) { if (!disposed && mine === revision) { detail.textContent = errorText(error); detail.hidden = false; } }
+    } catch (error) { if (!disposed && mine === revision) {
+      latestReadiness = null;
+      readiness.textContent = t("dictation.home.needs_setup"); readiness.classList.remove("success");
+      detail.textContent = errorText(error); detail.hidden = false;
+      repair.hidden = false; repair.textContent = t("dictation.pad.setup");
+    } }
   };
   ctx.onInfoChange(() => { void refresh(); });
   bindLocalization(root, () => { void refresh(); });

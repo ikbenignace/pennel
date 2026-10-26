@@ -1,4 +1,5 @@
 import { bindLocalization, formatNumber, l, liveText, LiveText, localizeBackendText, type UiText } from "./i18n.ts";
+import { contentHeadingTags } from "./content-headings.ts";
 
 type Child = Node | UiText | null | undefined | false;
 type Attrs = Record<string, UiText | number | boolean | EventListener | null | undefined>;
@@ -43,7 +44,7 @@ export function section(title: UiText, subtitle: UiText | null, ...body: (Child 
   const node = h(
     "section",
     { class: "pane-section", "aria-labelledby": headingId },
-    h("h3", { id: headingId }, title),
+    h("h2", { id: headingId }, title),
     subtitle ? h("p", { class: "subtitle" }, subtitle) : null,
     ...body,
   );
@@ -213,10 +214,11 @@ function openList(anchor: HTMLElement, items: { value: string; label: UiText; di
     if (event.key === "Home" || event.key === "End") { event.preventDefault(); (event.key === "Home" ? enabled[0] : enabled.at(-1))?.focus(); }
     if (step) { event.preventDefault(); enabled[(index + step + enabled.length) % enabled.length]?.focus(); }
   });
-  document.body.append(list);
+  // Controls inside a modal must keep their menu in its active top-layer subtree.
+  (anchor.closest("dialog[open]") ?? document.body).append(list);
   const bounds = anchor.getBoundingClientRect();
+  list.style.minWidth = `${Math.min(Math.max(bounds.width, 160), innerWidth - 16)}px`;
   const size = list.getBoundingClientRect();
-  list.style.minWidth = `${Math.max(bounds.width, 160)}px`;
   list.style.left = `${Math.max(8, Math.min(bounds.left, innerWidth - size.width - 8))}px`;
   const below = bounds.bottom + 4;
   list.style.top = `${below + size.height > innerHeight - 8 ? Math.max(8, bounds.top - size.height - 4) : below}px`;
@@ -287,16 +289,22 @@ function inline(text: string): DocumentFragment {
 
 export function markdown(text: string): HTMLElement {
   const block = h("div", { class: "markdown" });
-  for (const line of text.split("\n")) {
+  const lines = text.split("\n");
+  const headings = contentHeadingTags(lines.flatMap((line) => {
+    const marker = line.trim().match(/^(#{1,6})\s+/);
+    return marker ? [marker[1].length] : [];
+  }));
+  let headingIndex = 0;
+  for (const line of lines) {
     const clean = line.trim();
     if (!clean) { block.append(h("div", { class: "paragraph-gap" })); continue; }
-    const heading = clean.match(/^#{1,6}\s+(.+)/);
+    const heading = clean.match(/^(#{1,6})\s+(.+)/);
     const bullet = clean.match(/^[-*•]\s+(.+)/);
     const task = bullet?.[1].match(/^\[([ xX])\]\s+(.+)/);
-    const node = heading ? h("h4", {}) : h("p", { class: bullet ? "bullet" : null });
+    const node = heading ? h(headings[headingIndex++], { class: "markdown-heading" }) : h("p", { class: bullet ? "bullet" : null });
     if (task) node.append(h("span", { class: "markdown-check", role: "img", "aria-label": l(task[1].trim() ? "dom.task_done" : "dom.task_open") }, task[1].trim() ? "☑ " : "□ "));
     else if (bullet) node.append(h("span", { class: "bullet-mark" }, "• "));
-    node.append(inline(heading?.[1] ?? task?.[2] ?? bullet?.[1] ?? clean));
+    node.append(inline(heading?.[2] ?? task?.[2] ?? bullet?.[1] ?? clean));
     block.append(node);
   }
   return block;

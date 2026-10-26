@@ -129,5 +129,15 @@
   "meetings.speaker_cloud_sign_in": "Log eerst in bij Pennel Cloud in Instellingen → Account.",
   "meetings.download_speaker_models": "Download eerst de sprekermodellen bij Instellingen → Meetings.",
   "meetings.speaker_cloud_help": "Herkent stemmen via Pennel Cloud",
-  "meetings.speaker_local_help": "Herkent stemmen op dit toestel"
+  "meetings.speaker_local_help": "Herkent stemmen op dit toestel",
+  "meetings.new_recording": "Nieuwe opname",
+  "meetings.return_recording": "Terug naar opname",
+  "meetings.return_finishing": "Terug naar opname",
+  "meetings.recording_needs_attention": "Opname vraagt aandacht",
+  "meetings.open_dictation": "Dicteren",
+  "meetings.open_history": "Geschiedenis",
+  "meetings.summary_setup_help": "Stel samenvattingen en vragen in voor deze vergadering. Je notities en transcript blijven hier.",
+  "meetings.set_up_summaries": "Samenvattingen instellen",
+  "meetings.set_up_questions": "Vragen instellen",
+  "meetings.questions_setup_help": "Stel tekstverwerking in om vragen over je vergaderingen te stellen."
 }

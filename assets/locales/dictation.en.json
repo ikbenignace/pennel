@@ -79,7 +79,7 @@
   "dictation.pad.no_target": "No target app is available. Your text stays here.",
   "dictation.pad.local_target": "Your text stays in Pennel. Copy it whenever you want.",
   "dictation.pad.intro": "Speak, review and edit your text.",
-  "dictation.pad.settings": "Set up dictation",
+  "dictation.pad.settings": "Dictation settings",
   "dictation.home.title": "Dictate where you type.",
   "dictation.home.intro": "Click a text field in another app. Hold your shortcut and speak. Release it to paste your text there.",
   "dictation.home.shortcut": "Hold to speak. Release to paste.",
@@ -113,5 +113,16 @@
   "dictation.shortcut.option.right_option": "Right Option",
   "dictation.shortcut.option.right_command": "Right Command",
   "dictation.shortcut.option.right_control": "Right Ctrl",
-  "dictation.shortcut.option.right_alt": "Right Alt"
+  "dictation.shortcut.option.right_alt": "Right Alt",
+  "dictation.home.try_here": "Try it here",
+  "dictation.home.practice_help": "Practice in Pennel. Your text is never inserted into another app.",
+  "dictation.home.ready": "Ready to dictate",
+  "dictation.home.ready_here": "Ready to try in Pennel",
+  "dictation.home.needs_setup": "Dictation needs setup",
+  "dictation.home.checking": "Checking dictation…",
+  "dictation.home.copy_intro": "You can dictate in Pennel and copy your text into another app. Automatic insertion is not available yet.",
+  "dictation.home.shortcut_copy": "Speak, then copy and paste your text.",
+  "dictation.history.entry_label": "Dictation from {time}",
+  "dictation.history.target_found": "Your dictation is highlighted below.",
+  "dictation.history.target_missing": "This dictation could not be found in recent History."
 }

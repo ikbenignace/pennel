@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { WorkspaceNavigation, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, windowForSection, windowMode, workspaceRoute } from "../src/workspace-state.ts";
+import { WorkspaceNavigation, historyEntryId, historyRoute, legacyWorkspaceRoute, parseWorkspaceRoute, routeKey, samePadRoute, windowForSection, windowMode, workspaceRoute } from "../src/workspace-state.ts";
 
 test("settings, history and dictation have their own windows; the main window is the meeting library", () => {
   assert.equal(windowForSection("settings"), "settings");
@@ -21,6 +21,29 @@ test("legacy windows and settings aliases now land in one workspace", () => {
   assert.deepEqual(legacyWorkspaceRoute("settings", "local"), workspaceRoute("settings", "local"));
   assert.deepEqual(legacyWorkspaceRoute("history"), workspaceRoute("history"));
   assert.deepEqual(legacyWorkspaceRoute("live", "meeting"), workspaceRoute("recording"));
+});
+
+test("new Settings opens at task readiness while old advanced links stay valid", () => {
+  assert.deepEqual(legacyWorkspaceRoute("settings"), workspaceRoute("settings", "overview"));
+  assert.deepEqual(legacyWorkspaceRoute("settings", "models"), workspaceRoute("settings", "models"));
+  assert.deepEqual(parseWorkspaceRoute({ section: "settings", tab: "overview" }), workspaceRoute("settings", "overview"));
+  assert.deepEqual(new WorkspaceNavigation().select("settings"), workspaceRoute("settings", "overview"));
+  assert.equal(parseWorkspaceRoute({ section: "meetings", meeting_id: "overview" }), null);
+});
+
+test("recovery opens a specific History result without putting its id in a meeting path", () => {
+  const id = "019c6e27-e55b-73d1-87d8-4e01f1f75043";
+  const route = workspaceRoute("history", `entry:${id}`);
+  assert.deepEqual(historyRoute(id), route);
+  assert.equal(historyEntryId(route.tab), id);
+  assert.deepEqual(legacyWorkspaceRoute("history", route.tab), route);
+  assert.deepEqual(parseWorkspaceRoute(route), route);
+  assert.deepEqual(historyRoute(), workspaceRoute("history"));
+  for (const tab of ["entry:", "entry:../history", "entry:<script>", "entry:%3Cscript%3E", "entry:result\n", `entry:${"x".repeat(129)}`, "other"]) {
+    assert.equal(historyEntryId(tab), null);
+    assert.equal(parseWorkspaceRoute({ section: "history", tab }), null);
+    assert.deepEqual(legacyWorkspaceRoute("history", tab), workspaceRoute("history"));
+  }
 });
 
 test("targeted navigation validates meeting identifiers and timestamp jumps", () => {

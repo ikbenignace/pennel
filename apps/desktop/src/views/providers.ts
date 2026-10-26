@@ -6,6 +6,7 @@ import type { Context } from "../main";
 import { VisibilityPoll } from "../window-lifecycle";
 import { providerDestination } from "../processing-state";
 import { providerVerification } from "../provider-verification";
+import type { SetupTask } from "../task-setup-state";
 
 let selected: string | null = null;
 
@@ -46,7 +47,11 @@ export async function providersView(ctx: Context): Promise<HTMLElement> {
       account ? await detail(ctx, account) : h("p", { class: "muted" }, l("providers.choose"))));
 }
 
-async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLElement> {
+export async function providerDetails(ctx: Context, account: ProviderAccount, task?: SetupTask): Promise<HTMLElement> {
+  return detail(ctx, account, task);
+}
+
+async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask): Promise<HTMLElement> {
   const kind = ctx.info.kinds.find((item) => item.kind === account.kind);
   if (!kind) return section(account.name, l("providers.version_unavailable"));
   const status = h("p", { class: "help", role: "status" });
@@ -65,8 +70,8 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
     return ctx.mutate(() => api.setKey(account.id, value));
   };
   const name = h("input", { type: "text", value: account.name, "aria-label": l("common.name") });
-  name.addEventListener("change", () => { void saveAccount("name", name.value.trim() || account.name); });
-  const body = section(liveText(() => localizeBackendText(kind.label)), null, field(l("common.name"), name));
+  name.addEventListener("change", () => { void saveAccount("name", name.value.trim() || account.name).catch(ctx.report); });
+  const body = section(liveText(() => localizeBackendText(kind.label)), null, task ? null : field(l("common.name"), name));
   body.append(h("p", { class: "help" }, l("providers.processing_destination", () => ({ destination: providerDestination(account) }))));
   if (kind.availability.reason) body.append(h("p", { class: "help" }, liveText(() => localizeBackendText(kind.availability.reason ?? ""))));
   if (account.kind === "apple_speech") {
@@ -85,8 +90,11 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
         speech?.status === "denied" ? l("providers.open_settings") : l("providers.grant_access")));
     }
     body.append(h("button", { class: "btn", disabled: kind.availability.status !== "available", onclick: () => ctx.save((settings) => {
-      settings.dictation_stt = { provider_id: account.id, model: kind.default_stt_model };
-      settings.meeting_stt = { provider_id: account.id, model: kind.default_stt_model };
+      if (task) settings[task] = { provider_id: account.id, model: kind.default_stt_model };
+      else {
+        settings.dictation_stt = { provider_id: account.id, model: kind.default_stt_model };
+        settings.meeting_stt = { provider_id: account.id, model: kind.default_stt_model };
+      }
     }) }, l("providers.use_speech")));
   } else if (account.kind === "apple_intelligence") {
     body.append(h("p", { class: "help" }, l("providers.apple_text_help")));
@@ -105,7 +113,7 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
   } else if (kind.is_cli_agent) {
     body.append(h("p", { class: "help" }, l("providers.cli_help")));
     const executable = h("input", { type: "text", value: account.base_url, placeholder: l("providers.cli_path"), "aria-label": l("providers.executable") });
-    executable.addEventListener("change", () => { void saveAccount("base_url", executable.value.trim()); });
+    executable.addEventListener("change", () => { void saveAccount("base_url", executable.value.trim()).catch(ctx.report); });
     const detect = h("button", { class: "btn", onclick: async () => {
       detect.disabled = true;
       try {
@@ -126,14 +134,23 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
     body.append(await cloudCard(ctx, status, showStatus));
   } else if (account.kind !== "local") {
     const baseUrl = h("input", { type: "text", value: account.base_url, placeholder: kind.default_base_url || "https://…/v1", "aria-label": l("providers.base_url") });
-    baseUrl.addEventListener("change", () => { void saveAccount("base_url", baseUrl.value.trim()); });
+    baseUrl.addEventListener("change", () => { void saveAccount("base_url", baseUrl.value.trim()).catch(ctx.report); });
     body.append(field(l("providers.base_url"), baseUrl));
     if (kind.requires_key) {
       const key = h("input", { type: "password", placeholder: ctx.info.keys[account.id] ? l("providers.saved_key") : l("providers.paste_key"), autocomplete: "off", class: "grow", "aria-label": l("providers.api_key") });
-      key.addEventListener("change", () => { void saveKey(key.value); });
-      key.addEventListener("keydown", (event) => { if (event.key === "Enter") key.blur(); });
+      if (!task) key.addEventListener("change", () => { void saveKey(key.value).catch(ctx.report); });
+      const save = task ? h("button", { class: "btn", "data-setup-save": "key", disabled: true, onclick: async () => {
+        if (!key.value) return;
+        save!.disabled = true;
+        try { await saveKey(key.value); key.value = ""; ctx.rerender(); }
+        catch (error) { ctx.report(error); }
+        finally { save!.disabled = !key.value; }
+      } }, l("common.save")) : null;
+      key.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); if (save) save.click(); else key.blur(); } });
+      if (save) key.addEventListener("input", () => { save.disabled = !key.value; });
       body.append(field(l("providers.api_key"), h("div", { class: "row" }, key,
-        ctx.info.keys[account.id] ? h("button", { class: "btn", onclick: () => saveKey("") }, l("providers.clear_key")) : null)));
+        save,
+        ctx.info.keys[account.id] ? h("button", { class: "btn", onclick: () => saveKey("").catch(ctx.report) }, l("providers.clear_key")) : null)));
     }
     const test = h("button", { class: "btn", onclick: async () => {
       test.disabled = true; showStatus(() => t("providers.testing"));
@@ -143,6 +160,7 @@ async function detail(ctx: Context, account: ProviderAccount): Promise<HTMLEleme
     } }, l("providers.test_connection"));
     body.append(h("div", { class: "row" }, status, h("span", { class: "grow" }), test));
   }
+  if (task) return body;
   body.append(h("p", { class: "help" }, l("providers.models_help")),
     h("button", { class: "text-button", onclick: () => ctx.navigate("models") }, l("providers.open_models")));
   return h("div", {}, body, account.kind === "local" ? await localView(ctx, true) : null,

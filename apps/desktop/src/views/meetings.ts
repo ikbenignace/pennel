@@ -12,6 +12,7 @@ import { VisibilityPoll } from "../window-lifecycle";
 import { sourceBlocks, sourceRange, transcriptSourceBlocks } from "../source-navigation";
 import { processingSummary } from "../processing-state";
 import { meetingProcessingSummary, processingLabel, retainedMeetingFailure } from "../recording-processing";
+import { summaryControl } from "../voice-flow-state";
 
 const notesQueue = new SerialQueue();
 const drafts = new Map<string, MeetingDraft>();
@@ -20,7 +21,9 @@ const liveTitleDraft = new MeetingDraft();
 const titleQueue = new SerialQueue();
 let liveMeetingId: string | null = null;
 const sessionMeetingIds = new Map<string, string>();
-const detailState = new Map<string, { tab: "notes" | "transcript" | "ask"; template: string; working: boolean; message: string; recognition?: SpeakerRecognition }>();
+type MeetingTab = "notes" | "transcript" | "ask";
+const detailState = new Map<string, { tab: MeetingTab; template: string; working: boolean; message: string; recognition?: SpeakerRecognition;
+  scrollTop: Record<MeetingTab, number>; ownNotesOpen?: boolean; noteSelection?: { start: number; end: number; direction: "forward" | "backward" | "none" } }>();
 interface Exchange { question: string; answer?: MeetingAnswer; error?: string }
 const conversations = new Map<string, { exchanges: Exchange[]; draft: string; scrollTop: number | null }>();
 let answerReturn: { scope: string | null; sourceMeetingId: string } | null = null;
@@ -75,6 +78,14 @@ export function finishMeetingDrafts(event: MeetingFinished) {
   if (oldId && oldId !== event.id && drafts.has(oldId)) {
     drafts.set(event.id, drafts.get(oldId)!);
     drafts.delete(oldId);
+  }
+  if (oldId && oldId !== event.id) {
+    const reading = detailState.get(oldId);
+    if (reading) { detailState.set(event.id, reading); detailState.delete(oldId); }
+    const conversation = conversations.get(oldId);
+    if (conversation) { conversations.set(event.id, conversation); conversations.delete(oldId); }
+    if (answerReturn?.scope === oldId) answerReturn.scope = event.id;
+    if (answerReturn?.sourceMeetingId === oldId) answerReturn.sourceMeetingId = event.id;
   }
   sessionMeetingIds.set(event.session_id, event.id);
   if (liveDraft.sessionId === event.session_id) liveMeetingId = event.id;
@@ -247,11 +258,21 @@ function chat(ctx: Context, meetingId: string | null) {
   }
   const input = h("input", { type: "text", class: "grow", value: state.draft, disabled: busy,
     placeholder: meetingId ? l("meetings.ask_placeholder_this") : l("meetings.ask_placeholder_all"), "aria-label": l("meetings.your_question") });
-  const submit = h("button", { class: "btn", disabled: busy || !state.draft.trim() }, busy ? l("meetings.working") : l("meetings.ask"));
-  input.addEventListener("input", () => { state.draft = input.value; submit.disabled = busy || !input.value.trim(); });
+  const submit = h("button", { class: "btn", disabled: busy || !state.draft.trim() || !languageModelConfigured(ctx.info) }, busy ? l("meetings.working") : l("meetings.ask"));
+  const setup = h("div", { class: "meeting-setup chat-setup help", role: "status" }, h("span", { class: "meeting-setup-reason" }, l("meetings.questions_setup_help")),
+    h("button", { class: "text-button", onclick: () => ctx.openSetup("llm") }, l("meetings.set_up_questions")));
+  const refreshReadiness = () => {
+    const ready = languageModelConfigured(ctx.info);
+    input.disabled = busy || !ready;
+    submit.disabled = busy || !ready || !input.value.trim();
+    setup.hidden = ready;
+  };
+  ctx.onInfoChange(refreshReadiness);
+  refreshReadiness();
+  input.addEventListener("input", () => { state.draft = input.value; refreshReadiness(); });
   const ask = async () => {
     const question = input.value.trim();
-    if (!question || state.exchanges.some((exchange) => !exchange.answer && !exchange.error)) return;
+    if (!question || !languageModelConfigured(ctx.info) || state.exchanges.some((exchange) => !exchange.answer && !exchange.error)) return;
     const history = state.exchanges.flatMap((exchange) => exchange.answer ? [{ question: exchange.question, answer: exchange.answer.text }] : []);
     const exchange: Exchange = { question };
     state.exchanges.push(exchange);
@@ -264,7 +285,7 @@ function chat(ctx: Context, meetingId: string | null) {
   };
   submit.addEventListener("click", () => { void ask(); });
   input.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); void ask(); } });
-  const result = h("section", { class: "chat" }, history, h("div", { class: "chat-composer row" }, input, submit));
+  const result = h("section", { class: "chat" }, history, setup, h("div", { class: "chat-composer row" }, input, submit));
   requestAnimationFrame(() => { history.scrollTop = state.scrollTop ?? history.scrollHeight; });
   return result;
 }
@@ -289,11 +310,10 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const runtime = await api.meetingStatus();
   const active = runtime.busy && runtime.id === id;
   let state = detailState.get(id);
-  if (!state) { state = { tab: "notes", template: ctx.info.settings.default_template, working: false, message: "" }; detailState.set(id, state); }
+  if (!state) { state = { tab: "notes", template: ctx.info.settings.default_template, working: false, message: "", scrollTop: { notes: 0, transcript: 0, ask: 0 } }; detailState.set(id, state); }
   const fixtureTab = fixtureClient()?.fixture?.meeting_tab;
   if (["notes", "transcript", "ask"].includes(String(fixtureTab))) state.tab = fixtureTab as "notes" | "transcript" | "ask";
   const current = state;
-  const canSummarize = languageModelConfigured(ctx.info);
   const playback = ctx.info.capabilities.audio_playback;
   const audioAvailable = detail.audio_tracks.some((track) => track.available);
   const audioReason = () => !audioAvailable ? t("meetings.no_saved_audio") : playback.status !== "available" ? playback.reason ? localizeBackendText(playback.reason) : t("meetings.audio_unavailable") : null;
@@ -305,6 +325,10 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   if (!templates.some((template) => template.id === current.template)) current.template = templates[0]?.id ?? "algemeen";
   const notesDraft = draftFor(id, detail.notes);
   const notes = editNotes(ctx, notesDraft, id);
+  if (current.noteSelection) notes.input.setSelectionRange(current.noteSelection.start, current.noteSelection.end, current.noteSelection.direction);
+  const rememberNoteSelection = () => { current.noteSelection = { start: notes.input.selectionStart, end: notes.input.selectionEnd, direction: notes.input.selectionDirection }; };
+  notes.input.addEventListener("select", rememberNoteSelection);
+  notes.input.addEventListener("blur", rememberNoteSelection);
   notes.input.disabled = active;
   if (active) {
     notes.input.title = t("meetings.edit_recording_notes");
@@ -324,8 +348,21 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const panelId = `meeting-panel-${++panelNumber}`;
   const tabs = h("div", { class: "segmented detail-tabs", role: "tablist", "aria-label": l("meetings.default_title") });
   const panel = h("section", { id: panelId, class: "meeting-panel", role: "tabpanel", tabindex: 0 });
+  let renderedTab = current.tab;
+  let drawGeneration = 0;
+  let questions: HTMLElement | null = null;
+  const rememberPosition = () => { current.scrollTop[renderedTab] = panel.scrollTop; };
+  panel.addEventListener("scroll", rememberPosition);
+  ctx.beforeLeave(async () => { rememberPosition(); rememberNoteSelection(); });
+  ctx.onDispose(rememberPosition);
+  const chooseTab = (tab: MeetingTab) => { rememberPosition(); current.tab = tab; draw(); };
   const draw = () => {
+    const generation = ++drawGeneration;
+    renderedTab = current.tab;
+    const scrollTop = current.scrollTop[renderedTab];
+    requestAnimationFrame(() => { if (panel.isConnected && generation === drawGeneration) panel.scrollTop = scrollTop; });
     footer.hidden = current.tab === "ask";
+    refreshSummaryControls();
     diarize.hidden = current.tab !== "transcript";
     diarizeReason.hidden = current.tab !== "transcript" || !speakerReason();
     tabs.querySelectorAll("button").forEach((button) => {
@@ -333,7 +370,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
       button.tabIndex = button.dataset.tab === current.tab ? 0 : -1;
     });
     panel.setAttribute("aria-labelledby", `${panelId}-${current.tab}`);
-    if (current.tab === "ask") { panel.replaceChildren(chat(ctx, id)); return; }
+    if (current.tab === "ask") { questions ??= chat(ctx, id); panel.replaceChildren(questions); return; }
     if (current.tab === "transcript") {
       const playbackReason = h("span", { class: audioReason() ? "help" : "grow" }, audioReason());
       bindLocalization(playbackReason, () => { playbackReason.textContent = audioReason(); });
@@ -345,17 +382,19 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
       return;
     }
     panel.replaceChildren(detail.summary ? enhanced : detail.notes.trim() ? h("div", { class: "markdown" }, detail.notes) : h("p", { class: "muted" }, l("meetings.empty_summary")));
-    panel.append(h("details", { class: "own-notes", open: !detail.summary }, h("summary", {}, l("meetings.your_notes")), notes.input));
+    const ownNotes = h("details", { class: "own-notes", open: current.ownNotesOpen ?? !detail.summary }, h("summary", {}, l("meetings.your_notes")), notes.input);
+    ownNotes.addEventListener("toggle", () => { if (ownNotes.isConnected) current.ownNotesOpen = ownNotes.open; });
+    panel.append(ownNotes);
   };
   for (const [tab, label] of [["notes", l("meetings.notes")], ["transcript", l("meetings.transcript")], ["ask", l("meetings.questions")]] as const) {
-    const button = h("button", { id: `${panelId}-${tab}`, role: "tab", "aria-controls": panelId, "data-tab": tab, onclick: () => { current.tab = tab; draw(); } }, label);
+    const button = h("button", { id: `${panelId}-${tab}`, role: "tab", "aria-controls": panelId, "data-tab": tab, onclick: () => { chooseTab(tab); } }, label);
     button.addEventListener("keydown", (event) => {
       const order = ["notes", "transcript", "ask"] as const;
       const index = order.indexOf(current.tab);
       const next = event.key === "ArrowRight" ? (index + 1) % 3 : event.key === "ArrowLeft" ? (index + 2) % 3
         : event.key === "Home" ? 0 : event.key === "End" ? 2 : -1;
       if (next < 0) return;
-      event.preventDefault(); current.tab = order[next]; draw();
+      event.preventDefault(); chooseTab(order[next]);
       tabs.querySelector<HTMLButtonElement>(`[data-tab="${current.tab}"]`)?.focus();
     });
     tabs.append(button);
@@ -365,13 +404,32 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const messageText = () => sourceChanged ? t("meetings.source_changed") : current.working ? t(recognizing ? "meetings.recognizing_speakers" : "meetings.working") : current.recognition ? recognitionSummary(current.recognition) : localizeBackendText(current.message);
   const message = h("p", { class: "meeting-message help", role: "status" }, messageText());
   bindLocalization(message, () => { message.textContent = messageText(); });
-  const regenerate = h("button", { class: "btn", disabled: current.working || runtime.busy || !canSummarize,
-    title: !canSummarize ? l("meetings.choose_text_model") : runtime.busy ? l("backend.wait_until_the_recording_has_finished") : null }, current.working ? l("dictation.working") : detail.summary ? l("meetings.regenerate") : l("meetings.summarize"));
+  const regenerate = h("button", { class: "btn" });
+  const setupReason = h("span", { class: "meeting-setup-reason" });
+  const setupAction = h("button", { class: "text-button", onclick: async () => {
+    try { await notes.flush(); rememberPosition(); ctx.openSetup("llm"); }
+    catch (error) { ctx.report(error); }
+  } }, l("meetings.set_up_summaries"));
+  const summarySetup = h("div", { class: "meeting-setup meeting-summary-setup help", role: "status" }, setupReason, setupAction);
+  const refreshSummaryControls = () => {
+    const control = summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working);
+    const reason = control.reason === "setup" ? t("meetings.summary_setup_help") : control.reason === "recording" ? t("meetings.wait_recording") : "";
+    regenerate.disabled = control.disabled;
+    regenerate.title = reason;
+    regenerate.textContent = t(current.working ? "dictation.working" : detail.summary ? "meetings.regenerate" : "meetings.summarize");
+    setupReason.textContent = reason;
+    summarySetup.hidden = !reason || current.tab === "ask";
+    setupAction.hidden = !control.canSetUp;
+  };
+  ctx.onInfoChange(refreshSummaryControls);
+  bindLocalization(summarySetup, refreshSummaryControls);
+  refreshSummaryControls();
   regenerate.addEventListener("click", async () => {
-    recognizing = false; current.recognition = undefined; current.working = true; regenerate.disabled = true; message.textContent = t("dictation.working");
+    if (summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working).disabled) return;
+    recognizing = false; current.recognition = undefined; current.working = true; refreshSummaryControls(); diarize.disabled = true; message.textContent = t("dictation.working");
     try { await notes.flush(); await api.summarizeMeeting(id, current.template); current.message = ""; }
     catch (error) { current.message = errorText(error); }
-    current.working = false; ctx.rerender();
+    current.working = false; rememberPosition(); ctx.rerender();
   });
   const selected = select(templates.map((template) => [template.id, templateUiLabel(template)]), current.template, (template) => { current.template = template; }, "menu");
   selected.setAttribute("aria-label", t("meetings.template"));
@@ -411,7 +469,8 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const diarize = h("button", { class: "btn", disabled: !canDiarize || current.working,
     title: speakerReason() ?? (cloudRoute ? l("meetings.speaker_cloud_help") : l("meetings.speaker_local_help")) }, l("meetings.recognize_speakers"));
   diarize.addEventListener("click", async () => {
-    recognizing = true; current.recognition = undefined; current.working = true; diarize.disabled = true; message.textContent = t("meetings.recognizing_speakers");
+    if (current.working) return;
+    recognizing = true; current.recognition = undefined; current.working = true; refreshSummaryControls(); diarize.disabled = true; message.textContent = t("meetings.recognizing_speakers");
     try { current.recognition = await api.recognizeSpeakers(id); current.message = recognitionSummary(current.recognition); }
     catch (error) { current.message = errorText(error); }
     current.working = false; ctx.rerender();
@@ -421,7 +480,6 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   bindLocalization(diarize, () => { diarize.title = speakerReason() ?? t(cloudRoute ? "meetings.speaker_cloud_help" : "meetings.speaker_local_help"); });
   const footer = h("footer", { class: "meeting-footer" }, h("div", { class: "row" }, selected, regenerate, h("span", { class: "grow" }), copied, diarize, share,
     h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? l("meetings.show_finder") : l("meetings.open_folder"))), diarizeReason);
-  const summarySetup = !detail.summary && !canSummarize ? h("div", { class: "meeting-summary-setup help" }, l("meetings.choose_text_model"), h("button", { class: "text-button", onclick: () => ctx.navigate("models") }, l("meetings.set_up_models"))) : null;
   const conflicts = ctx.info.settings.cloud_sync === true ? await orFallback(() => api.meetingConflictFiles(id), [], ctx.report) : [];
   const banners = conflicts.map((name) => h("div", { class: "conflict-banner", role: "status" }, icon("warning"),
     h("span", {}, l("meetings.conflict_notice")),
@@ -435,7 +493,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const metadata = h("p", { class: "help" }, metadataText());
   bindLocalization(metadata, () => { metadata.textContent = metadataText(); });
   const result = h("article", { class: "meeting-detail" },
-    answerReturn?.sourceMeetingId === id ? h("button", { class: "text-button source-back", onclick: () => {
+    answerReturn?.sourceMeetingId === id ? h("button", { class: "text-button source-back meeting-source-return", onclick: () => {
       const origin = answerReturn;
       answerReturn = null;
       if (!origin) return;
@@ -570,6 +628,7 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
   let recoveryKey = "";
   const consent = h("p", { class: "help", role: "status", hidden: true }, l("meetings.consent_copied"));
   const output = h("div", { class: "live-transcript" });
+  let transcriptSignature = "";
   const phase = h("span", { class: "help", role: "status" });
   const stop = h("button", { class: "btn", disabled: initial.phase !== "recording" }, l("common.stop_recording"));
   const update = (status: MeetingStatus) => {
@@ -596,7 +655,14 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
     stop.disabled = status.phase !== "recording";
     notes.input.disabled = status.phase !== "recording";
     consent.hidden = !(status.consent_copied ?? false);
-    output.replaceChildren(transcript(ctx, status.transcript));
+    const nextTranscript = JSON.stringify(status.transcript);
+    if (nextTranscript !== transcriptSignature) {
+      const position = output.scrollTop;
+      const following = output.scrollTop + output.clientHeight >= output.scrollHeight - 1;
+      output.replaceChildren(transcript(ctx, status.transcript));
+      output.scrollTop = following ? output.scrollHeight : position;
+      transcriptSignature = nextTranscript;
+    }
   };
   update(initial);
   bindLocalization(clock, () => { update(latestStatus); });
@@ -611,6 +677,6 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
     update(status);
   });
   return h("div", { class: "recording-view live-recording" }, title,
-    h("div", { class: "row" }, h("span", { class: "status-dot" }), clock, h("span", { class: "grow" }), stop), processing.element, consent, phase, warning, recovery, notes.input,
+    h("div", { class: "row recording-controls" }, h("span", { class: "status-dot" }), clock, h("span", { class: "grow" }), stop), processing.element, consent, phase, warning, recovery, notes.input,
     h("details", { class: "live-transcript-disclosure" }, h("summary", {}, l("meetings.live_transcript")), output));
 }

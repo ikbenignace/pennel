@@ -61,7 +61,7 @@ export async function checkProviderHistoryUI() {
   const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   const button = (label, root = target) => [...root.querySelectorAll("button")].find(node => node.textContent.trim() === label);
-  const textSection = () => [...target.querySelectorAll("section")].find(node => node.querySelector("h3")?.textContent === "Opkuisen en samenvatten");
+  const textSection = () => [...target.querySelectorAll("section")].find(node => node.querySelector("h2,h3")?.textContent === "Opkuisen en samenvatten");
   const results = [];
   try {
     await mount(historyView);

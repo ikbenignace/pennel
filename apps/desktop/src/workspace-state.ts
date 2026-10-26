@@ -31,7 +31,7 @@ export function windowMode(value: string | null): WindowMode {
   return value === "settings" || value === "history" || value === "dictation" ? value : "workspace";
 }
 
-export const settingTabs = ["providers", "models", "dictation", "meeting-settings", "recording", "dictionary", "styles", "appearance", "account"] as const;
+export const settingTabs = ["overview", "providers", "models", "dictation", "meeting-settings", "recording", "dictionary", "styles", "appearance", "account"] as const;
 const settings = new Set<string>([...settingTabs, "local"]);
 const reserved = new Set<string>([...settings, "workspace", "settings", "history", "meeting", "live", "onboarding", "prompt", "record-prompt", "pill", "library", "meetings", "chat"]);
 
@@ -44,6 +44,17 @@ export function workspaceRoute(section: WorkspaceSection, tab: string | null = n
   return { section, tab, meeting_id: meetingId, jump_ms: jumpMs, ...(sourceTarget ? { source_target: { ...sourceTarget } } : {}) };
 }
 
+export function historyEntryId(tab: string | null | undefined): string | null {
+  if (!tab?.startsWith("entry:")) return null;
+  const id = tab.slice(6);
+  return /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id) ? id : null;
+}
+
+export function historyRoute(id?: string | null): WorkspaceRoute {
+  const tab = id ? `entry:${id}` : null;
+  return workspaceRoute("history", historyEntryId(tab) ? tab : null);
+}
+
 export function parseWorkspaceRoute(value: unknown): WorkspaceRoute | null {
   if (!value || typeof value !== "object") return null;
   const input = value as Record<string, unknown>;
@@ -52,6 +63,7 @@ export function parseWorkspaceRoute(value: unknown): WorkspaceRoute | null {
   const tab = typeof input.tab === "string" ? input.tab : null;
   if (section === "meetings" && tab === "recording") section = "recording";
   if (section === "settings" && tab !== null && !settings.has(tab) && tab !== "meetings") return null;
+  if (section === "history" && tab !== null && !historyEntryId(tab)) return null;
   if (input.meeting_id != null && !validMeetingId(input.meeting_id)) return null;
   const id = validMeetingId(input.meeting_id) ? input.meeting_id : null;
   const jump = typeof input.jump_ms === "number" && Number.isFinite(input.jump_ms) && input.jump_ms >= 0 ? input.jump_ms : null;
@@ -67,8 +79,8 @@ export function parseWorkspaceRoute(value: unknown): WorkspaceRoute | null {
 }
 
 export function legacyWorkspaceRoute(kind: string, route?: string | null): WorkspaceRoute | null {
-  if (kind === "settings") return workspaceRoute("settings", route === "meetings" ? "meeting-settings" : settings.has(route ?? "") ? route! : "providers");
-  if (kind === "history") return workspaceRoute("history");
+  if (kind === "settings") return workspaceRoute("settings", route === "meetings" ? "meeting-settings" : settings.has(route ?? "") ? route! : "overview");
+  if (kind === "history") return historyRoute(historyEntryId(route));
   if (kind === "dictation") return workspaceRoute("dictation", route === "pad" ? "pad" : null);
   if (kind === "live" || kind === "meeting") return workspaceRoute("recording", null, validMeetingId(route) ? route : null);
   if (kind === "library" || kind === "meetings") return workspaceRoute("meetings", route === "chat" ? "chat" : null, validMeetingId(route) ? route : null);
@@ -112,6 +124,6 @@ export class WorkspaceNavigation {
   }
 
   select(section: WorkspaceSection): WorkspaceRoute {
-    return this.remembered.get(section) ?? workspaceRoute(section, section === "settings" ? "providers" : null);
+    return this.remembered.get(section) ?? workspaceRoute(section, section === "settings" ? "overview" : null);
   }
 }

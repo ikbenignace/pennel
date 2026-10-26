@@ -75,7 +75,7 @@
     app_rules: [], calendar_rules: [], event_rules: [], calendar_enabled: false, echo_cancellation: true,
     record_shortcut_enabled: true, consent_enabled: false, auto_detect: true, diarization: Boolean(options.speakers), speaker_recognition: options.speaker_mode || "local",
     appearance: options.appearance, dictation_pad_auto_paste: false, cloud_sync: Boolean(options.cloud), claude_access: Boolean(options.claude),
-    onboarding: { version: 1, status: options.window === "onboarding" ? "pending" : options.shortcut_denied ? "skipped" : "completed", resume_step: options.step || "language" },
+    onboarding: { version: 1, status: options.onboarding_status || (options.window === "onboarding" ? "pending" : options.shortcut_denied ? "skipped" : "completed"), resume_step: options.step || "welcome", goal: options.goal || "dictation" },
   };
   if (persistedSettings && typeof persistedSettings === "object") settings = { ...settings, ...persistedSettings };
   const interfaceLanguage = () => settings.ui_language === "nl" || settings.ui_language === "en" ? settings.ui_language : systemInterfaceLanguage;

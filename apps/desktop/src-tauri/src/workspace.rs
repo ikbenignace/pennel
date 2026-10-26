@@ -403,8 +403,23 @@ pub fn hide_current(app: &AppHandle, label: &str, revision: u64) -> bool {
         .hide_current(label, revision)
 }
 
+fn onboarding_tab(tab: Option<&str>) -> Option<&str> {
+    tab.filter(|tab| {
+        matches!(
+            *tab,
+            "welcome"
+                | "engine"
+                | "permissions"
+                | "practice"
+                | "resume"
+                | "dictation-setup"
+                | "dictation-permissions"
+        )
+    })
+}
+
 pub fn request_onboarding(app: &AppHandle, tab: Option<&str>) {
-    if let Some(tab @ ("welcome" | "engine" | "permissions" | "practice" | "resume")) = tab {
+    if let Some(tab) = onboarding_tab(tab) {
         *app.state::<Navigation>().onboarding.lock().unwrap() = Some(tab.into());
     }
 }
@@ -423,6 +438,17 @@ pub fn valid_meeting_id(value: &str) -> bool {
             .any(|c| c.is_control() || matches!(c, '/' | '\\' | ':'))
 }
 
+fn history_entry_id(tab: &str) -> Option<&str> {
+    let id = tab.strip_prefix("entry:")?;
+    let valid = !id.is_empty()
+        && id.len() <= 128
+        && id.as_bytes()[0].is_ascii_alphanumeric()
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'));
+    valid.then_some(id)
+}
+
 pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
     use WorkspaceSection::*;
     let mut route = WorkspaceRoute::section(match kind {
@@ -435,14 +461,20 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
     });
     match route.section {
         Dictation if tab == Some("pad") => route.tab = Some("pad".into()),
+        History => {
+            route.tab = tab
+                .filter(|value| history_entry_id(value).is_some())
+                .map(str::to_owned)
+        }
         Settings => {
             route.tab = Some(
-                match tab.unwrap_or("providers") {
+                match tab.unwrap_or("overview") {
                     "meetings" => "meeting-settings",
                     "local" => "local",
-                    known @ ("providers" | "models" | "dictation" | "meeting-settings"
-                    | "recording" | "dictionary" | "styles" | "appearance" | "account") => known,
-                    _ => "providers",
+                    known @ ("overview" | "providers" | "models" | "dictation"
+                    | "meeting-settings" | "recording" | "dictionary" | "styles"
+                    | "appearance" | "account") => known,
+                    _ => "overview",
                 }
                 .into(),
             );
@@ -454,7 +486,8 @@ pub fn legacy_route(kind: &str, tab: Option<&str>) -> Option<WorkspaceRoute> {
                 if valid_meeting_id(id)
                     && !matches!(
                         id,
-                        "providers"
+                        "overview"
+                            | "providers"
                             | "models"
                             | "dictation"
                             | "meeting-settings"
@@ -523,6 +556,23 @@ pub fn requested(app: &AppHandle, label: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn task_specific_dictation_repairs_reach_an_existing_onboarding_window() {
+        assert_eq!(
+            onboarding_tab(Some("dictation-setup")),
+            Some("dictation-setup")
+        );
+        assert_eq!(
+            onboarding_tab(Some("dictation-permissions")),
+            Some("dictation-permissions")
+        );
+        for legacy in ["welcome", "engine", "permissions", "practice", "resume"] {
+            assert_eq!(onboarding_tab(Some(legacy)), Some(legacy));
+        }
+        assert_eq!(onboarding_tab(Some("untrusted-route")), None);
+        assert_eq!(onboarding_tab(None), None);
+    }
 
     #[test]
     fn prompt_sits_top_right_inside_the_work_area() {
@@ -805,6 +855,62 @@ mod tests {
                 .tab
                 .as_deref(),
             Some("pad")
+        );
+    }
+
+    #[test]
+    fn targeted_history_keeps_the_result_id_as_data() {
+        let id = "019c6e27-e55b-73d1-87d8-4e01f1f75043";
+        let tab = format!("entry:{id}");
+        assert_eq!(history_entry_id(&tab), Some(id));
+        assert_eq!(
+            legacy_route("history", Some(&tab)).unwrap().tab.as_deref(),
+            Some(tab.as_str())
+        );
+        for invalid in [
+            "entry:",
+            "entry:../history",
+            "entry:<script>",
+            "entry:%3Cscript%3E",
+            "entry:result\n",
+            "other",
+        ] {
+            assert!(history_entry_id(invalid).is_none());
+            assert!(
+                legacy_route("history", Some(invalid))
+                    .unwrap()
+                    .tab
+                    .is_none()
+            );
+        }
+        assert!(history_entry_id(&format!("entry:{}", "x".repeat(129))).is_none());
+    }
+
+    #[test]
+    fn settings_without_a_category_opens_task_readiness() {
+        assert_eq!(
+            legacy_route("settings", None).unwrap().tab.as_deref(),
+            Some("overview")
+        );
+        assert_eq!(
+            legacy_route("settings", Some("unknown"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("overview")
+        );
+        assert_eq!(
+            legacy_route("settings", Some("models"))
+                .unwrap()
+                .tab
+                .as_deref(),
+            Some("models")
+        );
+        assert!(
+            legacy_route("library", Some("overview"))
+                .unwrap()
+                .meeting_id
+                .is_none()
         );
     }
 

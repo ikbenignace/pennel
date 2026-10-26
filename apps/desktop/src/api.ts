@@ -73,12 +73,14 @@ export type MeetingPhase = "idle" | "starting" | "recording" | "stopping" | "fin
 export type Speaker = "me" | "others";
 export type AppearancePreference = "system" | "light" | "dark";
 export type OnboardingStep = "language" | "welcome" | "engine" | "permissions" | "practice" | "voice";
+export type OnboardingGoal = "dictation" | "meeting";
 export type SpeakerRecognitionMode = "local" | "cloud";
 
 export interface OnboardingProgress {
   version: number;
   status: "pending" | "skipped" | "completed";
   resume_step: OnboardingStep;
+  goal?: OnboardingGoal;
 }
 
 export interface SetupReadiness {
