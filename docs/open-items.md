@@ -1,6 +1,6 @@
 # Openstaande punten
 
-**Huidig desktopwerk:** de [desktoproadmap](desktop-roadmap.md) bevat tien voorbereide GitHub-issues met bronverwijzingen en acceptatiecriteria. Het publieke GitHub Projects-bord moet nog worden aangemaakt; de roadmap beschrijft de inrichting. Gebruik deze taken voor de huidige toestel- en releaseacceptatie. De historische lijst hieronder blijft als context bewaard.
+**Huidig werk:** volg de [Pennel-roadmap](https://github.com/orgs/pennel-app/projects/1) voor desktop, iPhone, Cloud en website. De [desktoproadmap](desktop-roadmap.md) bewaart de tien toestel- en releaseacceptatietaken met bronverwijzingen en acceptatiecriteria. Een organisatie-eigenaar moet het bord nog [publiek maken](https://github.com/pennel-app/pennel/issues/25); tot dan kan lidmaatschap nodig zijn om het te bekijken. De historische lijst hieronder blijft als context bewaard.
 
 Historische native Mac-baseline: 2026-10-24, na fase 3a–3f. De gedeelde Tauri-app voor Mac, Windows en Linux is daarnaast geïmplementeerd; zie [migratie en bewijs](shared-app-migration.md). Onderstaande toestelvragen blijven acceptatiepunten totdat ze met de kandidaatpakketten zijn uitgevoerd.
 

@@ -16,7 +16,7 @@
   &nbsp;·&nbsp;
   <a href="#get-started">Get started</a>
   &nbsp;·&nbsp;
-  <a href="docs/desktop-roadmap.md">Roadmap</a>
+  <a href="https://github.com/orgs/pennel-app/projects/1">Roadmap</a>
   &nbsp;·&nbsp;
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
@@ -86,7 +86,9 @@ Apple dictation requires macOS 26 or later. Apple Intelligence also requires an 
 
 ## Follow along
 
-Pennel is under active development. See the [desktop roadmap](docs/desktop-roadmap.md) for current validation and release work, [report a bug](https://github.com/pennel-app/pennel/issues/new), or read the [contributing guide](CONTRIBUTING.md).
+Pennel is under active development. Follow the [Pennel roadmap](https://github.com/orgs/pennel-app/projects/1) for desktop, iPhone and Cloud work, or read the [desktop acceptance tasks](docs/desktop-roadmap.md) for validation and release criteria. An organisation owner still needs to [make the board public](https://github.com/pennel-app/pennel/issues/25).
+
+[Report a bug](https://github.com/pennel-app/pennel/issues/new) or read the [contributing guide](CONTRIBUTING.md).
 
 For builds, troubleshooting and platform details, start with the [desktop development guide](docs/desktop.md).
 
