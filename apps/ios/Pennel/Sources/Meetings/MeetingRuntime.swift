@@ -101,6 +101,7 @@ final class MeetingRuntime: DictationMeetingHook {
     enum Message {
         static let interrupted = "Opname gepauzeerd door een oproep. Pennel neemt verder op zodra de oproep voorbij is."
         static let couldNotResume = "De opname is na een onderbreking gestopt omdat de microfoon niet terugkwam."
+        static let microphoneLost = "Pennel hoort de microfoon niet meer. De opname gaat verder zodra hij terug is."
         static let defaultTitle = "Meeting"
     }
 
@@ -112,6 +113,8 @@ final class MeetingRuntime: DictationMeetingHook {
     private(set) var title = ""
     private(set) var startedAt: Date?
     private(set) var transcript: [Segment] = []
+    /// The live notes, kept here so a reopened live view starts from them instead of an empty field.
+    private(set) var notes = ""
     private(set) var pending: UInt32 = 0
     private(set) var warning: String?
     private(set) var lastFinish: MeetingFinish?
@@ -131,7 +134,6 @@ final class MeetingRuntime: DictationMeetingHook {
     @ObservationIgnored private let interruptions: MeetingInterruptionLog
     @ObservationIgnored private let keys: @Sendable () -> ApiKeys
     @ObservationIgnored private let clock: @Sendable () -> TimeInterval
-    @ObservationIgnored private let isAppActive: @MainActor () -> Bool
     @ObservationIgnored private let timers: Timers
     @ObservationIgnored private let hasMicrophonePermission: @MainActor () -> Bool
     @ObservationIgnored private let languageModelReady: @MainActor (Settings) -> Bool
@@ -155,7 +157,6 @@ final class MeetingRuntime: DictationMeetingHook {
         notifications: NotificationCenter = .default,
         keys: @escaping @Sendable () -> ApiKeys = { Keychain.apiKeys() },
         clock: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
-        isAppActive: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState != .background },
         timers: @escaping Timers = DictationSession.runLoopTimers,
         hasMicrophonePermission: @escaping @MainActor () -> Bool = { AVAudioApplication.shared.recordPermission == .granted },
         languageModelReady: @escaping @MainActor (Settings) -> Bool = MeetingRuntime.languageModelReady
@@ -168,7 +169,6 @@ final class MeetingRuntime: DictationMeetingHook {
         self.interruptions = interruptions
         self.keys = keys
         self.clock = clock
-        self.isAppActive = isAppActive
         self.timers = timers
         self.hasMicrophonePermission = hasMicrophonePermission
         self.languageModelReady = languageModelReady
@@ -241,8 +241,10 @@ final class MeetingRuntime: DictationMeetingHook {
         title = name
         startedAt = Date()
         transcript = []
+        notes = ""
         pending = 0
         lastFinish = nil
+        finishing = nil
         activeMeetingId = id
         phase = .recording
         activity.start(activityState)
@@ -256,8 +258,10 @@ final class MeetingRuntime: DictationMeetingHook {
         self.title = title
     }
 
+    /// Writes only a real change, so an untouched field can never overwrite what was typed earlier.
     func setNotes(_ text: String) {
-        guard isRecording, let session else { return }
+        guard isRecording, let session, text != notes else { return }
+        notes = text
         do {
             try session.setNotes(text: text)
         } catch {
@@ -269,21 +273,28 @@ final class MeetingRuntime: DictationMeetingHook {
 
     /// **Stop opname**: finalises the meeting. Waits for the last chunks and the save, not for the summary.
     func stop() async {
-        if isRecording {
-            finishing = Task { await finish(stoppedEarly: nil) }
-        }
+        requestFinish(stoppedEarly: nil)
         await finishing?.value
     }
 
-    private func finish(stoppedEarly: String?) async {
-        guard isRecording, let session, let recorder else { return }
+    /// One finish per recording: a second trigger (Stop opname after a failed resume, the Live Activity, a storage
+    /// failure) waits for the first instead of replacing it.
+    private func requestFinish(stoppedEarly: String?) {
+        guard isRecording, finishing == nil else { return }
         phase = .finishing
         cancelTick?()
         cancelTick = nil
+        finishing = Task { await finish(stoppedEarly: stoppedEarly) }
+    }
+
+    private func finish(stoppedEarly: String?) async {
+        guard phase == .finishing, let session, let recorder else { return }
         capture.stop()
         audioSession.deactivate()
         let archiveError = recorder.finish()
-        if !isAppActive() { beginFinishTask() }
+        // Continued processing must be requested from the user's action while Pennel is in front; the request is
+        // made at every stop and ended when finishing is done, so leaving the app keeps it going (spec §5.5).
+        beginFinishTask()
         activity.update(activityState)
 
         let saved = await save(session)
@@ -310,6 +321,7 @@ final class MeetingRuntime: DictationMeetingHook {
         self.session = nil
         self.recorder = nil
         transcript = []
+        notes = ""
         pending = 0
         warning = nil
         startedAt = nil
@@ -368,7 +380,11 @@ final class MeetingRuntime: DictationMeetingHook {
         try await Task.detached { try retained.retryPersistence() }.value
         self.retained = nil
         retainedId = nil
-        onFinished?(MeetingFinish(id: id, gaps: [], stoppedEarly: nil, error: nil))
+        let record = interruptions.record(for: id)
+        let finish = MeetingFinish(id: id, gaps: record?.gaps ?? [], stoppedEarly: record?.stoppedEarly, error: nil)
+        lastFinish = finish
+        onFinished?(finish)
+        postprocess(finish)
     }
 
     // MARK: Background finishing
@@ -394,11 +410,31 @@ final class MeetingRuntime: DictationMeetingHook {
         if let terminal = health.terminalError {
             warning = terminal
             Self.log.error("meeting stopped after a storage failure")
-            finishing = Task { await finish(stoppedEarly: terminal) }
+            requestFinish(stoppedEarly: terminal)
             return
         }
-        if phase == .recording {
-            warning = recorder?.error ?? health.transcriptionWarning
+        guard phase == .recording, let recorder else { return }
+        if recorder.stalledFor >= Self.stallRestartSeconds {
+            restartStalledCapture(recorder)
+        } else {
+            warning = recorder.error ?? health.transcriptionWarning
+        }
+    }
+
+    /// Samples stopped without an interruption (the engine died on a route change). The capture is restarted; the
+    /// recorder turns the silent stretch into a gap, so the meeting is not reported complete.
+    private static let stallRestartSeconds: TimeInterval = 2
+
+    private func restartStalledCapture(_ recorder: MeetingRecorder) {
+        warning = Message.microphoneLost
+        Self.log.error("meeting capture stalled")
+        capture.stop()
+        do {
+            try audioSession.activate()
+            try capture.start { recorder.feed($0) }
+        } catch {
+            Self.log.error("meeting capture restart: \(ErrorText.code(error), privacy: .public)")
+            requestFinish(stoppedEarly: Message.couldNotResume)
         }
     }
 
@@ -426,7 +462,7 @@ final class MeetingRuntime: DictationMeetingHook {
             capture.stop()
             audioSession.deactivate()
             guard finishOnFailure else { return }
-            finishing = Task { await finish(stoppedEarly: Message.couldNotResume) }
+            requestFinish(stoppedEarly: Message.couldNotResume)
             return
         }
         phase = .recording

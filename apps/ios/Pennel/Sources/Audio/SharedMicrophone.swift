@@ -12,9 +12,11 @@ final class SharedMicrophone: @unchecked Sendable {
     private let listenersLock = NSLock()
     private var listeners: [ObjectIdentifier: @Sendable ([Float]) -> Void] = [:]
     private var running = false
+    private var observers: [NSObjectProtocol] = []
 
-    init(capture: AudioCapturing) {
+    init(capture: AudioCapturing, notifications: NotificationCenter = .default) {
         self.capture = capture
+        observe(notifications)
     }
 
     func client() -> AudioCapturing {
@@ -24,10 +26,14 @@ final class SharedMicrophone: @unchecked Sendable {
     fileprivate func add(_ client: ObjectIdentifier, _ onSamples: @escaping @Sendable ([Float]) -> Void) throws {
         try control.withLock {
             listenersLock.withLock { listeners[client] = onSamples }
+            // After a media-services reset the engine is gone even though nobody stopped it.
+            if running, !capture.isRunning {
+                capture.stop()
+                running = false
+            }
             guard !running else { return }
             do {
-                try capture.start { [weak self] samples in self?.fan(samples) }
-                running = true
+                try startCapture()
             } catch {
                 listenersLock.withLock { listeners[client] = nil }
                 throw error
@@ -45,6 +51,36 @@ final class SharedMicrophone: @unchecked Sendable {
             running = false
             capture.stop()
         }
+    }
+
+    fileprivate func isAlive(_ client: ObjectIdentifier) -> Bool {
+        control.withLock {
+            running && capture.isRunning && listenersLock.withLock { listeners[client] != nil }
+        }
+    }
+
+    /// The engine stops by itself when the route or its configuration changes (AirPods pulled, a new input). The
+    /// clients still listening get a fresh engine; when that fails they stop receiving samples and notice the stall.
+    func restartIfStopped() {
+        control.withLock {
+            guard running, !capture.isRunning else { return }
+            capture.stop()
+            running = false
+            guard listenersLock.withLock({ !listeners.isEmpty }) else { return }
+            try? startCapture()
+        }
+    }
+
+    private func startCapture() throws {
+        try capture.start { [weak self] samples in self?.fan(samples) }
+        running = true
+    }
+
+    private func observe(_ center: NotificationCenter) {
+        let restart: @Sendable (Notification) -> Void = { [weak self] _ in self?.restartIfStopped() }
+        observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: nil, using: restart))
+        observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: nil, using: restart))
+        observers.append(center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: nil, using: restart))
     }
 
     private func fan(_ samples: [Float]) {
@@ -66,6 +102,8 @@ final class SharedMicrophone: @unchecked Sendable {
         func stop() {
             microphone.remove(ObjectIdentifier(self))
         }
+
+        var isRunning: Bool { microphone.isAlive(ObjectIdentifier(self)) }
 
         deinit {
             microphone.remove(ObjectIdentifier(self))

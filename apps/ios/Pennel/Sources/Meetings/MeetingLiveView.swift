@@ -101,6 +101,7 @@ struct MeetingLiveView: View {
         }
         .onAppear {
             title = runtime.title
+            notes = runtime.notes
         }
         .onChange(of: runtime.phase) {
             if runtime.phase == .idle { onDone(runtime.lastFinish?.id) }

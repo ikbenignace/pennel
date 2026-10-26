@@ -112,7 +112,6 @@ final class MeetingHarness {
     let center = NotificationCenter()
     let clock = ManualClock()
     let interruptions: MeetingInterruptionLog
-    var appActive = true
     private(set) var finished: [MeetingFinish] = []
     private(set) var runtime: MeetingRuntime!
 
@@ -127,7 +126,7 @@ final class MeetingHarness {
         runtime = MeetingRuntime(
             engine: engine, capture: capture, audioSession: audio, activity: activity, scheduler: scheduler,
             interruptions: interruptions, notifications: center, keys: { ApiKeys(byProvider: [:]) },
-            clock: { clock.now }, isAppActive: { [unowned self] in self.appActive },
+            clock: { clock.now },
             timers: { _, _ in {} }, hasMicrophonePermission: { true })
         runtime.onFinished = { [unowned self] in self.finished.append($0) }
     }

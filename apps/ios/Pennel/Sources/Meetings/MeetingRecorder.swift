@@ -74,6 +74,8 @@ final class MeetingRecorder: @unchecked Sendable {
     /// Callback jitter below this stays contiguous; only real holes in the capture become gaps.
     private static let jitterSamples = 1_600
     private static let silenceBlock = 32_000
+    /// A hole this long without a pause is a stall (the engine died), not jitter: it counts as an interruption.
+    static let stallSeconds: TimeInterval = 1
 
     private let sink: MeetingAudioSink
     private let archive: MeetingArchiving?
@@ -85,6 +87,7 @@ final class MeetingRecorder: @unchecked Sendable {
     private var accepting = false
     private var dictating = false
     private var resumed = false
+    private var lastSampleAt: TimeInterval = 0
     private var recordedGaps: [MeetingGap] = []
     private var failure: String?
 
@@ -102,6 +105,7 @@ final class MeetingRecorder: @unchecked Sendable {
     func begin() {
         lock.withLock {
             startedAt = clock()
+            lastSampleAt = startedAt
             accepting = true
         }
     }
@@ -112,6 +116,11 @@ final class MeetingRecorder: @unchecked Sendable {
     }
 
     var gaps: [MeetingGap] { lock.withLock { recordedGaps } }
+
+    /// Seconds since the last sample while recording; zero while paused.
+    var stalledFor: TimeInterval {
+        lock.withLock { accepting ? max(0, clock() - lastSampleAt) : 0 }
+    }
     var error: String? { lock.withLock { failure } }
 
     /// While the user dictates, the shared microphone hears the dictation; the meeting keeps the time but not the
@@ -135,6 +144,7 @@ final class MeetingRecorder: @unchecked Sendable {
             guard !accepting else { return }
             accepting = true
             resumed = true
+            lastSampleAt = clock()
         }
     }
 
@@ -143,6 +153,7 @@ final class MeetingRecorder: @unchecked Sendable {
         guard !samples.isEmpty else { return }
         let accepted: (block: [Float], startedAt: TimeInterval)? = lock.withLock {
             guard accepting else { return nil }
+            lastSampleAt = clock()
             return (dictating ? [Float](repeating: 0, count: samples.count) : samples, startedAt)
         }
         guard let accepted else { return }
@@ -155,10 +166,21 @@ final class MeetingRecorder: @unchecked Sendable {
     /// Drains the queue, sends what is left and closes the archive. Returns the first failure, if any.
     @discardableResult
     func finish() -> String? {
+        let stalled = stalledFor >= Self.stallSeconds
+        let at = elapsedMs
         lock.withLock { accepting = false }
         queue.sync {
             flush(all: true)
             archive?.close()
+            // Capture that died before Stop opname leaves an open gap up to the end, never a complete recording.
+            if stalled {
+                let position = UInt64(pendingStart / Self.samplesPerMs)
+                lock.withLock {
+                    if recordedGaps.last?.endMs != nil || recordedGaps.isEmpty, at > position {
+                        recordedGaps.append(MeetingGap(startMs: position, endMs: nil))
+                    }
+                }
+            }
         }
         return error
     }
@@ -168,7 +190,7 @@ final class MeetingRecorder: @unchecked Sendable {
         if desired > position + Self.jitterSamples {
             flush(all: true)
             let start = (desired + Self.samplesPerMs - 1) / Self.samplesPerMs * Self.samplesPerMs
-            closeGap(at: start)
+            closeGap(from: position, to: start)
             archiveSilence(start - position)
             pendingStart = start
         } else if pending.isEmpty, pendingStart % Self.samplesPerMs != 0 {
@@ -181,12 +203,15 @@ final class MeetingRecorder: @unchecked Sendable {
         flush(all: false)
     }
 
-    private func closeGap(at start: Int) {
+    /// Closes the gap a pause opened, or records a stall that happened without one.
+    private func closeGap(from position: Int, to start: Int) {
         lock.withLock {
-            guard resumed else { return }
-            resumed = false
-            if let last = recordedGaps.indices.last, recordedGaps[last].endMs == nil {
-                recordedGaps[last].endMs = UInt64(start / Self.samplesPerMs)
+            let end = UInt64(start / Self.samplesPerMs)
+            if resumed, let last = recordedGaps.indices.last, recordedGaps[last].endMs == nil {
+                resumed = false
+                recordedGaps[last].endMs = end
+            } else if start - position >= Int(Self.stallSeconds * Double(Self.rate)) {
+                recordedGaps.append(MeetingGap(startMs: UInt64(position / Self.samplesPerMs), endMs: end))
             }
         }
     }

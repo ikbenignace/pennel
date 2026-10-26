@@ -4,6 +4,12 @@ import PennelMobileKit
 protocol AudioCapturing: AnyObject, Sendable {
     func start(onSamples: @escaping @Sendable ([Float]) -> Void) throws
     func stop()
+    /// False once the engine died underneath (route change, media-services reset) while still "started".
+    var isRunning: Bool { get }
+}
+
+extension AudioCapturing {
+    var isRunning: Bool { true }
 }
 
 protocol AudioSessionControlling: Sendable {
@@ -92,6 +98,8 @@ final class MicCapture: AudioCapturing, @unchecked Sendable {
         }
         self.engine = engine
     }
+
+    var isRunning: Bool { engine?.isRunning ?? false }
 
     func stop() {
         guard let engine else { return }

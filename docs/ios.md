@@ -71,7 +71,7 @@ Simulator Release build of `PennelKeyboard.appex`: 782850 bytes in total (binary
 
 ## Meetings
 
-**Nieuwe opname** records a physical meeting from the microphone as one track, the existing **Anderen** track, so the
+Under **Nieuwe meeting**, an optional title and **Start opname** (the desktop's labels) record a physical meeting from the microphone as one track, the existing **Anderen** track, so the
 desktop reads it unchanged. `MeetingRecorder` places the 16 kHz samples on the meeting timeline and sends them to
 `MeetingSession::push_audio_at(Speaker::Others, …)` in whole seconds that start on a millisecond. It also writes `anderen.m4a`
 (AAC, 16 kHz mono, 32 kbit/s), with silence in the gaps, so **Afspelen vanaf dit punt** lands on the right moment. Recording
@@ -87,11 +87,15 @@ continues with the screen locked (background mode `audio`). The Live Activity sh
   back, the meeting is finished with what was recorded and is marked as stopped early. A meeting with a gap or an
   early stop is never shown as a complete recording: the meeting page lists the interruption (kept per meeting in the
   app's preferences, because the meeting files have no field for it), and no automatic summary runs after an early stop.
+  When samples stop without an interruption (the engine died on a route change), `SharedMicrophone` restarts the
+  engine; after 2 s without samples the meeting restarts its capture and shows a warning, and the silent stretch is
+  recorded as a gap. A recording whose microphone never came back stops early.
 - **Finishing:** after **Stop opname** the core transcribes the last chunks and saves. The meeting id is exposed as
   `MeetingRuntime.activeMeetingId` until then, so sync never sends a meeting that is still recording. The automatic
-  summary then runs when a language model is ready. Speaker recognition does not run on iPhone. When the app is in the
-  background, finishing asks for `BGContinuedProcessingTask` `app.pennel.ios.finish`, which shows progress.
-- **Library:** **Zoeken in meetings**, grouped by **Vandaag**, **Gisteren**, **Afgelopen week**, **Eerder**. Each
+  summary then runs when a language model is ready. Speaker recognition does not run on iPhone.
+  `BGContinuedProcessingTask` `app.pennel.ios.finish` is requested at every stop, while Pennel is still in front (iOS only
+  grants it for a user action), and ends when finishing is done; leaving the app keeps finishing going with progress.
+- **Library:** **Zoeken in meetings**, grouped like the desktop library by **Vandaag**, **Deze week**, **Eerder**. Each
   meeting has **Notities**, **Transcript** and **Vragen**, plus **Samenvatten** / **Opnieuw genereren** with
   **Sjabloon**. **Delen** offers **Kopieer opgemaakt** (HTML and plain text on the pasteboard),
   **Kopieer als Markdown**, **Kopieer met transcript** and **Deel…** (the iOS share sheet). The **Vraag** tab asks
@@ -117,7 +121,7 @@ Measured with `scripts/build-core-ios.sh` (unstripped archives are about 93 MB):
 | ios-arm64-simulator | 23544600 bytes |
 
 Unsigned Release build, not App Store thinned size (`make ios`, Xcode 27, sum of all files in `Pennel.app`):
-12740303 bytes (about 12.7 MB; the app binary is 10.3 MB, keyboard extension 0.8 MB, widgets extension 0.8 MB
+12774231 bytes (about 12.8 MB; the app binary is 10.3 MB, keyboard extension 0.8 MB, widgets extension 0.8 MB
 including two Figtree fonts).
 
 App Store size: pending device acceptance.

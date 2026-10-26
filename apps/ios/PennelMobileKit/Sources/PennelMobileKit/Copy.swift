@@ -16,7 +16,9 @@ public enum Copy {
 
     // MARK: 4.1 Meetings (labels from apps/desktop/src/views/meetings.ts and library.ts)
     public enum Meetings {
-        public static let newRecording = "Nieuwe opname"
+        public static let newMeeting = "Nieuwe meeting"
+        public static let startRecording = "Start opname"
+        public static let titlePlaceholder = "Titel, bv. Weekly sync"
         public static let stopRecording = "Stop opname"
         public static let yourNotes = "Je notities"
         public static let notesPlaceholder = "Typ steekwoorden… of laat het leeg voor een samenvatting."
@@ -36,8 +38,7 @@ public enum Copy {
         public static let copiedWithTranscript = "Gekopieerd met transcript"
         public static let search = "Zoeken in meetings"
         public static let today = "Vandaag"
-        public static let yesterday = "Gisteren"
-        public static let lastWeek = "Afgelopen week"
+        public static let thisWeek = "Deze week"
         public static let earlier = "Eerder"
         public static let noMeetings = "Nog geen meetings."
         public static let noResults = "Geen meetings gevonden."

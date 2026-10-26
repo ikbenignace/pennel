@@ -17,23 +17,22 @@ enum MeetingDates {
         return date.formatted(.dateTime.locale(Locale(identifier: "nl-BE")).hour().minute())
     }
 
-    /// **Vandaag**, **Gisteren**, **Afgelopen week**, **Eerder** (spec §4.1), newest first.
+    /// The desktop library's `dayGroup`: **Vandaag**, **Deze week** (the last seven days), **Eerder**; newest first.
     static func groups(_ meetings: [MeetingInfo], now: Date = Date(), calendar: Calendar = .current) -> [(title: String, meetings: [MeetingInfo])] {
         let today = calendar.startOfDay(for: now)
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
         let week = calendar.date(byAdding: .day, value: -7, to: today) ?? today
-        let order = [Copy.Meetings.today, Copy.Meetings.yesterday, Copy.Meetings.lastWeek, Copy.Meetings.earlier]
+        let order = [Copy.Meetings.today, Copy.Meetings.thisWeek, Copy.Meetings.earlier]
         var buckets: [String: [MeetingInfo]] = [:]
         for meeting in meetings {
             let day = date(meeting.startIso) ?? .distantPast
-            let title = day >= today ? order[0] : day >= yesterday ? order[1] : day >= week ? order[2] : order[3]
+            let title = day >= today ? order[0] : day >= week ? order[1] : order[2]
             buckets[title, default: []].append(meeting)
         }
         return order.compactMap { title in buckets[title].map { (title, $0) } }
     }
 }
 
-/// The **Meetings** tab: search, **Nieuwe opname**, the live recording and the library by period.
+/// The **Meetings** tab: search, **Nieuwe meeting** with **Start opname**, the live recording and the library by period.
 struct MeetingListView: View {
     @Environment(AppModel.self) private var model
     @State private var runtime = MeetingRuntime.shared
@@ -43,6 +42,7 @@ struct MeetingListView: View {
     @State private var startError: String?
     @State private var renaming: MeetingInfo?
     @State private var newTitle = ""
+    @State private var newMeetingTitle = ""
     @State private var deleting: MeetingInfo?
     @State private var showsLive = false
     @State private var pruned = false
@@ -53,7 +53,14 @@ struct MeetingListView: View {
         NavigationStack(path: $path) {
             List {
                 Section {
-                    NewRecordingButton(recording: runtime.isRecording || runtime.phase == .finishing) { startRecording() }
+                    if !(runtime.isRecording || runtime.phase == .finishing) {
+                        TextField(Copy.Meetings.titlePlaceholder, text: $newMeetingTitle)
+                            .accessibilityLabel(Copy.Meetings.meetingTitle)
+                            .submitLabel(.go)
+                            .onSubmit(startRecording)
+                            .pennelRow()
+                    }
+                    StartRecordingButton(recording: runtime.isRecording || runtime.phase == .finishing) { startRecording() }
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
                     if let startError {
@@ -63,6 +70,8 @@ struct MeetingListView: View {
                     if runtime.retainedId != nil {
                         RetainedNotice(runtime: runtime)
                     }
+                } header: {
+                    Text(Copy.Meetings.newMeeting)
                 }
                 if runtime.isRecording || runtime.phase == .finishing {
                     Section {
@@ -180,7 +189,8 @@ struct MeetingListView: View {
                 return
             }
             do {
-                try runtime.start(title: "")
+                try runtime.start(title: newMeetingTitle)
+                newMeetingTitle = ""
                 showsLive = true
             } catch {
                 Self.log.error("meeting start: \(ErrorText.code(error), privacy: .public)")
@@ -231,8 +241,8 @@ private struct MeetingRow: View {
     }
 }
 
-/// Ink button with the Soft wave mark (spec §4.1).
-private struct NewRecordingButton: View {
+/// Ink button with the Soft wave mark (spec §4.1), labelled as the desktop's start button.
+private struct StartRecordingButton: View {
     let recording: Bool
     let action: () -> Void
 
@@ -241,7 +251,7 @@ private struct NewRecordingButton: View {
             HStack(spacing: Brand.Spacing.s3) {
                 WaveMark(level: recording ? 0.6 : 0)
                     .frame(width: 28, height: 22)
-                Text(recording ? Copy.Meetings.recordingRow : Copy.Meetings.newRecording)
+                Text(recording ? Copy.Meetings.recordingRow : Copy.Meetings.startRecording)
                     .font(Theme.font(.headline, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
