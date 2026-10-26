@@ -10,7 +10,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    uses: ./.github/workflows/changes.yml
+
   build-and-test:
+    needs: changes
+    if: needs.changes.outputs.legacy == 'true'
     runs-on: macos-15
     timeout-minutes: 60
     steps:
@@ -31,17 +36,24 @@ jobs:
           # the build script's output, which would then link against a missing directory.
           cache-directories: core/target/sherpa-onnx-prebuilt
           key: sherpa-prebuilt
+      - name: Rerun sherpa-onnx's download when the cache lacks it
+        shell: bash
+        run: bash scripts/ci-sherpa-cache.sh core/target
       - name: Rust format
+        if: needs.changes.outputs.core == 'true'
         run: cargo fmt --manifest-path core/Cargo.toml -- --check
       - name: Rust lint
+        if: needs.changes.outputs.core == 'true'
         run: cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
       - name: Rust tests
+        if: needs.changes.outputs.core == 'true'
         run: cargo test --manifest-path core/Cargo.toml --lib
       - name: Rust lint without local models
         run: cargo clippy --manifest-path core/Cargo.toml --lib --tests --no-default-features -- -D warnings
       - name: Rust tests without local models
         run: cargo test --manifest-path core/Cargo.toml --no-default-features --lib
       - name: Speaker pipeline
+        if: needs.changes.outputs.core == 'true'
         run: |
           cargo fmt --manifest-path core/speakers/Cargo.toml -- --check
           cargo clippy --manifest-path core/speakers/Cargo.toml --all-targets --features onnx -- -D warnings
@@ -50,7 +62,18 @@ jobs:
         run: make core
       - name: Swift tests
         run: swift test --package-path apps/macos
-      - name: macOS platform tests
-        run: swift test --package-path apps/macos-platform
       - name: App bundle
         run: make app
+
+  platform:
+    needs: changes
+    if: needs.changes.outputs.platform == 'true'
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: macOS platform tests
+        run: swift test --package-path apps/macos-platform
