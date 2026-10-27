@@ -666,7 +666,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             saved_tracks(&store, &id).unwrap(),
-            [(Speaker::Me, root.join("ik.m4a"))]
+            [(Speaker::Me, root.join("ik.m4a").canonicalize().unwrap())]
         );
 
         let (_dir, store, id) = meeting();
