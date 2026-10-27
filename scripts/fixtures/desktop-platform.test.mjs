@@ -24,6 +24,24 @@ test("every visual scenario has a unique stable identifier and valid entry", () 
   }
 });
 
+test("saved-audio retranscription reports local progress and marks the summary outdated", async () => {
+  const context=fixture("meeting-transcript",{saved_audio:true});
+  const client=context.__PENNEL_PLATFORM__;
+  const detail=await client.invoke("meeting_detail",{id:"2026-10-24 0900 Projectoverleg"});
+  assert.equal(detail.retranscription_plan.available,true);
+  assert.equal(detail.retranscription_plan.recognition.provider_kind,"local");
+  const events=[];
+  await client.listen("meeting-retranscription-changed",event=>events.push(event.payload));
+  const count=await client.invoke("retranscribe_meeting_audio",{id:detail.info.id});
+  assert.ok(count>0);
+  assert.ok(events.some(event=>event.status.running));
+  const after=await client.invoke("meeting_detail",{id:detail.info.id});
+  assert.equal(after.summary_outdated,true);
+  assert.equal(after.retranscription_status.running,false);
+  assert.equal(after.retranscription_status.progress.phase,"completed");
+  assert.equal(after.notes,detail.notes);
+});
+
 test("fixture app information is synthetic and never returns an API key", async () => {
   const context = fixture("onboarding-engine-custom");
   const info = await context.__PENNEL_PLATFORM__.invoke("app_info");

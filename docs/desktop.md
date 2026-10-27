@@ -184,6 +184,16 @@ Keys remain in Keychain, Windows Credential Manager or Secret Service. No API ke
 
 ## Data, preview and upgrades
 
+### Re-transcribe saved meeting audio
+
+In a finished meeting's **Transcript** tab, **Retranscribe recording** / **Opnieuw transcriberen vanaf opname** rebuilds the complete transcript from the saved microphone and computer-audio tracks. This is separate from **Retry**, which only retries failed chunks. Choose and download a local speech model under Models → Meetings first; the confirmation shows the model and speech language. The model, language and dictionary are frozen when processing starts, and audio is never sent to a transcription service by this action.
+
+Tracks are decoded sequentially at 16 kHz, preserving leading silence and their shared timeline. Missing required tracks, decoding errors, model errors and persistence errors leave the previous transcript available. Processing runs outside the webview and exposes per-track progress; competing edits to the same meeting are refused. Notes and audio are retained. Previous transcript, meeting metadata and remaining recovery chunks are kept in a private versioned `.pennel-transcript-backups` folder inside the meeting; this folder is not indexed or synced.
+
+After a successful replacement the existing summary is marked outdated; regenerating it remains a separate explicit action. Previously enabled speaker labels are rebuilt using available local speaker models, with names transferred only through voice matching. If those models are unavailable, the transcript keeps the microphone/computer track labels and offers a speaker-model explanation. Voiceprint caches are bound to the transcript version so old voice numbers cannot silently refer to a different voice after replacement.
+
+Known dictation exclusion intervals are retained locally and silenced before reprocessing. Older recordings without that metadata still contain their original captured audio; historical exclusion intervals cannot be reconstructed. Continuous timestamped audio treats rounding differences below one millisecond as contiguous samples, preserving the normal 15–30-second recognition windows instead of flushing tiny fragments.
+
 | Build | Data directory | Credentials |
 | --- | --- | --- |
 | Canonical Mac | `~/Library/Application Support/Pennel` | `dev.pennel.Pennel` Keychain service |

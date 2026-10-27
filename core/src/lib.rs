@@ -30,6 +30,7 @@ mod provider;
 mod provider_test;
 mod recording;
 mod remote_models;
+mod retranscription;
 mod rules;
 mod session;
 mod settings;
@@ -80,6 +81,10 @@ pub use provider::{
 pub use provider_test::{ProviderTaskTestResult, test_provider_task};
 pub use recording::{RecordingLifecycle, RecordingPhase, RecordingState};
 pub use remote_models::{RemoteModel, provider_models};
+pub use retranscription::{
+    MeetingRetranscriptionPlan, MeetingRetranscriptionStatus, RetranscriptionPhase,
+    RetranscriptionProgress,
+};
 pub use rules::{
     AppRule, CalendarRule, EventRule, RecordAction, browser_apps, consent_sentence,
     decide_recording, known_call_apps,

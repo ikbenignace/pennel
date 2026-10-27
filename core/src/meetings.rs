@@ -393,6 +393,145 @@ impl MeetingStore {
         self.write_file(id, "notes.md", notes)
     }
 
+    pub fn summary_outdated(&self, id: &str) -> bool {
+        self.frontmatter(id).is_some_and(|(front, body)| {
+            !body.trim().is_empty()
+                && front
+                    .extra
+                    .iter()
+                    .any(|line| line.trim() == "pennel_summary_outdated: true")
+        })
+    }
+
+    pub(crate) fn transcript_fingerprint(&self, id: &str) -> Result<String, PennelError> {
+        use sha2::{Digest, Sha256};
+        let bytes = match fs::read(self.dir_of(id).join("transcript.md")) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(error) => return Err(PennelError::storage(error)),
+        };
+        Ok(crate::models::hex(&Sha256::digest(&bytes)))
+    }
+
+    pub(crate) fn write_dictation_intervals(
+        &self,
+        id: &str,
+        intervals: &[(u64, u64)],
+    ) -> Result<(), PennelError> {
+        let bytes = serde_json::to_vec(intervals).map_err(PennelError::storage)?;
+        durable_write(
+            &self.dir_of(id).join(".pennel-dictation-intervals.json"),
+            &bytes,
+        )
+    }
+
+    pub(crate) fn dictation_intervals(&self, id: &str) -> Result<Vec<(u64, u64)>, PennelError> {
+        match fs::read(self.dir_of(id).join(".pennel-dictation-intervals.json")) {
+            Ok(bytes) => {
+                let intervals: Vec<(u64, u64)> = serde_json::from_slice(&bytes).map_err(|_| {
+                    PennelError::storage(
+                        "De opgeslagen dicteerintervallen konden niet worden gelezen.",
+                    )
+                })?;
+                if intervals.iter().any(|(start, end)| end < start) {
+                    return Err(PennelError::storage(
+                        "De opgeslagen dicteerintervallen zijn ongeldig.",
+                    ));
+                }
+                Ok(intervals)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(error) => Err(PennelError::storage(error)),
+        }
+    }
+
+    pub(crate) fn replace_retranscribed(
+        &self,
+        id: &str,
+        segments: &[Segment],
+        names: &[SpeakerName],
+    ) -> Result<PathBuf, PennelError> {
+        let root = self.dir_of(id);
+        let original = fs::read(root.join("transcript.md"))
+            .or_else(|error| {
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    Ok(Vec::new())
+                } else {
+                    Err(error)
+                }
+            })
+            .map_err(PennelError::storage)?;
+        let metadata = fs::read(root.join("meeting.md")).map_err(PennelError::storage)?;
+        let backups = root.join(".pennel-transcript-backups");
+        if fs::symlink_metadata(&backups).is_ok_and(|entry| entry.file_type().is_symlink()) {
+            return Err(PennelError::storage(
+                "De herstelmap is geen geldige lokale map.",
+            ));
+        }
+        let backup = backups.join(uuid::Uuid::now_v7().to_string());
+        fs::create_dir_all(&backup).map_err(PennelError::storage)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&backups, fs::Permissions::from_mode(0o700))
+                .map_err(PennelError::storage)?;
+            fs::set_permissions(&backup, fs::Permissions::from_mode(0o700))
+                .map_err(PennelError::storage)?;
+        }
+        durable_write(&backup.join("transcript.md"), &original)?;
+        durable_write(&backup.join("meeting.md"), &metadata)?;
+        let failed = root.join("failed");
+        let moved_failed = failed.is_dir();
+        if moved_failed {
+            fs::rename(&failed, backup.join("failed")).map_err(PennelError::storage)?;
+        }
+        let result = (|| {
+            self.set_speaker_names(id, names)?;
+            let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
+            front
+                .extra
+                .retain(|line| !line.starts_with("pennel_summary_outdated:"));
+            if !body.trim().is_empty() {
+                front.extra.push("pennel_summary_outdated: true".into());
+            }
+            // Write the stale marker first so an interrupted commit never presents an old summary as current.
+            self.write_file(id, "meeting.md", &render_meeting(&front, &body))?;
+            self.write_transcript(id, segments)
+        })();
+        if let Err(error) = result {
+            let transcript_restore = durable_write(&root.join("transcript.md"), &original);
+            let metadata_restore = durable_write(&root.join("meeting.md"), &metadata);
+            let failed_restore = if moved_failed {
+                fs::rename(backup.join("failed"), &failed).map_err(PennelError::storage)
+            } else {
+                Ok(())
+            };
+            if transcript_restore.is_err() || metadata_restore.is_err() || failed_restore.is_err() {
+                return Err(PennelError::storage(
+                    "Herstellen kon niet worden afgerond. De vorige transcriptie staat in de lokale herstelmap.",
+                ));
+            }
+            return Err(error);
+        }
+        Ok(backup)
+    }
+
+    pub(crate) fn restore_retranscription(
+        &self,
+        id: &str,
+        backup: &Path,
+    ) -> Result<(), PennelError> {
+        let root = self.dir_of(id);
+        for name in ["meeting.md", "transcript.md"] {
+            let bytes = fs::read(backup.join(name)).map_err(PennelError::storage)?;
+            durable_write(&root.join(name), &bytes)?;
+        }
+        if backup.join("failed").is_dir() {
+            fs::rename(backup.join("failed"), root.join("failed")).map_err(PennelError::storage)?;
+        }
+        Ok(())
+    }
+
     pub fn read_notes(&self, id: &str) -> String {
         self.read_file(id, "notes.md")
     }
@@ -541,6 +680,9 @@ impl MeetingStore {
         let (mut front, _) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         front.duration_min = duration_min;
         front.template = template.to_owned();
+        front
+            .extra
+            .retain(|line| !line.starts_with("pennel_summary_outdated:"));
         self.write_file(id, "meeting.md", &render_meeting(&front, body))
     }
 

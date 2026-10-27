@@ -1,0 +1,942 @@
+use std::collections::HashSet;
+use std::path::{Component, Path, PathBuf};
+use std::sync::Mutex;
+
+use crate::chunker::Chunker;
+use crate::engine::PennelEngine;
+use crate::error::PennelError;
+use crate::meetings::SpeakerName;
+use crate::meetings::{MeetingStore, Segment, Speaker};
+use crate::provider::ProviderKind;
+use crate::session::MeetingRecognition;
+use crate::settings::Settings;
+use crate::speech::is_hallucination;
+use crate::voices::MeetingVoiceprint;
+use pennel_speakers::{Diarization, Identity};
+
+pub(crate) struct MeetingEditGuard<'a> {
+    pub(crate) jobs: &'a Mutex<HashSet<String>>,
+    pub(crate) id: String,
+}
+
+impl Drop for MeetingEditGuard<'_> {
+    fn drop(&mut self) {
+        self.jobs.lock().unwrap().remove(&self.id);
+    }
+}
+
+struct FrozenLocal {
+    settings: Settings,
+    recognition: MeetingRecognition,
+}
+
+impl FrozenLocal {
+    fn new(engine: &PennelEngine) -> Result<Self, PennelError> {
+        let settings = engine.settings();
+        let (account, model) = settings
+            .resolve(&settings.meeting_stt)
+            .ok_or(PennelError::NotFound)?;
+        if account.kind != ProviderKind::Local {
+            return Err(PennelError::InvalidResponse {
+                message:
+                    "Kies een lokaal spraakmodel voor het opnieuw transcriberen van een opname."
+                        .into(),
+            });
+        }
+        crate::local_engine::ensure_available()?;
+        if !engine
+            .models
+            .local_models(None, false)
+            .iter()
+            .any(|entry| entry.id == model)
+        {
+            return Err(PennelError::NotFound);
+        }
+        if engine.models.path(&model).is_none() {
+            return Err(PennelError::ModelNotDownloaded);
+        }
+        let recognition = MeetingRecognition::from_settings(&settings);
+        Ok(Self {
+            settings,
+            recognition,
+        })
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MeetingRetranscriptionStatus {
+    pub running: bool,
+    pub recognition: MeetingRecognition,
+    pub progress: RetranscriptionProgress,
+    pub error: Option<String>,
+    pub warning: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MeetingRetranscriptionPlan {
+    pub recognition: MeetingRecognition,
+    pub available: bool,
+    pub reason: Option<String>,
+}
+
+struct VoiceCandidate {
+    name: Option<String>,
+    embedding: Vec<f32>,
+    known_id: Option<String>,
+}
+
+#[derive(Default)]
+struct SpeakerLabels {
+    names: Vec<SpeakerName>,
+    prints: Vec<MeetingVoiceprint>,
+}
+
+fn relabel_speakers(
+    segments: &mut [Segment],
+    diarization: &Diarization,
+    track: crate::diarize::Track,
+    me: Option<&[f32]>,
+    candidates: &[VoiceCandidate],
+) -> SpeakerLabels {
+    let prints: Vec<&[f32]> = candidates
+        .iter()
+        .map(|candidate| candidate.embedding.as_slice())
+        .collect();
+    let identities = pennel_speakers::identify(&diarization.speakers, me, &prints);
+    if track == crate::diarize::Track::Microphone && !identities.contains(&Identity::Me) {
+        return SpeakerLabels::default();
+    }
+    let applied = crate::diarize::apply(segments, &diarization.turns, &identities, track);
+    let mut result = SpeakerLabels::default();
+    for (voice, speaker) in applied.voices {
+        let candidate = match identities.get(speaker) {
+            Some(Identity::Known(index, _)) => candidates.get(*index),
+            _ => None,
+        };
+        if let Some(name) = candidate.and_then(|candidate| candidate.name.as_ref()) {
+            result.names.push(SpeakerName {
+                voice,
+                name: name.clone(),
+            });
+        }
+        if let Some(speaker) = diarization
+            .speakers
+            .get(speaker)
+            .filter(|speaker| !speaker.embedding.is_empty())
+        {
+            result.prints.push(MeetingVoiceprint {
+                voice,
+                embedding: speaker.embedding.clone(),
+                known_id: candidate.and_then(|candidate| candidate.known_id.clone()),
+            });
+        }
+    }
+    result
+}
+
+impl PennelEngine {
+    pub fn meeting_summary_outdated(&self, id: &str) -> bool {
+        self.meeting_store().summary_outdated(id)
+    }
+
+    pub fn meeting_retranscription_status(&self, id: &str) -> Option<MeetingRetranscriptionStatus> {
+        self.retranscriptions.lock().unwrap().get(id).cloned()
+    }
+
+    pub fn meeting_retranscription_plan(&self, id: &str) -> MeetingRetranscriptionPlan {
+        let recognition = MeetingRecognition::from_settings(&self.settings());
+        let result = self
+            .ensure_meeting_inactive(id)
+            .and_then(|_| saved_tracks(&self.meeting_store(), id))
+            .and_then(|_| FrozenLocal::new(self));
+        MeetingRetranscriptionPlan {
+            recognition,
+            available: result.is_ok(),
+            reason: result.err().map(|error| match error {
+                PennelError::ModelNotDownloaded => {
+                    "Download eerst het gekozen lokale spraakmodel.".into()
+                }
+                error => error.to_string(),
+            }),
+        }
+    }
+
+    fn publish_retranscription(
+        &self,
+        id: &str,
+        status: &MeetingRetranscriptionStatus,
+        notify: &mut impl FnMut(MeetingRetranscriptionStatus),
+    ) {
+        self.retranscriptions
+            .lock()
+            .unwrap()
+            .insert(id.to_owned(), status.clone());
+        notify(status.clone());
+    }
+
+    pub fn retranscribe_meeting_audio(
+        &self,
+        id: &str,
+        mut decode: impl FnMut(&Path) -> Result<Vec<f32>, PennelError>,
+        mut notify: impl FnMut(MeetingRetranscriptionStatus),
+    ) -> Result<u32, PennelError> {
+        self.claim_library()?;
+        let edit = self.edit_meeting(id)?;
+        // A sync pass must not install another version while a replacement is being prepared.
+        let sync = self.sync_gate.lock().unwrap();
+        let frozen = FrozenLocal::new(self)?;
+        let store = self.meeting_store();
+        let tracks = saved_tracks(&store, id)?;
+        let exclusions = store.dictation_intervals(id)?;
+        let sources: Vec<_> = [
+            "transcript.md",
+            "meeting.md",
+            "notes.md",
+            ".pennel-dictation-intervals.json",
+            "ik.m4a",
+            "anderen.m4a",
+        ]
+        .into_iter()
+        .map(|name| (name, store.file_stamp(id, name)))
+        .collect();
+        let before = store.read_transcript(id);
+        let old_names = store.speaker_names(id);
+        let voices = self.voice_store();
+        let key = store.uid_of(id).unwrap_or_else(|| id.to_owned());
+        let old_hash = store.transcript_fingerprint(id)?;
+        let old_prints = voices.meeting_voiceprints(&key, Some(&old_hash));
+        // Bind legacy caches before replacing text: after an interruption stale voice IDs must
+        // never offer to remember a different person's voice from the new transcript.
+        voices.set_meeting_voiceprints(&key, old_prints.clone(), Some(&old_hash))?;
+        let mut status = MeetingRetranscriptionStatus {
+            running: true,
+            recognition: frozen.recognition.clone(),
+            progress: RetranscriptionProgress {
+                phase: RetranscriptionPhase::Decoding,
+                speaker: None,
+                completed: 0,
+                total: 0,
+            },
+            error: None,
+            warning: None,
+        };
+        self.publish_retranscription(id, &status, &mut notify);
+        let result = (|| {
+            let keys = crate::engine::ApiKeys {
+                by_provider: std::collections::HashMap::new(),
+            };
+            let mut segments = stage_audio(
+                &tracks,
+                &exclusions,
+                &mut decode,
+                |samples| {
+                    self.stt(
+                        &frozen.settings,
+                        &frozen.settings.meeting_stt,
+                        &crate::wav::encode_wav(samples, 16_000),
+                        &keys,
+                    )
+                },
+                |progress| {
+                    status.progress = progress;
+                    self.publish_retranscription(id, &status, &mut notify);
+                },
+            )?;
+            if segments.is_empty() {
+                return Err(PennelError::NoSpeech);
+            }
+            let mut labels = SpeakerLabels::default();
+            if before.iter().any(|segment| segment.voice.is_some()) {
+                let local_models = (
+                    self.models.path(crate::models::SEGMENTATION_ID),
+                    self.models.path(crate::models::EMBEDDING_ID),
+                );
+                let me = voices.my_voiceprint();
+                let selected = tracks
+                    .iter()
+                    .find(|(speaker, _)| {
+                        *speaker == Speaker::Others
+                            && segments
+                                .iter()
+                                .any(|segment| segment.speaker == Speaker::Others)
+                    })
+                    .or_else(|| {
+                        tracks
+                            .iter()
+                            .find(|(speaker, _)| *speaker == Speaker::Me && me.is_some())
+                    });
+                if let (Some((speaker, path)), (Some(segmentation), Some(embedding)), true) =
+                    (selected, local_models, cfg!(feature = "speakers"))
+                {
+                    status.progress = RetranscriptionProgress {
+                        phase: RetranscriptionPhase::Speakers,
+                        speaker: Some(*speaker),
+                        completed: 0,
+                        total: 1,
+                    };
+                    self.publish_retranscription(id, &status, &mut notify);
+                    let mut samples = decode(path)?;
+                    for &(start, end) in &exclusions {
+                        let first = start.saturating_mul(16).min(samples.len() as u64) as usize;
+                        let last = end.saturating_mul(16).min(samples.len() as u64) as usize;
+                        if last > first {
+                            samples[first..last].fill(0.0);
+                        }
+                    }
+                    let diarization =
+                        crate::speakers::diarize_local(&segmentation, &embedding, &samples)?;
+                    drop(samples);
+                    let mut candidates: Vec<_> = voices
+                        .known_voiceprints()
+                        .into_iter()
+                        .map(|(known_id, name, embedding)| VoiceCandidate {
+                            name: Some(name),
+                            embedding,
+                            known_id: Some(known_id),
+                        })
+                        .collect();
+                    candidates.extend(old_prints.iter().map(|print| {
+                        VoiceCandidate {
+                            name: old_names
+                                .iter()
+                                .find(|name| name.voice == print.voice)
+                                .map(|name| name.name.clone()),
+                            embedding: print.embedding.clone(),
+                            known_id: print.known_id.clone(),
+                        }
+                    }));
+                    let track = crate::diarize::Track::from(*speaker);
+                    labels = relabel_speakers(
+                        &mut segments,
+                        &diarization,
+                        track,
+                        me.as_deref()
+                            .filter(|_| track == crate::diarize::Track::Microphone),
+                        &candidates,
+                    );
+                } else {
+                    status.warning=Some("De tekst is opnieuw herkend. Download lokale sprekermodellen om de sprekerlabels opnieuw te bepalen.".into());
+                }
+            }
+            if sources
+                .iter()
+                .any(|(name, stamp)| store.file_stamp(id, name) != *stamp)
+            {
+                return Err(PennelError::storage(
+                    "De opname of meeting is ondertussen gewijzigd. Het transcript is niet vervangen.",
+                ));
+            }
+            status.progress = RetranscriptionProgress {
+                phase: RetranscriptionPhase::Saving,
+                speaker: None,
+                completed: 0,
+                total: 1,
+            };
+            self.publish_retranscription(id, &status, &mut notify);
+            let backup = store.replace_retranscribed(id, &segments, &labels.names)?;
+            if let Err(error) = voices.set_meeting_voiceprints(
+                &key,
+                labels.prints,
+                Some(&store.transcript_fingerprint(id)?),
+            ) {
+                // Restore the authoritative files before reporting a failed optional cache write.
+                store.restore_retranscription(id, &backup)?;
+                voices.set_meeting_voiceprints(&key, old_prints.clone(), Some(&old_hash))?;
+                return Err(error);
+            }
+            Ok(segments.len() as u32)
+        })();
+        status.running = false;
+        status.progress = RetranscriptionProgress {
+            phase: if result.is_ok() {
+                RetranscriptionPhase::Completed
+            } else {
+                RetranscriptionPhase::Failed
+            },
+            speaker: None,
+            completed: 1,
+            total: 1,
+        };
+        status.error = result.as_ref().err().map(ToString::to_string);
+        self.publish_retranscription(id, &status, &mut notify);
+        drop(sync);
+        drop(edit);
+        result
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, uniffi::Enum)]
+#[serde(rename_all = "snake_case")]
+pub enum RetranscriptionPhase {
+    Decoding,
+    Transcribing,
+    Speakers,
+    Saving,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, uniffi::Record)]
+pub struct RetranscriptionProgress {
+    pub phase: RetranscriptionPhase,
+    pub speaker: Option<Speaker>,
+    pub completed: u64,
+    pub total: u64,
+}
+
+pub(crate) fn saved_tracks(
+    store: &MeetingStore,
+    id: &str,
+) -> Result<Vec<(Speaker, PathBuf)>, PennelError> {
+    let mut components = Path::new(id).components();
+    if !matches!(components.next(), Some(Component::Normal(_)))
+        || components.next().is_some()
+        || id.contains('\\')
+    {
+        return Err(PennelError::NotFound);
+    }
+    store.info(id).ok_or(PennelError::NotFound)?;
+    let root = store
+        .dir_of(id)
+        .canonicalize()
+        .map_err(PennelError::storage)?;
+    let before = store.read_transcript(id);
+    let mut tracks = Vec::new();
+    for (speaker, name) in [(Speaker::Me, "ik.m4a"), (Speaker::Others, "anderen.m4a")] {
+        let path = root.join(name);
+        match path.canonicalize() {
+            Ok(path) if path.is_file() && path.parent()==Some(root.as_path()) => tracks.push((speaker,path)),
+            _ if before.iter().any(|segment|segment.speaker==speaker) => return Err(PennelError::InvalidResponse{message:"Niet alle oorspronkelijke audio is bewaard. Het transcript is niet gewijzigd.".into()}),
+            _ => {}
+        }
+    }
+    if tracks.is_empty() {
+        return Err(PennelError::InvalidResponse {
+            message: "Er is geen bewaarde audio om opnieuw te transcriberen.".into(),
+        });
+    }
+    Ok(tracks)
+}
+
+pub(crate) fn stage_audio(
+    tracks: &[(Speaker, PathBuf)],
+    exclusions: &[(u64, u64)],
+    mut decode: impl FnMut(&Path) -> Result<Vec<f32>, PennelError>,
+    mut transcribe: impl FnMut(&[f32]) -> Result<String, PennelError>,
+    mut progress: impl FnMut(RetranscriptionProgress),
+) -> Result<Vec<Segment>, PennelError> {
+    let mut segments = Vec::new();
+    for (speaker, path) in tracks {
+        progress(RetranscriptionProgress {
+            phase: RetranscriptionPhase::Decoding,
+            speaker: Some(*speaker),
+            completed: 0,
+            total: 0,
+        });
+        let mut samples = decode(path)?;
+        if samples.is_empty() || samples.iter().any(|sample| !sample.is_finite()) {
+            return Err(PennelError::InvalidResponse {
+                message:
+                    "De bewaarde audio kon niet worden gelezen. Het transcript is niet gewijzigd."
+                        .into(),
+            });
+        }
+        for &(start, end) in exclusions {
+            let first = start.saturating_mul(16).min(samples.len() as u64) as usize;
+            let last = end.saturating_mul(16).min(samples.len() as u64) as usize;
+            if last > first {
+                samples[first..last].fill(0.0);
+            }
+        }
+        let total = samples.len() as u64 / 16;
+        progress(RetranscriptionProgress {
+            phase: RetranscriptionPhase::Transcribing,
+            speaker: Some(*speaker),
+            completed: 0,
+            total,
+        });
+        let mut chunker = Chunker::new(16_000);
+        let mut recognize = |chunk: crate::chunker::Chunk| -> Result<(), PennelError> {
+            let end_ms = chunk.start_ms + chunk.samples.len() as u64 / 16;
+            let text = transcribe(&chunk.samples)?;
+            if !is_hallucination(&text) {
+                segments.push(Segment {
+                    start_ms: chunk.start_ms,
+                    end_ms,
+                    speaker: *speaker,
+                    text: text.trim().to_owned(),
+                    failed: false,
+                    voice: None,
+                });
+            }
+            progress(RetranscriptionProgress {
+                phase: RetranscriptionPhase::Transcribing,
+                speaker: Some(*speaker),
+                completed: end_ms,
+                total,
+            });
+            Ok(())
+        };
+        for packet in samples.chunks(16_000) {
+            for chunk in chunker.push(packet) {
+                recognize(chunk)?;
+            }
+        }
+        if let Some(chunk) = chunker.flush() {
+            recognize(chunk)?;
+        }
+    }
+    Ok(segments)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::meetings::{MeetingStore, Segment, Speaker, SpeakerName};
+    use std::cell::RefCell;
+
+    fn segment(speaker: Speaker, text: &str) -> Segment {
+        Segment {
+            start_ms: 0,
+            end_ms: 1_000,
+            speaker,
+            text: text.into(),
+            failed: false,
+            voice: None,
+        }
+    }
+
+    fn meeting() -> (tempfile::TempDir, MeetingStore, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = MeetingStore::new(dir.path());
+        let id = store.create("Herkenning", chrono::Local::now()).unwrap();
+        store
+            .write_transcript(&id, &[segment(Speaker::Me, "oorspronkelijke tekst")])
+            .unwrap();
+        store.write_notes(&id, "mijn eigen notities").unwrap();
+        store
+            .write_meeting(&id, 1, "algemeen", "bestaande samenvatting")
+            .unwrap();
+        (dir, store, id)
+    }
+
+    #[test]
+    fn archived_tracks_keep_silence_offsets_and_are_processed_sequentially() {
+        let trace = RefCell::new(Vec::new());
+        let tracks = [
+            (Speaker::Me, std::path::PathBuf::from("ik.m4a")),
+            (Speaker::Others, std::path::PathBuf::from("anderen.m4a")),
+        ];
+        let segments = stage_audio(
+            &tracks,
+            &[],
+            |path| {
+                trace.borrow_mut().push(path.to_string_lossy().into_owned());
+                Ok(if path.ends_with("ik.m4a") {
+                    [vec![0.0; 15 * 16_000], vec![0.1; 20 * 16_000]].concat()
+                } else {
+                    vec![0.2; 33 * 16_000]
+                })
+            },
+            |samples| {
+                trace
+                    .borrow_mut()
+                    .push(format!("samples:{}", samples.len()));
+                Ok("Nederlandse zin".into())
+            },
+            |_| {},
+        )
+        .unwrap();
+        assert_eq!(
+            *trace.borrow(),
+            [
+                "ik.m4a",
+                "samples:320000",
+                "anderen.m4a",
+                "samples:480000",
+                "samples:48000"
+            ]
+        );
+        assert_eq!(
+            segments
+                .iter()
+                .map(|s| (s.speaker, s.start_ms, s.end_ms))
+                .collect::<Vec<_>>(),
+            [
+                (Speaker::Me, 15_000, 35_000),
+                (Speaker::Others, 0, 30_000),
+                (Speaker::Others, 30_000, 33_000)
+            ]
+        );
+    }
+
+    #[test]
+    fn audio_and_recognizer_failures_never_write_a_partial_transcript() {
+        let (_dir, store, id) = meeting();
+        let before = std::fs::read(store.dir_of(&id).join("transcript.md")).unwrap();
+        let tracks = [
+            (Speaker::Me, std::path::PathBuf::from("ik.m4a")),
+            (Speaker::Others, std::path::PathBuf::from("anderen.m4a")),
+        ];
+        for failed_decode in [true, false] {
+            let mut calls = 0;
+            let result = stage_audio(
+                &tracks,
+                &[],
+                |path| {
+                    if failed_decode && path.ends_with("anderen.m4a") {
+                        Err(crate::error::PennelError::NotFound)
+                    } else {
+                        Ok(vec![0.2; 16_000])
+                    }
+                },
+                |_| {
+                    calls += 1;
+                    if !failed_decode && calls == 2 {
+                        Err(crate::error::PennelError::ModelNotDownloaded)
+                    } else {
+                        Ok("nieuwe tekst".into())
+                    }
+                },
+                |_| {},
+            );
+            assert!(result.is_err());
+            assert_eq!(
+                std::fs::read(store.dir_of(&id).join("transcript.md")).unwrap(),
+                before
+            );
+        }
+    }
+
+    #[test]
+    fn required_tracks_cannot_silently_disappear_or_escape_the_meeting() {
+        let (_dir, store, id) = meeting();
+        let root = store.dir_of(&id);
+        std::fs::write(root.join("ik.m4a"), b"recorded audio").unwrap();
+        assert_eq!(saved_tracks(&store, &id).unwrap().len(), 1);
+        store
+            .write_transcript(
+                &id,
+                &[
+                    segment(Speaker::Me, "ik"),
+                    segment(Speaker::Others, "anderen"),
+                ],
+            )
+            .unwrap();
+        assert!(saved_tracks(&store, &id).is_err());
+        std::fs::write(root.join("anderen.m4a"), b"recorded audio").unwrap();
+        assert_eq!(saved_tracks(&store, &id).unwrap().len(), 2);
+        assert!(saved_tracks(&store, "../other").is_err());
+    }
+
+    #[test]
+    fn successful_replacement_keeps_a_backup_notes_and_summary_provenance() {
+        let (_dir, store, id) = meeting();
+        store
+            .set_speaker_names(
+                &id,
+                &[SpeakerName {
+                    voice: 1,
+                    name: "Oude naam".into(),
+                }],
+            )
+            .unwrap();
+        let root = store.dir_of(&id);
+        let original = std::fs::read(root.join("transcript.md")).unwrap();
+        let metadata = std::fs::read(root.join("meeting.md")).unwrap();
+        let backup = store
+            .replace_retranscribed(&id, &[segment(Speaker::Me, "nieuwe tekst")], &[])
+            .unwrap();
+        assert_eq!(
+            std::fs::read(backup.join("transcript.md")).unwrap(),
+            original
+        );
+        assert_eq!(std::fs::read(backup.join("meeting.md")).unwrap(), metadata);
+        assert_eq!(store.read_notes(&id), "mijn eigen notities");
+        assert_eq!(store.read_transcript(&id)[0].text, "nieuwe tekst");
+        assert!(store.speaker_names(&id).is_empty());
+        assert!(store.summary_outdated(&id));
+        assert_eq!(
+            store.read_meeting(&id).as_deref(),
+            Some("bestaande samenvatting")
+        );
+        store
+            .write_meeting(&id, 1, "algemeen", "nieuwe samenvatting")
+            .unwrap();
+        assert!(!store.summary_outdated(&id));
+    }
+
+    #[test]
+    fn backup_failure_leaves_all_existing_files_unchanged() {
+        let (_dir, store, id) = meeting();
+        let root = store.dir_of(&id);
+        let original = std::fs::read(root.join("transcript.md")).unwrap();
+        let metadata = std::fs::read(root.join("meeting.md")).unwrap();
+        std::fs::write(root.join(".pennel-transcript-backups"), b"blocked").unwrap();
+        assert!(
+            store
+                .replace_retranscribed(&id, &[segment(Speaker::Me, "new")], &[])
+                .is_err()
+        );
+        assert_eq!(std::fs::read(root.join("transcript.md")).unwrap(), original);
+        assert_eq!(std::fs::read(root.join("meeting.md")).unwrap(), metadata);
+    }
+
+    #[test]
+    fn known_dictation_intervals_are_excluded_from_both_archived_tracks() {
+        let tracks = [
+            (Speaker::Me, std::path::PathBuf::from("ik.m4a")),
+            (Speaker::Others, std::path::PathBuf::from("anderen.m4a")),
+        ];
+        let result = stage_audio(
+            &tracks,
+            &[(0, 20_000)],
+            |_| Ok(vec![0.2; 20 * 16_000]),
+            |_| panic!("excluded audio must not reach recognition"),
+            |_| {},
+        )
+        .unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    #[cfg(feature = "local-models")]
+    fn local_configuration_is_frozen_and_remote_recognition_is_rejected() {
+        use crate::{PennelEngine, ProviderAccount, ProviderKind};
+        let dir = tempfile::tempdir().unwrap();
+        let engine =
+            PennelEngine::new_preview(dir.path().join("data").to_string_lossy().into_owned())
+                .unwrap();
+        let mut settings = engine.settings();
+        settings.providers.push(ProviderAccount {
+            id: "test-local".into(),
+            kind: ProviderKind::Local,
+            name: "Lokaal".into(),
+            base_url: String::new(),
+        });
+        settings.meeting_stt.provider_id = "test-local".into();
+        settings.meeting_stt.model = "parakeet-tdt-0.6b-v3".into();
+        settings.language = Some("nl".into());
+        settings.dictionary = vec!["voorbeeldterm".into()];
+        engine.update_settings(settings.clone()).unwrap();
+        assert!(FrozenLocal::new(&engine).is_err());
+        std::fs::create_dir_all(dir.path().join("data/models")).unwrap();
+        std::fs::write(
+            dir.path().join("data/models/parakeet-tdt-0.6b-v3.gguf"),
+            b"model placeholder; inference is not used in this test",
+        )
+        .unwrap();
+        let frozen = FrozenLocal::new(&engine).unwrap();
+        settings.language = Some("en".into());
+        settings.dictionary.clear();
+        settings.meeting_stt.provider_id = "groq".into();
+        engine.update_settings(settings).unwrap();
+        assert_eq!(frozen.settings.language.as_deref(), Some("nl"));
+        assert_eq!(frozen.settings.dictionary, ["voorbeeldterm"]);
+        assert_eq!(frozen.recognition.model, "parakeet-tdt-0.6b-v3");
+        assert!(FrozenLocal::new(&engine).is_err());
+    }
+
+    #[test]
+    fn an_in_flight_meeting_edit_blocks_conflicting_writes_but_not_reads() {
+        use crate::PennelEngine;
+        let dir = tempfile::tempdir().unwrap();
+        let engine =
+            PennelEngine::new_preview(dir.path().join("data").to_string_lossy().into_owned())
+                .unwrap();
+        let store = engine.meeting_store();
+        let id = store.create("Verwerken", chrono::Local::now()).unwrap();
+        let guard = engine.edit_meeting(&id).unwrap();
+        assert!(engine.edit_meeting(&id).is_err());
+        assert!(
+            engine
+                .rename_meeting(id.clone(), "andere naam".into())
+                .is_err()
+        );
+        assert!(engine.delete_meeting(id.clone()).is_err());
+        assert!(
+            engine
+                .set_meeting_notes(id.clone(), "onverwachte wijziging".into())
+                .is_err()
+        );
+        assert!(engine.rename_speaker(id.clone(), 1, "Naam".into()).is_err());
+        assert!(engine.forget_all_voices().is_err());
+        assert!(engine.meeting_info(id.clone()).is_some());
+        drop(guard);
+        engine
+            .set_meeting_notes(id.clone(), "bewaarde notities".into())
+            .unwrap();
+        assert_eq!(engine.meeting_notes(id), "bewaarde notities");
+    }
+
+    #[test]
+    fn editing_a_finished_meeting_does_not_prevent_an_unrelated_recording() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = crate::PennelEngine::new_preview(
+            dir.path().join("data").to_string_lossy().into_owned(),
+        )
+        .unwrap();
+        let id = engine
+            .meeting_store()
+            .create("Eerdere meeting", chrono::Local::now())
+            .unwrap();
+        let _edit = engine.edit_meeting(&id).unwrap();
+        let session = engine
+            .clone()
+            .start_meeting(
+                "Nieuwe opname".into(),
+                crate::ApiKeys {
+                    by_provider: std::collections::HashMap::new(),
+                },
+            )
+            .unwrap();
+        session.stop().unwrap();
+        assert_ne!(session.id(), id);
+    }
+
+    #[test]
+    fn dictation_exclusions_roundtrip_and_corruption_is_not_silently_ignored() {
+        let (_dir, store, id) = meeting();
+        assert!(store.dictation_intervals(&id).unwrap().is_empty());
+        store
+            .write_dictation_intervals(&id, &[(200, 1_200)])
+            .unwrap();
+        assert_eq!(store.dictation_intervals(&id).unwrap(), [(200, 1_200)]);
+        std::fs::write(
+            store.dir_of(&id).join(".pennel-dictation-intervals.json"),
+            b"broken metadata",
+        )
+        .unwrap();
+        assert!(store.dictation_intervals(&id).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "local-models")]
+    fn decoder_failure_clears_running_state_and_preserves_the_original_meeting() {
+        use crate::{PennelEngine, ProviderAccount, ProviderKind};
+        let dir = tempfile::tempdir().unwrap();
+        let engine =
+            PennelEngine::new_preview(dir.path().join("data").to_string_lossy().into_owned())
+                .unwrap();
+        let store = engine.meeting_store();
+        let id = store.create("Opname", chrono::Local::now()).unwrap();
+        store
+            .write_transcript(&id, &[segment(Speaker::Me, "oude zin")])
+            .unwrap();
+        std::fs::write(store.dir_of(&id).join("ik.m4a"), b"audio placeholder").unwrap();
+        let mut settings = engine.settings();
+        settings.providers.push(ProviderAccount {
+            id: "test-local".into(),
+            kind: ProviderKind::Local,
+            name: "Lokaal".into(),
+            base_url: String::new(),
+        });
+        settings.meeting_stt.provider_id = "test-local".into();
+        settings.meeting_stt.model = "parakeet-tdt-0.6b-v3".into();
+        engine.update_settings(settings).unwrap();
+        assert!(!engine.meeting_retranscription_plan(&id).available);
+        std::fs::create_dir_all(dir.path().join("data/models")).unwrap();
+        std::fs::write(
+            dir.path().join("data/models/parakeet-tdt-0.6b-v3.gguf"),
+            b"placeholder",
+        )
+        .unwrap();
+        assert!(engine.meeting_retranscription_plan(&id).available);
+        let before = std::fs::read(store.dir_of(&id).join("transcript.md")).unwrap();
+        let result = engine.retranscribe_meeting_audio(
+            &id,
+            |_| Err(PennelError::storage("decoder failed")),
+            |status| {
+                if !status.running {
+                    assert!(
+                        engine.edit_meeting(&id).is_err(),
+                        "publish completion before another job can start"
+                    );
+                }
+            },
+        );
+        assert!(result.is_err());
+        let status = engine.meeting_retranscription_status(&id).unwrap();
+        assert!(!status.running);
+        assert_eq!(status.progress.phase, RetranscriptionPhase::Failed);
+        assert!(status.error.as_deref().unwrap().contains("decoder failed"));
+        assert_eq!(
+            std::fs::read(store.dir_of(&id).join("transcript.md")).unwrap(),
+            before
+        );
+        engine
+            .set_meeting_notes(id, "nog steeds bewerkbaar".into())
+            .unwrap();
+    }
+
+    #[test]
+    fn fresh_speaker_numbers_never_inherit_an_unmatched_old_name() {
+        let mut segments = vec![
+            segment(Speaker::Others, "eerste stem"),
+            Segment {
+                start_ms: 4_000,
+                end_ms: 6_000,
+                ..segment(Speaker::Others, "andere stem")
+            },
+        ];
+        let diarization = pennel_speakers::Diarization {
+            turns: vec![
+                pennel_speakers::Turn {
+                    start_ms: 0,
+                    end_ms: 2_000,
+                    speaker: 0,
+                },
+                pennel_speakers::Turn {
+                    start_ms: 4_000,
+                    end_ms: 6_000,
+                    speaker: 1,
+                },
+            ],
+            speakers: vec![
+                pennel_speakers::Speaker {
+                    speaker: 0,
+                    speech_ms: 20_000,
+                    embedding: vec![1.0, 0.0],
+                },
+                pennel_speakers::Speaker {
+                    speaker: 1,
+                    speech_ms: 20_000,
+                    embedding: vec![-1.0, 0.0],
+                },
+            ],
+        };
+        let candidates = vec![
+            VoiceCandidate {
+                name: Some("Onjuiste oude naam".into()),
+                embedding: vec![0.0, 1.0],
+                known_id: None,
+            },
+            VoiceCandidate {
+                name: Some("Betrouwbare naam".into()),
+                embedding: vec![1.0, 0.0],
+                known_id: Some("known".into()),
+            },
+        ];
+        let labels = relabel_speakers(
+            &mut segments,
+            &diarization,
+            crate::diarize::Track::System,
+            None,
+            &candidates,
+        );
+        assert_eq!(
+            labels.names,
+            vec![SpeakerName {
+                voice: 1,
+                name: "Betrouwbare naam".into()
+            }]
+        );
+        assert_eq!(
+            segments.iter().map(|s| s.voice).collect::<Vec<_>>(),
+            [Some(1), Some(2)]
+        );
+        assert_eq!(labels.prints.len(), 2);
+        assert_eq!(labels.prints[0].known_id.as_deref(), Some("known"));
+        assert_eq!(labels.prints[1].known_id, None);
+    }
+}

@@ -1072,6 +1072,7 @@ fn main() {
             commands::meeting_templates,
             commands::summarize_meeting,
             commands::retranscribe_meeting,
+            commands::retranscribe_meeting_audio,
             commands::rename_meeting,
             commands::delete_meeting,
             commands::meeting_conflict_files,

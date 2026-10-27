@@ -38,7 +38,7 @@ pub struct MeetingRecognition {
 }
 
 impl MeetingRecognition {
-    fn from_settings(settings: &Settings) -> Self {
+    pub(crate) fn from_settings(settings: &Settings) -> Self {
         let resolved = settings.resolve(&settings.meeting_stt);
         Self {
             provider_kind: resolved.as_ref().map(|(account, _)| account.kind),
@@ -171,14 +171,18 @@ fn commit_progress(
     id: &str,
     progress: &Mutex<Progress>,
 ) -> Result<(), PennelError> {
-    let (segments, cleanup, revision) = {
+    let (segments, cleanup, revision, dictations) = {
         let progress = progress.lock().unwrap();
         (
             progress.persisted(),
             progress.cleanup.clone(),
             progress.revision,
+            progress.dictations.clone(),
         )
     };
+    if !dictations.is_empty() {
+        retry_storage(|| store.write_dictation_intervals(id, &dictations))?;
+    }
     retry_storage(|| store.write_transcript(id, &segments))?;
     if let Err(error) = retry_storage(|| store.cleanup_committed_audio(id)) {
         progress.lock().unwrap().persistence_error = Some(format!(

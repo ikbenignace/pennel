@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex, OnceLock, RwLock, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -96,9 +96,12 @@ pub struct PennelEngine {
     cloud_session: Mutex<Option<Arc<Session>>>,
     meeting_gate: Mutex<()>,
     active_sessions: Mutex<Vec<Weak<MeetingSession>>>,
+    pub(crate) meeting_jobs: Mutex<HashSet<String>>,
+    pub(crate) retranscriptions:
+        Mutex<HashMap<String, crate::retranscription::MeetingRetranscriptionStatus>>,
     library_lease: Mutex<Option<(PathBuf, DirectoryLease)>>,
     /// Held for a whole sync pass and for every vault change, so they never interleave.
-    sync_gate: Mutex<()>,
+    pub(crate) sync_gate: Mutex<()>,
     sync_state: Mutex<Option<SyncState>>,
     sync_last: Mutex<Option<SyncReport>>,
     sync_items: Mutex<Vec<MeetingSyncState>>,
@@ -505,7 +508,9 @@ impl PennelEngine {
             )?;
         }
         let changing_library = settings.meetings_dir != self.settings.read().unwrap().meetings_dir;
-        if changing_library && self.has_active_session() {
+        if changing_library
+            && (self.has_active_session() || !self.meeting_jobs.lock().unwrap().is_empty())
+        {
             return Err(PennelError::Storage {
                 message: "de meetingmap kan pas na het afronden van de opname worden gewijzigd"
                     .into(),
@@ -850,6 +855,7 @@ impl PennelEngine {
 
     pub fn set_meeting_notes(&self, id: String, text: String) -> Result<(), PennelError> {
         self.claim_library()?;
+        let _edit = self.edit_meeting(&id)?;
         let store = self.meeting_store();
         store.info(&id).ok_or(PennelError::NotFound)?;
         store.write_notes(&id, &text)
@@ -872,13 +878,13 @@ impl PennelEngine {
 
     pub fn rename_meeting(&self, id: String, title: String) -> Result<String, PennelError> {
         self.claim_library()?;
-        self.ensure_meeting_inactive(&id)?;
+        let _edit = self.edit_meeting(&id)?;
         self.meeting_store().rename(&id, &title)
     }
 
     pub fn delete_meeting(&self, id: String) -> Result<(), PennelError> {
         self.claim_library()?;
-        self.ensure_meeting_inactive(&id)?;
+        let _edit = self.edit_meeting(&id)?;
         let store = self.meeting_store();
         let uid = store.uid_of(&id);
         store.delete(&id)?;
@@ -897,7 +903,10 @@ impl PennelEngine {
     }
 
     pub fn prune_meeting_audio(&self) -> u32 {
-        if self.claim_library().is_err() || self.has_active_session() {
+        if self.claim_library().is_err()
+            || self.has_active_session()
+            || !self.meeting_jobs.lock().unwrap().is_empty()
+        {
             return 0;
         }
         let days = self.settings.read().unwrap().meeting_audio_retention_days;
@@ -908,7 +917,7 @@ impl PennelEngine {
     /// Retries chunks whose transcription failed during the meeting; returns how many were recovered.
     pub fn retranscribe_failed(&self, id: String, keys: ApiKeys) -> Result<u32, PennelError> {
         self.claim_library()?;
-        self.ensure_meeting_inactive(&id)?;
+        let _edit = self.edit_meeting(&id)?;
         let store = self.meeting_store();
         let settings = self.settings();
         let mut segments = store.read_transcript(&id);
@@ -949,7 +958,7 @@ impl PennelEngine {
         const SUMMARY_TIMEOUT_SECS: u64 = 180;
 
         self.claim_library()?;
-        self.ensure_meeting_inactive(&id)?;
+        let _edit = self.edit_meeting(&id)?;
 
         let store = self.meeting_store();
         let info = store.info(&id).ok_or(PennelError::NotFound)?;
@@ -1116,6 +1125,7 @@ impl PennelEngine {
         attendees: Vec<String>,
     ) -> Result<(), PennelError> {
         self.claim_library()?;
+        let _edit = self.edit_meeting(&id)?;
         let store = self.meeting_store();
         store.info(&id).ok_or(PennelError::NotFound)?;
         store.set_attendees(&id, &attendees)
@@ -1127,6 +1137,7 @@ impl PennelEngine {
 
     pub fn rename_speaker(&self, id: String, voice: u32, name: String) -> Result<(), PennelError> {
         self.claim_library()?;
+        let _edit = self.edit_meeting(&id)?;
         self.meeting_store().rename_speaker(&id, voice, &name)
     }
 
@@ -1803,6 +1814,8 @@ impl PennelEngine {
             cloud_session: Mutex::new(None),
             meeting_gate: Mutex::new(()),
             active_sessions: Mutex::new(Vec::new()),
+            meeting_jobs: Mutex::new(HashSet::new()),
+            retranscriptions: Mutex::new(HashMap::new()),
             library_lease: Mutex::new(library_lease),
             sync_gate: Mutex::new(()),
             sync_state: Mutex::new(None),
@@ -1830,6 +1843,11 @@ impl PennelEngine {
     }
 
     pub(crate) fn ensure_meeting_inactive(&self, id: &str) -> Result<(), PennelError> {
+        if self.meeting_jobs.lock().unwrap().contains(id) {
+            return Err(PennelError::storage(
+                "Deze meeting wordt verwerkt. Wacht tot de verwerking klaar is.",
+            ));
+        }
         if self
             .active_sessions
             .lock()
@@ -1843,6 +1861,29 @@ impl PennelEngine {
             });
         }
         Ok(())
+    }
+
+    pub(crate) fn edit_meeting(
+        &self,
+        id: &str,
+    ) -> Result<crate::retranscription::MeetingEditGuard<'_>, PennelError> {
+        let _gate = self.meeting_gate.lock().unwrap();
+        self.ensure_meeting_inactive(id)?;
+        self.meeting_jobs.lock().unwrap().insert(id.to_owned());
+        Ok(crate::retranscription::MeetingEditGuard {
+            jobs: &self.meeting_jobs,
+            id: id.to_owned(),
+        })
+    }
+
+    pub(crate) fn edit_voice_settings(&self) -> Result<std::sync::MutexGuard<'_, ()>, PennelError> {
+        let gate = self.meeting_gate.lock().unwrap();
+        if !self.meeting_jobs.lock().unwrap().is_empty() {
+            return Err(PennelError::storage(
+                "Deze meeting wordt verwerkt. Wacht tot de verwerking klaar is.",
+            ));
+        }
+        Ok(gate)
     }
 
     pub(crate) fn claim_library(&self) -> Result<(), PennelError> {

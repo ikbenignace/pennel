@@ -308,6 +308,28 @@ export interface MeetingDetail {
   dir: string;
   attendees: string[];
   audio_tracks: { speaker: Speaker; available: boolean }[];
+  summary_outdated: boolean;
+  retranscription_plan: MeetingRetranscriptionPlan;
+  retranscription_status: MeetingRetranscriptionStatus | null;
+}
+
+export interface MeetingRetranscriptionPlan {
+  recognition: NonNullable<MeetingStatus["recognition"]>;
+  available: boolean;
+  reason: string | null;
+}
+
+export interface MeetingRetranscriptionStatus {
+  running: boolean;
+  recognition: NonNullable<MeetingStatus["recognition"]>;
+  progress: {
+    phase: "decoding" | "transcribing" | "speakers" | "saving" | "completed" | "failed";
+    speaker: Speaker | null;
+    completed: number;
+    total: number;
+  };
+  error: string | null;
+  warning: string | null;
 }
 
 export interface MeetingTemplate {
@@ -559,6 +581,7 @@ export const api = {
   summarizeMeeting: (id: string, templateId: string) =>
     invoke<string>("summarize_meeting", { id, templateId }),
   retranscribeMeeting: (id: string) => invoke<number>("retranscribe_meeting", { id }),
+  retranscribeMeetingAudio: (id: string) => invoke<number>("retranscribe_meeting_audio", { id }),
   saveMeetingNotes: (id: string, text: string) => invoke<void>("save_meeting_notes", { id, text }),
   setMeetingAttendees: (id: string, attendees: string[]) => invoke<void>("set_meeting_attendees", { id, attendees }),
   renameSpeaker: (id: string, voice: number, name: string) => invoke<void>("rename_speaker", { id, voice, name }),

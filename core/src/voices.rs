@@ -76,6 +76,8 @@ pub struct MeetingVoiceprint {
 struct MeetingFile {
     model: String,
     voices: Vec<MeetingVoiceprint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transcript_hash: Option<String>,
 }
 
 pub struct VoiceStore {
@@ -268,11 +270,22 @@ impl VoiceStore {
         self.save(&file)
     }
 
-    pub fn meeting_voiceprints(&self, meeting: &str) -> Vec<MeetingVoiceprint> {
+    pub fn meeting_voiceprints(
+        &self,
+        meeting: &str,
+        transcript_hash: Option<&str>,
+    ) -> Vec<MeetingVoiceprint> {
         std::fs::read_to_string(self.meeting_path(meeting))
             .ok()
             .and_then(|json| serde_json::from_str::<MeetingFile>(&json).ok())
             .filter(|file| file.model == EMBEDDING_ID)
+            .filter(|file| {
+                transcript_hash.is_none_or(|expected| {
+                    file.transcript_hash
+                        .as_deref()
+                        .is_none_or(|actual| actual == expected)
+                })
+            })
             .map(|file| file.voices)
             .unwrap_or_default()
     }
@@ -281,6 +294,7 @@ impl VoiceStore {
         &self,
         meeting: &str,
         voices: Vec<MeetingVoiceprint>,
+        transcript_hash: Option<&str>,
     ) -> Result<(), PennelError> {
         let path = self.meeting_path(meeting);
         if voices.is_empty() {
@@ -291,6 +305,7 @@ impl VoiceStore {
         let file = MeetingFile {
             model: EMBEDDING_ID.into(),
             voices,
+            transcript_hash: transcript_hash.map(str::to_owned),
         };
         durable_write(
             &path,
@@ -392,16 +407,45 @@ mod tests {
             known_id: None,
         }];
         store
-            .set_meeting_voiceprints("2026-10-26 Overleg", voices.clone())
+            .set_meeting_voiceprints("2026-10-26 Overleg", voices.clone(), None)
             .unwrap();
-        assert_eq!(store.meeting_voiceprints("2026-10-26 Overleg"), voices);
+        assert_eq!(
+            store.meeting_voiceprints("2026-10-26 Overleg", None),
+            voices
+        );
         let names: Vec<String> = std::fs::read_dir(dir.path().join("voices/meetings"))
             .unwrap()
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         assert!(names.iter().all(|n| !n.contains("Overleg")));
         store.forget_meeting("2026-10-26 Overleg").unwrap();
-        assert!(store.meeting_voiceprints("2026-10-26 Overleg").is_empty());
+        assert!(
+            store
+                .meeting_voiceprints("2026-10-26 Overleg", None)
+                .is_empty()
+        );
         store.forget_meeting("never").unwrap();
+    }
+
+    #[test]
+    fn meeting_voiceprints_are_rejected_for_a_different_transcript() {
+        let (_dir, store) = store();
+        let voices = vec![MeetingVoiceprint {
+            voice: 1,
+            embedding: vec![1.0, 0.0],
+            known_id: None,
+        }];
+        store
+            .set_meeting_voiceprints("meeting", voices.clone(), Some("original"))
+            .unwrap();
+        assert_eq!(
+            store.meeting_voiceprints("meeting", Some("original")),
+            voices
+        );
+        assert!(
+            store
+                .meeting_voiceprints("meeting", Some("replacement"))
+                .is_empty()
+        );
     }
 }

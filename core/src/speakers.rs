@@ -207,6 +207,7 @@ impl PennelEngine {
     }
 
     pub fn forget_voice_profile(&self) -> Result<(), PennelError> {
+        let _edit = self.edit_voice_settings()?;
         self.voice_store().forget_my_voiceprint()
     }
 
@@ -219,11 +220,13 @@ impl PennelEngine {
     }
 
     pub fn forget_known_voice(&self, id: String) -> Result<(), PennelError> {
+        let _edit = self.edit_voice_settings()?;
         self.voice_store().forget(&id)
     }
 
     /// Removes the user's voice, every remembered voice and every meeting voiceprint.
     pub fn forget_all_voices(&self) -> Result<(), PennelError> {
+        let _edit = self.edit_voice_settings()?;
         match std::fs::remove_dir_all(self.data_dir().join("voices")) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
                 Err(PennelError::storage(error))
@@ -242,7 +245,7 @@ impl PennelEngine {
         system: Option<Vec<f32>>,
     ) -> Result<SpeakerRecognition, PennelError> {
         self.claim_library()?;
-        self.ensure_meeting_inactive(&id)?;
+        let _edit = self.edit_meeting(&id)?;
         let store = self.meeting_store();
         store.info(&id).ok_or(PennelError::NotFound)?;
         if store.unparsed_transcript_lines(&id) > 0 {
@@ -309,7 +312,7 @@ impl PennelEngine {
                 })
             })
             .collect();
-        voices.set_meeting_voiceprints(&key, prints)?;
+        voices.set_meeting_voiceprints(&key, prints, Some(&store.transcript_fingerprint(&id)?))?;
         Ok(SpeakerRecognition {
             voices: applied.voices.len() as u32,
             named: names.len() as u32,
@@ -321,9 +324,10 @@ impl PennelEngine {
     pub fn meeting_voices(&self, id: String) -> Vec<MeetingVoice> {
         let store = self.meeting_store();
         let names = store.speaker_names(&id);
-        let prints = self
-            .voice_store()
-            .meeting_voiceprints(&self.meeting_key(&id));
+        let prints = self.voice_store().meeting_voiceprints(
+            &self.meeting_key(&id),
+            Some(&store.transcript_fingerprint(&id).unwrap_or_default()),
+        );
         let known: Vec<String> = self.known_voices().into_iter().map(|v| v.id).collect();
         let mut voices: Vec<u32> = store
             .read_transcript(&id)
@@ -360,14 +364,15 @@ impl PennelEngine {
         name: String,
     ) -> Result<(), PennelError> {
         self.claim_library()?;
-        self.ensure_meeting_inactive(&id)?;
+        let _edit = self.edit_meeting(&id)?;
         if !VOICES.contains(&voice) {
             return Err(PennelError::NotFound);
         }
         let _gate = RECOGNITION.lock().unwrap_or_else(|e| e.into_inner());
         let voices = self.voice_store();
         let key = self.meeting_key(&id);
-        let mut prints = voices.meeting_voiceprints(&key);
+        let transcript_hash = self.meeting_store().transcript_fingerprint(&id)?;
+        let mut prints = voices.meeting_voiceprints(&key, Some(&transcript_hash));
         let print = prints
             .iter_mut()
             .find(|p| p.voice == voice)
@@ -386,7 +391,7 @@ impl PennelEngine {
             print.known_id = Some(voices.remember(&name, &print.embedding)?);
         }
         self.meeting_store().rename_speaker(&id, voice, &name)?;
-        voices.set_meeting_voiceprints(&key, prints)
+        voices.set_meeting_voiceprints(&key, prints, Some(&transcript_hash))
     }
 }
 
