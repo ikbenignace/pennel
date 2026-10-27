@@ -1,6 +1,7 @@
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Local};
@@ -9,6 +10,80 @@ use crate::error::PennelError;
 
 const TITLE_MAX: usize = 60;
 const FAILED_MARK: &str = "_(transcriptie mislukt)_";
+const REPLACEMENT_JOURNAL: &str = ".pennel-retranscription-pending.json";
+const TRANSCRIPT_BACKUPS: &str = ".pennel-transcript-backups";
+// Readers must see matching text, speaker names and recovery chunks during the short commit.
+static REPLACEMENT_GATE: Mutex<()> = Mutex::new(());
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PendingReplacement {
+    version: u32,
+    backup: String,
+    had_failed: bool,
+}
+
+impl PendingReplacement {
+    fn backup_path(&self, root: &Path) -> Result<PathBuf, PennelError> {
+        if self.version != 1
+            || uuid::Uuid::parse_str(&self.backup).is_err()
+            || Path::new(&self.backup).components().count() != 1
+        {
+            return Err(PennelError::storage(
+                "De herstelmap is geen geldige lokale map.",
+            ));
+        }
+        let backups = root.join(TRANSCRIPT_BACKUPS);
+        let backup = backups.join(&self.backup);
+        for path in [&backups, &backup] {
+            let entry = fs::symlink_metadata(path).map_err(PennelError::storage)?;
+            if !entry.is_dir() || entry.file_type().is_symlink() {
+                return Err(PennelError::storage(
+                    "De herstelmap is geen geldige lokale map.",
+                ));
+            }
+        }
+        Ok(backup)
+    }
+}
+
+fn sync_directory(path: &Path) -> Result<(), PennelError> {
+    #[cfg(unix)]
+    fs::File::open(path)
+        .and_then(|directory| directory.sync_all())
+        .map_err(PennelError::storage)?;
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
+}
+
+fn clear_replacement_journal(root: &Path) -> Result<(), PennelError> {
+    fs::remove_file(root.join(REPLACEMENT_JOURNAL)).map_err(PennelError::storage)?;
+    sync_directory(root)
+}
+
+fn rollback_replacement(root: &Path, pending: &PendingReplacement) -> Result<(), PennelError> {
+    let backup = pending.backup_path(root)?;
+    // Read every authoritative backup before changing any live file.
+    let metadata = fs::read(backup.join("meeting.md")).map_err(PennelError::storage)?;
+    let transcript = fs::read(backup.join("transcript.md")).map_err(PennelError::storage)?;
+    durable_write(&root.join("meeting.md"), &metadata)?;
+    durable_write(&root.join("transcript.md"), &transcript)?;
+    if pending.had_failed {
+        let saved = backup.join("failed");
+        let live = root.join("failed");
+        if saved.is_dir() {
+            // An interrupted rollback may already have moved the original folder back.
+            fs::rename(&saved, &live).map_err(PennelError::storage)?;
+            sync_directory(&backup)?;
+            sync_directory(root)?;
+        } else if !live.is_dir() {
+            return Err(PennelError::storage(
+                "Herstellen kon niet worden afgerond. De vorige transcriptie staat in de lokale herstelmap.",
+            ));
+        }
+    }
+    clear_replacement_journal(root)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -386,11 +461,260 @@ impl MeetingStore {
     }
 
     fn read_file(&self, id: &str, name: &str) -> String {
+        let _gate = REPLACEMENT_GATE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         std::fs::read_to_string(self.dir_of(id).join(name)).unwrap_or_default()
     }
 
     pub fn write_notes(&self, id: &str, notes: &str) -> Result<(), PennelError> {
         self.write_file(id, "notes.md", notes)
+    }
+
+    pub fn summary_outdated(&self, id: &str) -> bool {
+        self.frontmatter(id).is_some_and(|(front, body)| {
+            !body.trim().is_empty()
+                && front
+                    .extra
+                    .iter()
+                    .any(|line| line.trim() == "pennel_summary_outdated: true")
+        })
+    }
+
+    pub(crate) fn transcript_tracks(&self, id: &str) -> Result<Option<Vec<Speaker>>, PennelError> {
+        let (front, _) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
+        let Some(value) = front
+            .extra
+            .iter()
+            .find_map(|line| line.strip_prefix("pennel_transcript_tracks:"))
+        else {
+            return Ok(None);
+        };
+        value
+            .trim()
+            .split(',')
+            .map(|track| match track.trim() {
+                "microphone" => Ok(Speaker::Me),
+                "system" => Ok(Speaker::Others),
+                _ => Err(PennelError::storage(
+                    "De oorspronkelijke opnamesporen konden niet worden vastgesteld. Voor oudere transcripties met sprekerlabels zijn beide sporen nodig.",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(Some)
+    }
+
+    /// Keep physical sources before diarization can turn a microphone line into "Anderen".
+    pub(crate) fn preserve_transcript_tracks(&self, id: &str) -> Result<(), PennelError> {
+        if self.transcript_tracks(id)?.is_some() {
+            return Ok(());
+        }
+        let segments = self.read_transcript(id);
+        // A legacy diarized transcript no longer proves which physical channels it came from.
+        if segments.is_empty() || segments.iter().any(|segment| segment.voice.is_some()) {
+            return Ok(());
+        }
+        let tracks: Vec<_> = [Speaker::Me, Speaker::Others]
+            .into_iter()
+            .filter(|speaker| segments.iter().any(|segment| segment.speaker == *speaker))
+            .collect();
+        let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
+        set_transcript_tracks(&mut front, &tracks);
+        self.write_file(id, "meeting.md", &render_meeting(&front, &body))
+    }
+
+    pub(crate) fn transcript_fingerprint(&self, id: &str) -> Result<String, PennelError> {
+        let _gate = REPLACEMENT_GATE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        use sha2::{Digest, Sha256};
+        let bytes = match fs::read(self.dir_of(id).join("transcript.md")) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(error) => return Err(PennelError::storage(error)),
+        };
+        Ok(crate::models::hex(&Sha256::digest(&bytes)))
+    }
+
+    pub(crate) fn write_dictation_intervals(
+        &self,
+        id: &str,
+        intervals: &[(u64, u64)],
+    ) -> Result<(), PennelError> {
+        let bytes = serde_json::to_vec(intervals).map_err(PennelError::storage)?;
+        durable_write(
+            &self.dir_of(id).join(".pennel-dictation-intervals.json"),
+            &bytes,
+        )
+    }
+
+    pub(crate) fn dictation_intervals(&self, id: &str) -> Result<Vec<(u64, u64)>, PennelError> {
+        match fs::read(self.dir_of(id).join(".pennel-dictation-intervals.json")) {
+            Ok(bytes) => {
+                let intervals: Vec<(u64, u64)> = serde_json::from_slice(&bytes).map_err(|_| {
+                    PennelError::storage(
+                        "De opgeslagen dicteerintervallen konden niet worden gelezen.",
+                    )
+                })?;
+                if intervals.iter().any(|(start, end)| end < start) {
+                    return Err(PennelError::storage(
+                        "De opgeslagen dicteerintervallen zijn ongeldig.",
+                    ));
+                }
+                Ok(intervals)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(error) => Err(PennelError::storage(error)),
+        }
+    }
+
+    pub(crate) fn replace_retranscribed(
+        &self,
+        id: &str,
+        segments: &[Segment],
+        names: &[SpeakerName],
+        tracks: &[Speaker],
+    ) -> Result<PathBuf, PennelError> {
+        let _gate = REPLACEMENT_GATE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let root = self.dir_of(id);
+        if root.join(REPLACEMENT_JOURNAL).exists() {
+            return Err(PennelError::storage(
+                "Herstellen kon niet worden afgerond. De vorige transcriptie staat in de lokale herstelmap.",
+            ));
+        }
+        let original = fs::read(root.join("transcript.md"))
+            .or_else(|error| {
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    Ok(Vec::new())
+                } else {
+                    Err(error)
+                }
+            })
+            .map_err(PennelError::storage)?;
+        let metadata = fs::read(root.join("meeting.md")).map_err(PennelError::storage)?;
+        let (mut front, body) =
+            parse_meeting(&String::from_utf8_lossy(&metadata)).ok_or(PennelError::NotFound)?;
+        set_names(&mut front, names);
+        set_transcript_tracks(&mut front, tracks);
+        front
+            .extra
+            .retain(|line| !line.starts_with("pennel_summary_outdated:"));
+        if !body.trim().is_empty() {
+            front.extra.push("pennel_summary_outdated: true".into());
+        }
+        let replacement_metadata = render_meeting(&front, &body);
+        let mut sorted = segments.to_vec();
+        sorted.sort_by_key(|segment| segment.start_ms);
+        let replacement_transcript = render_transcript(&sorted);
+        let backups = root.join(TRANSCRIPT_BACKUPS);
+        if fs::symlink_metadata(&backups).is_ok_and(|entry| entry.file_type().is_symlink()) {
+            return Err(PennelError::storage(
+                "De herstelmap is geen geldige lokale map.",
+            ));
+        }
+        let pending = PendingReplacement {
+            version: 1,
+            backup: uuid::Uuid::now_v7().to_string(),
+            had_failed: root.join("failed").is_dir(),
+        };
+        let backup = backups.join(&pending.backup);
+        fs::create_dir_all(&backup).map_err(PennelError::storage)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&backups, fs::Permissions::from_mode(0o700))
+                .map_err(PennelError::storage)?;
+            fs::set_permissions(&backup, fs::Permissions::from_mode(0o700))
+                .map_err(PennelError::storage)?;
+        }
+        durable_write(&backup.join("transcript.md"), &original)?;
+        durable_write(&backup.join("meeting.md"), &metadata)?;
+        let journal = serde_json::to_vec(&pending).map_err(PennelError::storage)?;
+        durable_write(&backup.join("replacement.json"), &journal)?;
+        sync_directory(&backups)?;
+        sync_directory(&root)?;
+        // This must be durable before moving recovery audio or changing names/text.
+        durable_write(&root.join(REPLACEMENT_JOURNAL), &journal)?;
+        let failed = root.join("failed");
+        let result = (|| {
+            if pending.had_failed {
+                fs::rename(&failed, backup.join("failed")).map_err(PennelError::storage)?;
+                sync_directory(&backup)?;
+                sync_directory(&root)?;
+            }
+            durable_write(&root.join("meeting.md"), replacement_metadata.as_bytes())?;
+            durable_write(
+                &root.join("transcript.md"),
+                replacement_transcript.as_bytes(),
+            )
+        })();
+        if let Err(error) = result {
+            if rollback_replacement(&root, &pending).is_err() {
+                return Err(PennelError::storage(
+                    "Herstellen kon niet worden afgerond. De vorige transcriptie staat in de lokale herstelmap.",
+                ));
+            }
+            return Err(error);
+        }
+        Ok(backup)
+    }
+
+    pub(crate) fn restore_retranscription(
+        &self,
+        id: &str,
+        backup: &Path,
+    ) -> Result<(), PennelError> {
+        let _gate = REPLACEMENT_GATE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let root = self.dir_of(id);
+        let journal = fs::read(backup.join("replacement.json")).map_err(PennelError::storage)?;
+        let pending: PendingReplacement =
+            serde_json::from_slice(&journal).map_err(PennelError::storage)?;
+        if pending.backup_path(&root)? != backup {
+            return Err(PennelError::storage(
+                "De herstelmap is geen geldige lokale map.",
+            ));
+        }
+        durable_write(&root.join(REPLACEMENT_JOURNAL), &journal)?;
+        rollback_replacement(&root, &pending)
+    }
+
+    pub(crate) fn finish_retranscription(&self, id: &str) -> Result<(), PennelError> {
+        let _gate = REPLACEMENT_GATE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        clear_replacement_journal(&self.dir_of(id))
+    }
+
+    /// Called only while acquiring the library lease, before reads, indexing or sync.
+    pub(crate) fn recover_retranscriptions(&self) -> Result<(), PennelError> {
+        let _gate = REPLACEMENT_GATE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let entries = match fs::read_dir(&self.dir) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(PennelError::storage(error)),
+        };
+        for entry in entries {
+            let entry = entry.map_err(PennelError::storage)?;
+            if !entry.file_type().map_err(PennelError::storage)?.is_dir() {
+                continue;
+            }
+            let root = entry.path();
+            let journal = match fs::read(root.join(REPLACEMENT_JOURNAL)) {
+                Ok(bytes) => bytes,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(PennelError::storage(error)),
+            };
+            let pending: PendingReplacement =
+                serde_json::from_slice(&journal).map_err(PennelError::storage)?;
+            rollback_replacement(&root, &pending)?;
+        }
+        Ok(())
     }
 
     pub fn read_notes(&self, id: &str) -> String {
@@ -417,24 +741,7 @@ impl MeetingStore {
             }
         }
         sorted.sort_by_key(|s| s.start_ms);
-        let body: String = sorted
-            .iter()
-            .map(|s| {
-                let text = if s.failed {
-                    FAILED_MARK.to_owned()
-                } else {
-                    s.text.split_whitespace().collect::<Vec<_>>().join(" ")
-                };
-                let label = match (s.speaker, s.voice) {
-                    (Speaker::Others, Some(voice)) => format!("Anderen {voice}"),
-                    _ => s.speaker.label().to_owned(),
-                };
-                format!(
-                    "[{}] **{label}:** {text}\n",
-                    transcript_timestamp(s.start_ms)
-                )
-            })
-            .collect();
+        let body = render_transcript(&sorted);
         self.write_file(id, "transcript.md", &body)
     }
 
@@ -447,8 +754,11 @@ impl MeetingStore {
     }
 
     pub fn read_transcript(&self, id: &str) -> Vec<Segment> {
-        let mut segments: Vec<_> = self
-            .read_file(id, "transcript.md")
+        let _gate = REPLACEMENT_GATE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let mut segments: Vec<_> = fs::read_to_string(self.dir_of(id).join("transcript.md"))
+            .unwrap_or_default()
             .lines()
             .filter_map(parse_segment)
             .collect();
@@ -541,6 +851,9 @@ impl MeetingStore {
         let (mut front, _) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
         front.duration_min = duration_min;
         front.template = template.to_owned();
+        front
+            .extra
+            .retain(|line| !line.starts_with("pennel_summary_outdated:"));
         self.write_file(id, "meeting.md", &render_meeting(&front, body))
     }
 
@@ -621,26 +934,8 @@ impl MeetingStore {
 
     /// Replaces every voice name; empty names and voices outside [`VOICES`] are dropped.
     pub fn set_speaker_names(&self, id: &str, names: &[SpeakerName]) -> Result<(), PennelError> {
-        let mut names: Vec<SpeakerName> = names
-            .iter()
-            .filter(|n| VOICES.contains(&n.voice))
-            .map(|n| SpeakerName {
-                voice: n.voice,
-                name: sanitize_speaker(&n.name),
-            })
-            .filter(|n| !n.name.is_empty())
-            .collect();
-        names.sort_by_key(|n| n.voice);
-        names.dedup_by_key(|n| n.voice);
         let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
-        front.extra.retain(|line| !line.starts_with("speakers:"));
-        if !names.is_empty() {
-            let list: Vec<String> = names
-                .iter()
-                .map(|n| format!("{}={}", n.voice, n.name))
-                .collect();
-            front.extra.push(format!("speakers: {}", list.join("; ")));
-        }
+        set_names(&mut front, names);
         self.write_file(id, "meeting.md", &render_meeting(&front, &body))
     }
 
@@ -747,6 +1042,67 @@ impl MeetingStore {
             }
         }
         removed
+    }
+}
+
+fn render_transcript(segments: &[Segment]) -> String {
+    segments
+        .iter()
+        .map(|s| {
+            let text = if s.failed {
+                FAILED_MARK.to_owned()
+            } else {
+                s.text.split_whitespace().collect::<Vec<_>>().join(" ")
+            };
+            let label = match (s.speaker, s.voice) {
+                (Speaker::Others, Some(voice)) => format!("Anderen {voice}"),
+                _ => s.speaker.label().to_owned(),
+            };
+            format!(
+                "[{}] **{label}:** {text}\n",
+                transcript_timestamp(s.start_ms)
+            )
+        })
+        .collect()
+}
+
+fn set_names(front: &mut Frontmatter, names: &[SpeakerName]) {
+    let mut names: Vec<SpeakerName> = names
+        .iter()
+        .filter(|n| VOICES.contains(&n.voice))
+        .map(|n| SpeakerName {
+            voice: n.voice,
+            name: sanitize_speaker(&n.name),
+        })
+        .filter(|n| !n.name.is_empty())
+        .collect();
+    names.sort_by_key(|n| n.voice);
+    names.dedup_by_key(|n| n.voice);
+    front.extra.retain(|line| !line.starts_with("speakers:"));
+    if !names.is_empty() {
+        let list: Vec<String> = names
+            .iter()
+            .map(|n| format!("{}={}", n.voice, n.name))
+            .collect();
+        front.extra.push(format!("speakers: {}", list.join("; ")));
+    }
+}
+
+fn set_transcript_tracks(front: &mut Frontmatter, tracks: &[Speaker]) {
+    front
+        .extra
+        .retain(|line| !line.starts_with("pennel_transcript_tracks:"));
+    let sources: Vec<_> = tracks
+        .iter()
+        .map(|speaker| match speaker {
+            Speaker::Me => "microphone",
+            Speaker::Others => "system",
+        })
+        .collect();
+    if !sources.is_empty() {
+        front
+            .extra
+            .push(format!("pennel_transcript_tracks: {}", sources.join(",")));
     }
 }
 

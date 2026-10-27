@@ -56,6 +56,14 @@ Two consecutive failed recognition chunks pause further recognition requests for
 
 Speech provider, model, language, dictionary and credentials are frozen when a meeting starts. The live screen reports the frozen, nonsecret recognition configuration. Later settings edits apply to the next recording; summaries and questions use the model chosen when requested. Cloud account changes are blocked during an active meeting, while normal token refresh for the same account remains available.
 
+Finished meetings expose **Opnieuw transcriberen vanaf opname** / **Transcribe again from recording**, separately from retrying failed chunks. Confirmation shows the selected local meeting model and language. Audio is decoded one track at a time, retaining its original silence and timeline; known local dictation exclusions are masked on both tracks. Recognition settings and dictionary are frozen for the job. This action never uses cloud speech recognition or requests a new summary, and it does not switch the selected model.
+
+The old transcript remains available while recognition runs. A successful replacement keeps a private, versioned copy of the previous transcript, speaker names, summary metadata and any failed-chunk audio under `.pennel-transcript-backups`. A durable transaction journal restores that version after an interrupted save, before the next library open, index or sync. Notes and recordings stay in place. The retained summary is marked outdated. Existing speaker labels are rebuilt with downloaded local speaker models when available; names transfer only through voice matching, otherwise the physical microphone/computer roles remain. Conflicting edits to the same meeting are blocked while progress is shown.
+
+Speaker recognition now records physical transcript sources before relabelling a shared microphone. Older diarized transcripts without source metadata require both saved tracks: a voice labelled “Anderen” alone cannot establish whether it came from the microphone or computer. Missing required recordings, models, or unreadable exclusion metadata prevent replacement. Legacy recordings without saved dictation intervals cannot reconstruct past exclusions.
+
+The timestamp regression and replacement/error recovery paths are covered by automated tests. Real Parakeet versus Whisper Large v3 Turbo quality comparison and recording/retranscription on an actual Mac remain acceptance work; model weights were unavailable in the implementation environment. The existing Linux Mac-AAC compatibility decode failure is tracked separately from the core timestamp fix.
+
 **Dicteren** opens the global workflow. Click a text field in another app, hold the configured shortcut and release to paste there. The main Pennel window does not need to be open. **Open dicteerpad** is an explicit secondary action; its existing local-draft and optional external-paste behavior remain separate from global dictation.
 
 Global dictation freezes an opaque external target when recording stops, before asynchronous transcription and cleanup. Provider, language, mode and dictionary are frozen at recording start; app-specific style context comes from the same stop target as delivery. A changed or unavailable target is never replaced with another recipient. The completed result remains in History with a recovery message. Mac additionally checks the captured Accessibility text-field identity; Windows/X11 currently guard the app, window and process-launch identity rather than exact field identity. Wayland retains its explicit copy-only behavior.
@@ -183,6 +191,16 @@ Dictation during a meeting suppresses the microphone's transcript input and mark
 Keys remain in Keychain, Windows Credential Manager or Secret Service. No API key is returned in an application snapshot. Logs contain timings, lengths and errors rather than dictated text, meeting content or browser titles. Chosen remote providers receive the audio/text needed for the selected task; local mode does not add a cloud account or telemetry.
 
 ## Data, preview and upgrades
+
+### Re-transcribe saved meeting audio
+
+In a finished meeting's **Transcript** tab, **Retranscribe recording** / **Opnieuw transcriberen vanaf opname** rebuilds the complete transcript from the saved microphone and computer-audio tracks. This is separate from **Retry**, which only retries failed chunks. Choose and download a local speech model under Models → Meetings first; the confirmation shows the model and speech language. The model, language and dictionary are frozen when processing starts, and audio is never sent to a transcription service by this action.
+
+Tracks are decoded sequentially at 16 kHz, preserving leading silence and their shared timeline. Missing required tracks, decoding errors, model errors and persistence errors leave the previous transcript available. Processing runs outside the webview and exposes per-track progress; competing edits to the same meeting are refused. Notes and audio are retained. Previous transcript, meeting metadata and remaining recovery chunks are kept in a private versioned `.pennel-transcript-backups` folder inside the meeting; this folder is not indexed or synced.
+
+After a successful replacement the existing summary is marked outdated; regenerating it remains a separate explicit action. Previously enabled speaker labels are rebuilt using available local speaker models, with names transferred only through voice matching. If those models are unavailable, the transcript keeps the microphone/computer track labels and offers a speaker-model explanation. Voiceprint caches are bound to the transcript version so old voice numbers cannot silently refer to a different voice after replacement.
+
+Known dictation exclusion intervals are retained locally and silenced before reprocessing. Older recordings without that metadata still contain their original captured audio; historical exclusion intervals cannot be reconstructed. Continuous timestamped audio treats rounding differences below one millisecond as contiguous samples, preserving the normal 15–30-second recognition windows instead of flushing tiny fragments.
 
 | Build | Data directory | Credentials |
 | --- | --- | --- |

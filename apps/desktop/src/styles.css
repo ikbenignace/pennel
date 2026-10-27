@@ -238,7 +238,7 @@ mark { background: none; color: inherit; font-weight: 600; }
 .own-notes { margin-top: 20px; }
 .own-notes > summary { margin-bottom: 8px; color: var(--muted); font-size: var(--font-label); }
 .own-notes textarea { min-height: 120px; }
-.transcript-tools { display: flex; align-items: center; gap: 12px; min-height: 20px; margin-bottom: 12px; }
+.transcript-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-height: 20px; margin-bottom: 12px; }
 .transcript-tools > span { flex: 1; }
 .transcript { font-size: var(--font-content); line-height: 1.5; }
 .transcript-line { display: grid; grid-template-columns: 52px 84px minmax(0, 1fr); align-items: baseline; gap: 10px; margin: 0 -6px 8px; padding: 2px 6px; border-radius: 6px; }

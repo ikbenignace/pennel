@@ -33,3 +33,14 @@ test("only known UI message fields translate; identical user words and machine s
   assert.equal(getInterfaceLanguage(), "en");
   assert.deepEqual(localizeUiResponse("download-done", { error: "cancelled" }), { error: "cancelled" });
 });
+
+test("meeting retranscription metadata translates without rewriting meeting content", () => {
+  setInterfaceLanguage("en");
+  const text="Er is geen bewaarde audio om opnieuw te transcriberen.";
+  const value={ notes:text, transcript:[{text}], retranscription_plan:{available:false,reason:text}, retranscription_status:{running:false,error:text,warning:null} };
+  const result=localizeUiResponse("meeting_detail",value);
+  assert.equal(result.retranscription_plan.reason,"There is no saved audio to transcribe again.");
+  assert.equal(result.retranscription_status.error,"There is no saved audio to transcribe again.");
+  assert.equal(result.notes,text);
+  assert.equal(result.transcript[0].text,text);
+});

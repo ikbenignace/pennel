@@ -1,6 +1,6 @@
 import { bindLocalization, l, t, formatNumber, localizeBackendText, type UiText } from "../i18n.ts";
 import { meetingDate as dateLabel, speakerLabel, speakerUiLabel, sourceSpeakerLabel, templateUiLabel } from "../meeting-labels.ts";
-import { api, fixtureClient, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type MeetingVoice, type Passage, type Segment, type SpeakerRecognition } from "../api";
+import { api, fixtureClient, listen, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type MeetingVoice, type Passage, type Segment, type SpeakerRecognition, type MeetingRetranscriptionStatus } from "../api";
 import { SerialQueue, orFallback, persistAll } from "../async";
 import { askText, askTextWithSwitch, confirmDialog, errorText, formatClock, h, markdown, menuButton, select } from "../dom";
 import { recognitionSummary } from "../speaker-state";
@@ -11,7 +11,8 @@ import { languageModelConfigured } from "../presentation";
 import { VisibilityPoll } from "../window-lifecycle";
 import { sourceBlocks, sourceRange, transcriptSourceBlocks } from "../source-navigation";
 import { processingSummary } from "../processing-state";
-import { meetingProcessingSummary, processingLabel, retainedMeetingFailure } from "../recording-processing";
+import { frozenRecognitionLabel, meetingProcessingSummary, processingLabel, retainedMeetingFailure } from "../recording-processing";
+import { retranscriptionControl, retranscriptionPercent } from "../meeting-retranscription";
 import { summaryControl } from "../voice-flow-state";
 
 const notesQueue = new SerialQueue();
@@ -347,6 +348,18 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     }
   }
   const panelId = `meeting-panel-${++panelNumber}`;
+  let retranscriptionStatus = detail.retranscription_status;
+  let ownRetranscription = false;
+  const reprocess = h("button", { class: "btn" }, l("meetings.retranscribe_audio"));
+  const reprocessReason = h("p", { class: "help meeting-control-reason" });
+  const refreshRetranscription = () => {
+    const control = retranscriptionControl(detail.retranscription_plan, retranscriptionStatus, runtime.busy, current.working);
+    reprocess.disabled = control.disabled;
+    reprocess.title = control.reason ? localizeBackendText(control.reason) : "";
+    reprocessReason.textContent = control.reason ? localizeBackendText(control.reason) : "";
+    reprocessReason.hidden = !control.reason;
+    notes.input.disabled = active || !!retranscriptionStatus?.running;
+  };
   const tabs = h("div", { class: "segmented detail-tabs", role: "tablist", "aria-label": l("meetings.default_title") });
   const panel = h("section", { id: panelId, class: "meeting-panel", role: "tabpanel", tabindex: 0 });
   let renderedTab = current.tab;
@@ -377,7 +390,8 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
       bindLocalization(playbackReason, () => { playbackReason.textContent = audioReason(); });
       const stopAudio = h("button", { class: "text-button", disabled: !!audioReason(), title: audioReason(), onclick: () => api.stopAudio() }, l("meetings.stop_audio"));
       bindLocalization(stopAudio, () => { stopAudio.title = audioReason() ?? ""; });
-      panel.replaceChildren(h("div", { class: "transcript-tools" }, playbackReason, stopAudio),
+      refreshRetranscription();
+      panel.replaceChildren(h("div", { class: "transcript-tools" }, playbackReason, stopAudio, reprocess), reprocessReason,
         ...remembered.length ? [h("p", { class: "help remembered-voices" }, l("meetings.remembered_voices", { names: remembered.join(", ") }))] : [],
         transcript(ctx, detail.transcript, detail, id, voices));
       return;
@@ -402,7 +416,22 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   }
   let sourceChanged = false;
   let recognizing = false;
-  const messageText = () => sourceChanged ? t("meetings.source_changed") : current.working ? t(recognizing ? "meetings.recognizing_speakers" : "meetings.working") : current.recognition ? recognitionSummary(current.recognition) : localizeBackendText(current.message);
+  const progressText = (status: MeetingRetranscriptionStatus) => {
+    const percent = retranscriptionPercent(status.progress);
+    const track = t(status.progress.speaker === "me" ? "meetings.retranscription_microphone" : "meetings.retranscription_computer");
+    if (status.progress.phase === "transcribing" && percent !== null) return t("meetings.retranscription_progress", { track, percent });
+    if (status.progress.phase === "speakers") return t("meetings.recognizing_speakers");
+    if (status.progress.phase === "saving") return t("meetings.retranscription_saving");
+    return t("meetings.retranscription_decoding");
+  };
+  const messageText = () => sourceChanged ? t("meetings.source_changed")
+    : retranscriptionStatus?.running ? progressText(retranscriptionStatus)
+    : current.working ? t(recognizing ? "meetings.recognizing_speakers" : "meetings.working")
+    : current.message ? localizeBackendText(current.message)
+    : current.recognition ? recognitionSummary(current.recognition)
+    : retranscriptionStatus?.error ? localizeBackendText(retranscriptionStatus.error)
+    : retranscriptionStatus?.warning ? localizeBackendText(retranscriptionStatus.warning)
+    : retranscriptionStatus?.progress.phase === "completed" ? t("meetings.retranscription_done") : "";
   const message = h("p", { class: "meeting-message help", role: "status" }, messageText());
   bindLocalization(message, () => { message.textContent = messageText(); });
   const regenerate = h("button", { class: "btn" });
@@ -413,7 +442,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   } }, l("meetings.set_up_summaries"));
   const summarySetup = h("div", { class: "meeting-setup meeting-summary-setup help", role: "status" }, setupReason, setupAction);
   const refreshSummaryControls = () => {
-    const control = summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working);
+    const control = summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working || !!retranscriptionStatus?.running);
     const reason = control.reason === "setup" ? t("meetings.summary_setup_help") : control.reason === "recording" ? t("meetings.wait_recording") : "";
     regenerate.disabled = control.disabled;
     regenerate.title = reason;
@@ -426,7 +455,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   bindLocalization(summarySetup, refreshSummaryControls);
   refreshSummaryControls();
   regenerate.addEventListener("click", async () => {
-    if (summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working).disabled) return;
+    if (summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working || !!retranscriptionStatus?.running).disabled) return;
     recognizing = false; current.recognition = undefined; current.working = true; refreshSummaryControls(); diarize.disabled = true; message.textContent = t("dictation.working");
     try { await notes.flush(); await api.summarizeMeeting(id, current.template); current.message = ""; }
     catch (error) { current.message = errorText(error); }
@@ -460,7 +489,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   ], "share-menu");
   const diarization = ctx.info.capabilities.diarization;
   const cloudRoute = ctx.info.settings.speaker_recognition === "cloud";
-  const speakerReason = () => runtime.busy || meetingInfo.duration_min <= 0 ? t("meetings.finish_first")
+  const speakerReason = () => retranscriptionStatus?.running ? t("meetings.working") : runtime.busy || meetingInfo.duration_min <= 0 ? t("meetings.finish_first")
     : diarization.status !== "available" ? diarization.reason ? localizeBackendText(diarization.reason) : t("meetings.speaker_recognition_unavailable")
     : !detail.audio_tracks.some((track) => track.available) ? t("meetings.no_saved_audio")
     : !detail.transcript.some((segment) => !segment.failed) ? t("meetings.empty_transcript")
@@ -479,6 +508,55 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const diarizeReason = h("p", { class: "help meeting-control-reason", hidden: true }, speakerReason());
   bindLocalization(diarizeReason, () => { diarizeReason.textContent = speakerReason(); });
   bindLocalization(diarize, () => { diarize.title = speakerReason() ?? t(cloudRoute ? "meetings.speaker_cloud_help" : "meetings.speaker_local_help"); });
+  reprocess.addEventListener("click", async () => {
+    if (retranscriptionControl(detail.retranscription_plan, retranscriptionStatus, runtime.busy, current.working).disabled) return;
+    try {
+      await notes.flush();
+      const fresh = await api.meetingDetail(id);
+      detail.retranscription_plan = fresh.retranscription_plan;
+      retranscriptionStatus = fresh.retranscription_status;
+      if (retranscriptionControl(detail.retranscription_plan, retranscriptionStatus, runtime.busy, current.working).disabled) { refreshRetranscription(); return; }
+      if (!await confirmDialog(l("meetings.retranscription_confirm_title"), l("meetings.retranscription_confirm", { recognition: frozenRecognitionLabel(detail.retranscription_plan.recognition) }), l("meetings.retranscribe_audio"))) return;
+      ownRetranscription = true; current.working = true; current.message = ""; current.recognition = undefined;
+      refreshRetranscription(); refreshSummaryControls(); diarize.disabled = true;
+      await api.retranscribeMeetingAudio(id);
+    } catch (error) { current.message = errorText(error); message.textContent = messageText(); }
+    finally {
+      if (ownRetranscription) {
+        ownRetranscription = false; current.working = false; rememberPosition(); ctx.rerender();
+      }
+    }
+  });
+  let disposed = false;
+  ctx.onDispose(() => { disposed = true; });
+  const applyRetranscriptionStatus = (status: MeetingRetranscriptionStatus | null) => {
+    if (disposed) return;
+    const previous = retranscriptionStatus;
+    retranscriptionStatus = status;
+    detail.retranscription_status = status;
+    refreshRetranscription(); refreshSummaryControls();
+    diarize.disabled = !!speakerReason() || current.working;
+    selected.disabled = runtime.busy || !!status?.running || current.working;
+    message.textContent = messageText();
+    if (!status?.running && status && previous !== status && !ownRetranscription) { rememberPosition(); ctx.rerender(); }
+  };
+  const subscription = listen<{ id: string; status: MeetingRetranscriptionStatus }>("meeting-retranscription-changed", (event) => {
+    if (event.payload.id === id) applyRetranscriptionStatus(event.payload.status);
+  });
+  ctx.onDispose(() => { void subscription.then((unsubscribe) => unsubscribe()).catch(ctx.report); });
+  const refreshRetranscriptionPlan = async () => {
+    if (disposed) return;
+    const fresh = await api.meetingDetail(id);
+    if (disposed) return;
+    detail.retranscription_plan = fresh.retranscription_plan;
+    if (JSON.stringify(fresh.retranscription_status) !== JSON.stringify(retranscriptionStatus)) applyRetranscriptionStatus(fresh.retranscription_status);
+    else refreshRetranscription();
+  };
+  void subscription.then(refreshRetranscriptionPlan).catch(ctx.report);
+  bindLocalization(reprocess, refreshRetranscription);
+  ctx.onInfoChange(() => { void refreshRetranscriptionPlan().catch(ctx.report); });
+  ctx.onFocusChange((focused) => { if (focused) void refreshRetranscriptionPlan().catch(ctx.report); });
+  refreshRetranscription();
   const footer = h("footer", { class: "meeting-footer" }, h("div", { class: "row" }, selected, regenerate, h("span", { class: "grow" }), copied, diarize, share,
     h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? l("meetings.show_finder") : l("meetings.open_folder"))), diarizeReason);
   const conflicts = ctx.info.settings.cloud_sync === true ? await orFallback(() => api.meetingConflictFiles(id), [], ctx.report) : [];
@@ -507,7 +585,9 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     h("header", { class: "meeting-header" }, h("div", { class: "grow" }, h("h1", {}, meetingInfo.title),
       metadata), tabs),
     runtime.id === id && runtime.recognition ? meetingProcessingNotice(ctx, () => runtime, true).element : null,
-    ...banners, runtime.id === id ? recoveryNotice(ctx, runtime) : null, summarySetup, message, panel, footer);
+    ...banners, runtime.id === id ? recoveryNotice(ctx, runtime) : null,
+    detail.summary_outdated ? h("p", { class: "help", role: "status" }, l("meetings.summary_outdated")) : null,
+    summarySetup, message, panel, footer);
   draw();
   if (ctx.sourceTarget) {
     const source = ctx.sourceTarget;

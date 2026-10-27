@@ -118,6 +118,15 @@
   const emit = (name, payload) => {
     for (const handler of listeners.get(name) || []) handler({ payload: clone(payload) });
   };
+  const frozenMeetingRecognition = () => {
+    const account = settings.providers.find(provider => provider.id === settings.meeting_stt.provider_id);
+    return { provider_kind: account?.kind ?? null, provider_name: account?.name ?? "Niet ingesteld", model: settings.meeting_stt.model, language: settings.language };
+  };
+  let summaryOutdated = !!options.summary_outdated;
+  let retranscriptionStatus = options.retranscription_phase ? {
+    running: !["completed", "failed"].includes(options.retranscription_phase), recognition: frozenMeetingRecognition(),
+    progress: { phase: options.retranscription_phase, speaker: "others", completed: 15_000, total: 60_000 }, error: null, warning: null,
+  } : null;
   const completeDownload = (id, error = null) => {
     if (!activeDownloads.delete(id)) return false;
     const model = modelFor(id);
@@ -308,7 +317,9 @@
         emit("meeting-updated", null); return null;
       }
       case "meetings": return options.empty ? [] : clone(library);
-      case "meeting_detail": return { info: clone(meetingInfo(args.id)), notes, summary, transcript: clone(transcript), speakers: [{ voice: 1, name: "Noor" }], dir: `/QA/Pennel Preview/Meetings/${meetingId}`, attendees: ["Noor", "Sam"], audio_tracks: [{ speaker: "me", available: false }, { speaker: "others", available: false }] };
+      case "meeting_detail": return { info: clone(meetingInfo(args.id)), notes, summary, transcript: clone(transcript), speakers: [{ voice: 1, name: "Noor" }], dir: `/QA/Pennel Preview/Meetings/${meetingId}`, attendees: ["Noor", "Sam"], audio_tracks: [{ speaker: "me", available: !!options.saved_audio }, { speaker: "others", available: !!options.saved_audio }],
+        summary_outdated: summaryOutdated, retranscription_status: clone(retranscriptionStatus),
+        retranscription_plan: { recognition: frozenMeetingRecognition(), available: !!options.saved_audio && !retranscriptionStatus?.running && frozenMeetingRecognition().provider_kind === "local", reason: options.saved_audio ? null : "Er is geen bewaarde audio om opnieuw te transcriberen." } };
       case "search_library": return { meetings: options.empty ? [] : clone(library), passages: [] };
       case "ask_meetings": return { text: "De planning wordt maandag afgerond. Jij bevestigt de volgende afspraak.", citations: [{ number: 1, passage: { meeting_id: meetingId, title: "Projectoverleg", start_iso: meeting.start_iso, kind: "transcript", start_ms: 0, text: transcript[0].text, snippet: transcript[0].text } }] };
       case "meeting_templates": return [["algemeen", "Algemeen"], ["een-op-een", "1-op-1"], ["klantgesprek", "Klantgesprek"], ["standup", "Standup"]].map(([id, name]) => ({ id, name, builtin: true, customized: false }));
@@ -325,6 +336,19 @@
       case "rename_meeting": return meetingId;
       case "summarize_meeting": return summary;
       case "retranscribe_meeting": return 0;
+      case "retranscribe_meeting_audio": {
+        if (!options.saved_audio || retranscriptionStatus?.running || frozenMeetingRecognition().provider_kind !== "local") throw new Error("Er is geen bewaarde audio om opnieuw te transcriberen.");
+        retranscriptionStatus = { running: true, recognition: frozenMeetingRecognition(), progress: { phase: "transcribing", speaker: "others", completed: 15_000, total: 60_000 }, error: null, warning: null };
+        emit("meeting-retranscription-changed", { id: args.id, status: clone(retranscriptionStatus) });
+        if (options.retranscription_delay_ms) await new Promise(resolve => setTimeout(resolve, options.retranscription_delay_ms));
+        retranscriptionStatus.running = false;
+        retranscriptionStatus.progress = { phase: options.retranscription_error ? "failed" : "completed", speaker: null, completed: 1, total: 1 };
+        retranscriptionStatus.error = options.retranscription_error || null;
+        if (!options.retranscription_error) summaryOutdated = true;
+        emit("meeting-retranscription-changed", { id: args.id, status: clone(retranscriptionStatus) });
+        if (options.retranscription_error) throw new Error(options.retranscription_error);
+        return transcript.length;
+      }
       case "diarize_meeting": return { voices: 2, named: 1, me_found: false };
       case "speaker_setup": return { local_available: options.speaker_local !== false, ready: options.speaker_mode === "cloud" ? signedIn : speakerModels.every(model => model.state.kind === "downloaded") || diarizer.state.kind === "downloaded", signed_in: signedIn, model_ids: speakerModels.map(model => model.id), legacy_model: diarizer.state.kind === "downloaded", profile: clone(voiceProfile), known: clone(knownVoices), enrollment_text: "Ik lees deze tekst voor zodat Pennel mijn stem leert kennen. Zo weet Pennel in elke meeting wanneer ik aan het woord ben, ook als we samen rond één microfoon zitten. Vandaag is een rustige dag: de koffie is nog warm, de zon schijnt door het raam en op mijn bureau ligt een schrift vol ideeën. Straks overlopen we de planning, verdelen we de taken en spreken we af wie welke vragen beantwoordt." };
       case "meeting_voices": return clone(meetingVoices);

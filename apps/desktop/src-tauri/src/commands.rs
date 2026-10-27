@@ -896,6 +896,9 @@ pub struct MeetingDetail {
     dir: String,
     attendees: Vec<String>,
     audio_tracks: Vec<AudioTrack>,
+    summary_outdated: bool,
+    retranscription_plan: pennel_core::MeetingRetranscriptionPlan,
+    retranscription_status: Option<pennel_core::MeetingRetranscriptionStatus>,
 }
 
 #[derive(Debug, Serialize)]
@@ -937,6 +940,15 @@ pub async fn meeting_detail(id: String, shared: State<'_, Arc<Shared>>) -> Resul
             attendees: engine.meeting_attendees(id.clone()),
             dir: directory.to_string_lossy().into_owned(),
             audio_tracks: audio_tracks(&directory),
+            summary_outdated: engine.meeting_summary_outdated(&id),
+            retranscription_plan: {
+                let mut plan = engine.meeting_retranscription_plan(&id);
+                plan.reason = plan.reason.map(localize_error_message);
+                plan
+            },
+            retranscription_status: engine
+                .meeting_retranscription_status(&id)
+                .map(localize_retranscription_status),
         })
     })
     .await
@@ -989,6 +1001,36 @@ pub async fn retranscribe_meeting(
         shared.engine.retranscribe_failed(id, keys).map_err(err)
     })
     .await?;
+    crate::cloud::poke(&app);
+    Ok(count)
+}
+
+fn localize_retranscription_status(
+    mut status: pennel_core::MeetingRetranscriptionStatus,
+) -> pennel_core::MeetingRetranscriptionStatus {
+    status.error = status.error.map(localize_error_message);
+    status.warning = status.warning.map(localize_error_message);
+    status
+}
+
+#[tauri::command]
+pub async fn retranscribe_meeting_audio(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<u32> {
+    let shared = shared.inner().clone();
+    let events = app.clone();
+    let count=off_main("retranscribe_meeting_audio",move || {
+        let _library_job=meeting_runtime::LibraryJob::new(&shared)?;
+        checked_meeting_dir(&shared.engine,&id)?;
+        require_inactive_meeting(&shared,&id)?;
+        shared.engine.retranscribe_meeting_audio(&id,|path| {
+            crate::platform_audio::decode_audio(path).map_err(|message|pennel_core::PennelError::Storage{message})
+        },|status| {
+            let _=events.emit("meeting-retranscription-changed",serde_json::json!({"id":id,"status":localize_retranscription_status(status)}));
+        }).map_err(err)
+    }).await?;
     crate::cloud::poke(&app);
     Ok(count)
 }

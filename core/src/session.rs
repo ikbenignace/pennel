@@ -38,7 +38,7 @@ pub struct MeetingRecognition {
 }
 
 impl MeetingRecognition {
-    fn from_settings(settings: &Settings) -> Self {
+    pub(crate) fn from_settings(settings: &Settings) -> Self {
         let resolved = settings.resolve(&settings.meeting_stt);
         Self {
             provider_kind: resolved.as_ref().map(|(account, _)| account.kind),
@@ -171,14 +171,18 @@ fn commit_progress(
     id: &str,
     progress: &Mutex<Progress>,
 ) -> Result<(), PennelError> {
-    let (segments, cleanup, revision) = {
+    let (segments, cleanup, revision, dictations) = {
         let progress = progress.lock().unwrap();
         (
             progress.persisted(),
             progress.cleanup.clone(),
             progress.revision,
+            progress.dictations.clone(),
         )
     };
+    if !dictations.is_empty() {
+        retry_storage(|| store.write_dictation_intervals(id, &dictations))?;
+    }
     retry_storage(|| store.write_transcript(id, &segments))?;
     if let Err(error) = retry_storage(|| store.cleanup_committed_audio(id)) {
         progress.lock().unwrap().persistence_error = Some(format!(
@@ -397,7 +401,7 @@ impl MeetingSession {
         }
         let mut counters = self.pushed_samples.lock().unwrap();
         let count = &mut counters[index(speaker)];
-        let start = match start_ms {
+        let mut start = match start_ms {
             Some(ms) => {
                 ms.checked_mul(u64::from(SAMPLE_RATE)).ok_or_else(|| {
                     PennelError::InvalidResponse {
@@ -407,6 +411,11 @@ impl MeetingSession {
             }
             None => *count,
         };
+        // Native sample offsets lose up to 15 samples in the millisecond bridge.
+        // Match the desktop timing layer: this rounding is continuity, not a device gap.
+        if start.abs_diff(*count) < u64::from(SAMPLE_RATE / 1000) {
+            start = *count;
+        }
         let end = start.checked_add(samples.len() as u64).ok_or_else(|| {
             PennelError::InvalidResponse {
                 message: "ongeldige audiolengte".into(),
@@ -898,6 +907,65 @@ mod tests {
             [0, 60_000, 3_600_000]
         );
         assert_eq!(engine.meetings()[0].duration_min, 61);
+    }
+
+    #[test]
+    fn millisecond_timestamps_preserve_contiguous_resampled_packets() {
+        let (dir, mut server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let engine = engine(&dir, &server);
+        let lengths = Arc::new(Mutex::new(Vec::new()));
+        let received = lengths.clone();
+        server
+            .mock("POST", "/audio/transcriptions")
+            .with_body_from_request(move |request| {
+                let body = request.body().unwrap();
+                let start = body.windows(4).position(|bytes| bytes == b"RIFF").unwrap();
+                let (samples, rate) = crate::wav::decode_wav(&body[start..]).unwrap();
+                assert_eq!(rate, 16_000);
+                received.lock().unwrap().push(samples.len());
+                br#"{"text":"doorlopend gesprek"}"#.to_vec()
+            })
+            .create();
+        let session = engine
+            .clone()
+            .start_meeting("Afronding".into(), keys())
+            .unwrap();
+        let packet: Vec<f32> = (0..17_288)
+            .map(|i| 0.2 * (i as f32 * 440.0 * std::f32::consts::TAU / SR as f32).sin())
+            .collect();
+        for speaker in [Speaker::Me, Speaker::Others] {
+            for index in 0..60 {
+                let offset_ms = index * 17_288 * 1_000 / 16_000;
+                session
+                    .push_audio_at(speaker, offset_ms, packet.clone())
+                    .unwrap();
+                wait_idle(&session);
+            }
+        }
+        session.stop().unwrap();
+        let transcript = session.transcript();
+        assert_eq!(
+            transcript.len(),
+            6,
+            "continuous audio must not flush on rounding"
+        );
+        for speaker in [Speaker::Me, Speaker::Others] {
+            assert_eq!(
+                transcript
+                    .iter()
+                    .filter(|segment| segment.speaker == speaker)
+                    .map(|segment| (segment.start_ms, segment.end_ms))
+                    .collect::<Vec<_>>(),
+                [(0, 30_000), (30_000, 60_000), (60_000, 64_830)]
+            );
+        }
+        let mut lengths = lengths.lock().unwrap().clone();
+        lengths.sort_unstable();
+        assert_eq!(
+            lengths,
+            [77_280, 77_280, 480_000, 480_000, 480_000, 480_000]
+        );
+        assert_eq!(lengths.iter().sum::<usize>(), 2_074_560);
     }
 
     #[test]
