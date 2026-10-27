@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, OnceLock, RwLock, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -529,6 +529,7 @@ impl PennelEngine {
                 None
             } else {
                 let lease = DirectoryLease::acquire_library(&root)?;
+                MeetingStore::new(&root).recover_retranscriptions()?;
                 Some((root.canonicalize().map_err(PennelError::storage)?, lease))
             }
         } else {
@@ -1789,6 +1790,7 @@ impl PennelEngine {
         let root = library_root(&settings);
         let library_lease = if (settings_path.exists() && root.exists()) || preview {
             let lease = DirectoryLease::acquire_library(&root)?;
+            MeetingStore::new(&root).recover_retranscriptions()?;
             Some((root.canonicalize().map_err(PennelError::storage)?, lease))
         } else {
             None
@@ -1901,6 +1903,7 @@ impl PennelEngine {
             return Ok(());
         }
         let lease = DirectoryLease::acquire_library(&root)?;
+        MeetingStore::new(&root).recover_retranscriptions()?;
         *held = Some((root.canonicalize().map_err(PennelError::storage)?, lease));
         Ok(())
     }
@@ -1996,6 +1999,20 @@ impl PennelEngine {
             settings.language.as_deref(),
             &vocabulary,
             cancel,
+        )
+    }
+
+    pub(crate) fn transcribe_complete_local(
+        &self,
+        settings: &Settings,
+        model_path: &Path,
+        samples: &[f32],
+    ) -> Result<String, PennelError> {
+        self.local.transcribe_complete(
+            model_path,
+            samples,
+            settings.language.as_deref(),
+            &capped_terms(&settings.dictionary, MAX_PROMPT_CHARS),
         )
     }
 

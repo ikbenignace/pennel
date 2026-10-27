@@ -286,6 +286,7 @@ impl PennelEngine {
             Err(_) => self.meeting_key(&id),
         };
         let before = store.read_transcript(&id);
+        store.preserve_transcript_tracks(&id)?;
         let mut after = before.clone();
         let applied = apply(&mut after, &diarization.turns, &identities, track);
         let known_of = |speaker: usize| match identities.get(speaker) {
@@ -587,6 +588,10 @@ mod tests {
             ]
         );
         assert_eq!(engine.meeting_speakers(id.clone()), [name(1, "Jan")]);
+        assert_eq!(
+            engine.meeting_store().transcript_tracks(&id).unwrap(),
+            Some(vec![Speaker::Me])
+        );
 
         let voices = engine.meeting_voices(id.clone());
         assert!(voices[0].remembered && voices[0].can_remember);

@@ -94,6 +94,7 @@ fn run(
     language: Option<&str>,
     vocabulary: &[String],
     cancel: Option<&CancelToken>,
+    require_complete: bool,
 ) -> Result<String, PennelError> {
     if cancel.is_some_and(CancelToken::is_cancelled) {
         return Err(PennelError::Cancelled);
@@ -114,10 +115,20 @@ fn run(
     if cancel.is_some_and(CancelToken::is_cancelled) {
         return Err(PennelError::Cancelled);
     }
+    transcript_text(result, require_complete)
+}
+
+#[cfg(feature = "local-models")]
+fn transcript_text(
+    result: Result<transcribe_cpp::Transcript, transcribe_cpp::Error>,
+    require_complete: bool,
+) -> Result<String, PennelError> {
     match result {
         Ok(transcript) => Ok(transcript.text.trim().to_owned()),
         Err(error) => match error.partial() {
-            Some(partial) if !partial.text.trim().is_empty() => Ok(partial.text.trim().to_owned()),
+            Some(partial) if !require_complete && !partial.text.trim().is_empty() => {
+                Ok(partial.text.trim().to_owned())
+            }
             _ => Err(engine_error(error)),
         },
     }
@@ -182,6 +193,28 @@ impl LocalEngine {
         language: Option<&str>,
         vocabulary: &[String],
     ) -> Result<String, PennelError> {
+        self.transcribe_result(model_path, samples, language, vocabulary, false)
+    }
+
+    /// Replacing an existing transcript requires successful inference through end-of-stream.
+    pub(crate) fn transcribe_complete(
+        &self,
+        model_path: &Path,
+        samples: &[f32],
+        language: Option<&str>,
+        vocabulary: &[String],
+    ) -> Result<String, PennelError> {
+        self.transcribe_result(model_path, samples, language, vocabulary, true)
+    }
+
+    fn transcribe_result(
+        &self,
+        model_path: &Path,
+        samples: &[f32],
+        language: Option<&str>,
+        vocabulary: &[String],
+        require_complete: bool,
+    ) -> Result<String, PennelError> {
         if !model_path.exists() {
             return Err(PennelError::ModelNotDownloaded);
         }
@@ -192,6 +225,7 @@ impl LocalEngine {
             language,
             vocabulary,
             None,
+            require_complete,
         )
     }
 
@@ -215,7 +249,7 @@ impl LocalEngine {
             Err(TryLockError::Poisoned(error)) => error.into_inner(),
         };
         let model = loaded_model(&mut loaded, model_path)?;
-        run(model, samples, language, vocabulary, Some(cancel)).map(Some)
+        run(model, samples, language, vocabulary, Some(cancel), false).map(Some)
     }
 }
 
@@ -240,6 +274,16 @@ impl LocalEngine {
         Err(PennelError::local_models_unavailable())
     }
 
+    pub(crate) fn transcribe_complete(
+        &self,
+        model_path: &Path,
+        samples: &[f32],
+        language: Option<&str>,
+        vocabulary: &[String],
+    ) -> Result<String, PennelError> {
+        self.transcribe(model_path, samples, language, vocabulary)
+    }
+
     pub(crate) fn preview(
         &self,
         _model_path: &Path,
@@ -255,6 +299,60 @@ impl LocalEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "local-models")]
+    #[test]
+    fn complete_transcription_rejects_native_partial_results() {
+        use transcribe_cpp::{Error, Transcript};
+        let partial = || {
+            Some(Box::new(Transcript {
+                text: "alleen het begin".into(),
+                ..Default::default()
+            }))
+        };
+        for error in [
+            Error::Aborted {
+                message: "stopped".into(),
+                partial: partial(),
+            },
+            Error::OutputTruncated {
+                message: "truncated".into(),
+                partial: partial(),
+            },
+            Error::OutputRepetition {
+                message: "repeating".into(),
+                partial: partial(),
+            },
+        ] {
+            assert!(transcript_text(Err(error), true).is_err());
+        }
+        assert_eq!(
+            transcript_text(
+                Ok(Transcript {
+                    text: " volledige zin ".into(),
+                    ..Default::default()
+                }),
+                true
+            ),
+            Ok("volledige zin".into())
+        );
+    }
+
+    #[cfg(feature = "local-models")]
+    #[test]
+    fn dictation_can_still_salvage_a_native_partial_result() {
+        let error = transcribe_cpp::Error::OutputTruncated {
+            message: "truncated".into(),
+            partial: Some(Box::new(transcribe_cpp::Transcript {
+                text: " gedeeltelijke zin ".into(),
+                ..Default::default()
+            })),
+        };
+        assert_eq!(
+            transcript_text(Err(error), false),
+            Ok("gedeeltelijke zin".into())
+        );
+    }
 
     #[cfg(feature = "local-models")]
     fn langs(codes: &[&str]) -> Vec<String> {

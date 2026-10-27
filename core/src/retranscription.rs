@@ -28,6 +28,7 @@ impl Drop for MeetingEditGuard<'_> {
 struct FrozenLocal {
     settings: Settings,
     recognition: MeetingRecognition,
+    model_path: PathBuf,
 }
 
 impl FrozenLocal {
@@ -52,13 +53,15 @@ impl FrozenLocal {
         {
             return Err(PennelError::NotFound);
         }
-        if engine.models.path(&model).is_none() {
-            return Err(PennelError::ModelNotDownloaded);
-        }
+        let model_path = engine
+            .models
+            .path(&model)
+            .ok_or(PennelError::ModelNotDownloaded)?;
         let recognition = MeetingRecognition::from_settings(&settings);
         Ok(Self {
             settings,
             recognition,
+            model_path,
         })
     }
 }
@@ -222,20 +225,12 @@ impl PennelEngine {
         };
         self.publish_retranscription(id, &status, &mut notify);
         let result = (|| {
-            let keys = crate::engine::ApiKeys {
-                by_provider: std::collections::HashMap::new(),
-            };
             let mut segments = stage_audio(
                 &tracks,
                 &exclusions,
                 &mut decode,
                 |samples| {
-                    self.stt(
-                        &frozen.settings,
-                        &frozen.settings.meeting_stt,
-                        &crate::wav::encode_wav(samples, 16_000),
-                        &keys,
-                    )
+                    self.transcribe_complete_local(&frozen.settings, &frozen.model_path, samples)
                 },
                 |progress| {
                     status.progress = progress;
@@ -333,12 +328,17 @@ impl PennelEngine {
                 total: 1,
             };
             self.publish_retranscription(id, &status, &mut notify);
-            let backup = store.replace_retranscribed(id, &segments, &labels.names)?;
-            if let Err(error) = voices.set_meeting_voiceprints(
-                &key,
-                labels.prints,
-                Some(&store.transcript_fingerprint(id)?),
-            ) {
+            let sources: Vec<_> = tracks.iter().map(|(speaker, _)| *speaker).collect();
+            let backup = store.replace_retranscribed(id, &segments, &labels.names, &sources)?;
+            let finish = (|| {
+                voices.set_meeting_voiceprints(
+                    &key,
+                    labels.prints,
+                    Some(&store.transcript_fingerprint(id)?),
+                )?;
+                store.finish_retranscription(id)
+            })();
+            if let Err(error) = finish {
                 // Restore the authoritative files before reporting a failed optional cache write.
                 store.restore_retranscription(id, &backup)?;
                 voices.set_meeting_voiceprints(&key, old_prints.clone(), Some(&old_hash))?;
@@ -405,14 +405,38 @@ pub(crate) fn saved_tracks(
     for (speaker, name) in [(Speaker::Me, "ik.m4a"), (Speaker::Others, "anderen.m4a")] {
         let path = root.join(name);
         match path.canonicalize() {
-            Ok(path) if path.is_file() && path.parent()==Some(root.as_path()) => tracks.push((speaker,path)),
-            _ if before.iter().any(|segment|segment.speaker==speaker) => return Err(PennelError::InvalidResponse{message:"Niet alle oorspronkelijke audio is bewaard. Het transcript is niet gewijzigd.".into()}),
+            Ok(path) if path.is_file() && path.parent() == Some(root.as_path()) => {
+                tracks.push((speaker, path))
+            }
             _ => {}
         }
     }
     if tracks.is_empty() {
         return Err(PennelError::InvalidResponse {
             message: "Er is geen bewaarde audio om opnieuw te transcriberen.".into(),
+        });
+    }
+    let required = match store.transcript_tracks(id)? {
+        Some(required) => required,
+        None if before.iter().any(|segment| segment.voice.is_some()) => {
+            if tracks.len() != 2 {
+                return Err(PennelError::InvalidResponse {
+                    message: "De oorspronkelijke opnamesporen konden niet worden vastgesteld. Voor oudere transcripties met sprekerlabels zijn beide sporen nodig."
+                        .into(),
+                });
+            }
+            vec![Speaker::Me, Speaker::Others]
+        }
+        None => before.iter().map(|segment| segment.speaker).collect(),
+    };
+    if required
+        .iter()
+        .any(|required| !tracks.iter().any(|(speaker, _)| speaker == required))
+    {
+        return Err(PennelError::InvalidResponse {
+            message:
+                "Niet alle oorspronkelijke audio is bewaard. Het transcript is niet gewijzigd."
+                    .into(),
         });
     }
     Ok(tracks)
@@ -630,6 +654,56 @@ mod tests {
     }
 
     #[test]
+    fn speaker_labels_do_not_change_the_required_recording_tracks() {
+        let (_dir, store, id) = meeting();
+        let root = store.dir_of(&id);
+        std::fs::write(root.join("ik.m4a"), b"microphone audio").unwrap();
+        store.preserve_transcript_tracks(&id).unwrap();
+        let mut other = segment(Speaker::Others, "iemand op dezelfde microfoon");
+        other.voice = Some(1);
+        store
+            .write_transcript(&id, &[segment(Speaker::Me, "ik"), other.clone()])
+            .unwrap();
+        assert_eq!(
+            saved_tracks(&store, &id).unwrap(),
+            [(Speaker::Me, root.join("ik.m4a"))]
+        );
+
+        let (_dir, store, id) = meeting();
+        let root = store.dir_of(&id);
+        store
+            .write_transcript(
+                &id,
+                &[
+                    segment(Speaker::Me, "ik"),
+                    segment(Speaker::Others, "systeemaudio"),
+                ],
+            )
+            .unwrap();
+        store.preserve_transcript_tracks(&id).unwrap();
+        store
+            .write_transcript(&id, &[segment(Speaker::Me, "ik"), other])
+            .unwrap();
+        std::fs::write(root.join("ik.m4a"), b"microphone audio").unwrap();
+        assert!(saved_tracks(&store, &id).is_err());
+        std::fs::write(root.join("anderen.m4a"), b"system audio").unwrap();
+        assert_eq!(saved_tracks(&store, &id).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn legacy_voice_labels_do_not_prove_a_missing_track_is_optional() {
+        let (_dir, store, id) = meeting();
+        let root = store.dir_of(&id);
+        let mut voiced = segment(Speaker::Others, "onbekende fysieke herkomst");
+        voiced.voice = Some(1);
+        store.write_transcript(&id, &[voiced]).unwrap();
+        std::fs::write(root.join("ik.m4a"), b"microphone").unwrap();
+        assert!(saved_tracks(&store, &id).is_err());
+        std::fs::write(root.join("anderen.m4a"), b"system").unwrap();
+        assert_eq!(saved_tracks(&store, &id).unwrap().len(), 2);
+    }
+
+    #[test]
     fn successful_replacement_keeps_a_backup_notes_and_summary_provenance() {
         let (_dir, store, id) = meeting();
         store
@@ -645,8 +719,15 @@ mod tests {
         let original = std::fs::read(root.join("transcript.md")).unwrap();
         let metadata = std::fs::read(root.join("meeting.md")).unwrap();
         let backup = store
-            .replace_retranscribed(&id, &[segment(Speaker::Me, "nieuwe tekst")], &[])
+            .replace_retranscribed(
+                &id,
+                &[segment(Speaker::Me, "nieuwe tekst")],
+                &[],
+                &[Speaker::Me],
+            )
             .unwrap();
+        store.finish_retranscription(&id).unwrap();
+        store.recover_retranscriptions().unwrap();
         assert_eq!(
             std::fs::read(backup.join("transcript.md")).unwrap(),
             original
@@ -675,11 +756,132 @@ mod tests {
         std::fs::write(root.join(".pennel-transcript-backups"), b"blocked").unwrap();
         assert!(
             store
-                .replace_retranscribed(&id, &[segment(Speaker::Me, "new")], &[])
+                .replace_retranscribed(&id, &[segment(Speaker::Me, "new")], &[], &[Speaker::Me])
                 .is_err()
         );
         assert_eq!(std::fs::read(root.join("transcript.md")).unwrap(), original);
         assert_eq!(std::fs::read(root.join("meeting.md")).unwrap(), metadata);
+    }
+
+    #[test]
+    fn startup_recovers_each_interrupted_replacement_boundary() {
+        for boundary in 0..4 {
+            let (_dir, store, id) = meeting();
+            let root = store.dir_of(&id);
+            store
+                .rename_speaker(&id, 1, "Oorspronkelijke naam")
+                .unwrap();
+            store
+                .write_recovery(
+                    &id,
+                    Speaker::Others,
+                    0,
+                    &crate::wav::encode_wav(&vec![0.1; 16_000], 16_000),
+                )
+                .unwrap();
+            let original = std::fs::read(root.join("transcript.md")).unwrap();
+            let metadata = std::fs::read(root.join("meeting.md")).unwrap();
+            let backup_id = uuid::Uuid::now_v7().to_string();
+            let backup = root.join(".pennel-transcript-backups").join(&backup_id);
+            std::fs::create_dir_all(&backup).unwrap();
+            std::fs::write(backup.join("transcript.md"), &original).unwrap();
+            std::fs::write(backup.join("meeting.md"), &metadata).unwrap();
+            let journal = serde_json::json!({"version":1,"backup":backup_id,"had_failed":true});
+            std::fs::write(
+                root.join(".pennel-retranscription-pending.json"),
+                journal.to_string(),
+            )
+            .unwrap();
+            if boundary >= 1 {
+                std::fs::rename(root.join("failed"), backup.join("failed")).unwrap();
+            }
+            if boundary >= 2 {
+                store
+                    .set_speaker_names(
+                        &id,
+                        &[SpeakerName {
+                            voice: 1,
+                            name: "Verkeerde nieuwe naam".into(),
+                        }],
+                    )
+                    .unwrap();
+            }
+            if boundary >= 3 {
+                store
+                    .write_transcript(&id, &[segment(Speaker::Me, "nieuwe tekst")])
+                    .unwrap();
+            }
+            let reopened = MeetingStore::new(&store.root());
+            reopened.recover_retranscriptions().unwrap();
+            reopened.recover_retranscriptions().unwrap();
+            assert_eq!(
+                std::fs::read(root.join("transcript.md")).unwrap(),
+                original,
+                "boundary {boundary}"
+            );
+            assert_eq!(
+                std::fs::read(root.join("meeting.md")).unwrap(),
+                metadata,
+                "boundary {boundary}"
+            );
+            assert!(root.join("failed/others-0.wav").is_file());
+            assert!(!root.join(".pennel-retranscription-pending.json").exists());
+            assert_eq!(reopened.read_notes(&id), "mijn eigen notities");
+        }
+    }
+
+    #[test]
+    fn interrupted_recovery_remains_retryable_and_cannot_escape_the_backup_folder() {
+        let (_dir, store, id) = meeting();
+        let root = store.dir_of(&id);
+        let original = std::fs::read(root.join("transcript.md")).unwrap();
+        let metadata = std::fs::read(root.join("meeting.md")).unwrap();
+        let backup = store
+            .replace_retranscribed(&id, &[segment(Speaker::Me, "new")], &[], &[Speaker::Me])
+            .unwrap();
+        std::fs::remove_file(root.join("meeting.md")).unwrap();
+        std::fs::create_dir(root.join("meeting.md")).unwrap();
+        assert!(store.recover_retranscriptions().is_err());
+        assert!(root.join(".pennel-retranscription-pending.json").exists());
+        std::fs::remove_dir(root.join("meeting.md")).unwrap();
+        store.recover_retranscriptions().unwrap();
+        assert_eq!(std::fs::read(root.join("transcript.md")).unwrap(), original);
+        assert_eq!(std::fs::read(root.join("meeting.md")).unwrap(), metadata);
+        assert!(backup.is_dir());
+
+        std::fs::write(
+            root.join(".pennel-retranscription-pending.json"),
+            r#"{"version":1,"backup":"../../outside","had_failed":false}"#,
+        )
+        .unwrap();
+        assert!(store.recover_retranscriptions().is_err());
+        assert_eq!(std::fs::read(root.join("meeting.md")).unwrap(), metadata);
+    }
+
+    #[test]
+    fn reopening_the_engine_restores_an_uncommitted_transcript_before_reads() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("data").to_string_lossy().into_owned();
+        let engine = PennelEngine::new_preview(data.clone()).unwrap();
+        let store = engine.meeting_store();
+        let id = store.create("Herstart", chrono::Local::now()).unwrap();
+        store
+            .write_transcript(&id, &[segment(Speaker::Me, "origineel")])
+            .unwrap();
+        store
+            .rename_speaker(&id, 1, "Oorspronkelijke naam")
+            .unwrap();
+        let backup = store
+            .replace_retranscribed(&id, &[segment(Speaker::Me, "nieuw")], &[], &[Speaker::Me])
+            .unwrap();
+        drop(engine);
+        let reopened = PennelEngine::new_preview(data).unwrap();
+        assert_eq!(reopened.meeting_transcript(id.clone())[0].text, "origineel");
+        assert_eq!(
+            reopened.meeting_speakers(id)[0].name,
+            "Oorspronkelijke naam"
+        );
+        assert!(backup.is_dir());
     }
 
     #[test]
