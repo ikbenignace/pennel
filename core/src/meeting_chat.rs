@@ -1,6 +1,6 @@
 use crate::llm::ChatMessage;
-use crate::meeting_index::{Passage, PassageKind};
-use crate::meetings::timestamp;
+use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
+use crate::meetings::{MeetingStore, timestamp};
 use crate::{PennelError, system_llm};
 
 pub const WHOLE_MEETING_CHARS: usize = 60_000;
@@ -60,6 +60,64 @@ pub fn search_terms(question: &str) -> Vec<String> {
     terms
 }
 
+pub(crate) fn select_sources(
+    index: &MeetingIndex,
+    store: &MeetingStore,
+    question: &str,
+    history: &[ChatTurn],
+    scope: Option<&str>,
+    apple: bool,
+) -> Result<(Vec<Passage>, &'static str), PennelError> {
+    let terms = search_terms(question);
+    if let Some(id) = scope {
+        let all = index.recent(store, Some(id), u32::MAX)?;
+        let whole_fits = if apple {
+            system_llm::input_bytes(&chat_messages(question, history, &all))
+                <= system_llm::APPLE_INPUT_BYTES
+        } else {
+            all.iter().map(|p| p.text.len()).sum::<usize>() <= WHOLE_MEETING_CHARS
+        };
+        if whole_fits {
+            return Ok((all, "whole_meeting"));
+        }
+        let found = index.search_any(store, &terms, Some(id), MEETING_PASSAGES)?;
+        let mode = if found.is_empty() {
+            "recent_meeting"
+        } else {
+            "retrieved_meeting"
+        };
+        if apple {
+            let mut picked = if found.is_empty() {
+                index.recent(store, Some(id), MEETING_PASSAGES)?
+            } else {
+                found
+            };
+            picked.extend(all.into_iter().filter(|p| p.kind == PassageKind::Summary));
+            return Ok((picked, mode));
+        }
+        let mut picked: Vec<Passage> = all
+            .iter()
+            .filter(|p| p.kind == PassageKind::Summary)
+            .cloned()
+            .collect();
+        picked.extend(if found.is_empty() {
+            index.recent(store, Some(id), MEETING_PASSAGES)?
+        } else {
+            found
+        });
+        return Ok((picked, mode));
+    }
+    let found = index.search_any(store, &terms, None, ALL_MEETINGS_PASSAGES)?;
+    if found.is_empty() {
+        Ok((
+            index.recent(store, None, ALL_MEETINGS_PASSAGES)?,
+            "recent_library",
+        ))
+    } else {
+        Ok((found, "retrieved_library"))
+    }
+}
+
 fn source_label(passage: &Passage) -> String {
     let date = passage.start_iso.get(..10).unwrap_or(&passage.start_iso);
     let place = match (passage.kind, passage.start_ms) {
@@ -76,6 +134,16 @@ pub fn chat_messages(
     history: &[ChatTurn],
     sources: &[Passage],
 ) -> Vec<ChatMessage> {
+    let source_tag = format!("sources-{}", uuid::Uuid::now_v7().simple());
+    chat_messages_with_tag(question, history, sources, &source_tag)
+}
+
+pub(crate) fn chat_messages_with_tag(
+    question: &str,
+    history: &[ChatTurn],
+    sources: &[Passage],
+    source_tag: &str,
+) -> Vec<ChatMessage> {
     let numbered: String = sources
         .iter()
         .enumerate()
@@ -87,7 +155,6 @@ pub fn chat_messages(
     } else {
         numbered
     };
-    let source_tag = format!("sources-{}", uuid::Uuid::now_v7().simple());
     let mut messages = vec![ChatMessage {
         role: "system",
         content: format!(
@@ -192,6 +259,25 @@ pub fn cited(answer: &str, sources: &[Passage]) -> Vec<Citation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn evaluation_tag_keeps_prompt_reproducible() {
+        let sources = [passage(
+            "Sync",
+            PassageKind::Notes,
+            None,
+            "Budget is fifty.",
+        )];
+        let first = chat_messages_with_tag("What is the budget?", &[], &sources, "sources-fixture");
+        let second =
+            chat_messages_with_tag("What is the budget?", &[], &sources, "sources-fixture");
+        assert_eq!(first, second);
+        assert!(first[1].content.contains("<sources-fixture>"));
+        assert_ne!(
+            chat_messages("q", &[], &sources),
+            chat_messages("q", &[], &sources)
+        );
+    }
 
     fn passage(title: &str, kind: PassageKind, start_ms: Option<u64>, text: &str) -> Passage {
         Passage {

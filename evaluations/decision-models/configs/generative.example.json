@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "provider": "ollama",
+  "base_url": "http://127.0.0.1:11434/v1",
+  "model": "EXPLICIT_INSTALLED_MODEL_ID",
+  "tasks": ["meeting_qa", "cleanup", "summary"],
+  "timeout_secs": 90,
+  "max_input_chars": 100000,
+  "max_cases": 30,
+  "notes": "Copy to an explicit evaluation configuration and select an already installed model. No download, remote fallback, service restart or user-setting changes are performed. Omit max_cases for the full fixed workload. Unreviewed free-text support remains an open gate."
+}

@@ -52,6 +52,9 @@
   "calibration": {
     "fit_split": "calibration",
     "test_split": "heldout",
+    "minimum_observations": 10,
+    "minimum_observed_classes": 2,
+    "minimum_meeting_groups": 2,
     "context_fields": ["model", "transport", "upstream", "precision", "prompt_hash", "labels", "grouping"],
     "context_policy": "Bind the full ordered-label and identity/routing/privacy context by SHA-256; changes require refitting before a new held-out evaluation.",
     "multiclass": "One-parameter temperature scaling, mean NLL + 0.001*log(T)^2, T in [0.05,20].",

@@ -13,6 +13,11 @@ crate-type = ["lib", "staticlib", "cdylib"]
 name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
 
+[[bin]]
+name = "pennel-eval"
+path = "src/bin/pennel-eval.rs"
+required-features = ["evaluation"]
+
 [dependencies]
 argon2 = { version = "0.6.0", default-features = false, features = ["alloc", "zeroize"] }
 base64 = "0.23.1"
@@ -43,6 +48,7 @@ transcribe-cpp = { version = "0.4.1", default-features = false, optional = true 
 
 [features]
 default = ["local-models", "speakers"]
+evaluation = []
 local-models = ["dep:transcribe-cpp"]
 # Local speaker recognition (sherpa-onnx with a statically linked ONNX Runtime). Without it the core
 # still matches voices from a Pennel Cloud diarization.
