@@ -317,7 +317,8 @@ def _temperature(distribution, temperature):
     logits = {label: math.log(max(value, EPSILON)) / temperature for label, value in distribution.items()}
     maximum = max(logits.values())
     weights = {label: math.exp(value - maximum) for label, value in logits.items()}
-    total = sum(weights.values())
+    # Python's built-in float summation changed in 3.12; a cutoff can sit on this ULP.
+    total = math.fsum(weights.values())
     return {label: value / total for label, value in weights.items()}
 
 

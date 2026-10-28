@@ -1,0 +1,19 @@
+{
+  "offline_tests_passed": 252,
+  "python_versions": [
+    "3.11",
+    "3.14"
+  ],
+  "source_ci": "source-ci.json",
+  "hosted_spend_usd": "0.532481940",
+  "hosted_budget_usd": "2.00",
+  "actual_inference_attempts": 35555,
+  "reconciled_idless_failures": 11,
+  "unresolved_financial_charges": false,
+  "external_grounding_judgments": 54,
+  "pending_grounding_judgments": 0,
+  "model_downloads_this_followup": 0,
+  "production_settings_credentials_defaults_changed": false,
+  "replay_math": "Explicit compensated temperature normalization preserves every recorded Python3.14 selection onPython3.11; fits and cutoffs unchanged.",
+  "remaining": "Clef updated-prompt timing235warm slots unavailable after repeatedHTTP429; original Clef panel remains preserved. Server/Q8/nativepackage/device gates remain explicitlydeferred."
+}

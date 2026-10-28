@@ -1,0 +1,214 @@
+import json
+from pathlib import Path
+from decimal import Decimal
+
+ROOT = Path.cwd()
+BUILD = ROOT / 'build/decision-model-evaluation'
+TARGET = ROOT / 'evaluations/decision-models/results/followup-2026-10-28'
+
+
+def read(path):
+    return json.loads(Path(path).read_text(encoding='utf-8'))
+
+
+def fmt(value):
+    return '—' if value is None else f'{value:.4f}'
+
+
+NAMES = {'openrouter-jev': 'Jev', 'openrouter-decider': 'Decider',
+         'openrouter-decider-flash': 'Flash', 'openrouter-clef-flash': 'Clef',
+         'openrouter-mercury': 'Mercury'}
+
+
+def main():
+    analysis = read(BUILD / 'supplement-analysis.json')
+    generated = read(BUILD / 'generative-heldout/report.json')
+    mercury = read(BUILD / 'mercury-final/summary.json')
+    ledger = read(BUILD / 'spend-ledger.json')
+    assert not ledger['unresolved_charge'] and not ledger['pending_reservations']
+    total = Decimal(ledger['known_billed_usd'])
+    gen_cost = Decimal('.178265560')
+    other = Decimal('.313064388') + Decimal('.007351540') + gen_cost + Decimal('.022218930')
+    lines = [
+        '# Decision-model follow-up: grounding and calibrated suggestions', '',
+        f'Actual cumulative hosted inference: **{ledger["attempt_count"]:,} attempts / US${total}**, under the shared US$2 ceiling. '
+        'No new model downloads or production defaults. Original local and hosted records remain unchanged.', '',
+        'This follow-up completes the original Mercury timing panel, measures current-core generated answers/cleanup/summaries, '
+        'and tests a separately preregistered corpus that repairs the suggestion-coverage and owner/name calibration gaps. '
+        'A benchmark point-gate pass is a research result, not production or independent human acceptance.', '',
+        '## Findings and decisions', '',
+        '| Task | Evidence | Recommendation |',
+        '| --- | --- | --- |',
+        '| Ranking | Original standard Decider passes all three languages; Mercury timing is now complete, including errors. Serial per-passage API work still takes seconds. | Retain current retrieval; defer integration and share the candidate/latency evidence with #43. |',
+        '| Answerability / support | Original bounded typed classifiers pass point gates. Actual generated Q&A adds unsupported Wi-Fi/access-code equivalence and gender attributes; all three languages miss the 98% grounding requirement. | Retain explicit sources/user review; defer automated verifier rollout until generated-claim transfer and product contracts are validated. |',
+        '| Actions / decisions / questions | Diverse-owner component quality varies by model/language. Current-core summary checkboxes promote tentative or unassigned work into actions. | Defer automatic structured extraction; use the qualified components for bounded prototypes, not independent claim of end-to-end reliability. |',
+        '| Templates | Calibrated passes: EN Jev; NL Decider; mixed Jev/Decider/Flash. No provider passes all languages. | Retain manual selection; defer rollout. Do not replace frozen calibrated gates with favorable raw scores. |',
+        '| Speaker names | All five pass EN/mixed point gates; only Clef passes NL. Raw models sometimes force ambiguous names; calibration abstains. | Retain explicit names; defer bounded candidate-list suggestions pending broader calibration and product acceptance. |',
+        '| Cleanup | Current-core EN/NL generated examples preserve fidelity; mixed examples translate the English date phrase. The existing guard accepts both language failures. Original calibrated Decider/Flash/Mercury verifier results remain separate. | Retain raw fallback and explicit user control; defer model changes until end-to-end language-preservation validation. |', '',
+        '## Protocol and provenance', '',
+        '- Complete implementation source: `8e693d9`; source-bound experiment freezes: `8c525a3`. '
+        'All prompts, labels/order, grouping, model routes, privacy settings, budgets and criteria were recorded before new held-out inference.',
+        '- Original results: [local comparison](../2026-10-28/README.md), [initial hosted comparison](../openrouter-2026-10-28/README.md). '
+        'No old fixture, cutoff or result was replaced.',
+        '- Supplement: 36 meeting groups / 108 translated meeting documents, 12 groups per split. '
+        'Each task/language/order has 12 calibration observations before failures; 90 fitted contexts remain, minimum 11. '
+        'Template positive prevalence is 2/3; name positive prevalence 3/4. All states are bounded below 2,000 bytes. '
+        'Distinct split-specific statements, topics, objects, quantities and deadlines prevent verbatim split reuse.',
+        '- Quality: 1,080 calibration cases (1,079 successful, one preserved Mercury gateway error) and '
+        '1,080 held-out cases (1,079 successful, one preserved Clef rate-limit error). '
+        'Only previously unsent cases were continued. The final held-out continuation uses one active request under the original at-most-four bound; '
+        'wire inputs, grouping, route and calibration remain fixed. Quality-workload timings are not the serial-panel timings.',
+        '- Generation: 42 Q&A, six cleanups and six summaries on two original held-out meetings per language. '
+        'Every substantive claim, cited evidence span, raw cleanup and six marked event targets per summary has a stored native-AI judgment. '
+        'Leader review applied the same entailment rule across languages. These reviews are inspectable AI adjudications; they are not human or natural-meeting acceptance.',
+        '- GPT-4.1 mini requests the dated `openai/gpt-4.1-mini-2025-04-14` through exact `azure/swedencentral`. '
+        'The returned alias is recorded separately from the catalog canonical identity; neither proves remote weight contents. '
+        'Global processing, provider ZDR, denied data collection and disabled fallbacks are explicit. No regional-residency or account-logging claim is made.', '',
+        '## Per-language generated-output measurements', '',
+        '| Language | QA correct / 14 | Claim support | Citation support | Selective answer precision / coverage | Summary claim support | Event macro-F1 / positive precision | Valid generated cleanup |',
+        '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    ]
+    for lang in ('en', 'nl', 'mixed'):
+        cells = generated['languages'][lang]
+        qa, summary, cleanup = (cells[k] for k in ('meeting_qa', 'summary', 'cleanup'))
+        correct = qa['correct_answers'] + qa['correct_abstentions']
+        lines.append(f'| {lang} | {correct}/14 | {qa["supported_claims"]}/{qa["claims"]} | '
+                     f'{qa["citation_supported_claims"]}/{qa["cited_claims"]} | '
+                     f'{fmt(qa["answer_selective_precision"])}/{fmt(qa["answer_coverage"])} | '
+                     f'{summary["supported_claims"]}/{summary["claims"]} | '
+                     f'{fmt(summary["event_macro_f1"])}/{fmt(summary["event_positive_precision"])} | '
+                     f'{cleanup["valid_cleanups"]}/{cleanup["cleanups"]} |')
+    lines += ['', 'All 54 outputs are adjudicated; zero judgments remain pending. '
+              'The mixed cleanup preserves its proposition/date but changes `on Thursday` to `op donderdag`. '
+              'It is a language-fidelity failure, not an invented numeric corruption. '
+              'The guard accepts it; no valid mixed cleanup is generated, so valid-cleanup acceptance has no denominator. '
+              'EN-source summaries are in Dutch, recorded as an observation rather than adding a post-hoc gate. '
+              'Summary event recall is scoped to the six preregistered marked statements, not exhaustive extraction from natural meetings.', '',
+              'The false-action examples include turning “might book; have not committed” into a checkbox, '
+              'or assigning somebody to answer an unowned question. Privacy/non-publication does not prove a blanket prohibition of private sharing; '
+              'neutral `die`/`they` does not establish `hij`/`haar`. Citation syntax alone does not establish these facts.', '']
+    for task in ('templates', 'speaker_names', 'events'):
+        title = {'templates': 'Template suggestions', 'speaker_names': 'Candidate-list speaker names', 'events': 'Final action owners'}[task]
+        lines += [f'## {title}', '',
+                  '| Language | Model | Measured / 24 | Raw F1 | Calibrated F1 | Accepted precision | Coverage | Raw/cal Brier | Raw/cal ECE | Point gate |',
+                  '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |']
+        for cell in sorted((x for x in analysis['cells'] if x['task'] == task), key=lambda x: (x['language'], x['runner_id'])):
+            raw, cal = cell['raw'], cell['calibrated']
+            suggestion = cell['calibrated_suggestions']
+            precision = suggestion['precision'] if suggestion else cal['selective_precision']
+            coverage = suggestion['coverage'] if suggestion else cal['coverage']
+            lines.append(f'| {cell["language"]} | {NAMES[cell["runner_id"]]} | {cell["successful_cases"]}/24 | '
+                         f'{fmt(raw["macro_f1"])} | {fmt(cal["macro_f1"])} | {fmt(precision)} | {fmt(coverage)} | '
+                         f'{fmt(raw["brier"])}/{fmt(cal["brier"])} | {fmt(raw["ece"])}/{fmt(cal["ece"])} | '
+                         f'{"pass" if cell["calibrated_numeric_gate_pass"] else "fail"} |')
+        lines.append('')
+    lines += [
+        'Each cell has 12 meeting groups, with authored/reversed labels kept together. '
+        'Both orders are evaluated; no favorable order is selected. '
+        'Brier/ECE use probability-bearing cases independently of selection, while missing outputs remain in the full quality/coverage denominator. '
+        'Class and decline-label precision/recall/F1, selective curves and owner error counts are in the replayable JSON.', '',
+        'The preregistered calibrated macro-F1 counts threshold abstentions as false negatives. '
+        'For example, standard Decider has perfect raw EN template classification, but calibrated macro-F1 is 0.6000 at 50% positive coverage. '
+        'That is a frozen-policy failure, not a reclassification error; switching to the raw score after testing would change the experiment. '
+        'Raw Flash template F1 is 0.8993, below the 0.90 requirement. '
+        'Raw forced ambiguous names occur for Jev and Clef; calibrated forced-name count is zero in every cell. '
+        'Dutch name coverage is 0.2500 Jev, 0.3750 Decider/Flash and 0.4583 Mercury; only Clef reaches the frozen coverage gate.', '',
+        'Raw label-order disagreement occurs only in Flash templates: EN 1/12, NL 3/12 and mixed 1/12. '
+        'The Clef EN template pair containing the gateway error is incomplete and is not reported as an agreeing pair. '
+        'All other evaluable pairs agree. These are small-sample point results, not calibrated reliability guarantees.', '',
+        '## Timing and resources', '',
+        'Mercury’s original panel now covers all 630 warm slots: 628 successes and two preserved failures, '
+        'plus 15 fresh-client samples. There are 24 excluded warmups, including one failed warmup. '
+        'Its 1,699 atomic attempts cost US$0.00754672. Summing only complete outer ranking rows would omit '
+        'US$0.00002066 from successful requests inside failed ranking invocations. '
+        'API-only durations and ranking wall/accounting time remain separate; failed ranking wall time was not measured.', '',
+        'The generative panel completed all 294 requests, including 15 fresh-client samples and '
+        '30 warm samples per task/language after excluded warmups. It cost US$0.14832004; '
+        'the separate 54-case quality workload cost US$0.02497616. '
+        'The owned quality+timing command took 660.28 seconds with OS maximum RSS 446,185,472 bytes. '
+        'This is client-command memory, not remote-model memory.', '',
+        '| Language | Generative task | Cold-client n / p50 / p95 ms | Warm n / p50 / p95 ms |',
+        '| --- | --- | ---: | ---: |',
+    ]
+    timing = read(BUILD / 'generative-heldout/timing.json')
+    for cell in timing['cases']:
+        cold, warm = cell['cold_client'], cell['warm']
+        lines.append(f'| {cell["language"]} | {cell["task"]} | {cold["n"]}/{fmt(cold["p50_ms"])}/{fmt(cold["p95_ms"])} | '
+                     f'{warm["n"]}/{fmt(warm["p50_ms"])}/{fmt(warm["p95_ms"])} |')
+    resources = read(TARGET / 'supplement/resources.json')
+    lines += ['', '### Revised suggestion prompts', '',
+              'All 75 cold-client request samples are present. Four models cover every warm slot; '
+              'Clef has 235 unsent warm slots after two HTTP429 stops, including a paced continuation. '
+              'Two Jev responses fail the frozen distribution validator and one Mercury request fails with HTTP502; '
+              'their consumed slots remain failures. No failed sample is replaced. '
+              'Request p50/p95 below use successful samples only; consumed counts and raw errors remain separate. '
+              'Server load/memory/precision and missing Clef warm values are unknown.', '',
+              '| Language | Model | Task | Warm consumed / 30 | Successful n / p50 / p95 ms | Cold-client n / p50 / p95 ms |',
+              '| --- | --- | --- | ---: | ---: | ---: |']
+    for model in resources['models']:
+        for cell in model['cases']:
+            warm = cell['warm']
+            cold = cell.get('cold_client', {'n': 0, 'p50_ms': None, 'p95_ms': None})
+            lines.append(f'| {cell["language"]} | {NAMES[model["runner_id"]]} | {cell["task"]} | '
+                         f'{cell["warm_consumed_slots"]}/30 | {warm["n"]}/{fmt(warm["p50_ms"])}/{fmt(warm["p95_ms"])} | '
+                         f'{cold["n"]}/{fmt(cold["p50_ms"])}/{fmt(cold["p95_ms"])} |')
+    lines += ['', 'The supplemental resource receipts use the revised task prompts. '
+              'Any quota-limited cells, validation failures and pacing strata are explicit in `supplement/resources.json`; '
+              'completed samples are never repeated to manufacture a passing panel. '
+              'Client idle between paced requests is outside the request timer and remains part of command elapsed time. '
+              'Cold-client setup does not establish server/model-cold latency. '
+              'Opaque server load, memory, weights, precision and native-package sizes remain unknown. '
+              'Local, direct-provider and OpenRouter measurements are separate series; no cross-route subtraction estimates gateway overhead.', '',
+              '## Cumulative billing and availability', '',
+              '| Stage | Returned/reconciled billed USD |', '| --- | ---: |',
+              '| Original hosted experiment | 0.313064388 |',
+              '| Additional Mercury timing attempts | 0.007351540 |',
+              '| Generative development, quality and timing | 0.178265560 |',
+              '| Supplement calibration and held-out quality | 0.022218930 |',
+              f'| Supplement resource panels/continuations | {total-other} |',
+              f'| **Cumulative** | **{total}** |', '',
+              '| Model | Stage (216 scheduled cases) | Returned input tokens | Returned output tokens | Returned billed USD | Usage missing attempts |',
+              '| --- | --- | ---: | ---: | ---: | ---: |']
+    for stage in ('calibration', 'heldout'):
+        for identifier, cost in sorted(analysis['costs'][stage].items()):
+            lines.append(f'| {NAMES[identifier]} | {stage} | {cost["reported_input_tokens"]} | '
+                         f'{cost["reported_output_tokens"]} | {cost["known_returned_billed_usd"]} | '
+                         f'{cost["observed_atomic_attempts"] - cost["attempts_with_token_usage"]} |')
+    lines += ['',
+              'One persistent ledger covers every stage. Default automatic retries and model/provider fallbacks are disabled. '
+              'Unknown charges halted paid work until authenticated key-usage observations exactly reconciled all known charges from the zero baseline. '
+              'Raw failed responses still show missing inline usage/cost; reconciliation does not invent token counts. '
+              'Explicit continuation warmups, repeated state and partial ranking requests are included in billed totals. '
+              'Catalog rates are reservation estimates; the table uses returned charges and separately stored reconciliation evidence.', '',
+              'Model downloads remain 2,770,266,421 bytes under the 3 GiB ceiling. '
+              'Q8 reference parity, the larger official local Decider and secondary Laya remain unavailable within that ceiling. '
+              'Their existing artifact/environment records are preserved. No new runtime was packaged; '
+              'Windows/Linux model inference, physical devices and production deployment remain unmeasured. '
+              'These are explicit deferrals, not failed CI or measured production acceptance.', '',
+              '## Reproduce and inspect', '',
+              '```sh',
+              'python3 -B -m unittest discover -s evaluations/decision-models/tests -v',
+              'python3 evaluations/decision-models/followup.py --offline \\',
+              '  --replay evaluations/decision-models/results/followup-2026-10-28/supplement \\',
+              '  --output build/decision-model-evaluation/replay-suggestions',
+              'python3 evaluations/decision-models/generate.py \\',
+              '  --replay evaluations/decision-models/results/followup-2026-10-28/generative \\',
+              '  --output build/decision-model-evaluation/replay-generation',
+              '```', '',
+              'These commands require no key, paid request, model download or optional model dependency. '
+              'Temperature normalization uses explicit compensated math.fsum to preserve the original Python3.14 selections on Python3.11; no fit, cutoff or label changed. Reports otherwise differ only by floating-point roundoff; counts and gates stay fixed. '
+              'The [guide](../../../../docs/decision-model-evaluation.md), frozen manifests and archived continuation scripts '
+              'document explicit live commands. Future source/hardware/route changes need a new declared experiment, '
+              'not relabelling these predictions or resetting the shared ledger.', '',
+              '[Issue #53](https://github.com/pennel-app/pennel/issues/53) · '
+              '[PR #64](https://github.com/pennel-app/pennel/pull/64) · '
+              '[Retrieval coordination #43](https://github.com/pennel-app/pennel/issues/43) · '
+              '[Provider contracts #54](https://github.com/pennel-app/pennel/issues/54). '
+              'Keep the issue open for review/merge and any explicitly unavailable evidence; no production feature is enabled.', '']
+    path = BUILD / 'followup-README.md'
+    path.write_text('\n'.join(lines), encoding='utf-8')
+    print(json.dumps({'report': str(path), 'lines': len(lines), 'cumulative_usd': str(total)}))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,9 +1,12 @@
 # Decision-model evaluation
 
 Measured results: [initial local comparison](../evaluations/decision-models/results/2026-10-28/README.md)
-and [OpenRouter follow-up](../evaluations/decision-models/results/openrouter-2026-10-28/README.md).
-The hosted follow-up identifies bounded, calibrated verification candidates. Production
-behavior remains unchanged while latency, corpus and product acceptance gaps are addressed.
+and [initial OpenRouter comparison](../evaluations/decision-models/results/openrouter-2026-10-28/README.md).
+The [completed follow-up](../evaluations/decision-models/results/followup-2026-10-28/README.md)
+adds Mercury's remaining timing slots, actual generated-output evidence review and an
+independent suggestion experiment with feasible coverage and diverse calibration targets.
+The reports identify bounded, calibrated research candidates and retain measured failures.
+Production behavior remains unchanged; unavailable measurements and product acceptance remain explicit.
 
 Issue [#53](https://github.com/pennel-app/pennel/issues/53) owns this suite. Its corpus and
 retrieval receipts are shared with [#43](https://github.com/pennel-app/pennel/issues/43).
@@ -241,3 +244,74 @@ after a gateway error. The [report](../evaluations/decision-models/results/openr
 includes API timings separately from ranking workload/accounting time and records the
 template coverage ceiling and owner/ambiguity calibration limitations. No frozen criteria
 were changed after viewing held-out results.
+
+## Follow-up experiments and replay
+
+The original reports, criteria and predictions remain unchanged. The suggestion supplement
+uses 36 translation-linked meeting groups (108 short meeting documents), with 12 groups
+per split. Its template prevalence permits 66.7% correct suggestion coverage; fixed-name
+suggestion prevalence permits 75%. Owners include both speakers and unknown. Each ordered
+task/language context has 12 calibration groups and multiple classes before service
+failures. Distinct topics, statements, actions, quantities and deadlines prevent text reuse
+between splits. The 50% coverage, precision/F1 requirements and calibration minima are
+unchanged. This controlled supplement is not evidence of natural-meeting generalization.
+
+Replay its actual typed predictions and stored calibration without credentials:
+
+```sh
+python3 evaluations/decision-models/followup.py --offline \
+  --replay evaluations/decision-models/results/followup-2026-10-28/supplement \
+  --output build/decision-model-evaluation/replay-suggestions
+```
+
+The generative experiment uses the existing core prompts, request-body builder, source
+selection, citation parser and cleanup guard. It explicitly requests the dated GPT-4.1
+mini checkpoint through `azure/swedencentral`, verifies its catalog canonical identity and
+public ZDR eligibility, and records the returned alias and Azure provider. An alias response
+does not independently verify server weights. This separate chat baseline never replaces a
+typed Decisions call. It measures an evaluation-selected model, not a user's saved provider.
+
+Its frozen workload contains 42 questions, six unique dictation cleanups and six summaries
+from two held-out meetings per language. Stored native-AI evidence reviews cover every
+substantive claim, exact source/citation support, language fidelity and all six original
+marked event statements per summary. Response, rubric, raw-input and Unicode source-span
+hashes bind the reviews. The leader checked the disputed claims across languages. These
+are inspectable AI adjudications, not independent human or real-meeting acceptance.
+
+```sh
+python3 evaluations/decision-models/generate.py \
+  --replay evaluations/decision-models/results/followup-2026-10-28/generative \
+  --output build/decision-model-evaluation/replay-generation
+```
+
+The repeated generative panel has five fresh-client samples per language plus 30 warm
+samples for each Q&A, cleanup and summary cell: 294 requests including excluded warmups.
+Its text repetitions add no semantic quality credit. Metadata setup is separate from the
+OpenRouter request timer. Server cold state, hardware, precision, memory and artifact size
+remain unknown; the owned Python command's memory measurement is a client measurement.
+
+The supplement's serial panel uses the same updated prompts as its quality experiment.
+All timing panels require the entire conservative remaining bound to fit the reconciled
+shared ledger. Failed consumed slots remain failed; explicit continuations fill unsent
+slots and include their excluded warmups. Partial ranking calls contribute their individual
+billed attempts even when the outer result has no complete cost or wall time.
+
+For a new live experiment, copy an explicit configuration, revalidate its exact route,
+prepare a new freeze and commit it before testing. `followup.py --prepare/--live` handles
+the suggestion experiment; `generate.py --prepare/--live --measure` handles the generative
+experiment. Both preserve the canonical cumulative ledger rather than creating a new
+US$2 allowance. New source or hardware needs a new freeze; old calibrations and held-out
+predictions must not be relabelled. The report includes the exact historical commands,
+frozen manifests, accounting observations and continuation scripts.
+
+The measured Q&A baseline conflates Wi-Fi passwords with unrelated access-code privacy
+in several answers. Summary checkboxes promote tentative or unassigned work into actions.
+Mixed-language cleanup preserves the proposition but translates its English date phrase.
+These failures are retained in the evidence and per-language recommendations. No prompt,
+threshold, model default or production feature was changed in response to held-out results.
+
+Recorded-data tests exposed Python-version-dependent floating-point summation at a frozen
+temperature-scaling cutoff. Normalization now uses explicit compensated `math.fsum`.
+Replay preserves every recorded Python 3.14 selection and gate on Python 3.11 without
+changing fits, cutoffs or labels. Residual display-level roundoff is compared with the
+same numerical tolerance as the original replay tests.
