@@ -490,6 +490,18 @@ fn transcribe_job(
     Ok(segment)
 }
 
+impl MeetingSession {
+    pub fn transcript_revision(&self) -> u64 {
+        self.progress.lock().unwrap().revision
+    }
+
+    /// Return the revision under the same lock as its content, so readers cannot miss an update.
+    pub fn transcript_snapshot(&self) -> (u64, Vec<Segment>) {
+        let progress = self.progress.lock().unwrap();
+        (progress.revision, progress.visible())
+    }
+}
+
 #[uniffi::export]
 impl MeetingSession {
     pub fn recognition_config(&self) -> MeetingRecognition {
@@ -727,6 +739,68 @@ mod tests {
         while session.pending() > 0 && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(20));
         }
+    }
+
+    #[test]
+    fn transcript_revision_tracks_content_and_dictation_filters_but_not_notes() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let session = engine(&dir, &server)
+            .start_meeting("Revision".into(), keys())
+            .unwrap();
+        assert_eq!(session.transcript_revision(), 0);
+        assert!(session.transcript_snapshot().1.is_empty());
+        {
+            let mut progress = session.progress.lock().unwrap();
+            progress.segments.push(Segment {
+                start_ms: 0,
+                end_ms: 1_000,
+                speaker: Speaker::Me,
+                text: "fixture".into(),
+                failed: false,
+                voice: None,
+            });
+            progress.changed();
+        }
+        let (revision, transcript) = session.transcript_snapshot();
+        assert_eq!(revision, 1);
+        assert_eq!(transcript[0].text, "fixture");
+        session.set_notes("Saved notes".into()).unwrap();
+        assert_eq!(session.transcript_revision(), revision);
+        session.mark_dictation(0, 1_000);
+        let (filtered_revision, transcript) = session.transcript_snapshot();
+        assert_eq!(filtered_revision, revision + 1);
+        assert!(transcript.is_empty());
+        session.stop().unwrap();
+    }
+
+    #[test]
+    fn transcript_snapshot_pairs_revision_with_its_own_content() {
+        let (dir, server) = (tempfile::tempdir().unwrap(), mockito::Server::new());
+        let session = engine(&dir, &server)
+            .start_meeting("Atomic revision".into(), keys())
+            .unwrap();
+        session.progress.lock().unwrap().segments.push(Segment {
+            start_ms: 0,
+            end_ms: 1_000,
+            speaker: Speaker::Others,
+            text: "0".into(),
+            failed: false,
+            voice: None,
+        });
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                for _ in 0..500 {
+                    let mut progress = session.progress.lock().unwrap();
+                    progress.changed();
+                    progress.segments[0].text = progress.revision.to_string();
+                }
+            });
+            for _ in 0..500 {
+                let (revision, transcript) = session.transcript_snapshot();
+                assert_eq!(transcript[0].text, revision.to_string());
+            }
+        });
+        session.stop().unwrap();
     }
 
     #[test]

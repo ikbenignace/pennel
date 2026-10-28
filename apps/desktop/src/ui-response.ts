@@ -25,7 +25,7 @@ export function localizeUiResponse(command: string, value: unknown): unknown {
     return result;
   }
   if (command === "get_permissions" && Array.isArray(value)) return value.map(permission => fields(permission, ["label", "description", "detail", "reason"]));
-  if (command === "meeting_status") return fields(value, ["error", "audio_warning", "persistence_error", "transcription_warning", "terminal_error"]);
+  if (command === "meeting_status" || command === "meeting_runtime_status") return fields(value, ["error", "audio_warning", "persistence_error", "transcription_warning", "terminal_error"]);
   if (command === "meeting_detail" && record(value)) return {
     ...value,
     retranscription_plan: fields(value.retranscription_plan, ["reason"]),

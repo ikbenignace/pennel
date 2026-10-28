@@ -171,19 +171,20 @@
     external_paste_available: !shortcutDenied(), external_paste_reason: shortcutDenied() ? capabilities.pad_external_paste.reason : null });
   let recordingStorageError = Boolean(options.recording_storage_error);
   let recordingRecovered = false;
-  const meetingStatus = () => {
+  const meetingStatus = (includeContent = true) => {
     const retained = options.section === "recording" && !recordingRecovered;
     const storageError = retained && recordingStorageError;
     const paused = retained && Boolean(options.transcription_paused);
     const persistenceError = storageError ? "Je opname kon niet volledig worden bewaard. Probeer opnieuw te bewaren." : null;
     return {
       recording: retained && !storageError, phase: storageError ? "error" : retained ? "recording" : "idle", busy: retained && !storageError,
-      error: persistenceError, notes, session_id: retained ? "qa-recording" : null, id: retained ? meetingId : null,
+      error: persistenceError, session_id: retained ? "qa-recording" : null, id: retained ? meetingId : null,
       title: meeting.title, elapsed_secs: 754, system_audio: true, heard_system_audio: true,
       echo_cancellation_active: retained && !storageError, audio_warning: null, persistence_error: persistenceError,
       transcription_warning: paused ? "Transcriptie is tijdelijk gepauzeerd. Je audio en herstelbestanden blijven lokaal bewaard." : null,
       terminal_error: storageError ? "De opname is gestopt omdat bewaren niet lukt." : null, can_retry_persistence: storageError,
-      pending: storageError ? 1 : paused ? 3 : 0, transcript: retained ? clone(transcript) : [],
+      pending: storageError ? 1 : paused ? 3 : 0, transcript_revision: retained ? 1 : 0,
+      ...(includeContent ? { notes, transcript: retained ? clone(transcript) : [] } : {}),
       ...(retained ? { recognition: { provider_kind: "local", provider_name: "Lokaal", model: settings.meeting_stt.model, language: "nl" } } : {}),
     };
   };
@@ -307,6 +308,7 @@
       case "detect_cli_agents": return [];
       case "check_cli_agent": return "Niet uitgevoerd in deze fixture.";
       case "meeting_status": return meetingStatus();
+      case "meeting_runtime_status": return meetingStatus(false);
       case "set_meeting_title": meeting.title = String(args.title ?? ""); return null;
       case "set_meeting_notes": case "save_meeting_notes": notes = String(args.text ?? ""); return null;
       case "retry_meeting_persistence": {

@@ -1,6 +1,6 @@
 import { bindLocalization, l, t, formatNumber, localizeBackendText, type UiText } from "../i18n.ts";
 import { meetingDate as dateLabel, speakerLabel, speakerUiLabel, sourceSpeakerLabel, templateUiLabel } from "../meeting-labels.ts";
-import { api, fixtureClient, listen, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type MeetingVoice, type Passage, type Segment, type SpeakerRecognition, type MeetingRetranscriptionStatus } from "../api";
+import { api, fixtureClient, listen, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type MeetingVoice, type Passage, type Segment, type SpeakerRecognition, type MeetingRetranscriptionStatus, type MeetingTemplate, type SpeakerSetup } from "../api";
 import { SerialQueue, orFallback, persistAll } from "../async";
 import { askText, askTextWithSwitch, confirmDialog, errorText, formatClock, h, markdown, menuButton, select } from "../dom";
 import { recognitionSummary } from "../speaker-state";
@@ -14,6 +14,7 @@ import { processingSummary } from "../processing-state";
 import { frozenRecognitionLabel, meetingProcessingSummary, processingLabel, retainedMeetingFailure } from "../recording-processing";
 import { retranscriptionControl, retranscriptionPercent } from "../meeting-retranscription";
 import { summaryControl } from "../voice-flow-state";
+import { RecordingRefresh, segmentKeys, sameSegment } from "../recording-refresh";
 
 const notesQueue = new SerialQueue();
 const drafts = new Map<string, MeetingDraft>();
@@ -125,59 +126,105 @@ async function nameVoice(id: string, voice: number, suggested: string, current: 
   return true;
 }
 
-function transcript(ctx: Context, segments: Segment[], detail?: MeetingDetail, id?: string, voices: MeetingVoice[] = []) {
-  const result = h("div", { class: "transcript" });
-  if (!segments.length) { result.append(h("p", { class: "muted" }, l("meetings.empty_transcript"))); return result; }
-  const play = ctx.info.capabilities.audio_playback;
-  for (const [index, segment] of segments.entries()) {
+function transcript(ctx: Context, initial: Segment[], detail?: MeetingDetail, id?: string, initialVoices: MeetingVoice[] | null = []) {
+  const element = h("div", { class: "transcript" });
+  let voices = initialVoices;
+  const rows = new Map<string, { segment: Segment; element: HTMLElement; update: (segment: Segment, index: number, speakersChanged: boolean) => void }>();
+  const empty = h("p", { class: "muted" }, l("meetings.empty_transcript"));
+  const create = (initialSegment: Segment, index: number) => {
+    let segment = initialSegment;
+    const play = ctx.info.capabilities.audio_playback;
     const available = !!detail?.audio_tracks.some((track) => track.speaker === segment.speaker && track.available);
     const stamp = h("button", { class: "transcript-stamp text-button", disabled: !id || !available || play.status !== "available",
       title: available ? play.reason ? localizeBackendText(play.reason) : l("meetings.play_from_here") : l("meetings.no_saved_audio") }, formatClock(segment.start_ms / 1000));
     if (play.reason) bindLocalization(stamp, () => { stamp.title = available ? localizeBackendText(play.reason!) : t("meetings.no_saved_audio"); });
     if (id) stamp.addEventListener("click", () => { void api.playMeetingAudio(id, segment.speaker, segment.start_ms).catch(ctx.report); });
-    const speakerColor = segment.speaker === "me" ? "var(--accent)" : segment.voice === null ? "var(--foreground)" : `var(--voice-${(segment.voice + 3) % 4 + 1})`;
-    let speaker: HTMLElement = h("span", { class: "speaker", style: `color:${speakerColor}` }, speakerUiLabel(segment, detail));
-    if (id && segment.voice !== null && segment.speaker === "others") {
-      const currentName = detail?.speakers.find((item) => item.voice === segment.voice)?.name ?? "";
-      const names = detail?.attendees ?? [];
-      const chosen = names.indexOf(currentName);
-      const original = chosen >= 0 ? `name:${chosen}` : "current";
-      const voice = voices.find((item) => item.voice === segment.voice);
-      const offerRemember = !!voice?.can_remember && !voice.remembered && !!currentName;
-      const picker = select([
-        ...chosen < 0 ? [["current", speakerUiLabel(segment, detail)] as [string, UiText]] : [],
-        ...names.map((name, index) => [`name:${index}`, name] as [string, string]), ["custom", l("meetings.other_name")],
-        ...offerRemember ? [["remember", l("meetings.remember_voice_action")] as [string, UiText]] : [],
-      ], original, (value) => {
-        void (async () => {
-          const suggested = value.startsWith("name:") ? names[Number(value.slice(5))] : currentName;
-          try {
-            const changed = value.startsWith("name:") && !voice?.can_remember
-              ? (await api.renameSpeaker(id, segment.voice!, suggested), true)
-              : await nameVoice(id, segment.voice!, suggested, voice, value === "remember");
-            if (changed) ctx.rerender(); else picker.value = original;
-          } catch (error) { picker.value = original; ctx.report(error); }
-        })();
-      }, "menu");
-      picker.classList.add("speaker", "speaker-picker");
-      picker.style.color = speakerColor;
-      const relabelPicker = () => picker.setAttribute("aria-label", t("meetings.voice_name_label", { name: speakerLabel(segment, detail) }));
-      relabelPicker();
-      bindLocalization(picker, relabelPicker);
-      speaker = picker;
+    const makeSpeaker = () => {
+      const speakerColor = segment.speaker === "me" ? "var(--accent)" : segment.voice === null ? "var(--foreground)" : `var(--voice-${(segment.voice + 3) % 4 + 1})`;
+      let speaker: HTMLElement = h("span", { class: "speaker", style: `color:${speakerColor}` }, speakerUiLabel(segment, detail));
+      if (id && segment.voice !== null && segment.speaker === "others" && voices !== null) {
+        const currentName = detail?.speakers.find((item) => item.voice === segment.voice)?.name ?? "";
+        const names = detail?.attendees ?? [];
+        const chosen = names.indexOf(currentName);
+        const original = chosen >= 0 ? `name:${chosen}` : "current";
+        const voice = voices?.find((item) => item.voice === segment.voice);
+        const offerRemember = !!voice?.can_remember && !voice.remembered && !!currentName;
+        const picker = select([
+          ...chosen < 0 ? [["current", speakerUiLabel(segment, detail)] as [string, UiText]] : [],
+          ...names.map((name, index) => [`name:${index}`, name] as [string, string]), ["custom", l("meetings.other_name")],
+          ...offerRemember ? [["remember", l("meetings.remember_voice_action")] as [string, UiText]] : [],
+        ], original, (value) => {
+          void (async () => {
+            const suggested = value.startsWith("name:") ? names[Number(value.slice(5))] : currentName;
+            try {
+              const changed = value.startsWith("name:") && !voice?.can_remember
+                ? (await api.renameSpeaker(id, segment.voice!, suggested), true)
+                : await nameVoice(id, segment.voice!, suggested, voice, value === "remember");
+              if (changed) ctx.rerender(); else picker.value = original;
+            } catch (error) { picker.value = original; ctx.report(error); }
+          })();
+        }, "menu");
+        picker.classList.add("speaker", "speaker-picker");
+        picker.style.color = speakerColor;
+        const relabelPicker = () => picker.setAttribute("aria-label", t("meetings.voice_name_label", { name: speakerLabel(segment, detail) }));
+        relabelPicker();
+        bindLocalization(picker, relabelPicker);
+        speaker = picker;
+      }
+      return speaker;
+    };
+    let speaker = makeSpeaker();
+    const body = h("div", { class: "transcript-copy" });
+    const drawBody = () => {
+      body.replaceChildren(segment.failed ? h("span", { class: "muted" }, l("meetings.transcription_failed")) : document.createTextNode(segment.text));
+      if (segment.failed && id) {
+        const retry = h("button", { class: "text-button", onclick: async () => {
+          retry.disabled = true;
+          try { await api.retranscribeMeeting(id); ctx.rerender(); }
+          catch (error) { ctx.report(error); retry.disabled = false; }
+        } }, l("common.retry"));
+        body.append(retry);
+      }
+    };
+    drawBody();
+    const row = h("div", { class: "transcript-line", "data-start-ms": segment.start_ms, "data-transcript-index": index }, stamp, speaker, body);
+    return { segment, element: row, update: (next: Segment, nextIndex: number, speakersChanged: boolean) => {
+      const bodyChanged = next.text !== segment.text || next.failed !== segment.failed;
+      const speakerChanged = speakersChanged || next.voice !== segment.voice || next.speaker !== segment.speaker;
+      if (next.start_ms !== segment.start_ms) { stamp.textContent = formatClock(next.start_ms / 1000); row.dataset.startMs = String(next.start_ms); }
+      segment = next;
+      if (bodyChanged) drawBody();
+      if (speakerChanged) { const replacement = makeSpeaker(); speaker.replaceWith(replacement); speaker = replacement; }
+      row.dataset.transcriptIndex = String(nextIndex);
+    } };
+  };
+  const update = (segments: Segment[], nextVoices = voices) => {
+    const speakersChanged = nextVoices !== voices;
+    voices = nextVoices;
+    const keys = segmentKeys(segments);
+    const retained = new Set(keys);
+    for (const [key, row] of rows) if (!retained.has(key)) { row.element.remove(); rows.delete(key); }
+    if (segments.length) empty.remove();
+    else if (!empty.isConnected || empty.parentNode !== element) element.append(empty);
+    let before = element.firstElementChild;
+    const appended = document.createDocumentFragment();
+    for (const [index, segment] of segments.entries()) {
+      const key = keys[index];
+      let row = rows.get(key);
+      if (!row) { row = create(segment, index); rows.set(key, row); }
+      else if (speakersChanged || !sameSegment(row.segment, segment) || row.element.dataset.transcriptIndex !== String(index)) {
+        row.update(segment, index, speakersChanged); row.segment = segment;
+      }
+      if (!before && !row.element.parentNode) appended.append(row.element);
+      else {
+        if (before !== row.element) element.insertBefore(row.element, before);
+        before = row.element.nextElementSibling;
+      }
     }
-    const body = h("div", { class: "transcript-copy" }, segment.failed ? h("span", { class: "muted" }, l("meetings.transcription_failed")) : segment.text);
-    if (segment.failed && id) {
-      const retry = h("button", { class: "text-button", onclick: async () => {
-        retry.disabled = true;
-        try { await api.retranscribeMeeting(id); ctx.rerender(); }
-        catch (error) { ctx.report(error); retry.disabled = false; }
-      } }, l("common.retry"));
-      body.append(retry);
-    }
-    result.append(h("div", { class: "transcript-line", "data-start-ms": segment.start_ms, "data-transcript-index": index }, stamp, speaker, body));
-  }
-  return result;
+    element.append(appended);
+  };
+  update(initial);
+  return { element, update };
 }
 
 function citationLabel(passage: Passage) {
@@ -305,10 +352,28 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
 }
 
 async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
-  const detail = await api.meetingDetail(id);
+  let disposed = false;
+  ctx.onDispose(() => { disposed = true; });
+  const reportOptional = (error: unknown) => { if (!disposed) ctx.report(error); };
+  let pendingRetranscription: MeetingRetranscriptionStatus | null | undefined;
+  let receiveRetranscription: ((status: MeetingRetranscriptionStatus | null) => void) | undefined;
+  const subscription = listen<{ id: string; status: MeetingRetranscriptionStatus }>("meeting-retranscription-changed", (event) => {
+    if (event.payload.id !== id) return;
+    if (receiveRetranscription) receiveRetranscription(event.payload.status);
+    else pendingRetranscription = event.payload.status;
+  });
+  ctx.onDispose(() => { void subscription.then((unsubscribe) => unsubscribe()).catch(reportOptional); });
+  const [detail, runtimeMetadata] = await Promise.all([
+    subscription.then(() => api.meetingDetail(id), (error) => { reportOptional(error); return api.meetingDetail(id); }), api.meetingRuntimeStatus(),
+  ]);
   if (!detail.info) return h("div", { class: "empty-state muted" }, l("meetings.not_found"));
   const meetingInfo = detail.info;
-  const runtime = await api.meetingStatus();
+  const runtime: MeetingStatus = { ...runtimeMetadata, notes: detail.notes, transcript: detail.transcript };
+  const voicesReady = orFallback(() => api.meetingVoices(id), [], reportOptional);
+  const speakerSetupReady = orFallback(() => api.speakerSetup(), null, reportOptional);
+  const templatesReady = orFallback(() => api.meetingTemplates(), [], reportOptional);
+  const markedLines = detail.summary ? orFallback(() => api.markLines(detail.summary!, detail.notes), [], reportOptional) : Promise.resolve([]);
+  const conflictsReady = ctx.info.settings.cloud_sync === true ? orFallback(() => api.meetingConflictFiles(id), [], reportOptional) : Promise.resolve([]);
   const active = runtime.busy && runtime.id === id;
   let state = detailState.get(id);
   const firstVisit = !state;
@@ -319,12 +384,16 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const playback = ctx.info.capabilities.audio_playback;
   const audioAvailable = detail.audio_tracks.some((track) => track.available);
   const audioReason = () => !audioAvailable ? t("meetings.no_saved_audio") : playback.status !== "available" ? playback.reason ? localizeBackendText(playback.reason) : t("meetings.audio_unavailable") : null;
-  const [voices, speakerSetup] = await Promise.all([orFallback(() => api.meetingVoices(id), [], ctx.report), orFallback(() => api.speakerSetup(), null, ctx.report)]);
-  const remembered = voices.filter((voice) => voice.remembered && voice.name).map((voice) => voice.name);
+  let voices: MeetingVoice[] | null = null;
+  let speakerSetup: SpeakerSetup | null = null;
+  let speakersLoaded = false;
+  let templatesLoaded = false;
+  let templates: MeetingTemplate[] = [];
+  const remembered = h("p", { class: "help remembered-voices", hidden: true });
+  let transcriptContent: ReturnType<typeof transcript> | null = null;
+  let transcriptControls: HTMLElement | null = null;
   if (ctx.sourceTarget) current.tab = ctx.sourceTarget.kind === "transcript" ? "transcript" : "notes";
   else if (ctx.jumpMs !== undefined) current.tab = "transcript";
-  const templates = await api.meetingTemplates();
-  if (!templates.some((template) => template.id === current.template)) current.template = templates[0]?.id ?? "algemeen";
   const notesDraft = draftFor(id, detail.notes);
   const notes = editNotes(ctx, notesDraft, id);
   if (current.noteSelection) notes.input.setSelectionRange(current.noteSelection.start, current.noteSelection.end, current.noteSelection.direction);
@@ -339,13 +408,23 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const enhanced = h("div", { class: "enhanced-notes" });
   const summaryBlocks: { text: string; element: HTMLElement }[] = [];
   if (detail.summary) {
-    const lines = await api.markLines(detail.summary, detail.notes);
-    for (const line of lines) {
-      const rendered = markdown(line.text);
-      rendered.classList.add(line.mine ? "own-line" : "generated-line");
+    const lines = detail.summary.split(/\r?\n/);
+    if (lines.at(-1) === "") lines.pop();
+    for (const text of lines) {
+      const rendered = markdown(text);
+      rendered.classList.add("generated-line");
       enhanced.append(rendered);
-      summaryBlocks.push({ text: line.text, element: rendered });
+      summaryBlocks.push({ text, element: rendered });
     }
+    void markedLines.then((marked) => {
+      if (disposed) return;
+      marked.forEach((line, index) => {
+        const block = summaryBlocks[index];
+        if (!block || block.text !== line.text) return;
+        block.element.classList.toggle("own-line", line.mine);
+        block.element.classList.toggle("generated-line", !line.mine);
+      });
+    });
   }
   const panelId = `meeting-panel-${++panelNumber}`;
   let retranscriptionStatus = detail.retranscription_status;
@@ -386,14 +465,16 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     panel.setAttribute("aria-labelledby", `${panelId}-${current.tab}`);
     if (current.tab === "ask") { questions ??= chat(ctx, id); panel.replaceChildren(questions); return; }
     if (current.tab === "transcript") {
-      const playbackReason = h("span", { class: audioReason() ? "help" : "grow" }, audioReason());
-      bindLocalization(playbackReason, () => { playbackReason.textContent = audioReason(); });
-      const stopAudio = h("button", { class: "text-button", disabled: !!audioReason(), title: audioReason(), onclick: () => api.stopAudio() }, l("meetings.stop_audio"));
-      bindLocalization(stopAudio, () => { stopAudio.title = audioReason() ?? ""; });
+      if (!transcriptControls) {
+        const playbackReason = h("span", { class: audioReason() ? "help" : "grow" }, audioReason());
+        bindLocalization(playbackReason, () => { playbackReason.textContent = audioReason(); });
+        const stopAudio = h("button", { class: "text-button", disabled: !!audioReason(), title: audioReason(), onclick: () => api.stopAudio() }, l("meetings.stop_audio"));
+        bindLocalization(stopAudio, () => { stopAudio.title = audioReason() ?? ""; });
+        transcriptControls = h("div", { class: "transcript-tools" }, playbackReason, stopAudio, reprocess);
+      }
+      transcriptContent ??= transcript(ctx, detail.transcript, detail, id, voices);
       refreshRetranscription();
-      panel.replaceChildren(h("div", { class: "transcript-tools" }, playbackReason, stopAudio, reprocess), reprocessReason,
-        ...remembered.length ? [h("p", { class: "help remembered-voices" }, l("meetings.remembered_voices", { names: remembered.join(", ") }))] : [],
-        transcript(ctx, detail.transcript, detail, id, voices));
+      panel.replaceChildren(transcriptControls, reprocessReason, remembered, transcriptContent.element);
       return;
     }
     panel.replaceChildren(detail.summary ? enhanced : detail.notes.trim() ? h("div", { class: "markdown" }, detail.notes) : h("p", { class: "muted" }, l("meetings.empty_summary")));
@@ -444,7 +525,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const refreshSummaryControls = () => {
     const control = summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working || !!retranscriptionStatus?.running);
     const reason = control.reason === "setup" ? t("meetings.summary_setup_help") : control.reason === "recording" ? t("meetings.wait_recording") : "";
-    regenerate.disabled = control.disabled;
+    regenerate.disabled = control.disabled || !templatesLoaded;
     regenerate.title = reason;
     regenerate.textContent = t(current.working ? "dictation.working" : detail.summary ? "meetings.regenerate" : "meetings.summarize");
     setupReason.textContent = reason;
@@ -455,16 +536,21 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   bindLocalization(summarySetup, refreshSummaryControls);
   refreshSummaryControls();
   regenerate.addEventListener("click", async () => {
-    if (summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working || !!retranscriptionStatus?.running).disabled) return;
+    if (!templatesLoaded || summaryControl(languageModelConfigured(ctx.info), runtime.busy, current.working || !!retranscriptionStatus?.running).disabled) return;
     recognizing = false; current.recognition = undefined; current.working = true; refreshSummaryControls(); diarize.disabled = true; message.textContent = t("dictation.working");
     try { await notes.flush(); await api.summarizeMeeting(id, current.template); current.message = ""; }
     catch (error) { current.message = errorText(error); }
     current.working = false; rememberPosition(); ctx.rerender();
   });
-  const selected = select(templates.map((template) => [template.id, templateUiLabel(template)]), current.template, (template) => { current.template = template; }, "menu");
-  selected.setAttribute("aria-label", t("meetings.template"));
-  bindLocalization(selected, () => selected.setAttribute("aria-label", t("meetings.template")));
-  selected.disabled = runtime.busy;
+  const templateSlot = h("span");
+  let selected = select([[current.template, l("common.loading")]], current.template, (template) => { current.template = template; }, "menu");
+  const configureTemplate = () => {
+    selected.setAttribute("aria-label", t("meetings.template"));
+    selected.disabled = !templatesLoaded || runtime.busy || !!retranscriptionStatus?.running || current.working;
+  };
+  configureTemplate();
+  bindLocalization(templateSlot, configureTemplate);
+  templateSlot.append(selected);
   const copied = h("span", { class: "help", role: "status" });
   const copy = async (formatted: boolean, withTranscript = false) => {
     const exported = await api.exportMeeting(id, withTranscript);
@@ -493,13 +579,14 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     : diarization.status !== "available" ? diarization.reason ? localizeBackendText(diarization.reason) : t("meetings.speaker_recognition_unavailable")
     : !detail.audio_tracks.some((track) => track.available) ? t("meetings.no_saved_audio")
     : !detail.transcript.some((segment) => !segment.failed) ? t("meetings.empty_transcript")
+    : !speakersLoaded ? t("common.loading")
     : !speakerSetup?.ready ? cloudRoute ? t("backend.sign_in_to_pennel_cloud_under_settings_account_first") : t("meetings.download_speaker_models")
     : null;
   const canDiarize = !speakerReason();
   const diarize = h("button", { class: "btn", disabled: !canDiarize || current.working,
     title: speakerReason() ?? (cloudRoute ? l("meetings.speaker_cloud_help") : l("meetings.speaker_local_help")) }, l("meetings.recognize_speakers"));
   diarize.addEventListener("click", async () => {
-    if (current.working) return;
+    if (current.working || speakerReason()) return;
     recognizing = true; current.recognition = undefined; current.working = true; refreshSummaryControls(); diarize.disabled = true; message.textContent = t("meetings.recognizing_speakers");
     try { current.recognition = await api.recognizeSpeakers(id); current.message = recognitionSummary(current.recognition); }
     catch (error) { current.message = errorText(error); }
@@ -527,8 +614,6 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
       }
     }
   });
-  let disposed = false;
-  ctx.onDispose(() => { disposed = true; });
   const applyRetranscriptionStatus = (status: MeetingRetranscriptionStatus | null) => {
     if (disposed) return;
     const previous = retranscriptionStatus;
@@ -536,14 +621,12 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     detail.retranscription_status = status;
     refreshRetranscription(); refreshSummaryControls();
     diarize.disabled = !!speakerReason() || current.working;
-    selected.disabled = runtime.busy || !!status?.running || current.working;
+    configureTemplate();
     message.textContent = messageText();
     if (!status?.running && status && previous !== status && !ownRetranscription) { rememberPosition(); ctx.rerender(); }
   };
-  const subscription = listen<{ id: string; status: MeetingRetranscriptionStatus }>("meeting-retranscription-changed", (event) => {
-    if (event.payload.id === id) applyRetranscriptionStatus(event.payload.status);
-  });
-  ctx.onDispose(() => { void subscription.then((unsubscribe) => unsubscribe()).catch(ctx.report); });
+  receiveRetranscription = applyRetranscriptionStatus;
+  if (pendingRetranscription !== undefined) applyRetranscriptionStatus(pendingRetranscription);
   const refreshRetranscriptionPlan = async () => {
     if (disposed) return;
     const fresh = await api.meetingDetail(id);
@@ -552,22 +635,25 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     if (JSON.stringify(fresh.retranscription_status) !== JSON.stringify(retranscriptionStatus)) applyRetranscriptionStatus(fresh.retranscription_status);
     else refreshRetranscription();
   };
-  void subscription.then(refreshRetranscriptionPlan).catch(ctx.report);
   bindLocalization(reprocess, refreshRetranscription);
   ctx.onInfoChange(() => { void refreshRetranscriptionPlan().catch(ctx.report); });
   ctx.onFocusChange((focused) => { if (focused) void refreshRetranscriptionPlan().catch(ctx.report); });
   refreshRetranscription();
-  const footer = h("footer", { class: "meeting-footer" }, h("div", { class: "row" }, selected, regenerate, h("span", { class: "grow" }), copied, diarize, share,
+  const footer = h("footer", { class: "meeting-footer" }, h("div", { class: "row" }, templateSlot, regenerate, h("span", { class: "grow" }), copied, diarize, share,
     h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? l("meetings.show_finder") : l("meetings.open_folder"))), diarizeReason);
-  const conflicts = ctx.info.settings.cloud_sync === true ? await orFallback(() => api.meetingConflictFiles(id), [], ctx.report) : [];
-  const banners = conflicts.map((name) => h("div", { class: "conflict-banner", role: "status" }, icon("warning"),
+  const banners = h("div", { hidden: true });
+  void conflictsReady.then((conflicts) => {
+    if (disposed) return;
+    banners.hidden = !conflicts.length;
+    banners.replaceChildren(...conflicts.map((name) => h("div", { class: "conflict-banner", role: "status" }, icon("warning"),
     h("span", {}, l("meetings.conflict_notice")),
     h("button", { class: "btn", onclick: () => { void api.openPath(detail.dir).catch(ctx.report); } }, l("meetings.view")),
     h("button", { class: "btn danger", onclick: async () => {
       if (!await confirmDialog(l("meetings.delete_conflict_title"), l("meetings.file_will_delete", { name }), l("common.delete"))) return;
       try { await api.deleteConflictCopy(id, name); } catch (error) { ctx.report(error); }
       ctx.rerender();
-    } }, l("common.delete"))));
+    } }, l("common.delete")))));
+  });
   const metadataText = () => [dateLabel(meetingInfo.start_iso), meetingInfo.duration_min ? t("meetings.duration_minutes", { count: formatNumber(meetingInfo.duration_min) }) : "", detail.attendees.join(", ")].filter(Boolean).join(" · ");
   const metadata = h("p", { class: "help" }, metadataText());
   bindLocalization(metadata, () => { metadata.textContent = metadataText(); });
@@ -585,9 +671,35 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     h("header", { class: "meeting-header" }, h("div", { class: "grow" }, h("h1", {}, meetingInfo.title),
       metadata), tabs),
     runtime.id === id && runtime.recognition ? meetingProcessingNotice(ctx, () => runtime, true).element : null,
-    ...banners, runtime.id === id ? recoveryNotice(ctx, runtime) : null,
+    banners, runtime.id === id ? recoveryNotice(ctx, runtime) : null,
     detail.summary_outdated ? h("p", { class: "help", role: "status" }, l("meetings.summary_outdated")) : null,
     summarySetup, message, panel, footer);
+  void voicesReady.then((loaded) => {
+    if (disposed) return;
+    voices = loaded;
+    const names = loaded.filter((voice) => voice.remembered && voice.name).map((voice) => voice.name);
+    remembered.hidden = !names.length;
+    remembered.replaceChildren(...(names.length ? [h("span", {}, l("meetings.remembered_voices", { names: names.join(", ") }))] : []));
+    transcriptContent?.update(detail.transcript, voices);
+  });
+  void speakerSetupReady.then((loaded) => {
+    if (disposed) return;
+    speakerSetup = loaded; speakersLoaded = true;
+    diarize.disabled = !!speakerReason() || current.working;
+    diarizeReason.textContent = speakerReason();
+    diarizeReason.hidden = current.tab !== "transcript" || !speakerReason();
+    diarize.title = speakerReason() ?? t(cloudRoute ? "meetings.speaker_cloud_help" : "meetings.speaker_local_help");
+  });
+  void templatesReady.then((loaded) => {
+    if (disposed) return;
+    templates = loaded; templatesLoaded = !!loaded.length;
+    if (!templates.some((template) => template.id === current.template)) current.template = templates[0]?.id ?? current.template;
+    if (templatesLoaded) {
+      selected = select(templates.map((template) => [template.id, templateUiLabel(template)]), current.template, (template) => { current.template = template; }, "menu");
+      templateSlot.replaceChildren(selected);
+    }
+    configureTemplate(); refreshSummaryControls();
+  });
   draw();
   if (ctx.sourceTarget) {
     const source = ctx.sourceTarget;
@@ -680,7 +792,7 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
       h("button", { class: "text-button", onclick: () => api.showWindow("settings", "recording") }, l("meetings.recording_settings")));
   }
   if (!initial.id) {
-    schedule(ctx, 500, async () => { const status = await api.meetingStatus(); if (status.id || !status.busy) ctx.rerender(); });
+    schedule(ctx, 500, async () => { const status = await api.meetingRuntimeStatus(); if (status.id || !status.busy) ctx.rerender(); });
     return h("div", { class: "recording-view" }, h("h1", {}, l("meetings.starting")), meetingProcessingNotice(ctx, () => initial, true).element, h("progress", { "aria-label": l("meetings.starting_label") }));
   }
   if (liveDraft.dirty && liveMeetingId && liveDraft.sessionId !== initial.session_id) {
@@ -709,7 +821,12 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
   let recoveryKey = "";
   const consent = h("p", { class: "help", role: "status", hidden: true }, l("meetings.consent_copied"));
   const output = h("div", { class: "live-transcript" });
-  let transcriptSignature = "";
+  const transcriptContent = transcript(ctx, initial.transcript);
+  output.append(transcriptContent.element);
+  let shownTranscript = initial.transcript;
+  const refreshing = new RecordingRefresh(initial);
+  let disposed = false;
+  ctx.onDispose(() => { disposed = true; refreshing.dispose(); });
   const phase = h("span", { class: "help", role: "status" });
   const stop = h("button", { class: "btn", disabled: initial.phase !== "recording" }, l("common.stop_recording"));
   const update = (status: MeetingStatus) => {
@@ -736,13 +853,12 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
     stop.disabled = status.phase !== "recording";
     notes.input.disabled = status.phase !== "recording";
     consent.hidden = !(status.consent_copied ?? false);
-    const nextTranscript = JSON.stringify(status.transcript);
-    if (nextTranscript !== transcriptSignature) {
+    if (status.transcript !== shownTranscript) {
       const position = output.scrollTop;
       const following = output.scrollTop + output.clientHeight >= output.scrollHeight - 1;
-      output.replaceChildren(transcript(ctx, status.transcript));
+      transcriptContent.update(status.transcript);
       output.scrollTop = following ? output.scrollHeight : position;
-      transcriptSignature = nextTranscript;
+      shownTranscript = status.transcript;
     }
   };
   update(initial);
@@ -753,9 +869,12 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
     catch (error) { warning.textContent = errorText(error); stop.disabled = false; }
   });
   schedule(ctx, 1000, async () => {
-    const status = await api.meetingStatus();
-    if (!status.busy || status.session_id !== initial.session_id) { ctx.rerender(); return; }
-    update(status);
+    const runtime = await api.meetingRuntimeStatus();
+    if (disposed) return;
+    if (!runtime.busy || runtime.session_id !== initial.session_id || runtime.id !== initial.id) { ctx.rerender(); return; }
+    update({ ...latestStatus, ...runtime, transcript_revision: latestStatus.transcript_revision });
+    const status = await refreshing.refresh(runtime, () => api.meetingStatus());
+    if (status && !disposed) update(status);
   });
   return h("div", { class: "recording-view live-recording" }, title,
     h("div", { class: "row recording-controls" }, h("span", { class: "status-dot" }), clock, h("span", { class: "grow" }), stop), processing.element, consent, phase, warning, recovery, notes.input,

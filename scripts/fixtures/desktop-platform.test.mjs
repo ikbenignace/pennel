@@ -221,6 +221,19 @@ test("recording storage failure retains the session and transcript until explici
   assert.ok(!context.__PENNEL_FIXTURE__.calls.some(command => ["start_meeting", "retranscribe_meeting"].includes(command)));
 });
 
+test("runtime metadata preserves recording recovery without copying user content", async () => {
+  const context = fixture("recording-storage-error");
+  const api = context.__PENNEL_PLATFORM__;
+  const full = await api.invoke("meeting_status");
+  const metadata = await api.invoke("meeting_runtime_status");
+  const { notes, transcript, ...expected } = full;
+  assert.deepEqual(JSON.parse(JSON.stringify(metadata)), JSON.parse(JSON.stringify(expected)));
+  assert.ok(transcript.length);
+  assert.equal(Object.hasOwn(metadata, "transcript"), false);
+  assert.equal(Object.hasOwn(metadata, "notes"), false);
+  assert.equal(metadata.can_retry_persistence, true);
+});
+
 test("paused transcription is nonfatal while recording and recovery audio stay available", async () => {
   const context = fixture("recording-transcription-paused");
   const status = await context.__PENNEL_PLATFORM__.invoke("meeting_status");

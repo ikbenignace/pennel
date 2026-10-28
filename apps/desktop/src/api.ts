@@ -269,6 +269,7 @@ export interface Segment {
 }
 
 export interface MeetingStatus {
+  transcript_revision?: number;
   recognition?: { provider_kind: ProviderKind | null; provider_name: string; model: string; language: string | null };
   recording: boolean;
   phase: MeetingPhase;
@@ -291,6 +292,8 @@ export interface MeetingStatus {
   pending: number;
   transcript: Segment[];
 }
+
+export type MeetingRuntimeStatus = Omit<MeetingStatus, "notes" | "transcript" | "transcript_revision"> & { transcript_revision: number };
 
 export interface MeetingFinished {
   id: string | null;
@@ -563,6 +566,7 @@ export const api = {
   openLog: () => invoke<void>("open_log"),
   openPath: (path: string) => invoke<void>("open_path", { path }),
   meetingStatus: () => invoke<MeetingStatus>("meeting_status"),
+  meetingRuntimeStatus: () => invoke<MeetingRuntimeStatus>("meeting_runtime_status"),
   startMeeting: (title: string) => invoke<string>("start_meeting", { title }),
   stopMeeting: () => invoke<void>("stop_meeting"),
   retryMeetingPersistence: (sessionId: string) => invoke<void>("retry_meeting_persistence", { sessionId }),
