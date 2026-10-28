@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+
+const { values } = parseArgs({ options: { device: { type: 'string' }, port: { type: 'string', default: '8879' }, name: { type: 'string' } } });
+const device = values.device?.toUpperCase();
+if (!device || !/^[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}$/.test(device)) throw new Error('Pass --device with the explicitly assigned iOS simulator UUID.');
+const port = Number(values.port);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Device Hub port must be an integer from 1 to 65535.');
+const name = values.name ?? `capture-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.png$/.test(name)) throw new Error('Screenshot name must be a PNG basename without directories.');
+const directory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../build/mobile/qa/device-hub');
+const file = path.join(directory, name);
+if (existsSync(file)) throw new Error('Screenshot filename already exists; use a new name.');
+const base = `http://127.0.0.1:${port}`;
+const endpoint = new URL('/vendor/serve-sim/api', base);
+endpoint.searchParams.set('device', device);
+const stateResponse = await fetch(endpoint, { signal: AbortSignal.timeout(15_000) });
+if (!stateResponse.ok) throw new Error(`Device Hub discovery failed with HTTP ${stateResponse.status}.`);
+const state = await stateResponse.json();
+if (state?.device !== device) throw new Error('Device Hub did not confirm the requested simulator; no screenshot was requested.');
+const screenshot = new URL('/vendor/serve-sim/api/screenshot', base);
+screenshot.searchParams.set('device', device);
+const response = await fetch(screenshot, { method: 'POST', headers: { Origin: base }, signal: AbortSignal.timeout(30_000) });
+if (!response.ok) throw new Error(`Device Hub screenshot failed with HTTP ${response.status}.`);
+const bytes = Buffer.from(await response.arrayBuffer());
+if (!bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error('Device Hub did not return a PNG screenshot.');
+mkdirSync(directory, { recursive: true });
+writeFileSync(file, bytes, { flag: 'wx' });
+console.log(file);

@@ -1,0 +1,50 @@
+{
+  "name": "pennel-mobile-app",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "device:hub": "node ../../scripts/mobile-device-hub.mjs",
+    "device:hub:screenshot": "node ../../scripts/mobile-device-hub-screenshot.mjs",
+    "native:prepare": "../../scripts/with-toolchain.sh ../../scripts/build-mobile-core-ios.sh",
+    "assets:prepare": "../../scripts/prepare-mobile-assets.sh",
+    "prebuild": "npm run assets:prepare && expo prebuild --platform ios --no-install --no-clean",
+    "prebuild:clean": "npm run assets:prepare && expo prebuild --platform ios --no-install --clean",
+    "ios": "npm run assets:prepare && npm run native:prepare && expo run:ios",
+    "build:ios": "../../scripts/build-mobile-ios.sh",
+    "typecheck": "tsc --noEmit",
+    "test:plugins": "node --test tests/cng*.test.cjs",
+    "test:widgets": "node --test widgets/tests/live-activities.test.cjs",
+    "test:prebuild": "node --test tests/cng-prebuild.integration.cjs",
+    "test:pods": "node --test tests/cng-pods.integration.cjs",
+    "test:ui": "node --experimental-strip-types --test tests/ui/*.test.mjs"
+  },
+  "dependencies": {
+    "@expo/ui": "~58.0.23",
+    "@expo/vector-icons": "^15.0.2",
+    "expo": "~58.0.19",
+    "expo-constants": "~58.0.13",
+    "expo-dev-client": "~58.0.15",
+    "expo-font": "~58.0.10",
+    "expo-linking": "~58.0.14",
+    "expo-localization": "~58.0.5",
+    "expo-router": "~58.0.26",
+    "expo-splash-screen": "~58.0.11",
+    "expo-status-bar": "~58.0.4",
+    "expo-system-ui": "~58.0.6",
+    "expo-widgets": "~58.0.23",
+    "pennel-mobile": "file:./modules/pennel-mobile",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "babel-preset-expo": "~58.0.20",
+    "expo-device-hub": "0.18.1",
+    "typescript": "~6.0.3"
+  }
+}

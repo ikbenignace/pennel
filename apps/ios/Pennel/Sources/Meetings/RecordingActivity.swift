@@ -1,6 +1,7 @@
 import ActivityKit
 import Foundation
 import os
+import PennelMobileKit
 
 @MainActor
 protocol RecordingActivityControlling: AnyObject {

@@ -47,6 +47,8 @@ final class DictationSession {
     @ObservationIgnored private var meetingDictationStartMs: UInt64?
     /// Bumped on every stop, so a dictation that finishes after the session ended cannot revive it.
     @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var processingRunner: DictationRunning?
+    @ObservationIgnored private var pendingStart: UUID?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     private static let log = Logger(subsystem: "app.pennel.ios", category: "session")
@@ -97,7 +99,8 @@ final class DictationSession {
     }
 
     static func isStartLink(_ url: URL) -> Bool {
-        url.scheme == "pennel" && url.host() == "sessie" && url.path() == "/start"
+        let scheme = Bundle.main.object(forInfoDictionaryKey: "PennelURLScheme") as? String ?? "pennel"
+        return url.scheme == scheme && url.host() == "sessie" && url.path() == "/start"
     }
 
     // MARK: Session
@@ -106,8 +109,14 @@ final class DictationSession {
     @discardableResult
     func start() async -> Bool {
         guard phase == .off else { return true }
+        guard pendingStart == nil else { return false }
+        let token = UUID()
+        pendingStart = token
+        defer { if pendingStart == token { pendingStart = nil } }
         startError = nil
-        guard await requestPermission() else {
+        let allowed = await requestPermission()
+        guard pendingStart == token else { return false }
+        guard allowed else {
             startError = "Geen toegang tot de microfoon. Sta de microfoon toe in Instellingen."
             return false
         }
@@ -143,7 +152,10 @@ final class DictationSession {
     }
 
     func stop(reason: StopReason) {
+        pendingStart = nil
         guard phase != .off else { return }
+        processingRunner?.cancel()
+        processingRunner = nil
         _ = gate.close()
         endMeetingDictation()
         cancelLevel?()
@@ -200,7 +212,12 @@ final class DictationSession {
             extendClock()
             cancelLevel = timers(0.1) { [weak self] in self?.publishLevel() }
         case .cancel:
-            guard phase == .listening else { return }
+            guard phase == .listening || phase == .processing else { return }
+            if phase == .processing {
+                generation += 1
+                processingRunner?.cancel()
+                processingRunner = nil
+            }
             _ = gate.close()
             endMeetingDictation()
             stopLevel()
@@ -228,7 +245,11 @@ final class DictationSession {
 
         let generation = generation
         let started = now()
-        let outcome = await runner().run(samples: samples)
+        let processing = runner()
+        processingRunner = processing
+        let outcome = await processing.run(samples: samples)
+        guard generation == self.generation, phase == .processing else { return }
+        processingRunner = nil
         let result: HandoffResult
         switch outcome {
         case .success(let dictation):
@@ -241,7 +262,6 @@ final class DictationSession {
         }
         server.publish(result)
 
-        guard generation == self.generation, phase == .processing else { return }
         phase = .ready
         extendClock()
         publish(at: now())

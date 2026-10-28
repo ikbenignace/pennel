@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple"],
+  "apple": {
+    "podspecPath": "PennelMobile.podspec",
+    "swiftModuleName": "PennelMobile",
+    "modules": ["PennelMobileModule"],
+    "appDelegateSubscribers": ["PennelAppDelegateSubscriber"]
+  }
+}

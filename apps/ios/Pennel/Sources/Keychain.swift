@@ -4,7 +4,9 @@ import Security
 /// Provider API keys stay on this device: `AfterFirstUnlockThisDeviceOnly` keeps them out of backups and readable
 /// while a recording runs with the screen locked.
 enum Keychain {
-    static let service = "app.pennel.ios"
+    static var service: String {
+        Bundle.main.object(forInfoDictionaryKey: "PennelKeychainService") as? String ?? "app.pennel.ios"
+    }
     private static let apiKeyPrefix = "api-key."
 
     static func apiKeyAccount(_ providerId: String) -> String {

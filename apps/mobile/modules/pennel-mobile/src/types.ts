@@ -1,0 +1,129 @@
+export type InterfaceLanguage = 'en' | 'nl';
+export type Appearance = 'system' | 'light' | 'dark';
+export type ProviderKind = 'open_ai' | 'open_router' | 'groq' | 'mistral' | 'ollama' | 'lm_studio' | 'custom' | 'local' | 'apple_speech' | 'apple_intelligence' | 'claude_code' | 'codex' | 'open_code' | 'copilot' | 'cursor_agent' | 'gemini_cli' | 'pennel_cloud';
+export interface Capability { status: 'available' | 'permission_required' | 'unsupported' | 'unavailable'; reason: string | null }
+export interface ModelChoice { provider_id: string; model: string }
+export interface ProviderAccount { id: string; kind: ProviderKind; name: string; base_url: string }
+export interface ProviderKindInfo { kind: ProviderKind; label: string; requires_key: boolean; stt: boolean; llm: boolean; availability: Capability; default_base_url: string }
+export interface Settings {
+  ui_language: 'system' | InterfaceLanguage;
+  appearance: Appearance;
+  onboarding: { status: 'pending' | 'skipped' | 'completed'; version: number; resume_step?: string };
+  providers: ProviderAccount[];
+  dictation_stt: ModelChoice;
+  meeting_stt: ModelChoice;
+  llm: ModelChoice;
+  mode: 'fast' | 'clean';
+  language: string | null;
+  dictionary: string[];
+  style_rules: { bundle_id: string; style: string }[];
+  history_retention_days: number;
+  default_template: string;
+  meeting_audio_retention_days: number;
+  diarization: boolean;
+  speaker_recognition: 'local' | 'cloud';
+  cloud_sync?: boolean;
+  [key: string]: unknown;
+}
+export interface Segment { start_ms: number; end_ms: number; speaker: 'me' | 'others'; text: string; failed: boolean; voice: number | null }
+export interface MeetingInfo { id: string; title: string; start_iso: string; duration_min: number; has_summary: boolean; sync_state?: 'synced' | 'pending' | 'conflict' }
+export interface MeetingVoice { voice: number; name: string | null; remembered: boolean; can_remember: boolean }
+export interface MeetingDetail { info: MeetingInfo; notes: string; summary: string | null; transcript: Segment[]; speakers: { voice: number; name: string }[]; voices?: MeetingVoice[]; attendees: string[]; audio_tracks: { speaker: 'me' | 'others'; available: boolean }[]; summary_outdated?: boolean; conflicts?: ConflictFile[]; interruption?: string | null }
+export interface ConflictFile { name: string; text?: string }
+export interface MeetingTemplate { id: string; name: string; builtin: boolean; customized: boolean }
+export interface HistoryEntry { id: string; created_at_ms: number; raw: string; text: string; status: 'done' | 'failed' | 'unsaved'; error: string | null; has_audio: boolean }
+export interface Passage { meeting_id: string; title: string; kind: 'notes' | 'transcript' | 'summary'; start_ms: number | null; text: string; snippet: string }
+export interface MeetingAnswer { text: string; citations: { number: number; passage: Passage }[] }
+export interface ChatTurn { question: string; answer: string }
+export interface CloudAccount { email: string; audio_seconds: number; tokens: number; storage_bytes: number; limit_audio_seconds: number; limit_tokens: number; limit_storage_bytes: number }
+export interface CloudDevice { id: string; name: string; platform: string; last_seen_iso: string; current: boolean }
+export interface LoginStart { user_code: string; verification_uri: string; interval_secs: number; expires_at_ms?: number }
+export interface CloudState { signed_in: boolean; account: CloudAccount | null; syncing: boolean; sync_enabled: boolean; status: string; recovery_confirmed: boolean; brake: boolean; device_name: string; notice: string | null; login?: { phase: 'idle' | 'code' | 'expired'; start?: LoginStart } }
+export type RecognitionStage = 'preparing' | 'uploading' | 'recognizing' | 'response_unknown' | 'interrupted' | 'applying' | 'completed' | 'cancelled' | 'failed';
+export interface SpeakerJob { id: string; meeting_uid: string; meeting_id?: string; stage: RecognitionStage; decoded_frames: number; uploaded_bytes: number; total_bytes?: number; confirmed_chunks: number; total_chunks?: number; recoverable: boolean; error: { code: string; message: string } | null }
+export interface RuntimeSnapshot {
+  revision: number;
+  ready: boolean;
+  platform: 'ios' | 'android';
+  settings: Settings;
+  capabilities: Record<string, Capability>;
+  kinds: ProviderKindInfo[];
+  keys: Record<string, boolean>;
+  dictation: { phase: 'idle' | 'listening' | 'processing'; text: string | null; level: number; error: string | null };
+  session: { phase: 'off' | 'ready' | 'listening' | 'processing'; expires_at_ms: number | null; full_access_seen: boolean; keyboard_enabled?: boolean; error: string | null };
+  meeting: { phase: 'idle' | 'starting' | 'recording' | 'interrupted' | 'finishing' | 'error'; id: string | null; retained_id?: string | null; last_finished_id?: string | null; title: string; elapsed_secs: number; notes: string; transcript: Segment[]; pending: number; error: string | null };
+  cloud: CloudState;
+  recognition_jobs: SpeakerJob[];
+  navigation?: { sequence: number; route: 'dictation' | 'meeting'; meeting_id?: string } | null;
+}
+export interface NativeFailure { code: string; message: string; recoverable?: boolean }
+export interface RuntimeClient { bootstrap(): Promise<RuntimeSnapshot>; getSnapshot(): Promise<RuntimeSnapshot>; invoke<T>(method: string, payload?: Record<string, unknown>): Promise<T>; subscribe(listener: (snapshot: RuntimeSnapshot) => void): () => void }
+
+export type MobileSettings = Settings;
+export type RecognitionSnapshot = SpeakerJob;
+export interface SyncReport { status: string; uploaded: number; downloaded: number; conflicts: number; last_success_ms: number | null; error: string | null }
+
+export interface MobileCommandResults {
+  'meetings.list': MeetingInfo[];
+  'meetings.read': MeetingDetail;
+  'meetings.start': RuntimeSnapshot;
+  'meetings.stop': RuntimeSnapshot;
+  'meetings.retrySave': RuntimeSnapshot;
+  'meetings.notes': void;
+  'meetings.rename': string;
+  'meetings.delete': void;
+  'meetings.summarize': MeetingDetail;
+  'meetings.templates': MeetingTemplate[];
+  'meetings.ask': MeetingAnswer;
+  'meetings.search': Passage[];
+  'meetings.export': { title: string; markdown: string; html: string };
+  'meetings.play': void;
+  'meetings.stopPlayback': void;
+  'meetings.retryTranscription': number;
+  'meetings.conflictDelete': void;
+  'dictation.start': RuntimeSnapshot;
+  'dictation.stop': RuntimeSnapshot;
+  'dictation.cancel': RuntimeSnapshot;
+  'dictation.history': HistoryEntry[];
+  'dictation.retry': { text: string; history_id: string };
+  'dictation.deleteHistory': void;
+  'dictation.copy': void;
+  'session.start': RuntimeSnapshot;
+  'session.stop': RuntimeSnapshot;
+  'settings.read': Settings;
+  'settings.update': Settings;
+  'settings.keyboard': { layout: 'qwerty' | 'azerty'; suggestions: boolean; duration: number };
+  'providers.add': Settings;
+  'providers.remove': Settings;
+  'providers.setKey': void;
+  'providers.test': { ok: boolean; message: string };
+  'providers.models': { id: string; name: string }[];
+  'permissions.microphone': { granted: boolean };
+  'system.openSettings': void;
+  'cloud.status': { signed_in: boolean; account: CloudAccount | null; report: SyncReport };
+  'cloud.loginStart': LoginStart;
+  'cloud.loginPoll': { status: 'pending' | 'slow_down' | 'done' | 'expired' };
+  'cloud.loginCancel': void;
+  'cloud.logout': void;
+  'cloud.sync': SyncReport;
+  'cloud.setSync': { recovery_code: string | null };
+  'cloud.devices': CloudDevice[];
+  'cloud.renameDevice': void;
+  'cloud.revoke': void;
+  'cloud.recoveryCreate': { recovery_code: string };
+  'cloud.recoveryReset': { recovery_code: string };
+  'cloud.recoveryPrint': void;
+  'cloud.confirmDeletes': void;
+  'navigation.consume': void;
+  'cloud.recoveryUnlock': void;
+  'cloud.recoveryConfirm': void;
+  'cloud.recoveryCopy': void;
+  'cloud.deleteAccount': void;
+  'recognition.start': SpeakerJob;
+  'recognition.get': SpeakerJob;
+  'recognition.cancel': SpeakerJob;
+  'recognition.resume': SpeakerJob;
+  'recognition.list': SpeakerJob[];
+  'recognition.renameSpeaker': void;
+}
+export type MobileCommand = keyof MobileCommandResults;
