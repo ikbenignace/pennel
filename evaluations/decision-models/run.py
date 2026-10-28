@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import re
+from threading import Event
 
 DIRECTORY = Path(__file__).resolve().parent
 ROOT = DIRECTORY.parents[1]
@@ -360,9 +361,11 @@ def offline_report(corpus, bridge, split="heldout"):
 
 
 def live_predictions(corpus, bridge, config, split, output, frozen):
+    from execution import bounded_map
     from local_models import LocalWorker
     from runners import DecisionRunner, SpendLedger
     availability = []
+    cancelled = Event()
     ledger_path = ROOT / config.get("ledger_path", "build/decision-model-evaluation/spend-ledger.json")
     def checkpoint(state):
         temporary = ledger_path.with_suffix(".tmp")
@@ -389,7 +392,7 @@ def live_predictions(corpus, bridge, config, split, output, frozen):
                 except (ValueError, RuntimeError, OSError) as error:
                     availability.append({"id": item["id"], "status": "unavailable", "reason": type(error).__name__})
             else:
-                runner = DecisionRunner(item, ledger=ledger)
+                runner = DecisionRunner(item, ledger=ledger, cancel_event=cancelled)
                 status = runner.preflight()
                 availability.append({"id": item["id"], **status})
                 if status.get("status") in ("ok", "available") or status.get("available"):
@@ -403,15 +406,26 @@ def live_predictions(corpus, bridge, config, split, output, frozen):
             if not selected_tasks or "ranking" in selected_tasks:
                 cases.extend(ranking_cases(corpus, bridge, split))
             halt_reason = None
-            for index, case in enumerate(cases):
+            workers = item.get("concurrency", 1)
+            if item.get("transport") == "local_worker" and workers != 1:
+                raise ValueError("Owned local workers require sequential execution")
+
+            def skipped(case):
+                return {"case_id": case["id"], "status": "unavailable", "prediction": None,
+                        "reason": halt_reason or "unresolved_charge"}
+
+            def predict_case(case):
                 try:
-                    result = ({"case_id": case["id"], "status": "unavailable", "prediction": None,
-                               "reason": halt_reason} if halt_reason else
-                              decision_rank(runner, case) if case["task"] == "ranking" and item.get("transport") != "local_worker"
-                              else runner.predict(case))
+                    return (decision_rank(runner, case) if case["task"] == "ranking" and item.get("transport") != "local_worker"
+                            else runner.predict(case))
                 except (ValueError, RuntimeError, OSError) as error:
-                    result = {"case_id": case["id"], "status": "error", "prediction": None,
-                              "reason": type(error).__name__}
+                    return {"case_id": case["id"], "status": "error", "prediction": None,
+                            "reason": type(error).__name__}
+
+            outcomes = bounded_map(predict_case, cases, workers=workers, cancel_event=cancelled,
+                                   should_stop=lambda: halt_reason is not None or ledger.unresolved,
+                                   skipped=skipped)
+            for index, (case, result) in enumerate(outcomes):
                 result.update({"runner_id": item["id"], "expected": case.get("expected"),
                                "language": case["language"], "task": case["task"],
                                "subtask": case.get("subtask"), "tags": case.get("tags", []),
@@ -422,6 +436,7 @@ def live_predictions(corpus, bridge, config, split, output, frozen):
                                                       "primitive": case.get("question", {}).get("type")}),
                                "run_manifest_hash": digest(frozen),
                                "question_grouping": item.get("question_grouping", "one_case_per_request"),
+                               "execution_concurrency": workers,
                                "phase": "client_first" if index == 0 else "warm"})
                 if case["task"] == "ranking":
                     from metrics import ranking_metrics
@@ -595,6 +610,9 @@ def main(argv=None):
     from measurements import panel_manifest
     manifest["local_latency_panel"] = panel_manifest(config.get("runners", []), corpus,
                                                      ranking_cases(corpus, bridge, "heldout"))
+    from hosted_measurements import panel_manifest as hosted_panel_manifest
+    manifest["hosted_latency_panel"] = hosted_panel_manifest(config, corpus,
+                                                            ranking_cases(corpus, bridge, "heldout"))
     if args.prepare:
         if not args.frozen:
             parser.error("--prepare requires --frozen output path")
@@ -642,6 +660,30 @@ def main(argv=None):
             from measurements import measure_local
             report["model_resources"] = measure_local(config.get("runners", []), corpus,
                                                        ranking_cases(corpus, bridge, "heldout"))
+            if any(item.get("enabled") is True and item.get("transport") == "openrouter"
+                   for item in config.get("runners", [])):
+                from hosted_measurements import measure_hosted
+                from runners import SpendLedger
+                ledger_path = ROOT / config.get("ledger_path", "build/decision-model-evaluation/spend-ledger.json")
+                def checkpoint(state):
+                    temporary = ledger_path.with_suffix(".tmp")
+                    save_json(temporary, state)
+                    temporary.replace(ledger_path)
+                with experiment_lock(ledger_path):
+                    ledger = SpendLedger.from_dict(read_json(ledger_path), checkpoint=checkpoint)
+                    with args.output.joinpath("hosted-latency.jsonl").open("w", encoding="utf-8") as receipts:
+                        measured_count = 0
+                        def capture(record):
+                            nonlocal measured_count
+                            receipts.write(json.dumps(record, ensure_ascii=False) + "\n")
+                            receipts.flush()
+                            measured_count += 1
+                            if measured_count % 100 == 0:
+                                print(json.dumps({"phase": "hosted_latency", "records": measured_count,
+                                                  "known_billed_usd": ledger.to_dict()["known_billed_usd"]}), file=sys.stderr)
+                        report["hosted_resources"] = measure_hosted(config, corpus,
+                                                                    ranking_cases(corpus, bridge, "heldout"), ledger,
+                                                                    checkpoint=capture)
     save_json(args.output / "manifest.json", manifest)
     save_json(args.output / "report.json", report)
     args.output.joinpath("report.md").write_text(markdown_report(report), encoding="utf-8")

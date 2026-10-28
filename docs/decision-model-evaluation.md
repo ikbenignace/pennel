@@ -146,6 +146,31 @@ coverage, as the measured configuration does.
 
 ## Hosted routes and billing
 
+The hosted follow-up uses `configs/openrouter-2026-10-28.json` and timestamped public
+catalog/endpoint/ZDR evidence under `evaluations/decision-models/evidence/`. It requests
+provider ZDR and denies data collection on explicitly selected global routes. This does
+not establish regional residency or inspect account logging/opt-in settings. Only
+synthetic content is submitted. Evaluation credentials can reside in a dedicated macOS
+Keychain entry (`dev.pennel.evaluation.openrouter`, account `OPENROUTER_API_KEY`) and are
+injected into benchmark subprocesses; no secret belongs in the configuration or Git.
+
+Quality requests use bounded concurrency of four with ordered receipts and at most four
+in-flight calls. Question grouping remains one case per request. Cancellation prevents
+new paid requests; already-sent calls remain covered by reservations and transport
+timeouts. Latency-panel requests run serially and are reported separately from concurrent
+quality-workload timings.
+
+Run the complete calibration and held-out corpus before latency repeats. Admit the entire
+fixed latency panel only if its conservative bound fits the actual reconciled remaining
+US$2 budget; otherwise mark it unmeasured. This admission rule depends on spend, never
+held-out quality. All development probes, calibration, testing and latency requests share
+the persistent ledger. The selected endpoint's pricing supplies reservations and price
+caps; a cheaper model-level catalog route cannot stand in for the pinned provider.
+
+The Cloudflare Clef route additionally enforces a conservative 2,000-byte serialized-state
+bound because its published state-truncation behavior is narrower than its advertised
+context window. Oversized cases are unavailable rather than silently truncated.
+
 OpenRouter is preferred when the requested version and required typed decision primitive
 are available. The optional runner uses one explicitly selected `OPENROUTER_API_KEY`.
 An environment key alone never enables inference. Copy an example into an ignored local

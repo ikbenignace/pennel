@@ -135,7 +135,12 @@ class HttpTransport:
 
     def __init__(self, max_body_bytes=4 * 1024 * 1024):
         self.max_body_bytes = max_body_bytes
-        self._opener = urllib.request.build_opener(_NoRedirect())
+        self._thread = threading.local()
+
+    def _thread_opener(self):
+        if not hasattr(self._thread, "opener"):
+            self._thread.opener = urllib.request.build_opener(_NoRedirect())
+        return self._thread.opener
 
     def __call__(self, method, url, headers, payload, timeout):
         request = urllib.request.Request(
@@ -145,7 +150,7 @@ class HttpTransport:
             method=method,
         )
         try:
-            response = self._opener.open(request, timeout=timeout)
+            response = self._thread_opener().open(request, timeout=timeout)
         except urllib.error.HTTPError as error:
             response = error
         except EvaluationError:
@@ -255,7 +260,7 @@ def _loopback(hostname):
 
 
 class DecisionRunner:
-    def __init__(self, config, transport=None, ledger=None, environ=None):
+    def __init__(self, config, transport=None, ledger=None, environ=None, cancel_event=None):
         self.config = dict(config)
         self.transport = transport or HttpTransport()
         self.environ = os.environ if environ is None else environ
@@ -264,12 +269,17 @@ class DecisionRunner:
         self.model = config.get("model")
         self.timeout = config.get("timeout_seconds", 60)
         self._ready = None
+        self._preflight_lock = threading.Lock()
+        self.cancel_event = cancel_event
         self._headers = {"Content-Type": "application/json"}
         self._catalog = None
         self._endpoints = None
         self._url = None
         self._accepted_models = set()
         self._price = None
+        self._pricing = None
+        self._pricing_source = None
+        self._limitations = []
 
     def _request(self, method, url, payload=None):
         response = self.transport(method, url, dict(self._headers), payload, self.timeout)
@@ -284,13 +294,18 @@ class DecisionRunner:
         return response
 
     def preflight(self):
+        with self._preflight_lock:
+            return self._preflight()
+
+    def _preflight(self):
         if self._ready is not None:
             return dict(self._ready)
         try:
             self._prepare()
             self._ready = {"status": "ok", "model": self.model, "transport": self.kind,
                            "catalog": self._catalog, "endpoints": self._endpoints,
-                           "limitations": []}
+                           "pricing": self._pricing, "pricing_source": self._pricing_source,
+                           "limitations": list(self._limitations)}
         except EvaluationError as error:
             self._ready = {"status": "unavailable", "reason": str(error),
                            "model": self.model, "transport": self.kind}
@@ -305,6 +320,9 @@ class DecisionRunner:
             raise EvaluationError("model_must_be_explicit_and_versioned")
         if not isinstance(self.timeout, (int, float)) or not 0 < self.timeout <= 180:
             raise EvaluationError("invalid_timeout")
+        state_limit = self.config.get("max_state_bytes")
+        if state_limit is not None and (isinstance(state_limit, bool) or not isinstance(state_limit, int) or state_limit <= 0):
+            raise EvaluationError("max_state_bytes_must_be_positive_integer")
         if self.config.get("retries", 0) != 0 or self.config.get("fallbacks"):
             raise EvaluationError("automatic_retries_or_fallbacks_disabled")
         if self.kind == "local_decider":
@@ -355,6 +373,8 @@ class DecisionRunner:
             self._price = _decimal(self.config.get("input_usd_per_million", "0")) / 1_000_000
             if self._price <= 0:
                 raise EvaluationError("direct_billing_rate_required")
+            self._pricing = {"prompt": str(self._price), "completion": "0"}
+            self._pricing_source = "configured_direct_rate"
         else:
             raise EvaluationError("unsupported_transport")
         key = self.environ.get(credential_env)
@@ -384,8 +404,17 @@ class DecisionRunner:
             if endpoint is None:
                 raise EvaluationError("pinned_upstream_unavailable")
             self._endpoint = endpoint
-            self._price = _decimal(model.get("pricing", {}).get("prompt"))
-            if _decimal(model.get("pricing", {}).get("completion", "0")) != 0:
+            if endpoint.get("pricing") is None:
+                self._pricing = model.get("pricing", {})
+                self._pricing_source = "catalog_fallback"
+                self._limitations.append("pinned_endpoint_pricing_unreported_catalog_rate_used")
+            else:
+                self._pricing = endpoint["pricing"]
+                self._pricing_source = "pinned_endpoint"
+            if not isinstance(self._pricing, dict):
+                raise EvaluationError("invalid_endpoint_pricing")
+            self._price = _decimal(self._pricing.get("prompt"))
+            if _decimal(self._pricing.get("completion")) != 0:
                 raise EvaluationError("nonzero_output_price_requires_explicit_billing_adapter")
             required_capabilities = self.config.get("capabilities", ["noul", "choice", "score"])
             if any(value not in ("noul", "choice", "score") for value in required_capabilities):
@@ -421,6 +450,9 @@ class DecisionRunner:
     def _payload(self, case, questions):
         if "state" not in case:
             raise EvaluationError("state_required")
+        state_limit = self.config.get("max_state_bytes")
+        if state_limit is not None and len(json.dumps(case["state"], ensure_ascii=False).encode("utf-8")) > state_limit:
+            raise EvaluationError("state_byte_limit_exceeded_no_truncation")
         body = {"model": self.model, "state": case["state"], "questions": questions}
         if self.kind == "openrouter":
             privacy = self.config["privacy"]
@@ -450,13 +482,17 @@ class DecisionRunner:
         return body, token_bound * len(questions)
 
     def predict(self, case):
-        availability = self.preflight()
         result = {"case_id": case.get("id"), "status": "unavailable", "prediction": None,
-                  "probabilities": None, "attempts": [], "limitations": [],
+                  "probabilities": None, "attempts": [], "limitations": list(self._limitations),
                   "measurement": "mocked_transport" if getattr(self.transport, "is_mock", True) else "measured_inference",
                   "identity": {"transport": self.kind, "requested_model": self.model,
                                "api_surface": self.config.get("api_surface", "decisions")},
                   "cost_usd": None, "usage": None, "latency_ms": None}
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            result["reason"] = "cancelled"
+            return result
+        availability = self.preflight()
+        result["limitations"] = list(self._limitations)
         if availability["status"] != "ok":
             result["reason"] = availability["reason"]
             return result
@@ -464,6 +500,8 @@ class DecisionRunner:
             questions = self._questions(case)
             payload, token_bound = self._payload(case, questions)
             reservation = None
+            if self.cancel_event is not None and self.cancel_event.is_set():
+                raise EvaluationError("cancelled")
             if self.kind != "local_decider":
                 estimate = self._price * token_bound
                 cap = _decimal(self.config.get("max_request_cost_usd", "0.10"))
@@ -472,6 +510,12 @@ class DecisionRunner:
                 reservation = self.ledger.reserve(estimate)
         except EvaluationError as error:
             result["reason"] = str(error)
+            return result
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            if reservation is not None:
+                self.ledger.settle(reservation, "0", {"case_id": case.get("id"), "request_sent": False,
+                                                     "reason": "cancelled_before_send"})
+            result["reason"] = "cancelled"
             return result
         started = datetime.now(timezone.utc).isoformat()
         start = time.perf_counter_ns()
@@ -521,6 +565,7 @@ class DecisionRunner:
                     "upstream_request_id": headers.get("x-request-id", headers.get("X-Request-Id")),
                     "endpoint": self._url, "api_surface": self.config.get("api_surface", "decisions"),
                     "routing": route, "privacy": self.config.get("privacy"),
+                    "pricing": self._pricing, "pricing_source": self._pricing_source,
                     "question_grouping": self.config.get("question_grouping", "one_case_per_request"),
                     "question_ids": list(questions),
                     "label_order": {identifier: list(question.get("criteria", {})) for identifier, question in questions.items()},

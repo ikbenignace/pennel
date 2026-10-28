@@ -1,8 +1,10 @@
 import copy
+import concurrent.futures
 import importlib.util
 import json
 import math
 import sys
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +12,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from runners import DecisionRunner, EvaluationError, SpendLedger, validate_answers, _NoRedirect
+from runners import DecisionRunner, EvaluationError, HttpTransport, SpendLedger, validate_answers, _NoRedirect
 
 
 MODEL = "typesafe/jev-1.14"
@@ -241,6 +243,70 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result["reason"], "context_bound_exceeded_no_truncation")
         self.assertFalse(any(call["method"] == "POST" for call in transport.calls))
 
+    def test_state_byte_limit_uses_exact_serialized_utf8_boundary(self):
+        for state in ("é🙂", {"name": "Zoë🙂"}):
+            bound = len(json.dumps(state, ensure_ascii=False).encode("utf-8"))
+            bounded = case()
+            bounded["state"] = state
+            accepted_transport = Transport()
+            result = self.runner(config(max_state_bytes=bound), accepted_transport).predict(bounded)
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(accepted_transport.calls[-1]["payload"]["state"], state)
+            rejected_transport, ledger = Transport(), SpendLedger()
+            result = self.runner(config(max_state_bytes=bound - 1), rejected_transport, ledger).predict(bounded)
+            self.assertEqual(result["reason"], "state_byte_limit_exceeded_no_truncation")
+            self.assertEqual(result["status"], "unavailable")
+            self.assertFalse(any(call["method"] == "POST" for call in rejected_transport.calls))
+            self.assertEqual(ledger.snapshot()["attempt_count"], 0)
+
+    def test_state_byte_limit_must_be_positive_integer(self):
+        for limit in (0, -1, True, 1.5, "2000"):
+            transport = Transport()
+            self.assertEqual(self.runner(config(max_state_bytes=limit), transport).preflight()["reason"],
+                             "max_state_bytes_must_be_positive_integer")
+            self.assertEqual(transport.calls, [])
+
+    def test_pinned_endpoint_price_overrides_cheaper_catalog_price(self):
+        transport = Transport()
+        transport.catalog["data"][0]["pricing"] = {"prompt": "0.000000019", "completion": "0"}
+        pinned_price = {"prompt": "0.000000038", "completion": "0"}
+        transport.endpoints["data"]["endpoints"][0]["pricing"] = pinned_price
+        ledger = SpendLedger()
+        runner = self.runner(transport=transport, ledger=ledger)
+        preflight = runner.preflight()
+        self.assertEqual(preflight["pricing"], pinned_price)
+        self.assertEqual(preflight["pricing_source"], "pinned_endpoint")
+        result = runner.predict(case())
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(transport.calls[-1]["payload"]["provider"]["max_price"]["prompt"], 0.038)
+        self.assertEqual(result["identity"]["pricing"], pinned_price)
+        self.assertEqual(result["attempts"][0]["identity"]["pricing_source"], "pinned_endpoint")
+        self.assertEqual(float(ledger.snapshot()["attempts"][0]["reserved_usd"]),
+                         result["attempts"][0]["input_token_upper_bound"] * 0.000000038)
+
+    def test_missing_endpoint_pricing_falls_back_with_explicit_limitation(self):
+        runner = self.runner()
+        preflight = runner.preflight()
+        self.assertEqual(preflight["pricing_source"], "catalog_fallback")
+        limitation = "pinned_endpoint_pricing_unreported_catalog_rate_used"
+        self.assertIn(limitation, preflight["limitations"])
+        result = runner.predict(case())
+        self.assertIn(limitation, result["limitations"])
+        self.assertEqual(result["identity"]["pricing_source"], "catalog_fallback")
+
+    def test_pinned_route_output_price_is_checked_instead_of_catalog(self):
+        for catalog_price, route_price, expected in (("0", "0.000001", "unavailable"),
+                                                     ("0.000001", "0", "ok")):
+            transport = Transport()
+            transport.catalog["data"][0]["pricing"]["completion"] = catalog_price
+            transport.endpoints["data"]["endpoints"][0]["pricing"] = {
+                "prompt": "0.000000042", "completion": route_price}
+            result = self.runner(transport=transport).predict(case())
+            self.assertEqual(result["status"], expected)
+            if expected == "unavailable":
+                self.assertEqual(result["reason"], "nonzero_output_price_requires_explicit_billing_adapter")
+                self.assertFalse(any(call["method"] == "POST" for call in transport.calls))
+
     def test_aliases_retries_and_fallbacks_are_rejected(self):
         for settings in (config(model="~typesafe/jev-latest"), config(model="openrouter/auto-router"),
                          config(retries=1), config(fallbacks=["liquid/d1"]), config(api_surface="chat")):
@@ -305,6 +371,90 @@ class RunnerTests(unittest.TestCase):
     def test_real_http_redirect_handler_rejects_other_origins(self):
         with self.assertRaisesRegex(EvaluationError, "redirect_rejected"):
             _NoRedirect().redirect_request(None, None, 307, "redirect", {}, "https://other.example")
+
+    def test_cancellation_before_prediction_has_no_request_or_reservation(self):
+        cancelled, transport, ledger = threading.Event(), Transport(), SpendLedger()
+        cancelled.set()
+        runner = DecisionRunner(config(), transport=transport, ledger=ledger, environ={}, cancel_event=cancelled)
+        result = runner.predict(case())
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["reason"], "cancelled")
+        self.assertEqual(transport.calls, [])
+        self.assertEqual(ledger.snapshot()["attempt_count"], 0)
+
+    def test_cancellation_after_reservation_settles_unsent_request_at_zero(self):
+        cancelled, transport = threading.Event(), Transport()
+        checkpoints = []
+        def checkpoint(state):
+            checkpoints.append(state)
+            if state["pending_reservations"]:
+                cancelled.set()
+        ledger = SpendLedger(checkpoint=checkpoint)
+        runner = DecisionRunner(config(), transport=transport, ledger=ledger,
+                                environ={"OPENROUTER_API_KEY": "synthetic-secret"}, cancel_event=cancelled)
+        result = runner.predict(case())
+        self.assertEqual(result["reason"], "cancelled")
+        self.assertFalse(any(call["method"] == "POST" for call in transport.calls))
+        self.assertEqual(ledger.snapshot()["known_billed_usd"], "0")
+        self.assertEqual(ledger.snapshot()["reserved_usd"], "0")
+        self.assertFalse(ledger.snapshot()["unresolved_charge"])
+        self.assertEqual(ledger.snapshot()["attempts"][0]["metadata"]["request_sent"], False)
+        self.assertEqual(len(checkpoints), 2)
+
+    def test_inflight_request_settles_before_cancel_blocks_later_work(self):
+        for timed_out in (False, True):
+            cancelled, ledger = threading.Event(), SpendLedger()
+            class CancellingTransport(Transport):
+                def __call__(self, method, url, headers, payload, timeout):
+                    if method == "POST":
+                        cancelled.set()
+                        if timed_out:
+                            raise TimeoutError()
+                    return super().__call__(method, url, headers, payload, timeout)
+            transport = CancellingTransport()
+            runner = DecisionRunner(config(), transport=transport, ledger=ledger,
+                                    environ={"OPENROUTER_API_KEY": "synthetic-secret"}, cancel_event=cancelled)
+            first = runner.predict(case())
+            self.assertEqual(first["status"], "error" if timed_out else "ok")
+            self.assertEqual(ledger.snapshot()["attempt_count"], 1)
+            self.assertEqual(ledger.snapshot()["unresolved_charge"], timed_out)
+            self.assertEqual(runner.predict(case())["reason"], "cancelled")
+            if not timed_out:
+                self.assertEqual(ledger.snapshot()["known_billed_usd"], "0.000001")
+
+    def test_http_openers_are_isolated_per_thread_and_reused_within_thread(self):
+        created, calls, barrier = [], [], threading.Barrier(2)
+        class Response:
+            status, headers = 200, {}
+            def read(self, *_):
+                return b'{"ok": true}'
+            def __enter__(self):
+                return self
+            def __exit__(self, *_):
+                pass
+        class Opener:
+            def __init__(self):
+                self.owner = threading.get_ident()
+                created.append(self)
+            def open(self, request, timeout):
+                self_owner = threading.get_ident()
+                if self.owner != self_owner:
+                    raise AssertionError("shared opener crossed thread boundary")
+                calls.append((id(self), self_owner))
+                return Response()
+        def request_twice():
+            barrier.wait(timeout=5)
+            for _ in range(2):
+                self.assertEqual(transport("GET", "https://synthetic.example", {}, None, 1)["body"], {"ok": True})
+        with patch("urllib.request.build_opener", side_effect=lambda *_: Opener()):
+            transport = HttpTransport()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [executor.submit(request_twice) for _ in range(2)]
+                for future in futures:
+                    future.result(timeout=5)
+        self.assertEqual(len(created), 2)
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(len({owner for _, owner in calls}), 2)
 
     def test_remote_insecure_and_remote_local_decider_urls_rejected(self):
         for settings in (config(transport="direct", provider="jev", endpoint="http://api.typesafe.ai/v1/systemone"),
