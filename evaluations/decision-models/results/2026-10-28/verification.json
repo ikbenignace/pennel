@@ -28,5 +28,17 @@
   "local_evaluation_tests": {
     "passed": 147
   },
+  "post_generation_checks": {
+    "cli_timeout_regression": {
+      "after": "Same slow-shell reproduction passes after warming the one-time cache before timing; the one-second process deadline and three-second assertion are unchanged.",
+      "before": "Four-second login-shell initialization incorrectly consumed the process-deadline stopwatch; existing test failed.",
+      "scope": "Test setup only; production behavior and recorded inference unchanged."
+    },
+    "core_format_clippy": "passed",
+    "core_no_default_tests": {
+      "ignored": 3,
+      "passed": 611
+    }
+  },
   "production_acceptance": "not established"
 }

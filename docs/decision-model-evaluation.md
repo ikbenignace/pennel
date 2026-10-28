@@ -72,6 +72,17 @@ part of this issue.
 
 ## Freeze, calibrate and evaluate
 
+Prepare isolated inference environments and explicitly acquire verified model artifacts
+using the [worker setup instructions](../evaluations/decision-models/workers/README.md).
+The release executable used by the recorded live commands is built separately from the
+debug executable used by the default offline command:
+
+```sh
+CARGO_TARGET_DIR=build/evaluation-core-target scripts/with-toolchain.sh cargo build \
+  --offline --locked --manifest-path core/Cargo.toml --no-default-features \
+  --features evaluation --bin pennel-eval --release
+```
+
 `evaluations/decision-models/protocol.json` contains the task criteria, resource budgets,
 comparison method, calibration rules and grounding rubric. Do not tune these after viewing
 held-out results. Pinning includes source/corpus/protocol hashes, candidates, prompts,

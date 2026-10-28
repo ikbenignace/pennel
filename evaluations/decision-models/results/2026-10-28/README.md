@@ -4,7 +4,7 @@
 
 ## Evidence and reproduction
 
-Generation commit: [`4a3135b`](https://github.com/pennel-app/pennel/commit/4a3135b99ede8363493eb13e599b19b796a88603). The protocol, corpus, candidates/prompts, model artifacts, hardware and latency panel were frozen before held-out inference. The manifest SHA-256 is `f89a727418bc7b85676f5a2367b92bd3a6e96757814e27b479d5e25a431b692c`. Subsequent portability changes correct a Windows-only test assertion and normalize protocol checkout line endings; neither changes recorded inference or its numerical results. Live reproduction of the recorded experiment uses that generation commit; a current-checkout live experiment must prepare and commit a fresh manifest.
+Generation commit: [`4a3135b`](https://github.com/pennel-app/pennel/commit/4a3135b99ede8363493eb13e599b19b796a88603). The protocol, corpus, candidates/prompts, model artifacts, hardware and latency panel were frozen before held-out inference. The manifest SHA-256 is `f89a727418bc7b85676f5a2367b92bd3a6e96757814e27b479d5e25a431b692c`. Subsequent portability changes correct test setup/assertions and normalize protocol checkout line endings; neither changes recorded inference or its numerical results. Live reproduction of the recorded experiment uses that generation commit; a current-checkout live experiment must prepare and commit a fresh manifest.
 
 Run from the repository root, with normal Rust dependencies cached:
 
