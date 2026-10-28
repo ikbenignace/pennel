@@ -395,12 +395,10 @@ impl PennelEngine {
         if enabled && !self.cloud_signed_in() {
             return Err(PennelError::NotSignedIn);
         }
-        let mut settings = self.settings();
-        if settings.claude_access == enabled {
-            return Ok(());
-        }
-        settings.claude_access = enabled;
-        self.update_settings(settings)
+        self.update_settings_with(|mut settings| {
+            settings.claude_access = enabled;
+            Ok(settings)
+        })
     }
 }
 

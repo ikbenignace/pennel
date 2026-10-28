@@ -53,7 +53,7 @@ pub struct MeetingVoice {
 
 /// One recognition or "Onthoud deze stem" at a time: each reads, relabels and writes the transcript,
 /// its names and the meeting's voiceprints, which must not interleave.
-static RECOGNITION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(crate) static RECOGNITION: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(feature = "speakers")]
 pub(crate) fn diarize_local(
@@ -227,6 +227,7 @@ impl PennelEngine {
     /// Removes the user's voice, every remembered voice and every meeting voiceprint.
     pub fn forget_all_voices(&self) -> Result<(), PennelError> {
         let _edit = self.edit_voice_settings()?;
+        self.discard_speaker_recognition_data()?;
         match std::fs::remove_dir_all(self.data_dir().join("voices")) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
                 Err(PennelError::storage(error))
@@ -263,62 +264,21 @@ impl PennelEngine {
             }
             _ => return Ok(SpeakerRecognition::default()),
         };
+        let revision = (
+            store.transcript_fingerprint(&id)?,
+            crate::speaker_jobs::speaker_names_digest(&store.speaker_names(&id))?,
+        );
         let diarization = self.speaker_diarization(&samples, track == Track::Microphone)?;
         drop(samples);
-        let known = voices.known_voiceprints();
-        let prints: Vec<&[f32]> = known.iter().map(|(_, _, print)| print.as_slice()).collect();
-        let me = my_voice.as_deref().filter(|_| track == Track::Microphone);
-        let identities = pennel_speakers::identify(&diarization.speakers, me, &prints);
-        // Without the user's own voice in a shared-microphone recording there is no telling which
-        // lines are theirs; relabelling would turn every "Ik" into somebody else.
-        if track == Track::Microphone && !identities.contains(&Identity::Me) {
-            return Ok(SpeakerRecognition::default());
+        let _sync = self.sync_gate.lock().unwrap();
+        if store.transcript_fingerprint(&id)? != revision.0
+            || crate::speaker_jobs::speaker_names_digest(&store.speaker_names(&id))? != revision.1
+        {
+            return Err(PennelError::storage(
+                "De meeting is ondertussen gewijzigd. De sprekernamen zijn niet vervangen.",
+            ));
         }
-
-        let _gate = RECOGNITION.lock().unwrap_or_else(|e| e.into_inner());
-        if store.unparsed_transcript_lines(&id) > 0 {
-            return Err(PennelError::InvalidResponse {
-                message: "transcript bevat regels die Pennel niet herkent".into(),
-            });
-        }
-        let key = match store.ensure_uid(&id) {
-            Ok(uid) => uid,
-            Err(_) => self.meeting_key(&id),
-        };
-        let before = store.read_transcript(&id);
-        store.preserve_transcript_tracks(&id)?;
-        let mut after = before.clone();
-        let applied = apply(&mut after, &diarization.turns, &identities, track);
-        let known_of = |speaker: usize| match identities.get(speaker) {
-            Some(Identity::Known(index, _)) => known.get(*index),
-            _ => None,
-        };
-        let recognised: Vec<(u32, String)> = applied
-            .voices
-            .iter()
-            .filter_map(|(voice, speaker)| Some((*voice, known_of(*speaker)?.1.clone())))
-            .collect();
-        let names = carry_names(&before, &after, &store.speaker_names(&id), &recognised);
-        store.write_transcript(&id, &after)?;
-        store.set_speaker_names(&id, &names)?;
-        let prints = applied
-            .voices
-            .iter()
-            .filter_map(|(voice, speaker)| {
-                let embedding = diarization.speakers.get(*speaker)?.embedding.clone();
-                (!embedding.is_empty()).then(|| MeetingVoiceprint {
-                    voice: *voice,
-                    embedding,
-                    known_id: known_of(*speaker).map(|(id, _, _)| id.clone()),
-                })
-            })
-            .collect();
-        voices.set_meeting_voiceprints(&key, prints, Some(&store.transcript_fingerprint(&id)?))?;
-        Ok(SpeakerRecognition {
-            voices: applied.voices.len() as u32,
-            named: names.len() as u32,
-            me_found: applied.me_found,
-        })
+        self.apply_recognized_speakers(&id, diarization, track, my_voice.as_deref())
     }
 
     /// The other voices of a meeting, with their names and whether they can be remembered.
@@ -393,6 +353,83 @@ impl PennelEngine {
         }
         self.meeting_store().rename_speaker(&id, voice, &name)?;
         voices.set_meeting_voiceprints(&key, prints, Some(&transcript_hash))
+    }
+}
+
+impl PennelEngine {
+    pub(crate) fn apply_recognized_speakers(
+        &self,
+        id: &str,
+        diarization: Diarization,
+        track: Track,
+        my_voice: Option<&[f32]>,
+    ) -> Result<SpeakerRecognition, PennelError> {
+        self.apply_recognized_speakers_observed(id, diarization, track, my_voice, None, |_, _| {
+            Ok(())
+        })
+    }
+
+    pub(crate) fn apply_recognized_speakers_observed(
+        &self,
+        id: &str,
+        diarization: Diarization,
+        track: Track,
+        my_voice: Option<&[f32]>,
+        job_directory: Option<&Path>,
+        before_commit: impl FnOnce(&[crate::Segment], &[crate::SpeakerName]) -> Result<(), PennelError>,
+    ) -> Result<SpeakerRecognition, PennelError> {
+        let store = self.meeting_store();
+        let voices = self.voice_store();
+        let known = voices.known_voiceprints();
+        let prints: Vec<&[f32]> = known.iter().map(|(_, _, print)| print.as_slice()).collect();
+        let me = my_voice.filter(|_| track == Track::Microphone);
+        let identities = pennel_speakers::identify(&diarization.speakers, me, &prints);
+        // Without the user's own voice in a shared-microphone recording there is no telling which
+        // lines are theirs; relabelling would turn every "Ik" into somebody else.
+        if track == Track::Microphone && !identities.contains(&Identity::Me) {
+            return Ok(SpeakerRecognition::default());
+        }
+
+        let _gate = RECOGNITION.lock().unwrap_or_else(|e| e.into_inner());
+        if store.unparsed_transcript_lines(id) > 0 {
+            return Err(PennelError::InvalidResponse {
+                message: "transcript bevat regels die Pennel niet herkent".into(),
+            });
+        }
+        store.ensure_uid(id)?;
+        let before = store.read_transcript(id);
+        store.preserve_transcript_tracks(id)?;
+        let mut after = before.clone();
+        let applied = apply(&mut after, &diarization.turns, &identities, track);
+        let known_of = |speaker: usize| match identities.get(speaker) {
+            Some(Identity::Known(index, _)) => known.get(*index),
+            _ => None,
+        };
+        let recognised: Vec<(u32, String)> = applied
+            .voices
+            .iter()
+            .filter_map(|(voice, speaker)| Some((*voice, known_of(*speaker)?.1.clone())))
+            .collect();
+        let names = carry_names(&before, &after, &store.speaker_names(id), &recognised);
+        let prints = applied
+            .voices
+            .iter()
+            .filter_map(|(voice, speaker)| {
+                let embedding = diarization.speakers.get(*speaker)?.embedding.clone();
+                (!embedding.is_empty()).then(|| MeetingVoiceprint {
+                    voice: *voice,
+                    embedding,
+                    known_id: known_of(*speaker).map(|(id, _, _)| id.clone()),
+                })
+            })
+            .collect();
+        before_commit(&after, &names)?;
+        self.commit_speaker_result(id, &after, &names, prints, job_directory)?;
+        Ok(SpeakerRecognition {
+            voices: applied.voices.len() as u32,
+            named: names.len() as u32,
+            me_found: applied.me_found,
+        })
     }
 }
 
