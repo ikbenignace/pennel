@@ -133,7 +133,17 @@ class LocalModelsTests(unittest.TestCase):
         client = local_models.LocalWorker("gte-reranker", "/not/a/model", python="/not/an/interpreter")
         result = client.predict({"id": "synthetic", "task": "ranking"})
         self.assertEqual(result["status"], "unavailable")
-        self.assertEqual(result["reason"], "isolated_environment_not_installed")
+        expected = ("persistent_worker_measurement_unavailable_on_windows"
+                    if sys.platform == "win32" else "isolated_environment_not_installed")
+        self.assertEqual(result["reason"], expected)
+        self.assertIsNone(client.process)
+
+    def test_unmeasured_windows_worker_does_not_launch(self):
+        client = local_models.LocalWorker("gte-reranker", "/not/a/model", python="/not/an/interpreter")
+        with patch.object(local_models, "os", types.SimpleNamespace(name="nt")):
+            result = client.predict({"id": "synthetic", "task": "ranking"})
+        self.assertEqual(result["reason"], "persistent_worker_measurement_unavailable_on_windows")
+        self.assertIsNone(client.process)
 
     def test_missing_model_worker_startup_uses_no_optional_packages(self):
         result = subprocess.run(

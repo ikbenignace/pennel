@@ -158,7 +158,8 @@ def fit_predictions(rows, run_manifest_hash=None, min_samples=MINIMUM_SAMPLES):
 
 def _protocol_hash():
     from pathlib import Path
-    return hashlib.sha256(Path(__file__).with_name("protocol.json").read_bytes()).hexdigest()
+    content = Path(__file__).with_name("protocol.json").read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(content).hexdigest()
 
 
 def score_predictions(rows, artifact, run_manifest_hash=None):

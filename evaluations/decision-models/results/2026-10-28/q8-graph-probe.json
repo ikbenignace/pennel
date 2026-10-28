@@ -1,0 +1,41 @@
+{
+  "model": "gliclass-v4-q8",
+  "graph_load_ms": 872.1888330182992,
+  "onnxruntime": "1.24.4",
+  "providers": [
+    "CPUExecutionProvider"
+  ],
+  "inputs": [
+    {
+      "name": "input_ids",
+      "type": "tensor(int64)",
+      "shape": [
+        "batch_size",
+        "seq_len"
+      ]
+    },
+    {
+      "name": "attention_mask",
+      "type": "tensor(int64)",
+      "shape": [
+        "batch_size",
+        "seq_len"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "logits",
+      "type": "tensor(float)",
+      "shape": [
+        "batch_size",
+        "Slicelogits_dim_1"
+      ]
+    }
+  ],
+  "reference_parity": {
+    "passed": false,
+    "status": "not_measured"
+  },
+  "quality_inference": "unavailable_without_reference_parity"
+}

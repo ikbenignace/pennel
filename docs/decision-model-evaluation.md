@@ -1,5 +1,8 @@
 # Decision-model evaluation
 
+Measured results: [28 October 2026 report](../evaluations/decision-models/results/2026-10-28/README.md).
+The recommendation is to retain current behavior and adopt no new model from this run.
+
 Issue [#53](https://github.com/pennel-app/pennel/issues/53) owns this suite. Its corpus and
 retrieval receipts are shared with [#43](https://github.com/pennel-app/pennel/issues/43).
 Production decision/rerank provider contracts remain in
@@ -20,6 +23,18 @@ The first command builds the evaluation-only Rust executable with `--no-default-
 them explicitly with the normal project build first. No speech or speaker model is loaded.
 CI prepares ordinary build dependencies, then runs the same fixture and mocked-transport
 checks without an API key, model download or inference request.
+
+Replay the published actual inference scores with no optional model dependencies:
+
+```sh
+python3 evaluations/decision-models/run.py --offline \
+  --replay evaluations/decision-models/results/2026-10-28
+```
+
+The compressed predictions are measured local inference, not canned mock replies. Replay
+recomputes quality/calibration/ranking metrics; its resource observations retain the
+original hardware and sample counts. A regression test compares the replay with the
+recorded report, allowing only floating-point roundoff.
 
 Reports are written under `build/decision-model-evaluation/offline/`. The semantic digest
 covers deterministic scores rather than timing noise. Model inputs and predictions are
@@ -108,6 +123,10 @@ python3 evaluations/decision-models/run.py --live --split heldout --measure \
   --output build/decision-model-evaluation/heldout
 ```
 
+Those historical live commands use the recorded generation commit `4a3135b`. For later
+checkouts or hardware, use the preparation step with a new manifest path, commit it, and
+substitute that path in each command. Do not overwrite the original measurement record.
+
 The checked-in measured configuration describes this experiment, including unavailable
 routes. Its OpenRouter account/retention gate is deliberately unverified. Supplying a key
 does not bypass that gate. Changing the configuration requires a new freeze. The small
@@ -162,3 +181,10 @@ answerability/support, meeting events, templates, names and cleanup. Adoption re
 frozen task and privacy/resource criteria. Synthetic benchmark results do not complete
 packaged-app, physical-device or Cloud deployment acceptance. Keep #53 open while its
 required evidence is incomplete.
+
+The first run verified 2,770,266,421 downloaded bytes and measured 3,144 successful held-out
+cases, with 192 over-context cases retained as unavailable in the denominators. No hosted
+requests were made. Full selected-route retention/region verification, hosted usage/cost
+measurements, generative answer/citation support, Q8 parity, other local candidates and
+packaged/platform acceptance remain explicit gaps. The small synthetic corpus is not
+evidence of broad production accuracy.
