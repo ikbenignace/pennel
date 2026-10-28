@@ -17,7 +17,6 @@ use crate::state::Shared;
 const SAMPLE_RATE: usize = 16_000;
 pub const ENROLLMENT_MAX_SECS: u64 = 60;
 const ENROLLMENT_EVENT: &str = "voice-enrollment";
-const TRACKS: [&str; 2] = ["ik.m4a", "anderen.m4a"];
 const LOG: Log = Log::new("speakers");
 
 /// The core's own messages are Dutch, but its error type prefixes some of them in English.
@@ -43,16 +42,17 @@ fn speaker_error_source(error: PennelError) -> String {
 /// The meeting's own audio files, microphone first. A track that resolves outside the meeting
 /// folder (a symlink, say) is ignored.
 pub fn meeting_tracks(dir: &Path) -> (Option<PathBuf>, Option<PathBuf>) {
-    let Ok(root) = dir.canonicalize() else {
-        return (None, None);
+    let tracks = pennel_core::resolve_meeting_audio_tracks(dir);
+    let track = |speaker| {
+        tracks
+            .iter()
+            .find(|track| track.speaker == speaker && track.available)
+            .and_then(|track| dir.join(&track.relative_path).canonicalize().ok())
     };
-    let track = |name: &str| {
-        root.join(name)
-            .canonicalize()
-            .ok()
-            .filter(|path| path.is_file() && path.parent() == Some(root.as_path()))
-    };
-    (track(TRACKS[0]), track(TRACKS[1]))
+    (
+        track(pennel_core::Speaker::Me),
+        track(pennel_core::Speaker::Others),
+    )
 }
 
 /// Decodes the system track first and the microphone track only when the core would split it, so
@@ -222,6 +222,19 @@ mod tests {
 
         std::fs::write(meeting.join("ik.m4a"), b"audio").unwrap();
         assert!(meeting_tracks(&meeting).0.is_some());
+    }
+
+    #[test]
+    fn grouped_tracks_reach_speaker_recognition() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("audio")).unwrap();
+        std::fs::write(root.path().join("audio/room.m4a"), b"audio").unwrap();
+        let (microphone, others) = meeting_tracks(root.path());
+        assert!(microphone.is_none());
+        assert_eq!(
+            others,
+            Some(root.path().join("audio/room.m4a").canonicalize().unwrap())
+        );
     }
 
     #[cfg(unix)]

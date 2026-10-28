@@ -1,0 +1,37 @@
+# Meeting recordings and provenance
+
+New desktop recordings keep `meeting.md`, `transcript.md` and `notes.md` at the top of the existing `YYYY-MM-DD HHmm Title` folder. Microphone and computer audio are `audio/microphone.m4a` and `audio/system.m4a`. An iPhone room recording uses `audio/room.m4a`; its physical source is `room_microphone`, even though the transcript uses the Others speaker role. Audio remains AAC at 16 kHz mono.
+
+Existing meetings are not migrated. The shared core resolves legacy `ik.m4a` and `anderen.m4a` names as well as the new layout. Adapters use that resolver for availability, playback, speaker recognition and retranscription. Retention covers both layouts. The stable `pennel_id` survives folder/title changes. A copied folder without hidden metadata can still resolve its fixed audio filenames; ambiguous mixtures and paths escaping the meeting are refused.
+
+## Local metadata
+
+`.pennel/recording.json` has `schema_version: 1` and records:
+
+- Meeting UUID, start/end, precise duration and capture completeness.
+- App version/build, platform and OS version.
+- Original frozen speech provider kind, model, requested language and the SHA-256 of a downloaded local model when present. Requested language is configuration provenance, not proof that the model can force that language.
+- Physical track sources, relative paths, archive formats, input-format epochs and transport categories. On Mac, format epochs include reported tap and effective aggregate rates.
+- Available frame/sample counts, inserted silence, gaps, rate mismatches, capture errors and dropped diagnostic events.
+- Initial and subsequent transcription attempts with their own configuration, outcome and transcript fingerprint. Retranscribing does not replace the original capture configuration.
+
+`.pennel/capture-events.jsonl` stores metadata-only transitions, interruptions and short error codes. Metrics update the manifest without adding a log line every second. Native diagnostic buffering is bounded; dropped-event counts are retained. Unknown hardware information remains unknown rather than being inferred from the archive format.
+
+Diagnostics contain no transcript/audio content, credentials, account identifiers, device serial numbers or absolute paths. Both `.pennel/` and audio remain local and are excluded from text sync. Safe provenance is also preserved in `meeting.md` frontmatter. Recording metadata participates in retranscription backup and rollback. Metadata finalization failures remain retryable after the transcript has finished saving.
+
+## Mac Bluetooth capture
+
+The tap is attached to an aggregate before resolving its effective stream format. The recorder selects validated tap inputs, disables unused hardware input/output streams, and uses acquisition timestamps. Format/rate/routing notifications are coalesced for 1.5 seconds; stale callbacks cannot enter replacement sessions. A recording-lifetime route watcher permits recovery even when tap startup failed.
+
+Rate disagreement is checked against acquisition timing. Genuine interruptions remain silence on the common timeline; persistent timing failures stop affected delivery and request recovery instead of indefinitely adding periodic padding. The recording retains a warning and incomplete status when capture was damaged, even if audio subsequently resumes.
+
+## Verification and acceptance
+
+Implementation is tracked in [#47](https://github.com/pennel-app/pennel/issues/47), with actual Mac acceptance under [#5](https://github.com/pennel-app/pennel/issues/5). Synthetic checks cover stale 48 kHz metadata with 24 kHz input, pitch/duration, supported layouts/rates, callback timing, notification bursts and stale generations. Storage checks cover old/new/room layouts, privacy, retention, identity and interrupted replacement.
+
+A real Bluetooth call on the affected Mac is still required. Record the candidate/build, OS/headset/input/output configuration, playback quality and Dutch transcription, including profile and route changes. Automated checks and private recovery experiments do not establish hardware acceptance.
+
+The supplied damaged recording was processed separately outside the repository. Its recovered transcript is approximate, uses original-clock timestamp mapping and keeps source files unchanged. Recovered playback has a different timeline; no recovered audio or transcript is installed into the production library or uploaded.
+
+
+Local verification on 28 October 2026: `make core`, `make test` and `make app` passed (605 core tests, 5 ignored; retained Mac Swift suites also passed). The shared desktop frontend built and passed 185 tests; `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` passed 205 tests. Core/desktop formatting and Clippy with warnings denied, 39 packaging checks and 93 Mac platform Swift tests passed. `scripts/build-desktop-preview.sh` produced the final preview app and DMG; signature/integrity checks are separate from notarization or device acceptance. The [mobile validation record](mobile.md#recording-provenance-validation--28-october-2026) covers clean/repeated generation, simulator tests and unsigned Release builds. No Windows/Linux CI run or physical Bluetooth acceptance is claimed.

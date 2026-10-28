@@ -19,14 +19,18 @@ final class TrackWriter: @unchecked Sendable {
     private let enqueueLock = NSLock()
     private var accepting = true
     private var heard = false
+    private let diagnostics: CaptureDiagnostics?
+    private var trackName: String { track == 0 ? "microphone" : "system" }
 
-    init(track: UInt32, sink: @escaping AudioSink, context: UnsafeMutableRawPointer?, started: TimeInterval, url: URL, write: ((AVAudioPCMBuffer) throws -> Void)? = nil) throws {
+    init(track: UInt32, sink: @escaping AudioSink, context: UnsafeMutableRawPointer?, started: TimeInterval, url: URL, diagnostics: CaptureDiagnostics? = nil, write: ((AVAudioPCMBuffer) throws -> Void)? = nil) throws {
         self.track = track
+        self.diagnostics = diagnostics
         self.sink = sink
         self.context = context
         self.started = started
         self.writeOverride = write
         self.queue = DispatchQueue(label: "dev.pennel.native-track.\(track)")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         file = try AVAudioFile(forWriting: url, settings: [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: 16_000,
@@ -43,10 +47,15 @@ final class TrackWriter: @unchecked Sendable {
         append(buffer, at: offset)
     }
 
+    func append(_ buffer: AVAudioPCMBuffer, capturedAt uptime: TimeInterval) {
+        append(buffer, at: max(0, uptime - started))
+    }
+
     func append(_ buffer: AVAudioPCMBuffer, at offset: TimeInterval) {
         let samples = buffer.monoSamples
         enqueueLock.withLock {
             guard accepting else { return }
+            diagnostics?.count(track: trackName, key: "output_samples", value: UInt64(samples.count))
             if samples.contains(where: { $0 != 0 }) { healthLock.withLock { heard = true } }
             queue.async {
                 let desired = UInt64(max(0, offset) * 16_000)
@@ -54,6 +63,9 @@ final class TrackWriter: @unchecked Sendable {
                 // Preserve interruptions on the common session timeline, without expanding tiny callback jitter.
                 if desired > position + 1_600 {
                     var remaining = desired - position
+                    self.diagnostics?.count(track: self.trackName, key: "inserted_silence_samples", value: remaining)
+                    self.diagnostics?.count(track: self.trackName, key: "gap_count", value: 1)
+                    self.diagnostics?.event("gap", track: self.trackName, at: self.started + Double(position) / 16_000, fields: ["inserted_silence_samples": remaining, "start_sample": position])
                     while remaining > 0 {
                         let count = min(remaining, 32_000)
                         self.appendSamples(Array(repeating: 0, count: Int(count)))
@@ -158,22 +170,34 @@ final class NativeMeetingRecorder {
     private let log = Diagnostics("meeting")
     private var engine = AVAudioEngine()
     private let tap = SystemAudioTap()
+    private let systemRoutes = SystemAudioRouteObserver()
     private var me: TrackWriter?
     private var others: TrackWriter?
     private var startedAt: Date?
     private let microphoneConfiguration = MeetingMicrophoneConfigurationObserver()
-    private var outputListener: AudioObjectPropertyListenerBlock?
+    private var pendingRebuild: DispatchWorkItem?
+    private var forceRebuild = false
+    private var rebuildGeneration = CaptureGeneration()
+    private var recordingGeneration: UInt64 = 0
+    private var captureWarning: String?
+    private var finalArchiveError: String?
+    private var finalHeardSystemAudio = false
+    private var diagnostics: CaptureDiagnostics?
     private let silence = SilenceProbe()
     private let micSilence = SilenceProbe(threshold: 5)
     private var health = MeetingCaptureHealth(echoRequested: true)
     private var tapProcesses: (() -> [AudioObjectID])?
     var onSystemAudioSilent: (() -> Void)?
 
-    var heardSystemAudio: Bool { others?.heardSound ?? false }
+    var heardSystemAudio: Bool { others?.heardSound ?? finalHeardSystemAudio }
     var systemAudioAvailable: Bool { health.systemAudioAvailable }
     var isEchoCancellationEnabled: Bool { health.echoActive }
     var healthSnapshot: [String: Any] {
-        health.bridgeObject(heardSystemAudio: heardSystemAudio, archiveError: me?.archiveError ?? others?.archiveError)
+        var object = health.bridgeObject(heardSystemAudio: heardSystemAudio, archiveError: me?.archiveError ?? others?.archiveError ?? finalArchiveError)
+        let warnings = [health.echoWarning, captureWarning].compactMap { $0 }
+        object["capture_warning"] = warnings.isEmpty ? NSNull() : warnings.joined(separator: " ") as Any
+        object["capture_diagnostics"] = diagnostics?.snapshot() ?? [:]
+        return object
     }
 
     var elapsed: TimeInterval { startedAt.map { Date().timeIntervalSince($0) } ?? 0 }
@@ -184,33 +208,51 @@ final class NativeMeetingRecorder {
     /// When the recording began, for mapping wall-clock moments (dictation) onto the meeting timeline.
     var startDate: Date? { startedAt }
 
-    func start(directory: URL, sink: @escaping AudioSink, context: UnsafeMutableRawPointer?, tapProcesses: (() -> [AudioObjectID])? = nil, echoCancellation: Bool = true) throws {
+    func start(directory: URL, sink: @escaping AudioSink, context: UnsafeMutableRawPointer?, tapProcesses: (() -> [AudioObjectID])? = nil, echoCancellation: Bool = true, microphoneURL: URL? = nil, systemURL: URL? = nil) throws {
         self.tapProcesses = tapProcesses
         self.echoCancellation = echoCancellation
         health = MeetingCaptureHealth(echoRequested: echoCancellation)
         let started = ProcessInfo.processInfo.systemUptime
-        me = try TrackWriter(track: 0, sink: sink, context: context, started: started, url: directory.appendingPathComponent("ik.m4a"))
-        others = try TrackWriter(track: 1, sink: sink, context: context, started: started, url: directory.appendingPathComponent("anderen.m4a"))
+        startedAt = Date()
+        recordingGeneration &+= 1
+        captureWarning = nil
+        finalArchiveError = nil
+        finalHeardSystemAudio = false
+        let diagnostics = CaptureDiagnostics(started: started)
+        self.diagnostics = diagnostics
+        me = try TrackWriter(track: 0, sink: sink, context: context, started: started, url: microphoneURL ?? directory.appendingPathComponent("ik.m4a"), diagnostics: diagnostics)
+        others = try TrackWriter(track: 1, sink: sink, context: context, started: started, url: systemURL ?? directory.appendingPathComponent("anderen.m4a"), diagnostics: diagnostics)
         // Device setup can stop the engine before system-audio initialization returns.
         observeMicrophoneConfiguration()
         do { try startMicrophone() } catch { _ = stop(); throw error }
-        startSystemAudio()
-        outputListener = SystemAudioTap.observeOutputChanges { [weak self] in
-            Task { @MainActor in self?.restartSystemAudio() }
+        let generation = recordingGeneration
+        systemRoutes.observe { [weak self] in
+            guard let self, self.recordingGeneration == generation else { return }
+            self.scheduleSystemAudioRebuild(reason: "output_route_changed")
         }
-        startedAt = Date()
+        startSystemAudio()
     }
 
     func stop() -> String? {
         microphoneConfiguration.stop()
-        if let outputListener { SystemAudioTap.stopObserving(outputListener) }
-        outputListener = nil
+        systemRoutes.stop()
+        recordingGeneration &+= 1
+        pendingRebuild?.cancel()
+        rebuildGeneration.stop()
+        pendingRebuild = nil
+        forceRebuild = false
+        tap.onConfigurationChange = nil
+        tap.onInvalidBuffer = nil
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         disableVoiceProcessing()
         tap.stop()
         let meError = me?.finish()
         let othersError = others?.finish()
+        finalArchiveError = meError ?? othersError
+        finalHeardSystemAudio = others?.heardSound ?? finalHeardSystemAudio
+        if let error = meError ?? othersError { captureWarning = error }
+        diagnostics?.event("stopped", track: "all", fields: ["archive_complete": meError == nil && othersError == nil])
         me = nil
         others = nil
         startedAt = nil
@@ -256,13 +298,18 @@ final class NativeMeetingRecorder {
         }
         log.notice("microphone tap starting: hardware=\(hardwareFormat.sampleRate) Hz, channels=\(hardwareFormat.channelCount), echo=\(input.isVoiceProcessingEnabled)")
         let resampler = MonoResampler(from: hardwareFormat)
+        let diagnostics = diagnostics
+        diagnostics?.format(track: "microphone", format: hardwareFormat, transport: CaptureDeviceTransport.input(input.audioUnit))
         let micSilence = micSilence
         micSilence.reset()
         input.removeTap(onBus: 0)
         // After a Bluetooth switch the cached client/output format can differ from the hardware.
-        input.installTap(onBus: 0, bufferSize: 4096, format: hardwareFormat) { [weak self] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 4096, format: hardwareFormat) { [weak self] buffer, time in
             guard let converted = resampler.convert(buffer) else { return }
-            writer.append(converted)
+            diagnostics?.count(track: "microphone", key: "captured_frames", value: UInt64(buffer.frameLength))
+            let uptime = time.isHostTimeValid ? AVAudioTime.seconds(forHostTime: time.hostTime)
+                : ProcessInfo.processInfo.systemUptime - Double(buffer.frameLength) / buffer.format.sampleRate
+            writer.append(converted, capturedAt: uptime)
             if micSilence.feed(converted.monoSamples) {
                 Task { @MainActor in self?.microphoneSilent() }
             }
@@ -332,21 +379,92 @@ final class NativeMeetingRecorder {
         guard let others else { return }
         health.systemAudioStarting()
         silence.reset()
+        let generation = recordingGeneration
         do {
-            let resampler = MonoResampler(from: try tap.prepare(processes: tapProcesses?()))
+            let format = try tap.prepare(processes: tapProcesses?())
+            let resampler = MonoResampler(from: format)
+            let timing = CaptureTimingProbe()
+            let diagnostics = diagnostics
+            diagnostics?.format(track: "system", format: format, transport: tap.transport,
+                                tapRate: tap.tapSampleRate, aggregateRate: tap.aggregateSampleRate)
+            tap.onConfigurationChange = { [weak self] in
+                Task { @MainActor in
+                    guard let self, self.recordingGeneration == generation else { return }
+                    self.scheduleSystemAudioRebuild(reason: "configuration_changed")
+                }
+            }
+            tap.onInvalidBuffer = { [weak self] in
+                guard timing.fail() else { return }
+                diagnostics?.event("error", track: "system", fields: ["error_code": "invalid_buffer_layout"])
+                Task { @MainActor in
+                    guard let self, self.recordingGeneration == generation else { return }
+                    self.systemAudioProblem(reason: "invalid_buffer_layout")
+                }
+            }
             let silence = silence
-            try tap.start { [weak self] buffer in
-                guard let converted = resampler.convert(buffer) else { return }
-                others.append(converted)
+            try tap.start { [weak self] buffer, uptime in
+                guard !timing.blocked else { return }
+                guard let converted = resampler.convert(buffer) else {
+                    guard timing.fail() else { return }
+                    diagnostics?.event("error", track: "system", fields: ["error_code": "resampling_failed"])
+                    Task { @MainActor in
+                        guard let self, self.recordingGeneration == generation else { return }
+                        self.systemAudioProblem(reason: "resampling_failed")
+                    }
+                    return
+                }
+                diagnostics?.count(track: "system", key: "captured_frames", value: UInt64(buffer.frameLength))
+                if timing.observe(start: uptime, inputDuration: Double(buffer.frameLength) / buffer.format.sampleRate,
+                                  outputSamples: Int(converted.frameLength)) {
+                    diagnostics?.count(track: "system", key: "rate_mismatch_count", value: 1)
+                    diagnostics?.event("error", track: "system", at: uptime, fields: ["error_code": "capture_rate_mismatch"])
+                    Task { @MainActor in
+                        guard let self, self.recordingGeneration == generation else { return }
+                        self.systemAudioProblem(reason: "capture_rate_mismatch")
+                    }
+                    return
+                }
+                others.append(converted, capturedAt: uptime)
                 if silence.feed(converted.monoSamples) {
-                    Task { @MainActor in self?.systemAudioSilent() }
+                    Task { @MainActor in
+                        guard let self, self.recordingGeneration == generation else { return }
+                        self.systemAudioSilent()
+                    }
                 }
             }
             health.systemAudioStarted()
         } catch {
+            diagnostics?.event("error", track: "system", fields: ["error_code": "system_capture_start_failed"])
             log.error("system audio tap failed: \(String(describing: error))")
             health.systemAudioFailed()
         }
+    }
+
+    private func systemAudioProblem(reason: String) {
+        health.systemAudioFailed()
+        captureWarning = "Het systeemgeluid was onderbroken door een timingprobleem. Controleer de opname."
+        scheduleSystemAudioRebuild(reason: reason, force: true)
+    }
+
+    private func scheduleSystemAudioRebuild(reason: String, force: Bool = false) {
+        guard startedAt != nil else { return }
+        forceRebuild = forceRebuild || force
+        if force || !tap.configurationUnchangedAndFlowing() { tap.suspendDelivery() }
+        pendingRebuild?.cancel()
+        let rebuildToken = rebuildGeneration.begin()
+        let generation = recordingGeneration
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.startedAt != nil, self.recordingGeneration == generation,
+                  self.rebuildGeneration.accepts(rebuildToken) else { return }
+            self.pendingRebuild = nil
+            let forced = self.forceRebuild
+            self.forceRebuild = false
+            if !forced && self.tap.configurationUnchangedAndFlowing() { return }
+            self.diagnostics?.event("rebuild", track: "system", fields: ["reason": reason])
+            self.restartSystemAudio()
+        }
+        pendingRebuild = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
     }
 
     /// Some apps play call audio from another process (FaceTime via avconferenced), so an app-only
@@ -393,5 +511,19 @@ private final class SilenceProbe: @unchecked Sendable {
             samples += chunk.count
             return watch.feed(chunk, at: Double(samples) / 16_000)
         }
+    }
+}
+
+private final class CaptureTimingProbe: @unchecked Sendable {
+    private var monitor = CaptureRateMonitor()
+    private(set) var blocked = false
+    func fail() -> Bool {
+        guard !blocked else { return false }
+        blocked = true
+        return true
+    }
+    func observe(start: TimeInterval, inputDuration: TimeInterval, outputSamples: Int) -> Bool {
+        if monitor.observe(start: start, inputDuration: inputDuration, outputSamples: outputSamples) { return fail() }
+        return false
     }
 }

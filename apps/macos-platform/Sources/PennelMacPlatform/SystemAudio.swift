@@ -23,12 +23,3 @@ public struct SilenceWatch: Sendable {
         return true
     }
 }
-
-/// An aggregate device lists its sub-device inputs (e.g. a headset mic) before the tap's stream.
-public enum TapBuffers {
-    public static func range(total: Int, interleaved: Bool, channels: Int) -> Range<Int>? {
-        let needed = interleaved ? 1 : channels
-        guard needed > 0, total >= needed else { return nil }
-        return (total - needed)..<total
-    }
-}

@@ -23,10 +23,8 @@ protocol MeetingArchiving: AnyObject {
     func close()
 }
 
-/// `anderen.m4a`: AAC, 16 kHz mono, as the Mac writes its tracks.
+/// AAC, 16 kHz mono. The shared core chooses the archive's physical source and path.
 final class AACArchive: MeetingArchiving {
-    static let fileName = "anderen.m4a"
-
     private var file: AVAudioFile?
 
     init(url: URL) throws {
@@ -55,11 +53,29 @@ final class AACArchive: MeetingArchiving {
     }
 }
 
+extension PennelEngine {
+    func meetingArchiveURL(id: String, speaker: Speaker) -> URL? {
+        guard let track = meetingAudioTracks(id: id).first(where: { $0.speaker == speaker && $0.available }) else { return nil }
+        let root = URL(fileURLWithPath: meetingDir(id: id)).resolvingSymlinksInPath()
+        let url = root.appendingPathComponent(track.relativePath).resolvingSymlinksInPath()
+        guard url.path.hasPrefix(root.path + "/"),
+              (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+        else { return nil }
+        return url
+    }
+}
+
 /// A stretch of the meeting timeline without audio, in milliseconds since the start. `endMs` is nil when the
 /// recording never resumed.
 struct MeetingGap: Codable, Hashable, Sendable {
     var startMs: UInt64
     var endMs: UInt64?
+}
+
+struct MeetingRecorderMetrics: Equatable, Sendable {
+    var outputSamples: UInt64
+    var insertedSilenceSamples: UInt64
+    var gapCount: UInt64
 }
 
 /// Places microphone samples on the meeting timeline and hands them to the core and the archive.
@@ -95,6 +111,8 @@ final class MeetingRecorder: @unchecked Sendable {
     private var pending: [Float] = []
     private var pendingStart = 0
     private var archived = 0
+    private var insertedSilence = 0
+    private var paddingGaps: UInt64 = 0
 
     init(sink: MeetingAudioSink, archive: MeetingArchiving?, clock: @escaping @Sendable () -> TimeInterval) {
         self.sink = sink
@@ -116,6 +134,15 @@ final class MeetingRecorder: @unchecked Sendable {
     }
 
     var gaps: [MeetingGap] { lock.withLock { recordedGaps } }
+    var metrics: MeetingRecorderMetrics {
+        queue.sync {
+            MeetingRecorderMetrics(
+                outputSamples: UInt64(pendingStart + pending.count),
+                insertedSilenceSamples: UInt64(insertedSilence),
+                gapCount: paddingGaps
+            )
+        }
+    }
 
     /// Seconds since the last sample while recording; zero while paused.
     var stalledFor: TimeInterval {
@@ -191,6 +218,7 @@ final class MeetingRecorder: @unchecked Sendable {
             flush(all: true)
             let start = (desired + Self.samplesPerMs - 1) / Self.samplesPerMs * Self.samplesPerMs
             closeGap(from: position, to: start)
+            paddingGaps += 1
             archiveSilence(start - position)
             pendingStart = start
         } else if pending.isEmpty, pendingStart % Self.samplesPerMs != 0 {
@@ -242,6 +270,7 @@ final class MeetingRecorder: @unchecked Sendable {
 
     /// Keeps the archive on the transcript's timeline, so "Afspelen vanaf dit punt" lands on the right moment.
     private func archiveSilence(_ count: Int) {
+        insertedSilence += count
         var remaining = count
         while remaining > 0 {
             let block = min(remaining, Self.silenceBlock)

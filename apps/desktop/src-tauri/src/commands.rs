@@ -899,6 +899,7 @@ pub struct MeetingDetail {
     summary_outdated: bool,
     retranscription_plan: pennel_core::MeetingRetranscriptionPlan,
     retranscription_status: Option<pennel_core::MeetingRetranscriptionStatus>,
+    recording_metadata: Option<pennel_core::MeetingRecordingMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -908,21 +909,16 @@ pub struct AudioTrack {
 }
 
 fn audio_tracks(dir: &Path) -> Vec<AudioTrack> {
-    let root = dir.canonicalize().ok();
-    [
-        (pennel_core::Speaker::Me, "ik.m4a"),
-        (pennel_core::Speaker::Others, "anderen.m4a"),
-    ]
-    .into_iter()
-    .map(|(speaker, file)| AudioTrack {
-        speaker,
-        available: root.as_ref().is_some_and(|root| {
-            root.join(file)
-                .canonicalize()
-                .is_ok_and(|path| path.is_file() && path.parent() == Some(root.as_path()))
-        }),
-    })
-    .collect()
+    let tracks = pennel_core::resolve_meeting_audio_tracks(dir);
+    [pennel_core::Speaker::Me, pennel_core::Speaker::Others]
+        .into_iter()
+        .map(|speaker| AudioTrack {
+            speaker,
+            available: tracks
+                .iter()
+                .any(|track| track.speaker == speaker && track.available),
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -949,6 +945,7 @@ pub async fn meeting_detail(id: String, shared: State<'_, Arc<Shared>>) -> Resul
             retranscription_status: engine
                 .meeting_retranscription_status(&id)
                 .map(localize_retranscription_status),
+            recording_metadata: engine.meeting_recording_metadata(id.clone()).ok().flatten(),
         })
     })
     .await
@@ -1614,6 +1611,19 @@ mod tests {
     }
 
     #[test]
+    fn grouped_archives_are_available_through_the_existing_ui_contract() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::create_dir(directory.path().join("audio")).unwrap();
+        std::fs::write(directory.path().join("audio/microphone.m4a"), b"fixture").unwrap();
+        std::fs::write(directory.path().join("audio/system.m4a"), b"fixture").unwrap();
+        assert!(
+            audio_tracks(directory.path())
+                .iter()
+                .all(|track| track.available)
+        );
+    }
+
+    #[test]
     fn chat_history_is_data_with_a_stable_wire_contract() {
         let history: Vec<ChatTurn> = serde_json::from_value(serde_json::json!([
             {"question":"Wat is afgesproken?","answer":"Donderdag [1]."}
@@ -1676,6 +1686,7 @@ mod tests {
                 title: "Klantgesprek".into(),
                 started: std::time::Instant::now(),
                 duration_secs: Some(42),
+                pending_recording_finish: None,
                 system_audio: true,
                 heard_system_audio: true,
                 audio_warning: Some("Systeemgeluid is onderbroken.".into()),

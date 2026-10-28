@@ -68,9 +68,11 @@ unsafe extern "C" {
         error: *mut *mut c_char,
     ) -> *mut c_void;
     fn pennel_mac_capture_stop(handle: *mut c_void);
-    fn pennel_mac_meeting_start(
+    fn pennel_mac_meeting_start_paths(
         directory: *const c_char,
         app: *const c_char,
+        microphone_path: *const c_char,
+        system_path: *const c_char,
         echo: bool,
         sink: AudioSink,
         context: *mut c_void,
@@ -78,6 +80,7 @@ unsafe extern "C" {
     ) -> *mut c_void;
     fn pennel_mac_meeting_status(handle: *mut c_void) -> *mut c_char;
     fn pennel_mac_meeting_stop(handle: *mut c_void) -> *mut c_char;
+    fn pennel_mac_meeting_stop_status(handle: *mut c_void) -> *mut c_char;
     fn pennel_mac_transcribe(
         samples: *const f32,
         count: usize,
@@ -536,19 +539,25 @@ unsafe impl Send for MeetingCapture {}
 impl MeetingCapture {
     pub fn start(
         directory: &Path,
+        microphone_path: &Path,
+        system_path: &Path,
         app_id: Option<&str>,
         echo: bool,
         callback: impl FnMut(u32, &[f32], u64) + Send + 'static,
     ) -> Result<Self, String> {
         let directory = path_string(directory)?;
+        let microphone_path = path_string(microphone_path)?;
+        let system_path = path_string(system_path)?;
         let app = app_id.map(c_string).transpose()?;
         let mut callback: Box<AudioCallback> = Box::new(Mutex::new(Box::new(callback)));
         let context = (&mut *callback as *mut AudioCallback).cast();
         let mut error = ptr::null_mut();
         let handle = NonNull::new(unsafe {
-            pennel_mac_meeting_start(
+            pennel_mac_meeting_start_paths(
                 directory.as_ptr(),
                 app.as_ref().map_or(ptr::null(), |a| a.as_ptr()),
+                microphone_path.as_ptr(),
+                system_path.as_ptr(),
                 echo,
                 audio_frame,
                 context,
@@ -570,8 +579,15 @@ impl MeetingCapture {
         })
     }
 
-    pub fn stop(mut self) -> Result<(), String> {
-        self.finish()
+    pub fn stop(mut self) -> Result<Value, String> {
+        let Some(handle) = self.handle.take() else {
+            return Err("De audio-opname is niet beschikbaar.".into());
+        };
+        let status = unsafe { take_json(pennel_mac_meeting_stop_status(handle.as_ptr())) };
+        if !status.is_object() {
+            return Err("De opnamestatus kon niet worden gecontroleerd.".into());
+        }
+        Ok(status)
     }
 
     fn finish(&mut self) -> Result<(), String> {

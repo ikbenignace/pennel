@@ -104,6 +104,7 @@ final class SharedMicrophone: @unchecked Sendable {
         }
 
         var isRunning: Bool { microphone.isAlive(ObjectIdentifier(self)) }
+        var inputFormat: MicrophoneInputFormat? { microphone.control.withLock { microphone.capture.inputFormat } }
 
         deinit {
             microphone.remove(ObjectIdentifier(self))

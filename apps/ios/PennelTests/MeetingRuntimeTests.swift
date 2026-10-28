@@ -61,6 +61,14 @@ private final class FakeSessionBackend: AudioSessionBackend, @unchecked Sendable
 
 @MainActor
 struct MeetingRuntimeTests {
+    @Test func recording_diagnostics_classify_transport_without_device_identifiers() {
+        #expect(MeetingRuntime.recordingTransport(.builtInMic) == .builtIn)
+        #expect(MeetingRuntime.recordingTransport(.bluetoothHFP) == .bluetooth)
+        #expect(MeetingRuntime.recordingTransport(.bluetoothLE) == .bluetooth)
+        #expect(MeetingRuntime.recordingTransport(.usbAudio) == .usb)
+        #expect(MeetingRuntime.recordingTransport(.headsetMic) == .wired)
+        #expect(MeetingRuntime.recordingTransport(nil) == .unknown)
+    }
     /// iOS only grants continued processing to a request made from the user's action in the foreground, so the
     /// task is requested at Stop opname and keeps running if the user then leaves the app.
     @Test func stop_during_background_schedules_finish_task() async throws {

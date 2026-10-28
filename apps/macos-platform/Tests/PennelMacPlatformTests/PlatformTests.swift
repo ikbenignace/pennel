@@ -35,12 +35,6 @@ final class PlatformTests: XCTestCase {
         XCTAssertEqual(board.items, [["public.utf8-plain-text": Data("new copy".utf8)]])
     }
 
-    func testTapUsesLastBuffersAfterAggregateDeviceInput() {
-        XCTAssertEqual(TapBuffers.range(total: 4, interleaved: false, channels: 2), 2..<4)
-        XCTAssertEqual(TapBuffers.range(total: 2, interleaved: true, channels: 2), 1..<2)
-        XCTAssertNil(TapBuffers.range(total: 1, interleaved: false, channels: 2))
-    }
-
     func testSilenceFallbackDoesNotTreatQuietRoomAsBrokenInput() {
         var watch = SilenceWatch(threshold: 5)
         XCTAssertFalse(watch.feed([0, 0], at: 4))

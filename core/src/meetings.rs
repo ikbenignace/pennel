@@ -68,6 +68,7 @@ fn rollback_replacement(root: &Path, pending: &PendingReplacement) -> Result<(),
     let transcript = fs::read(backup.join("transcript.md")).map_err(PennelError::storage)?;
     durable_write(&root.join("meeting.md"), &metadata)?;
     durable_write(&root.join("transcript.md"), &transcript)?;
+    crate::meeting_recording::restore_recording_metadata(root, &backup)?;
     if pending.had_failed {
         let saved = backup.join("failed");
         let live = root.join("failed");
@@ -86,7 +87,7 @@ fn rollback_replacement(root: &Path, pending: &PendingReplacement) -> Result<(),
     clear_replacement_journal(root)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Speaker {
     Me,
@@ -343,6 +344,55 @@ pub fn mark_lines(enhanced: &str, notes: &str) -> Vec<NoteLine> {
 }
 
 impl MeetingStore {
+    pub(crate) fn set_recording_provenance(
+        &self,
+        id: &str,
+        metadata: &crate::meeting_recording::MeetingRecordingMetadata,
+    ) -> Result<(), PennelError> {
+        let (mut front, body) = self.frontmatter(id).ok_or(PennelError::NotFound)?;
+        for field in [
+            "pennel_recording_schema",
+            "pennel_recording_app",
+            "pennel_stt_provider",
+            "pennel_stt_model",
+            "pennel_stt_language",
+            "pennel_recording_duration_ms",
+            "pennel_recording_complete",
+        ] {
+            front
+                .extra
+                .retain(|line| !line.starts_with(&format!("{field}:")));
+        }
+        front.extra.extend([
+            "pennel_recording_schema: 1".into(),
+            format!("pennel_recording_app: {}", metadata.environment.app_version),
+            format!(
+                "pennel_stt_provider: {}",
+                metadata.recognition.provider_kind
+            ),
+            format!("pennel_stt_model: {}", metadata.recognition.model),
+            format!(
+                "pennel_stt_language: {}",
+                metadata
+                    .recognition
+                    .requested_language
+                    .as_deref()
+                    .unwrap_or("auto")
+            ),
+        ]);
+        if let Some(duration) = metadata.duration_ms {
+            front
+                .extra
+                .push(format!("pennel_recording_duration_ms: {duration}"));
+        }
+        if let Some(complete) = metadata.complete {
+            front
+                .extra
+                .push(format!("pennel_recording_complete: {complete}"));
+        }
+        self.write_file(id, "meeting.md", &render_meeting(&front, &body))
+    }
+
     pub fn new(dir: &Path) -> Self {
         Self {
             dir: dir.to_owned(),
@@ -653,6 +703,7 @@ impl MeetingStore {
         }
         durable_write(&backup.join("transcript.md"), &original)?;
         durable_write(&backup.join("meeting.md"), &metadata)?;
+        crate::meeting_recording::backup_recording_metadata(&root, &backup)?;
         let journal = serde_json::to_vec(&pending).map_err(PennelError::storage)?;
         durable_write(&backup.join("replacement.json"), &journal)?;
         sync_directory(&backups)?;
@@ -1044,21 +1095,33 @@ impl MeetingStore {
         let max_age = std::time::Duration::from_secs(u64::from(retention_days) * 86_400);
         let mut removed = 0;
         for meeting in self.list() {
-            let Ok(entries) = std::fs::read_dir(self.dir_of(&meeting.id)) else {
+            let root = self.dir_of(&meeting.id);
+            let Ok(entries) = std::fs::read_dir(&root) else {
                 continue;
             };
-            for entry in entries.filter_map(|e| e.ok()) {
-                let path = entry.path();
-                let old = entry
-                    .metadata()
+            let mut paths: Vec<_> = entries
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+                .map(|entry| entry.path())
+                .filter(|path| path.extension().is_some_and(|extension| extension == "m4a"))
+                .collect();
+            if let Ok(tracks) = self.audio_tracks(&meeting.id) {
+                paths.extend(
+                    tracks
+                        .into_iter()
+                        .filter(|track| track.available)
+                        .map(|track| root.join(track.relative_path)),
+                );
+            }
+            paths.sort();
+            paths.dedup();
+            for path in paths {
+                let old = std::fs::metadata(&path)
                     .and_then(|m| m.modified())
                     .ok()
                     .and_then(|modified| now.duration_since(modified).ok())
                     .is_some_and(|age| age >= max_age);
-                if path.extension().is_some_and(|e| e == "m4a")
-                    && old
-                    && std::fs::remove_file(&path).is_ok()
-                {
+                if old && std::fs::remove_file(&path).is_ok() {
                     removed += 1;
                 }
             }

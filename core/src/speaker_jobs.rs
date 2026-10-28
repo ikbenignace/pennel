@@ -273,6 +273,13 @@ fn upload_ranges(total: u64) -> Vec<(u64, u64)> {
     ranges
 }
 
+fn meeting_audio_digest(
+    store: &crate::meetings::MeetingStore,
+    id: &str,
+) -> Result<String, PennelError> {
+    digest_file(&store.audio_path(id, crate::Speaker::Others)?)
+}
+
 fn commit_is_complete(engine: &PennelEngine, manifest: &Manifest, directory: &Path) -> bool {
     let (Some(transcript), Some(names)) = (
         &manifest.applied_transcript_digest,
@@ -288,10 +295,7 @@ fn commit_is_complete(engine: &PennelEngine, manifest: &Manifest, directory: &Pa
     resolve_meeting(&store, &manifest.snapshot.meeting_uid)
         .ok()
         .is_some_and(|id| {
-            digest_file(&store.dir_of(&id).join("anderen.m4a"))
-                .ok()
-                .as_ref()
-                == Some(&manifest.audio_digest)
+            meeting_audio_digest(&store, &id).ok().as_ref() == Some(&manifest.audio_digest)
         })
 }
 
@@ -354,7 +358,7 @@ impl SpeakerRecognitionJob {
         let info = reader.info()?;
         if info.total_frames != manifest.snapshot.total_frames
             || info.audio_digest != manifest.audio_digest
-            || digest_file(&store.dir_of(&id).join("anderen.m4a"))? != manifest.audio_digest
+            || meeting_audio_digest(&store, &id)? != manifest.audio_digest
             || store.transcript_fingerprint(&id)? != manifest.transcript_digest
             || speaker_names_digest(&store.speaker_names(&id))? != manifest.names_digest
         {
@@ -892,7 +896,7 @@ impl PennelEngine {
         if info.total_frames == 0 || info.total_frames / (600 * u64::from(SAMPLE_RATE)) > 10_000 {
             return Err(invalid("De opname heeft geen geldige lengte."));
         }
-        let audio_digest = digest_file(&store.dir_of(&id).join("anderen.m4a"))?;
+        let audio_digest = meeting_audio_digest(&store, &id)?;
         if audio_digest != info.audio_digest {
             return Err(invalid(STALE));
         }

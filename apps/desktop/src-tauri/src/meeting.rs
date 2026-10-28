@@ -10,7 +10,7 @@ use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
 #[cfg(target_os = "macos")]
 use std::time::Duration;
 
-use pennel_core::{MeetingSession, Speaker};
+use pennel_core::{MeetingSession, PennelEngine, Speaker};
 
 #[cfg(not(target_os = "macos"))]
 use crate::audio::{Capture, Source};
@@ -36,6 +36,7 @@ struct MacCaptureHealth {
     archive_error: Option<String>,
     capture_warning: Option<String>,
     terminal_error: Option<String>,
+    capture_diagnostics: serde_json::Value,
 }
 
 #[cfg(target_os = "macos")]
@@ -78,18 +79,46 @@ struct MacCaptureMonitor {
 
 #[cfg(target_os = "macos")]
 impl MacCaptureMonitor {
-    fn start(native: crate::macos::MeetingCapture) -> Self {
+    fn start(native: crate::macos::MeetingCapture, engine: Arc<PennelEngine>, id: String) -> Self {
         let health = Arc::new(Mutex::new(MacCaptureHealth::from_status(native.status())));
         let next_health = health.clone();
         let (stop, receiver) = mpsc::sync_channel(1);
         let worker = std::thread::spawn(move || {
+            let started = Instant::now();
+            let mut last_sequence = 0;
+            let mut lost_events = 0;
             loop {
+                let mut snapshot = MacCaptureHealth::from_status(native.status());
+                if crate::recording_metadata::persist_capture(
+                    &engine,
+                    &id,
+                    &snapshot.capture_diagnostics,
+                    started.elapsed().as_millis() as u64,
+                    &mut last_sequence,
+                    &mut lost_events,
+                )
+                .is_err()
+                {
+                    snapshot.capture_warning =
+                        Some("De opnamediagnostiek kon niet worden bewaard.".into());
+                }
+                *next_health.lock().unwrap() = snapshot;
                 match receiver.recv_timeout(Duration::from_secs(1)) {
-                    Ok(()) | Err(RecvTimeoutError::Disconnected) => break native.stop(),
-                    Err(RecvTimeoutError::Timeout) => {
-                        let snapshot = MacCaptureHealth::from_status(native.status());
+                    Ok(()) | Err(RecvTimeoutError::Disconnected) => {
+                        let snapshot = MacCaptureHealth::from_status(native.stop()?);
+                        crate::recording_metadata::persist_capture(
+                            &engine,
+                            &id,
+                            &snapshot.capture_diagnostics,
+                            started.elapsed().as_millis() as u64,
+                            &mut last_sequence,
+                            &mut lost_events,
+                        )?;
+                        let result = snapshot.terminal_error.clone().map_or(Ok(()), Err);
                         *next_health.lock().unwrap() = snapshot;
+                        break result;
                     }
+                    Err(RecvTimeoutError::Timeout) => {}
                 }
             }
         });
@@ -127,8 +156,15 @@ impl Drop for MacCaptureMonitor {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct RecordingFinish {
+    pub duration_ms: u64,
+    pub complete: bool,
+}
+
 pub struct MeetingRecorder {
     pub session: Arc<MeetingSession>,
+    engine: Arc<PennelEngine>,
     pub title: String,
     started: Instant,
     #[cfg(target_os = "macos")]
@@ -186,6 +222,9 @@ struct TimedTrack {
     position: u64,
     pending_start: u64,
     pending: Vec<f32>,
+    output_samples: u64,
+    inserted_silence_samples: u64,
+    gap_count: u64,
 }
 
 #[cfg(any(not(target_os = "macos"), test))]
@@ -213,6 +252,8 @@ impl TimedTrack {
         }
         if start > self.position {
             self.flush(&mut emit);
+            self.inserted_silence_samples += start - self.position;
+            self.gap_count += 1;
             emit(TrackBlock::Gap {
                 samples: start - self.position,
             });
@@ -220,6 +261,7 @@ impl TimedTrack {
         }
         let overlap = self.position.saturating_sub(start) as usize;
         let mut remaining = &samples[overlap..];
+        self.output_samples += remaining.len() as u64;
         while !remaining.is_empty() {
             if self.pending.is_empty() {
                 self.pending_start = self.position;
@@ -251,12 +293,15 @@ impl TimedTrack {
         end_ms: u64,
         mut emit: impl FnMut(TrackBlock<'_>),
     ) -> Result<(), String> {
-        // A final millisecond also advances a silent/absent track to the shared stop boundary.
-        // Large gaps are represented by counts rather than a correspondingly large allocation.
-        if end_ms != 0 {
-            self.push_at(end_ms - 1, &[0.0; 16], &mut emit)?;
+        self.flush(&mut emit);
+        let end = end_ms.checked_mul(16).ok_or("Ongeldige audiotijd")?;
+        if end > self.position {
+            let samples = end - self.position;
+            self.inserted_silence_samples += samples;
+            self.gap_count += 1;
+            emit(TrackBlock::Gap { samples });
+            self.position = end;
         }
-        self.flush(emit);
         Ok(())
     }
 }
@@ -408,7 +453,26 @@ impl MeetingRecorder {
         title: String,
         detected_app: Option<String>,
         echo: bool,
+        engine: Arc<PennelEngine>,
+        app_version: &str,
     ) -> Result<Self, String> {
+        let tracks = engine
+            .prepare_meeting_recording(
+                session.id(),
+                crate::recording_metadata::environment(app_version),
+                false,
+            )
+            .map_err(|error| error.to_string())?;
+        let directory = std::path::PathBuf::from(session.dir());
+        let track_path = |speaker| {
+            tracks
+                .iter()
+                .find(|track| track.speaker == speaker)
+                .map(|track| directory.join(&track.relative_path))
+                .ok_or_else(|| "De audio-opname is niet beschikbaar.".to_owned())
+        };
+        let microphone_path = track_path(Speaker::Me)?;
+        let system_path = track_path(Speaker::Others)?;
         #[cfg(target_os = "macos")]
         {
             let heard_system = Arc::new(AtomicBool::new(false));
@@ -417,6 +481,8 @@ impl MeetingRecorder {
             let started = Instant::now();
             let native = crate::macos::MeetingCapture::start(
                 std::path::Path::new(&session.dir()),
+                &microphone_path,
+                &system_path,
                 detected_app.as_deref(),
                 echo,
                 move |track, samples, offset| {
@@ -436,10 +502,11 @@ impl MeetingRecorder {
                     }
                 },
             )?;
-            let native = MacCaptureMonitor::start(native);
+            let native = MacCaptureMonitor::start(native, engine.clone(), session.id());
             let has_system = native.snapshot().system_audio_available;
             Ok(Self {
                 session,
+                engine,
                 title,
                 started,
                 native: Some(native),
@@ -453,21 +520,23 @@ impl MeetingRecorder {
             let _ = detected_app;
             #[cfg(any(windows, target_os = "linux"))]
             let tracks = {
-                let dir = std::path::PathBuf::from(session.dir());
                 [
                     Arc::new(Mutex::new(TrackSink::new(
-                        archive_backend::AudioArchive::create(&dir.join("ik.m4a"))?,
+                        archive_backend::AudioArchive::create(&microphone_path)?,
                     ))),
                     Arc::new(Mutex::new(TrackSink::new(
-                        archive_backend::AudioArchive::create(&dir.join("anderen.m4a"))?,
+                        archive_backend::AudioArchive::create(&system_path)?,
                     ))),
                 ]
             };
             #[cfg(not(any(windows, target_os = "linux")))]
-            let tracks = [
-                Arc::new(Mutex::new(TrackSink::new())),
-                Arc::new(Mutex::new(TrackSink::new())),
-            ];
+            let tracks = {
+                let _ = (microphone_path, system_path);
+                [
+                    Arc::new(Mutex::new(TrackSink::new())),
+                    Arc::new(Mutex::new(TrackSink::new())),
+                ]
+            };
             let started = Instant::now();
             let heard_system = Arc::new(AtomicBool::new(false));
             #[cfg(windows)]
@@ -551,12 +620,41 @@ impl MeetingRecorder {
                 }
             };
             let has_system = system.is_some();
+            for source in [
+                pennel_core::RecordingSource::Microphone,
+                pennel_core::RecordingSource::SystemAudio,
+            ] {
+                engine
+                    .record_meeting_capture_event(
+                        session.id(),
+                        pennel_core::MeetingCaptureEvent {
+                            source,
+                            kind: pennel_core::CaptureEventKind::Started,
+                            ..Default::default()
+                        },
+                    )
+                    .map_err(|error| error.to_string())?;
+            }
+            if !has_system {
+                engine
+                    .record_meeting_capture_event(
+                        session.id(),
+                        pennel_core::MeetingCaptureEvent {
+                            source: pennel_core::RecordingSource::SystemAudio,
+                            kind: pennel_core::CaptureEventKind::CaptureError,
+                            error_code: Some("system_capture_start_failed".into()),
+                            ..Default::default()
+                        },
+                    )
+                    .map_err(|error| error.to_string())?;
+            }
             LOG.info(format!(
                 "meeting gestart, systeemgeluid {}",
                 if has_system { "aan" } else { "uit" }
             ));
             Ok(Self {
                 session,
+                engine,
                 title,
                 started,
                 mic: Some(mic),
@@ -667,8 +765,9 @@ impl MeetingRecorder {
     }
 
     /// Capture, archives and transcript are all finalized even if one stage reports an error.
-    pub fn stop(mut self) -> Result<String, String> {
+    pub fn stop(mut self) -> (Result<String, String>, RecordingFinish) {
         self.set_dictating(false);
+        let duration_ms = self.started.elapsed().as_millis() as u64;
         let mut failures = Vec::new();
         #[cfg(target_os = "macos")]
         if let Some(native) = self.native.take()
@@ -690,22 +789,64 @@ impl MeetingRecorder {
                 failures.push(error);
             }
             for (speaker, track) in [Speaker::Me, Speaker::Others].into_iter().zip(&self.tracks) {
-                if let Err(error) = track.lock().unwrap().finish(&self.session, speaker, end_ms) {
+                let mut track = track.lock().unwrap();
+                let archive_result = track.finish(&self.session, speaker, end_ms);
+                let source = if speaker == Speaker::Me {
+                    pennel_core::RecordingSource::Microphone
+                } else {
+                    pennel_core::RecordingSource::SystemAudio
+                };
+                if let Err(error) = self.engine.record_meeting_capture_event(
+                    self.session.id(),
+                    pennel_core::MeetingCaptureEvent {
+                        source,
+                        elapsed_ms: duration_ms,
+                        kind: if archive_result.is_ok() {
+                            pennel_core::CaptureEventKind::Stopped
+                        } else {
+                            pennel_core::CaptureEventKind::CaptureError
+                        },
+                        output_samples: Some(track.timing.output_samples),
+                        inserted_silence_samples: Some(track.timing.inserted_silence_samples),
+                        gap_count: Some(track.timing.gap_count),
+                        error_code: archive_result
+                            .as_ref()
+                            .err()
+                            .map(|_| "audio_archive_failed".into()),
+                        ..Default::default()
+                    },
+                ) {
+                    failures.push(error.to_string());
+                }
+                if let Err(error) = archive_result {
                     failures.push(error);
                 }
             }
         }
+        let completion = RecordingFinish {
+            duration_ms,
+            complete: failures.is_empty() && self.has_system,
+        };
         if let Err(error) = self.session.stop() {
+            failures.push(error.to_string());
+        }
+        if let Err(error) = self.engine.finish_meeting_recording(
+            self.session.id(),
+            duration_ms,
+            completion.complete,
+        ) {
             failures.push(error.to_string());
         }
         LOG.info(format!(
             "meeting gestopt na {} s",
             self.started.elapsed().as_secs()
         ));
-        if !failures.is_empty() {
-            return Err(failures.join("; "));
-        }
-        Ok(self.session.id())
+        let result = if failures.is_empty() {
+            Ok(self.session.id())
+        } else {
+            Err(failures.join("; "))
+        };
+        (result, completion)
     }
 }
 
@@ -819,6 +960,9 @@ mod tests {
         );
         assert!(collected.max_batch <= BATCH);
         assert_eq!(collected.starts[..2], [0, 2_000]);
+        assert_eq!(track.output_samples, 16_000);
+        assert_eq!(track.inserted_silence_samples, 32_000);
+        assert_eq!(track.gap_count, 2);
     }
 
     #[test]

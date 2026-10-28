@@ -21,6 +21,9 @@ final class MeetingFakeCapture: AudioCapturing, @unchecked Sendable {
     private(set) var stops = 0
 
     var running: Bool { lock.withLock { onSamples != nil } }
+    var inputFormat: MicrophoneInputFormat? {
+        running ? MicrophoneInputFormat(sampleRate: 24_000, channels: 1, interleaved: false) : nil
+    }
 
     func failNextStarts() {
         lock.withLock { failing = true }

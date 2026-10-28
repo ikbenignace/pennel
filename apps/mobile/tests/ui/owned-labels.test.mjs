@@ -8,6 +8,12 @@ test('model sample outcomes use the selected interface language without translat
   assert.equal(ownedMetadata('en', 'Unrecognized provider output', 'mobile.models.failed').includes('Unrecognized provider output'), false);
 });
 
+test('recording metadata save failures keep the retry action in both interface languages', () => {
+  const source = 'De opnamegegevens konden niet worden bewaard. Probeer opnieuw te bewaren.';
+  assert.match(ownedMetadata('en', source, 'mobile.errors.operation_failed'), /recording.*sav/i);
+  assert.equal(ownedMetadata('nl', source, 'mobile.errors.operation_failed'), source);
+});
+
 test('built-in template choices are translated by ID while custom names and IDs stay literal', () => {
   const original = { id: 'algemeen', name: 'Algemeen', builtin: true, customized: false };
   assert.equal(templateLabel(original, 'en'), 'General'); assert.equal(templateLabel(original, 'nl'), 'Algemeen');
