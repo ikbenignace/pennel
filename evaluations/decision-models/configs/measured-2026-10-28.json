@@ -237,7 +237,6 @@
       "provider": "ollama",
       "base_url": "http://127.0.0.1:11434/v1",
       "model": "gemma3:12b",
-      "max_cases": 30,
       "tasks": [
         "meeting_qa",
         "summary",
@@ -250,7 +249,6 @@
       "provider": "ollama",
       "base_url": "http://127.0.0.1:11434/v1",
       "model": "qwen3:14b",
-      "max_cases": 30,
       "tasks": [
         "meeting_qa",
         "summary",

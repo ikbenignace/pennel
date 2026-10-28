@@ -446,7 +446,7 @@ def live_predictions(corpus, bridge, config, split, output, frozen):
 
 
 def predictions_report(rows):
-    from metrics import classification_metrics, timing_metrics
+    from metrics import classification_metrics, suggestion_metrics, timing_metrics
     groups = defaultdict(list)
     for row in rows:
         if row["task"] == "ranking":
@@ -457,6 +457,7 @@ def predictions_report(rows):
              "rows": len(values), "measured": sum(v.get("status") == "ok" for v in values),
              "quality": classification_metrics([dict(v, prediction=v.get("prediction") if v.get("status") == "ok" else None,
                                                        probabilities=v.get("probabilities") if v.get("status") == "ok" else None) for v in values]),
+             "suggestions": suggestion_metrics(values) if task in ("templates", "speaker_names") else None,
              "warm_latency": timing_metrics([v["latency_ms"] for v in values if v.get("phase") == "warm" and v.get("status") == "ok" and v.get("latency_ms") is not None]),
              "load_ms": next((v.get("load_ms") for v in values if v.get("load_ms") is not None), None),
              "cost_usd": [v.get("cost_usd") for v in values]}
@@ -530,7 +531,8 @@ def markdown_report(report):
                       "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |"])
         for row in report["live"]:
             quality = row["quality"]
-            lines.append(f"| {row['runner_id']} | {row['language']} | {row['task']} | {row['subtask']} | {row['measured']}/{row['rows']} | {quality['macro_f1']} | {quality['coverage']} | {quality['brier']} | {row['warm_latency']['p95_ms']} |")
+            coverage = row["suggestions"]["coverage"] if row["suggestions"] else quality["coverage"]
+            lines.append(f"| {row['runner_id']} | {row['language']} | {row['task']} | {row['subtask']} | {row['measured']}/{row['rows']} | {quality['macro_f1']} | {coverage} | {quality['brier']} | {row['warm_latency']['p95_ms']} |")
         lines.extend(["", "Brier/ECE require full class probabilities. Label-only outputs remain unmeasured for those metrics.", ""])
     if report.get("reranking"):
         lines.extend(["## Reranking frozen candidates", "", "| Runner | Language | Measured / total | Baseline nDCG@5 | Candidate nDCG@5 | Candidate recall |",

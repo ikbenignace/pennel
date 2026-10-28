@@ -74,6 +74,10 @@ Commit the frozen manifest before held-out inference. Development runs may be us
 repair adapters and prompts. Fit calibration only on the calibration split; persist the
 calibration context and threshold with the model/route/precision/prompt/label/grouping
 identity. A change invalidates that calibration. A new experiment needs a new freeze.
+The prompt-family hash binds all authored questions through the frozen corpus hash, task,
+subtask and primitive; ordered labels remain separate contexts. Per-case wire requests
+retain their own identities. Correct `unknown`/`abstain` decisions remain classification
+outcomes, but never count toward actual name/template suggestion coverage.
 
 ```sh
 python3 evaluations/decision-models/run.py --live --split development \
@@ -85,6 +89,30 @@ python3 evaluations/decision-models/run.py --live --split development \
 Use the same configuration and committed freeze for calibration and held-out runs.
 Incomplete judgments, identity drift and missing measurements are explicit acceptance gaps.
 No aggregate score across languages selects a universal winner.
+
+```sh
+python3 evaluations/decision-models/run.py --live --split calibration \
+  --config evaluations/decision-models/configs/measured-2026-10-28.json \
+  --frozen evaluations/decision-models/locks/2026-10-28.json \
+  --binary build/evaluation-core-target/release/pennel-eval \
+  --output build/decision-model-evaluation/calibration
+python3 evaluations/decision-models/run.py \
+  --calibrate build/decision-model-evaluation/calibration/predictions.json \
+  --frozen evaluations/decision-models/locks/2026-10-28.json \
+  --output build/decision-model-evaluation/calibration
+python3 evaluations/decision-models/run.py --live --split heldout --measure \
+  --config evaluations/decision-models/configs/measured-2026-10-28.json \
+  --frozen evaluations/decision-models/locks/2026-10-28.json \
+  --calibration build/decision-model-evaluation/calibration/calibration.json \
+  --binary build/evaluation-core-target/release/pennel-eval \
+  --output build/decision-model-evaluation/heldout
+```
+
+The checked-in measured configuration describes this experiment, including unavailable
+routes. Its OpenRouter account/retention gate is deliberately unverified. Supplying a key
+does not bypass that gate. Changing the configuration requires a new freeze. The small
+generative example's `max_cases` is a global smoke-test cap; omit it for full task/language
+coverage, as the measured configuration does.
 
 ## Hosted routes and billing
 

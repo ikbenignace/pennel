@@ -127,6 +127,33 @@ class ClassificationTests(unittest.TestCase):
         self.assertIsNone(result["ece"])
 
 
+class SuggestionTests(unittest.TestCase):
+    def test_all_declines_have_zero_suggestion_coverage(self):
+        rows = [row(label, label) for label in ("unknown", "abstain", "none")]
+        rows.append(row("unknown", None))
+        self.assertEqual(metrics.classification_metrics(rows)["accuracy"], .75)
+        result = metrics.suggestion_metrics(rows)
+        self.assertEqual(result["coverage"], 0)
+        self.assertEqual(result["suggestion_count"], 0)
+        self.assertIsNone(result["precision"])
+
+    def test_false_ambiguous_names_are_counted(self):
+        result = metrics.suggestion_metrics([
+            row("unknown", "speaker_1"), row("speaker_1", "speaker_1"),
+            row("unknown", "speaker_1", accepted=False),
+        ])
+        self.assertEqual(result["suggestion_count"], 2)
+        self.assertEqual(result["precision"], .5)
+        self.assertAlmostEqual(result["coverage"], 2 / 3)
+        self.assertEqual(result["forced_ambiguous_names"], 1)
+
+    def test_rejected_low_confidence_label_is_not_a_suggestion(self):
+        result = metrics.suggestion_metrics([row("speaker_1", "speaker_1", accepted=False)])
+        self.assertEqual(result["coverage"], 0)
+        self.assertEqual(result["correct_count"], 0)
+        self.assertIsNone(result["precision"])
+
+
 class CalibrationTests(unittest.TestCase):
     def test_threshold_maximizes_coverage_at_precision(self):
         rows = [row("true", "true", .95), row("false", "false", .1), row("false", "true", .8)]
@@ -139,6 +166,16 @@ class CalibrationTests(unittest.TestCase):
         selected = metrics.choose_threshold([row("false", "true", .9)], target_precision=.98)
         self.assertIsNone(selected["threshold"])
         self.assertEqual(selected["coverage"], 0)
+
+    def test_confident_declines_cannot_make_suggestion_threshold_pass(self):
+        rows = [{"expected": "unknown", "prediction": "unknown", "split": "calibration",
+                 "probabilities": {"unknown": .99, "name": .01}} for _ in range(50)]
+        rows.append({"expected": "unknown", "prediction": "name", "split": "calibration",
+                     "probabilities": {"unknown": .2, "name": .8}})
+        self.assertEqual(metrics.choose_threshold(rows)["coverage"], 1)
+        suggestion = metrics.choose_threshold(rows, suggestions_only=True)
+        self.assertIsNone(suggestion["threshold"])
+        self.assertEqual(suggestion["coverage"], 0)
 
     def test_fit_and_threshold_reject_development_or_heldout(self):
         for split in ("development", "heldout", "test", None):

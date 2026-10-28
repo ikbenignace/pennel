@@ -16,6 +16,7 @@ PROBABILITY_TYPES = {
 }
 CONTEXT_FIELDS = {"model", "transport", "upstream", "precision", "prompt_hash", "labels", "grouping"}
 VOLATILE_FIELDS = {"generated_at", "timestamp", "created_at", "started_at", "finished_at"}
+DECLINE_LABELS = {"unknown", "abstain", "none"}
 EPSILON = 1e-12
 
 
@@ -236,7 +237,27 @@ def classification_metrics(rows, bins=10):
     return result
 
 
-def selective_curve(rows):
+def _is_suggestion(label):
+    return isinstance(label, str) and bool(label.strip()) and label.strip().casefold() not in DECLINE_LABELS
+
+
+def suggestion_metrics(rows):
+    """A correct decline is a classification success, but it is never a suggestion."""
+    rows = list(rows)
+    suggested = [row for row in rows if row.get("accepted", True) and _is_suggestion(row.get("prediction"))]
+    correct = sum(row["prediction"] == row["expected"] for row in suggested)
+    eligible = sum(_is_suggestion(row.get("expected")) for row in rows)
+    forced = sum(not _is_suggestion(row.get("expected")) for row in suggested)
+    return {
+        "count": len(rows), "suggestion_count": len(suggested), "correct_count": correct,
+        "coverage": _ratio(len(suggested), len(rows)), "precision": _ratio(correct, len(suggested)),
+        "recall": _ratio(correct, eligible), "eligible_count": eligible,
+        "forced_ambiguous_names": forced,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+    }
+
+
+def selective_curve(rows, suggestions_only=False):
     """Threshold the returned class distribution, never the vendor confidence field."""
     rows = list(rows)
     scored = []
@@ -244,6 +265,8 @@ def selective_curve(rows):
         distribution = _distribution(row)
         if distribution is not None:
             prediction = _choice(distribution)
+            if suggestions_only and not _is_suggestion(prediction):
+                continue
             scored.append((distribution[prediction], prediction == row["expected"]))
     result = []
     for threshold in sorted({confidence for confidence, _ in scored}, reverse=True):
@@ -262,13 +285,13 @@ def _require_calibration(rows):
         raise ValueError("fitting and threshold selection require only calibration-split rows")
 
 
-def choose_threshold(rows, target_precision=.98):
+def choose_threshold(rows, target_precision=.98, suggestions_only=False):
     rows = list(rows)
     _require_calibration(rows)
     target_precision = _number(target_precision, "target precision")
     if not 0 < target_precision <= 1:
         raise ValueError("target precision must be in (0,1]")
-    choices = [point for point in selective_curve(rows) if point["selective_precision"] >= target_precision]
+    choices = [point for point in selective_curve(rows, suggestions_only=suggestions_only) if point["selective_precision"] >= target_precision]
     if not choices:
         return {
             "threshold": None, "accepted_count": 0, "correct_count": 0, "coverage": 0.0,
@@ -350,7 +373,7 @@ def _golden_minimum(function, lower, upper):
     return (lower + upper) / 2
 
 
-def fit_calibration(rows, context, kind="temperature", target_precision=.98):
+def fit_calibration(rows, context, kind="temperature", target_precision=.98, suggestions_only=False):
     """Fit only calibration probabilities; model/route/prompt/labels are bound by hash."""
     rows = list(rows)
     _require_calibration(rows)
@@ -439,7 +462,8 @@ def fit_calibration(rows, context, kind="temperature", target_precision=.98):
     for row, distribution in observations:
         probability = apply_calibration(distribution, fit, context)
         calibrated.append({**row, "probabilities": probability, "prediction": _choice(probability)})
-    fit["threshold"] = choose_threshold(calibrated, target_precision)
+    fit["threshold"] = choose_threshold(calibrated, target_precision, suggestions_only=suggestions_only)
+    fit["threshold_scope"] = "positive_suggestions" if suggestions_only else "all_class_predictions"
     return fit
 
 

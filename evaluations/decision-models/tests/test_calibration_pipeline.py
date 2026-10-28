@@ -153,6 +153,41 @@ class CalibrationPipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             calibration.fit_predictions([prediction(index) for index in range(10)], min_samples=2)
 
+    def test_declines_do_not_satisfy_template_coverage(self):
+        def template(index, split="calibration"):
+            return prediction(index, split, task="templates", expected="algemeen" if index % 2 else "abstain",
+                prediction="abstain", probabilities={"algemeen": .01, "abstain": .99},
+                raw_score_type="categorical_probabilities", label_order=["algemeen", "abstain"],
+                question={"type": "choice", "instructions": "Suggest template", "criteria": {"algemeen": "General", "abstain": "Unknown"}})
+        artifact = calibration.fit_predictions([template(index) for index in range(10)], run_manifest_hash="frozen-run")
+        fit = next(iter(artifact["fits"].values()))["fit"]
+        self.assertEqual(fit["threshold_scope"], "positive_suggestions")
+        self.assertIsNone(fit["threshold"]["threshold"])
+        result = calibration.score_predictions([template(1, "heldout"), template(2, "heldout")], artifact, run_manifest_hash="frozen-run")["groups"][0]
+        self.assertEqual(result["raw"]["accuracy"], .5)
+        self.assertEqual(result["raw_suggestions"]["coverage"], 0)
+        self.assertEqual(result["calibrated_suggestions"]["coverage"], 0)
+        self.assertIn("suggestion_coverage_below_minimum", result["gates"])
+        self.assertIn("suggestion_precision_below_minimum", result["gates"])
+
+    def test_forced_ambiguous_and_low_confidence_names(self):
+        def name(index, split="calibration", **updates):
+            positive = index % 2 == 0
+            values = dict(task="speaker_names", expected="speaker_1" if positive else "unknown",
+                prediction="speaker_1" if positive else "unknown",
+                probabilities={"speaker_1": .9 if positive else .1, "unknown": .1 if positive else .9},
+                raw_score_type="categorical_probabilities", label_order=["speaker_1", "unknown"],
+                question={"type": "choice", "instructions": "Suggest name", "criteria": {"speaker_1": "Jan", "unknown": "Unknown"}})
+            values.update(updates)
+            return prediction(index, split, **values)
+        artifact = calibration.fit_predictions([name(index) for index in range(10)], run_manifest_hash="frozen-run")
+        rows = [name(0, "heldout", expected="unknown"), name(1, "heldout", expected="speaker_1", prediction="speaker_1", probabilities={"speaker_1": .51, "unknown": .49})]
+        result = calibration.score_predictions(rows, artifact, run_manifest_hash="frozen-run")["groups"][0]
+        self.assertEqual(result["calibrated_suggestions"]["suggestion_count"], 1)
+        self.assertEqual(result["calibrated_suggestions"]["forced_ambiguous_names"], 1)
+        self.assertEqual(result["calibrated_suggestions"]["precision"], 0)
+        self.assertIn("forced_ambiguous_names", result["gates"])
+
 
 if __name__ == "__main__":
     unittest.main()

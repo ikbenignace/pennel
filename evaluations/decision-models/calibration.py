@@ -133,7 +133,10 @@ def fit_predictions(rows, run_manifest_hash=None, min_samples=MINIMUM_SAMPLES):
             question_type = group[0].get("question", {}).get("type")
             binary = question_type == "noul" or set(context["labels"]) == {"false", "true"}
             target = TARGET_PRECISION.get(context["task"], .98)
-            fit = metrics.fit_calibration(group, context, kind="binary" if binary else "temperature", target_precision=target)
+            fit = metrics.fit_calibration(
+                group, context, kind="binary" if binary else "temperature", target_precision=target,
+                suggestions_only=context["task"] in {"speaker_names", "templates"},
+            )
         fits[key] = {
             "context": context, "status": status, "fit": fit, "sample_count": len(group),
             "observed_class_count": len(classes), "meeting_group_count": len(meeting_groups),
@@ -218,14 +221,27 @@ def score_predictions(rows, artifact, run_manifest_hash=None):
                 calibrated.append({**row, "prediction": None, "probabilities": None, "accepted": False})
             statuses[status] += 1
         uncalibrated_count = len(group) - statuses["calibrated"]
+        gates = ["uncalibrated_heldout_cases"] if uncalibrated_count else []
+        raw_suggestions = calibrated_suggestions = None
+        if task in {"speaker_names", "templates"}:
+            raw_suggestions = metrics.suggestion_metrics(group)
+            calibrated_suggestions = metrics.suggestion_metrics(calibrated)
+            if calibrated_suggestions["coverage"] is None or calibrated_suggestions["coverage"] < .5:
+                gates.append("suggestion_coverage_below_minimum")
+            precision = calibrated_suggestions["precision"]
+            if precision is None or precision < TARGET_PRECISION[task]:
+                gates.append("suggestion_precision_below_minimum")
+            if task == "speaker_names" and calibrated_suggestions["forced_ambiguous_names"]:
+                gates.append("forced_ambiguous_names")
         results.append({
             "runner_id": runner, "language": language, "task": task, "subtask": subtask or None,
             "raw": metrics.classification_metrics(group), "calibrated": metrics.classification_metrics(calibrated),
+            "raw_suggestions": raw_suggestions, "calibrated_suggestions": calibrated_suggestions,
             "raw_selective_curve": metrics.selective_curve(group),
             "calibrated_selective_curve": metrics.selective_curve(calibrated),
             "calibrated_count": statuses["calibrated"], "uncalibrated_count": uncalibrated_count,
             "statuses": dict(sorted(statuses.items())), "context_counts": dict(sorted(context_counts.items())),
-            "gates": ["uncalibrated_heldout_cases"] if uncalibrated_count else [],
+            "gates": gates,
         })
     manifest_verified = bool(manifest_hash and frozen_hash and manifest_hash == frozen_hash)
     gates = [] if manifest_verified else ["run_manifest_unlinked"]
