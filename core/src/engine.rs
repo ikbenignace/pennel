@@ -264,6 +264,18 @@ fn now_ms() -> i64 {
 
 #[uniffi::export]
 impl PennelEngine {
+    pub(crate) fn recording_recognition(&self, id: &str) -> crate::session::MeetingRecognition {
+        self.active_sessions
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .find(|session| session.id() == id)
+            .map_or_else(
+                || crate::session::MeetingRecognition::from_settings(&self.settings()),
+                |session| session.recognition_config(),
+            )
+    }
     #[uniffi::constructor]
     pub fn new(data_dir: String) -> Result<Arc<Self>, PennelError> {
         Self::open(data_dir, false)

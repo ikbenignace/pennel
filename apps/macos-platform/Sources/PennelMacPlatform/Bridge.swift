@@ -389,6 +389,37 @@ public func meetingStatus(_ handle: UnsafeMutableRawPointer?) -> UnsafeMutablePo
     }
 }
 
+@_cdecl("pennel_mac_meeting_start_paths")
+func meetingStartPaths(_ rawDirectory: UnsafePointer<CChar>?, _ rawApp: UnsafePointer<CChar>?, _ rawMicrophone: UnsafePointer<CChar>?, _ rawSystem: UnsafePointer<CChar>?, _ echo: Bool, _ sink: @escaping AudioSink, _ context: UnsafeMutableRawPointer?, _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutableRawPointer? {
+    guard let directory = decodeString(rawDirectory), let microphone = decodeString(rawMicrophone), let system = decodeString(rawSystem) else {
+        errorOut?.pointee = bridgeString("Geen opnamepaden opgegeven")
+        return nil
+    }
+    let app = decodeString(rawApp)
+    return onMain {
+        let capture = NativeMeetingRecorder()
+        do {
+            let processes: (() -> [AudioObjectID])? = app.map { app in { MicUsageMonitor.processObjects(bundleId: app) } }
+            try capture.start(directory: URL(fileURLWithPath: directory), sink: sink, context: context,
+                              tapProcesses: processes, echoCancellation: echo,
+                              microphoneURL: URL(fileURLWithPath: microphone), systemURL: URL(fileURLWithPath: system))
+            return Unmanaged.passRetained(capture).toOpaque()
+        } catch { _ = capture.stop(); writeError(errorOut, error); return nil }
+    }
+}
+
+@_cdecl("pennel_mac_meeting_stop_status")
+public func meetingStopStatus(_ handle: UnsafeMutableRawPointer?) -> UnsafeMutablePointer<CChar>? {
+    guard let handle else { return bridgeString("null") }
+    return onMain {
+        let capture = Unmanaged<NativeMeetingRecorder>.fromOpaque(handle).takeRetainedValue()
+        let error = capture.stop()
+        var snapshot = capture.healthSnapshot
+        if let error { snapshot["terminal_error"] = error }
+        return bridgeJSON(snapshot)
+    }
+}
+
 @_cdecl("pennel_mac_meeting_stop")
 public func meetingStop(_ handle: UnsafeMutableRawPointer?) -> UnsafeMutablePointer<CChar>? {
     guard let handle else { return nil }

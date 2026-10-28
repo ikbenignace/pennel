@@ -20,6 +20,7 @@ pub struct MeetingContext {
     pub title: String,
     pub started: Instant,
     pub duration_secs: Option<u64>,
+    pub pending_recording_finish: Option<crate::meeting::RecordingFinish>,
     pub system_audio: bool,
     pub heard_system_audio: bool,
     pub audio_warning: Option<String>,
@@ -216,6 +217,7 @@ pub fn start(
         title: title.clone(),
         started: Instant::now(),
         duration_secs: None,
+        pending_recording_finish: None,
         system_audio: false,
         heard_system_audio: false,
         audio_warning: None,
@@ -226,6 +228,8 @@ pub fn start(
         title,
         detected_app,
         settings.echo_cancellation,
+        shared.engine.clone(),
+        &shared.version,
     ) {
         Ok(recorder) => recorder,
         Err(error) => {
@@ -385,10 +389,20 @@ fn finish(shared: &Shared, token: &str, recorder: MeetingRecorder) -> Result<Str
         .map_err(|error| error.to_string())?;
     #[cfg(target_os = "macos")]
     crate::macos_tray::changed();
+    let (captured, completion) = recorder.stop();
+    if let Some(context) = shared
+        .meeting_context
+        .lock()
+        .unwrap()
+        .as_mut()
+        .filter(|context| context.token == token)
+    {
+        context.pending_recording_finish = Some(completion);
+    }
     finish_after_capture(
         shared,
         token,
-        recorder.stop(),
+        captured,
         terminal_error,
         &original_title,
         &desired_title,
@@ -436,7 +450,7 @@ fn finish_context(
 fn retry_saved_session(shared: &Shared, session_id: &str) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     let _tray_update = crate::macos_tray::UpdateOnDrop;
-    let (session, desired_title) = {
+    let (session, desired_title, pending_recording_finish) = {
         let mut lifecycle = shared.recording.lock().unwrap();
         let state = lifecycle.snapshot();
         if state.phase != RecordingPhase::Error || state.session_id.as_deref() != Some(session_id) {
@@ -453,7 +467,11 @@ fn retry_saved_session(shared: &Shared, session_id: &str) -> Result<String, Stri
         lifecycle
             .retry_finalizing(session_id)
             .map_err(|error| error.to_string())?;
-        (context.session.clone(), context.title.clone())
+        (
+            context.session.clone(),
+            context.title.clone(),
+            context.pending_recording_finish,
+        )
     };
     let id = session.id();
     let original_title = shared
@@ -467,6 +485,14 @@ fn retry_saved_session(shared: &Shared, session_id: &str) -> Result<String, Stri
     };
     let result = saved
         .map_err(|error| error.to_string())
+        .and_then(|()| {
+            pending_recording_finish.map_or(Ok(()), |finish| {
+                shared
+                    .engine
+                    .finish_meeting_recording(id.clone(), finish.duration_ms, finish.complete)
+                    .map_err(|error| error.to_string())
+            })
+        })
         .and_then(|()| rename_after_recording(&shared.engine, id, &original_title, &desired_title));
     finish_context(shared, session_id, result)
 }
@@ -783,6 +809,59 @@ mod tests {
     }
 
     #[test]
+    fn save_retry_finalizes_recording_metadata_after_transcript_already_saved() {
+        let (_root, shared, session, token) = recording();
+        shared
+            .engine
+            .prepare_meeting_recording(
+                session.id(),
+                crate::recording_metadata::environment("0.1.12"),
+                false,
+            )
+            .unwrap();
+        for track in shared.engine.meeting_audio_tracks(session.id()) {
+            std::fs::write(
+                std::path::PathBuf::from(session.dir()).join(track.relative_path),
+                b"fixture audio",
+            )
+            .unwrap();
+        }
+        session.stop().unwrap();
+        assert!(session.is_finalized());
+        let metadata = std::path::PathBuf::from(session.dir()).join(".pennel/recording.json");
+        let original = std::fs::read(&metadata).unwrap();
+        std::fs::remove_file(&metadata).unwrap();
+        std::fs::create_dir(&metadata).unwrap();
+        {
+            let mut context = shared.meeting_context.lock().unwrap();
+            let context = context.as_mut().unwrap();
+            context.title = "Saved title".into();
+            context.pending_recording_finish = Some(crate::meeting::RecordingFinish {
+                duration_ms: 12_345,
+                complete: true,
+            });
+        }
+        shared.recording.lock().unwrap().stopping(&token).unwrap();
+        shared.recording.lock().unwrap().finalizing(&token).unwrap();
+        fail(&shared, &token, "Metadata write failed");
+        assert!(retry_saved_session(&shared, &token).is_err());
+        assert!(shared.engine.meeting_info(session.id()).is_some());
+        assert!(shared.meeting_context.lock().unwrap().is_some());
+        std::fs::remove_dir(&metadata).unwrap();
+        std::fs::write(&metadata, original).unwrap();
+        let id = retry_saved_session(&shared, &token).unwrap();
+        let metadata = shared
+            .engine
+            .meeting_recording_metadata(id.clone())
+            .unwrap()
+            .unwrap();
+        assert_eq!(metadata.duration_ms, Some(12_345));
+        assert_eq!(metadata.complete, Some(true));
+        assert!(metadata.ended_at.is_some());
+        assert_eq!(shared.engine.meeting_info(id).unwrap().title, "Saved title");
+    }
+
+    #[test]
     fn a_stale_health_watcher_cannot_stop_a_newer_recording() {
         let (_root, shared, session, token) = recording();
         assert!(
@@ -1022,6 +1101,7 @@ mod tests {
                 title: "Originele titel".into(),
                 started: Instant::now(),
                 duration_secs: None,
+                pending_recording_finish: None,
                 system_audio: false,
                 heard_system_audio: false,
                 audio_warning: None,

@@ -585,7 +585,19 @@ impl MeetingSession {
                 });
             }
         }
-        let result = worker_error.map_or_else(|| self.persist_final(), Err);
+        let result = worker_error
+            .map_or_else(|| self.persist_final(), Err)
+            .and_then(|_| {
+                let successful = !self
+                    .progress
+                    .lock()
+                    .unwrap()
+                    .segments
+                    .iter()
+                    .any(|segment| segment.failed);
+                self.store
+                    .finish_initial_transcription(&self.id, successful)
+            });
         if let Err(error) = &result {
             storage_failure(&self.progress, &self.terminal, error);
         }
@@ -636,7 +648,17 @@ impl MeetingSession {
             }
             progress.pending = 0;
         }
-        let result = self.persist_final();
+        let result = self.persist_final().and_then(|_| {
+            let successful = !self
+                .progress
+                .lock()
+                .unwrap()
+                .segments
+                .iter()
+                .any(|segment| segment.failed);
+            self.store
+                .finish_initial_transcription(&self.id, successful)
+        });
         match &result {
             Ok(()) => {
                 let mut progress = self.progress.lock().unwrap();

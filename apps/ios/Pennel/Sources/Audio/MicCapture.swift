@@ -1,15 +1,23 @@
 import AVFoundation
 import PennelMobileKit
 
+struct MicrophoneInputFormat: Equatable, Sendable {
+    var sampleRate: UInt32
+    var channels: UInt32
+    var interleaved: Bool
+}
+
 protocol AudioCapturing: AnyObject, Sendable {
     func start(onSamples: @escaping @Sendable ([Float]) -> Void) throws
     func stop()
     /// False once the engine died underneath (route change, media-services reset) while still "started".
     var isRunning: Bool { get }
+    var inputFormat: MicrophoneInputFormat? { get }
 }
 
 extension AudioCapturing {
     var isRunning: Bool { true }
+    var inputFormat: MicrophoneInputFormat? { nil }
 }
 
 protocol AudioSessionControlling: Sendable {
@@ -96,6 +104,8 @@ final class MicCapture: AudioCapturing, @unchecked Sendable {
     private let audioSession: AudioSessionControlling?
     /// A fresh engine per start: after a media-services reset the old one is unusable.
     private var engine: AVAudioEngine?
+    private let formatLock = NSLock()
+    private var physicalFormat: MicrophoneInputFormat?
 
     init(audioSession: AudioSessionControlling? = SystemAudioSession(purpose: .dictation)) {
         self.audioSession = audioSession
@@ -127,13 +137,21 @@ final class MicCapture: AudioCapturing, @unchecked Sendable {
             throw error
         }
         self.engine = engine
+        formatLock.withLock {
+            physicalFormat = MicrophoneInputFormat(
+                sampleRate: UInt32(format.sampleRate.rounded()), channels: format.channelCount,
+                interleaved: format.isInterleaved
+            )
+        }
     }
 
     var isRunning: Bool { engine?.isRunning ?? false }
+    var inputFormat: MicrophoneInputFormat? { formatLock.withLock { physicalFormat } }
 
     func stop() {
         guard let engine else { return }
         self.engine = nil
+        formatLock.withLock { physicalFormat = nil }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         audioSession?.deactivate()

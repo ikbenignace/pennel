@@ -1,4 +1,21 @@
 fn main() {
+    let mut revision = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+        .unwrap_or_else(|| "unknown".into());
+    if std::process::Command::new("git")
+        .args(["diff-index", "--quiet", "HEAD", "--"])
+        .status()
+        .is_ok_and(|status| status.code() == Some(1))
+    {
+        revision.push_str("-dirty");
+    }
+    println!("cargo:rustc-env=PENNEL_BUILD_REVISION={revision}");
+    println!("cargo:rerun-if-changed=../../../.git/HEAD");
+    println!("cargo:rerun-if-changed=../../../.git/refs/heads");
     link_clang_runtime_on_macos();
     build_macos_platform();
     tauri_build::build()

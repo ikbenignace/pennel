@@ -23,6 +23,7 @@ mod local_engine;
 mod localization;
 mod meeting_chat;
 mod meeting_index;
+mod meeting_recording;
 mod meetings;
 mod models;
 mod paste_queue;
@@ -73,6 +74,12 @@ pub use localization::{
 };
 pub use meeting_chat::{ChatTurn, Citation, MeetingAnswer};
 pub use meeting_index::{Passage, PassageKind};
+pub use meeting_recording::{
+    CaptureEventKind, CaptureFormatEpoch, MeetingAudioTrack, MeetingCaptureEvent,
+    MeetingRecordingMetadata, RecordingEnvironment, RecordingRecognition, RecordingSource,
+    RecordingTrackMetadata, RecordingTranscriptionAttempt, RecordingTransport,
+    resolve_meeting_audio_tracks,
+};
 pub use meetings::{MeetingInfo, NoteLine, Segment, Speaker, SpeakerName, mark_lines};
 pub use models::{DownloadListener, LocalModel, ModelState};
 pub use paste_queue::PasteQueue;

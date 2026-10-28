@@ -39,6 +39,7 @@ mod platform_audio;
 mod platform_clipboard;
 mod platform_commands;
 mod record_shortcut;
+mod recording_metadata;
 mod resample;
 mod secrets;
 mod speakers;

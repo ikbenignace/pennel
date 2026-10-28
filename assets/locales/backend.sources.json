@@ -466,5 +466,10 @@
   "backend.m4a_storage_start_failed": "M4A-opslag kon niet starten: {error}",
   "backend.m4a_finish_failed": "M4A afronden mislukt: {error}",
   "backend.audio_open_failed": "Audio openen mislukt: {error}",
-  "backend.keychain_migration_failed": "Sleutelhanger migreren mislukt ({status}): {reason}"
+  "backend.keychain_migration_failed": "Sleutelhanger migreren mislukt ({status}): {reason}",
+  "backend.recording_diagnostics_save_failed": "De opnamediagnostiek kon niet worden bewaard.",
+  "backend.recording_metadata_save_retry": "De opnamegegevens konden niet worden bewaard. Probeer opnieuw te bewaren.",
+  "backend.recording_metadata_or_audio_path_invalid": "De opnamegegevens of het audiopad zijn ongeldig.",
+  "backend.meeting_already_has_recording": "Deze meeting bevat al een opname.",
+  "backend.system_audio_timing_interrupted": "Het systeemgeluid was onderbroken door een timingprobleem. Controleer de opname."
 }

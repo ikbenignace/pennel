@@ -18,8 +18,8 @@ struct MeetingFinish: Equatable, Sendable {
     var isComplete: Bool { gaps.isEmpty && stoppedEarly == nil && error == nil }
 }
 
-/// Remembers which meetings were interrupted, so the meeting keeps saying so after a relaunch. The meeting files
-/// themselves have no field for it, and the transcript only shows the jump in time.
+/// Retains interruption notices for existing recordings and the native comparison UI. New recordings also keep
+/// their capture diagnostics and completeness in the meeting folder.
 final class MeetingInterruptionLog: @unchecked Sendable {
     struct Record: Codable, Equatable {
         var gaps: [MeetingGap]
@@ -152,6 +152,14 @@ final class MeetingRuntime: DictationMeetingHook {
     @ObservationIgnored private var cancelTick: (() -> Void)?
     @ObservationIgnored private var finishTask: FinishTask?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @ObservationIgnored private var captureSequence: UInt64 = 0
+    @ObservationIgnored private var pendingCaptureEvents: [MeetingCaptureEvent] = []
+    @ObservationIgnored private var metadataError: String?
+    @ObservationIgnored private var lastInputFormat: MicrophoneInputFormat?
+    @ObservationIgnored private var lastRecordingTransport = RecordingTransport.unknown
+    @ObservationIgnored private var captureEventsDropped: UInt64 = 0
+    @ObservationIgnored private var retainedRecordingFinish: (durationMs: UInt64, complete: Bool)?
+    @ObservationIgnored private var archiveOpeningError: String?
 
     private static let log = Logger(subsystem: "app.pennel.ios", category: "meeting")
 
@@ -235,13 +243,34 @@ final class MeetingRuntime: DictationMeetingHook {
         let name = trimmed.isEmpty ? Message.defaultTitle : trimmed
         let session = try engine.startMeetingWith(title: name, attendees: [], keys: keys)
         let id = session.id()
+        let tracks: [MeetingAudioTrack]
+        do {
+            tracks = try engine.prepareMeetingRecording(id: id, environment: RecordingEnvironment(
+                appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
+                build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
+                platform: "ios", osVersion: UIDevice.current.systemVersion
+            ), roomRecording: true)
+        } catch {
+            if (try? session.stop()) != nil { try? engine.deleteMeeting(id: id) }
+            throw error
+        }
+        captureSequence = 0
+        pendingCaptureEvents = []
+        metadataError = nil
+        lastInputFormat = nil
+        lastRecordingTransport = .unknown
+        captureEventsDropped = 0
+        retainedRecordingFinish = nil
+        archiveOpeningError = nil
 
         var archive: MeetingArchiving?
         do {
-            archive = try AACArchive(url: URL(fileURLWithPath: session.dir()).appendingPathComponent(AACArchive.fileName))
+            guard let track = tracks.first(where: { $0.source == .roomMicrophone }) else { throw MicCapture.Failure.unavailable }
+            archive = try AACArchive(url: URL(fileURLWithPath: session.dir()).appendingPathComponent(track.relativePath))
         } catch {
             Self.log.error("archive: \(ErrorText.code(error), privacy: .public)")
-            warning = "De audio-opname kon niet worden bewaard. Controleer de vrije opslagruimte."
+            archiveOpeningError = "De audio-opname kon niet worden bewaard. Controleer de vrije opslagruimte."
+            warning = archiveOpeningError
         }
         let recorder = MeetingRecorder(sink: OthersTrack(session: session), archive: archive, clock: clock)
         do {
@@ -270,6 +299,8 @@ final class MeetingRuntime: DictationMeetingHook {
         finishing = nil
         activeMeetingId = id
         phase = .recording
+        recordCapture(.started)
+        if archive == nil { recordCapture(.captureError, errorCode: "archive_open_failed") }
         activity.start(activityState)
         cancelTick = timers(1) { [weak self] in self?.tick() }
         Self.log.info("meeting recording")
@@ -322,6 +353,7 @@ final class MeetingRuntime: DictationMeetingHook {
         capture.stop()
         audioSession.deactivate()
         let archiveError = recorder.finish()
+        let durationMs = recorder.elapsedMs
         // Continued processing must be requested from the user's action while Pennel is in front; the request is
         // made at every stop and ended when finishing is done, so leaving the app keeps it going (spec §5.5).
         beginFinishTask()
@@ -329,9 +361,22 @@ final class MeetingRuntime: DictationMeetingHook {
 
         let saved = await save(session)
         let health = session.health()
-        let error = saved ?? health.terminalError ?? archiveError
+        var error = saved ?? health.terminalError ?? archiveError ?? archiveOpeningError
         var id = session.id()
-        if saved == nil, title.trimmingCharacters(in: .whitespacesAndNewlines) != originalTitle,
+        let captureComplete = recorder.gaps.isEmpty && stoppedEarly == nil && archiveError == nil && archiveOpeningError == nil
+        if archiveError != nil { recordCapture(.captureError, errorCode: "archive_write_failed", elapsedMs: durationMs) }
+        if stoppedEarly != nil { recordCapture(.captureError, errorCode: "capture_stopped_early", elapsedMs: durationMs) }
+        recordCapture(.metrics, metrics: recorder.metrics, elapsedMs: durationMs)
+        recordCapture(.stopped, elapsedMs: durationMs)
+        do {
+            try flushCaptureEvents(id: id)
+            try engine.finishMeetingRecording(id: id, durationMs: durationMs, complete: captureComplete && error == nil)
+        } catch let metadataFailure {
+            Self.log.error("recording metadata: \(ErrorText.code(metadataFailure), privacy: .public)")
+            self.metadataError = "De opnamegegevens konden niet worden bewaard. Probeer opnieuw te bewaren."
+            if error == nil { error = self.metadataError }
+        }
+        if error == nil, title.trimmingCharacters(in: .whitespacesAndNewlines) != originalTitle,
            !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             do {
                 id = try engine.renameMeeting(id: id, title: title)
@@ -339,9 +384,10 @@ final class MeetingRuntime: DictationMeetingHook {
                 Self.log.error("rename after recording: \(ErrorText.code(error), privacy: .public)")
             }
         }
-        if !session.isFinalized() {
+        if !session.isFinalized() || metadataError != nil {
             retained = session
             retainedId = id
+            retainedRecordingFinish = (durationMs, captureComplete)
         }
 
         let finish = MeetingFinish(id: id, gaps: recorder.gaps, stoppedEarly: stoppedEarly, error: error)
@@ -414,9 +460,15 @@ final class MeetingRuntime: DictationMeetingHook {
     /// Saves what the failed stop kept, without recording or transcribing again.
     func retrySave() async throws {
         guard let retained, let id = retainedId else { return }
-        try await Task.detached { try retained.retryPersistence() }.value
+        if !retained.isFinalized() { try await Task.detached { try retained.retryPersistence() }.value }
+        try flushCaptureEvents(id: id)
+        if let recording = retainedRecordingFinish {
+            try engine.finishMeetingRecording(id: id, durationMs: recording.durationMs, complete: recording.complete)
+        }
         self.retained = nil
         retainedId = nil
+        retainedRecordingFinish = nil
+        metadataError = nil
         let record = interruptions.record(for: id)
         let finish = MeetingFinish(id: id, gaps: record?.gaps ?? [], stoppedEarly: record?.stoppedEarly, error: nil)
         lastFinish = finish
@@ -437,6 +489,60 @@ final class MeetingRuntime: DictationMeetingHook {
         finishTask = nil
     }
 
+    // MARK: Local recording diagnostics
+
+    private func recordCapture(
+        _ kind: CaptureEventKind, errorCode: String? = nil,
+        metrics: MeetingRecorderMetrics? = nil, elapsedMs: UInt64? = nil
+    ) {
+        guard let id = activeMeetingId else { return }
+        if let format = capture.inputFormat { lastInputFormat = format }
+        if let port = AVAudioSession.sharedInstance().currentRoute.inputs.first?.portType {
+            lastRecordingTransport = Self.recordingTransport(port)
+        }
+        if pendingCaptureEvents.count >= 256 {
+            pendingCaptureEvents.removeFirst()
+            captureEventsDropped += 1
+        }
+        captureSequence += 1
+        pendingCaptureEvents.append(MeetingCaptureEvent(
+            sequence: captureSequence, elapsedMs: elapsedMs ?? recorder?.elapsedMs ?? 0,
+            kind: kind, source: .roomMicrophone,
+            inputSampleRate: lastInputFormat?.sampleRate, tapSampleRate: nil, aggregateSampleRate: nil,
+            inputChannels: lastInputFormat?.channels,
+            inputInterleaved: lastInputFormat?.interleaved,
+            transport: lastRecordingTransport,
+            capturedFrames: nil, outputSamples: metrics?.outputSamples,
+            insertedSilenceSamples: metrics?.insertedSilenceSamples, gapCount: metrics?.gapCount,
+            rateMismatchCount: nil, droppedFrames: nil, droppedEvents: captureEventsDropped, errorCode: errorCode
+        ))
+        do {
+            try flushCaptureEvents(id: id)
+        } catch {
+            metadataError = "De opnamegegevens konden niet worden bewaard. Probeer opnieuw te bewaren."
+            warning = metadataError
+            Self.log.error("capture metadata: \(ErrorText.code(error), privacy: .public)")
+        }
+    }
+
+    private func flushCaptureEvents(id: String) throws {
+        while let event = pendingCaptureEvents.first {
+            try engine.recordMeetingCaptureEvent(id: id, event: event)
+            pendingCaptureEvents.removeFirst()
+        }
+        metadataError = nil
+    }
+
+    static func recordingTransport(_ port: AVAudioSession.Port?) -> RecordingTransport {
+        guard let port else { return .unknown }
+        if [.builtInMic, .builtInReceiver, .builtInSpeaker].contains(port) { return .builtIn }
+        if [.bluetoothHFP, .bluetoothA2DP, .bluetoothLE].contains(port) { return .bluetooth }
+        if port == .usbAudio { return .usb }
+        if [.headsetMic, .headphones, .lineIn, .lineOut].contains(port) { return .wired }
+        if port == .HDMI { return .display }
+        return .unknown
+    }
+
     // MARK: While recording
 
     func tick() {
@@ -451,10 +557,11 @@ final class MeetingRuntime: DictationMeetingHook {
             return
         }
         guard phase == .recording, let recorder else { return }
+        if let format = capture.inputFormat, format != lastInputFormat { recordCapture(.formatChanged) }
         if recorder.stalledFor >= Self.stallRestartSeconds {
             restartStalledCapture(recorder)
         } else {
-            warning = recorder.error ?? health.transcriptionWarning
+            warning = recorder.error ?? archiveOpeningError ?? metadataError ?? health.transcriptionWarning
         }
     }
 
@@ -466,9 +573,11 @@ final class MeetingRuntime: DictationMeetingHook {
         warning = Message.microphoneLost
         Self.log.error("meeting capture stalled")
         capture.stop()
+        recordCapture(.interruption, errorCode: "microphone_stalled")
         do {
             try audioSession.activate()
             try capture.start { recorder.feed($0) }
+            recordCapture(.restarted)
         } catch {
             Self.log.error("meeting capture restart: \(ErrorText.code(error), privacy: .public)")
             requestFinish(stoppedEarly: Message.couldNotResume)
@@ -478,6 +587,7 @@ final class MeetingRuntime: DictationMeetingHook {
     private func interrupted() {
         guard phase == .recording, let recorder else { return }
         recorder.pause()
+        recordCapture(.interruption)
         capture.stop()
         audioSession.deactivate()
         phase = .interrupted
@@ -503,6 +613,7 @@ final class MeetingRuntime: DictationMeetingHook {
             return
         }
         phase = .recording
+        recordCapture(.restarted)
         warning = nil
         activity.update(activityState)
         Self.log.info("meeting resumed")
@@ -555,6 +666,12 @@ final class MeetingRuntime: DictationMeetingHook {
                 self?.resume(finishOnFailure: true)
             }
         })
+        observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: nil) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isRecording else { return }
+                self.recordCapture(.deviceChanged)
+            }
+        })
         // The end of an interruption is not always delivered; coming back to the app is a second chance.
         observers.append(center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { [weak self] _ in
             Self.onMain { self?.resume(finishOnFailure: false) }
@@ -573,6 +690,9 @@ final class MeetingRuntime: DictationMeetingHook {
                 // No finish runs after this, so the record is what tells the user after a relaunch that it is partial.
                 if let id = self.activeMeetingId {
                     self.interruptions.save(.init(gaps: self.recorder?.gaps ?? [], stoppedEarly: Message.terminated), for: id)
+                    self.recordCapture(.captureError, errorCode: "application_terminated")
+                    self.recordCapture(.metrics, metrics: self.recorder?.metrics)
+                    try? self.engine.finishMeetingRecording(id: id, durationMs: self.recorder?.elapsedMs ?? 0, complete: false)
                 }
             }
         })

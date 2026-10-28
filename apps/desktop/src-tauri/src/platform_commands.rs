@@ -108,13 +108,19 @@ pub async fn play_meeting_audio(
     tauri::async_runtime::spawn_blocking(move || {
         let _job = crate::meeting_runtime::LibraryJob::new(&shared)?;
         let dir = crate::commands::checked_meeting_dir(&shared.engine, &id)?;
-        let filename = match speaker.as_str() {
-            "me" => "ik.m4a",
-            "others" => "anderen.m4a",
+        let speaker = match speaker.as_str() {
+            "me" => pennel_core::Speaker::Me,
+            "others" => pennel_core::Speaker::Others,
             _ => return Err("Onbekend audiospoor".into()),
         };
+        let track = shared
+            .engine
+            .meeting_audio_tracks(id)
+            .into_iter()
+            .find(|track| track.speaker == speaker && track.available)
+            .ok_or("Deze meeting heeft geen bewaarde audio meer.")?;
         let path = dir
-            .join(filename)
+            .join(track.relative_path)
             .canonicalize()
             .map_err(|error| error.to_string())?;
         if !path.starts_with(&dir) {

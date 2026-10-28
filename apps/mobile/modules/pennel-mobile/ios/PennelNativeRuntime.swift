@@ -325,7 +325,15 @@ public final class PennelNativeRuntime {
             guard engine.meetingInfo(id: id) != nil else { throw PennelBridgeError("not_found", "Meeting not found.") }
             guard !MeetingRuntime.shared.unfinalisedMeetingIds.contains(id) else { throw PennelBridgeError("meeting_busy", "Finish this recording first.") }
             stopPlayback()
-            let url = URL(fileURLWithPath: engine.meetingDir(id: id)).appendingPathComponent(input.text("speaker") == "me" ? "ik.m4a" : "anderen.m4a")
+            let speaker: Speaker
+            switch input.text("speaker", default: "others") {
+            case "me": speaker = .me
+            case "others": speaker = .others
+            default: throw PennelBridgeError("invalid_request", "Unknown audio track.")
+            }
+            guard let url = engine.meetingArchiveURL(id: id, speaker: speaker) else {
+                throw PennelBridgeError("audio_unavailable", "This meeting has no saved audio for that track.")
+            }
             let audio = SharedAudioSession.shared.client(.playback)
             try audio.activate()
             do {
@@ -414,7 +422,9 @@ public final class PennelNativeRuntime {
             "markdown": BridgeJSON.optional(engine.meetingMarkdown(id: id)),
             "transcript": engine.meetingTranscript(id: id).map(BridgeJSON.segment),
             "speakers": speakers, "voices": voices, "attendees": engine.meetingAttendees(id: id),
-            "audio_tracks": ["me", "others"].map { speaker in ["speaker": speaker, "available": FileManager.default.fileExists(atPath: directory.appendingPathComponent(speaker == "me" ? "ik.m4a" : "anderen.m4a").path)] as [String: Any] },
+            "audio_tracks": engine.meetingAudioTracks(id: id).map { track in
+                ["speaker": track.speaker == .me ? "me" : "others", "available": track.available] as [String: Any]
+            },
             "summary_outdated": engine.mobileMeetingSummaryOutdated(id: id),
             "interruption": BridgeJSON.optional(interruption),
             "conflicts": conflictURLs(directory).map { ["name": $0.lastPathComponent, "text": (try? String(contentsOf: $0, encoding: .utf8)) ?? ""] },
@@ -621,7 +631,10 @@ extension PennelNativeRuntime {
         guard !MeetingRuntime.shared.unfinalisedMeetingIds.contains(id), model.engine.meetingInfo(id: id) != nil else {
             throw PennelBridgeError("meeting_busy", "Finish this recording before recognizing its speakers.")
         }
-        return NativeRecognitionReader(archive: URL(fileURLWithPath: model.engine.meetingDir(id: id)).appendingPathComponent("anderen.m4a"))
+        guard let archive = model.engine.meetingArchiveURL(id: id, speaker: .others) else {
+            throw PennelBridgeError("audio_unavailable", "This meeting has no saved audio for speaker recognition.")
+        }
+        return NativeRecognitionReader(archive: archive)
     }
 
     private func startRecognition(id: String, ownsBudget: Bool = true) async throws -> SpeakerRecognitionJob {

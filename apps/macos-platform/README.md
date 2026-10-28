@@ -42,9 +42,10 @@ The owned Rust wrappers live in `apps/desktop/src-tauri/src/macos.rs`.
 
 ## Audio and platform behavior
 
-Mac meetings retain `ik.m4a` and `anderen.m4a` AAC archives. Both writers share one monotonic origin;
-device interruption gaps are written as silence, and callback offsets use the same archive sample
-position. Capture preserves the existing Core Audio process-tap and AVAudioEngine voice-processing
+New Mac meetings receive core-resolved `audio/microphone.m4a` and `audio/system.m4a` AAC paths. The compatibility ABI retains the legacy names. Both writers share one monotonic origin;
+device interruption gaps are written as silence, and acquisition timestamps use the same archive
+timeline. The effective tap stream format is resolved after aggregate creation, with debounced
+format/rate/route recovery and bounded content-free capture diagnostics. Capture preserves the existing Core Audio process-tap and AVAudioEngine voice-processing
 workarounds, device-change recovery and silent-capture fallbacks. Archive failures are returned on
 stop, allowing Rust to finalize the transcript while reporting the storage error.
 

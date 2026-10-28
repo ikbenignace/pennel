@@ -466,5 +466,10 @@
   "backend.m4a_storage_start_failed": "M4A storage could not start: {error}",
   "backend.m4a_finish_failed": "Finalizing M4A failed: {error}",
   "backend.audio_open_failed": "Opening audio failed: {error}",
-  "backend.keychain_migration_failed": "Keychain migration failed ({status}): {reason}"
+  "backend.keychain_migration_failed": "Keychain migration failed ({status}): {reason}",
+  "backend.recording_diagnostics_save_failed": "The recording diagnostics could not be saved.",
+  "backend.recording_metadata_save_retry": "The recording details could not be saved. Try saving again.",
+  "backend.recording_metadata_or_audio_path_invalid": "The recording details or audio path are invalid.",
+  "backend.meeting_already_has_recording": "This meeting already contains a recording.",
+  "backend.system_audio_timing_interrupted": "System audio was interrupted by a timing problem. Check the recording."
 }

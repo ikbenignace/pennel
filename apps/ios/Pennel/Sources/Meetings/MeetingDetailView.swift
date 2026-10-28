@@ -31,9 +31,7 @@ struct MeetingDetailView: View {
     private var busy: Bool { runtime.isRecording || runtime.phase == .finishing }
     private var canSummarize: Bool { MeetingRuntime.languageModelReady(model.settings) }
     private var meetingDirectory: URL { URL(fileURLWithPath: model.engine.meetingDir(id: id)) }
-    private var audioURL: URL {
-        URL(fileURLWithPath: model.engine.meetingDir(id: id)).appendingPathComponent(AACArchive.fileName)
-    }
+    private var audioURL: URL? { model.engine.meetingArchiveURL(id: id, speaker: .others) }
 
     var body: some View {
         Group {
@@ -129,7 +127,7 @@ struct MeetingDetailView: View {
     // MARK: Transcript
 
     @ViewBuilder private var transcriptSection: some View {
-        let audio = FileManager.default.fileExists(atPath: audioURL.path)
+        let audio = audioURL != nil
         Section {
             HStack {
                 if !audio {
@@ -146,7 +144,7 @@ struct MeetingDetailView: View {
             ForEach(transcript, id: \.startMs) { segment in
                 TranscriptLine(segment: segment, audio: audio && !busy, highlighted: jumpMs == segment.startMs,
                                working: working) {
-                    player.play(audioURL, fromMs: segment.startMs)
+                    if let url = audioURL { player.play(url, fromMs: segment.startMs) }
                 } retry: {
                     retranscribe()
                 }
@@ -359,7 +357,7 @@ private struct TranscriptLine: View {
     }
 }
 
-/// "Afspelen vanaf dit punt" on `anderen.m4a`, which keeps the transcript's timeline (gaps are silence).
+/// "Afspelen vanaf dit punt" uses the archive's shared transcript timeline (gaps are silence).
 @MainActor
 @Observable
 final class MeetingPlayer: NSObject, AVAudioPlayerDelegate {

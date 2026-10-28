@@ -198,6 +198,10 @@ impl PennelEngine {
             ".pennel-dictation-intervals.json",
             "ik.m4a",
             "anderen.m4a",
+            "audio/microphone.m4a",
+            "audio/system.m4a",
+            "audio/room.m4a",
+            crate::meeting_recording::RECORDING_FILE,
         ]
         .into_iter()
         .map(|name| (name, store.file_stamp(id, name)))
@@ -207,6 +211,7 @@ impl PennelEngine {
         let voices = self.voice_store();
         let key = store.uid_of(id).unwrap_or_else(|| id.to_owned());
         let old_hash = store.transcript_fingerprint(id)?;
+        let attempt_started = chrono::Utc::now().to_rfc3339();
         let old_prints = voices.meeting_voiceprints(&key, Some(&old_hash));
         // Bind legacy caches before replacing text: after an interruption stale voice IDs must
         // never offer to remember a different person's voice from the new transcript.
@@ -224,7 +229,7 @@ impl PennelEngine {
             warning: None,
         };
         self.publish_retranscription(id, &status, &mut notify);
-        let result = (|| {
+        let mut result = (|| {
             let mut segments = stage_audio(
                 &tracks,
                 &exclusions,
@@ -336,6 +341,16 @@ impl PennelEngine {
                     labels.prints,
                     Some(&store.transcript_fingerprint(id)?),
                 )?;
+                store.append_transcription_attempt(
+                    id,
+                    crate::meeting_recording::transcription_attempt(
+                        self,
+                        &frozen.recognition,
+                        attempt_started.clone(),
+                        true,
+                        Some(store.transcript_fingerprint(id)?),
+                    )?,
+                )?;
                 store.finish_retranscription(id)
             })();
             if let Err(error) = finish {
@@ -346,6 +361,25 @@ impl PennelEngine {
             }
             Ok(segments.len() as u32)
         })();
+        if result.is_err() {
+            match store.recording_metadata(id) {
+                Ok(Some(_)) => {
+                    let attempt = crate::meeting_recording::transcription_attempt(
+                        self,
+                        &frozen.recognition,
+                        attempt_started,
+                        false,
+                        None,
+                    )
+                    .and_then(|attempt| store.append_transcription_attempt(id, attempt));
+                    if let Err(error) = attempt {
+                        result = Err(error);
+                    }
+                }
+                Err(error) => result = Err(error),
+                Ok(None) => {}
+            }
+        }
         status.running = false;
         status.progress = RetranscriptionProgress {
             phase: if result.is_ok() {
@@ -396,19 +430,11 @@ pub(crate) fn saved_tracks(
         return Err(PennelError::NotFound);
     }
     store.info(id).ok_or(PennelError::NotFound)?;
-    let root = store
-        .dir_of(id)
-        .canonicalize()
-        .map_err(PennelError::storage)?;
     let before = store.read_transcript(id);
     let mut tracks = Vec::new();
-    for (speaker, name) in [(Speaker::Me, "ik.m4a"), (Speaker::Others, "anderen.m4a")] {
-        let path = root.join(name);
-        match path.canonicalize() {
-            Ok(path) if path.is_file() && path.parent() == Some(root.as_path()) => {
-                tracks.push((speaker, path))
-            }
-            _ => {}
+    for track in store.audio_tracks(id)? {
+        if track.available {
+            tracks.push((track.speaker, store.audio_path(id, track.speaker)?));
         }
     }
     if tracks.is_empty() {

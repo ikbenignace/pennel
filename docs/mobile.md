@@ -57,7 +57,7 @@ Stop dispatches to native capture before flushing notes. A failed save retains t
 
 ### Recognition jobs
 
-Native-owned UniFFI jobs provide start, snapshot, cancel and restart/resume. A foreign audio reader returns owned blocks of at most 64,000 normalized 16 kHz mono frames using absolute offsets. iPhone reads `anderen.m4a` as shared-room Others, which does not require an enrolled own voice. Rust writes one PCM16 WAV spool at a time and retains the existing 600-second chunking/short-tail rules within the service ceiling. Native file transport supports cancellation and progress while Rust owns authentication, refresh, response validation, merging and attribution.
+Native-owned UniFFI jobs provide start, snapshot, cancel and restart/resume. A foreign audio reader returns owned blocks of at most 64,000 normalized 16 kHz mono frames using absolute offsets. New iPhone recordings use `audio/room.m4a` with an explicit physical room-microphone source. Playback and recognition resolve this path and legacy `anderen.m4a` through Rust; shared-room Others does not require an enrolled own voice. Private provenance and capture events follow the [recording format](recording-format.md), with capture duration frozen before transcription finishes and metadata writes included in save retry. Rust writes one PCM16 WAV spool at a time and retains the existing 600-second chunking/short-tail rules within the service ceiling. Native file transport supports cancellation and progress while Rust owns authentication, refresh, response validation, merging and attribution.
 
 Stages: preparing, uploading, recognizing, response-unknown, interrupted, applying, completed, cancelled and failed. Server processing is indeterminate; decoded frames/upload bytes/confirmed chunks are separate measurements.
 
@@ -162,3 +162,37 @@ Signed upgrades, locked-screen controls/JS suspension, actual meeting capture, k
 Node 22.23.2, npm 12.2.1, CocoaPods 1.16.2, Xcode 27.0, Swift 6.4. Use `scripts/with-toolchain.sh` for Rust/CMake; bare cargo/rustup are absent from the default PATH. Rust 1.99.1 has Apple device/simulator targets installed. Existing native checks are `make ios-core`, `make ios`, `make ios-test`, and `swift test --package-path apps/ios/PennelMobileKit`.
 
 Available stock simulators include iPhone 17 on iOS 27 and 26.5; do not repurpose other projects' named QA simulators. No Metro listener was present at inspection. A paired physical iPhone's network tunnel was disconnected; pairing is not connected-device acceptance. Production signing/EAS are not configured. No credentials or physical-device recording were changed by environment inspection.
+
+
+## Recording provenance validation — 28 October 2026
+
+On `codex/bluetooth-recordings`, new room recordings, legacy playback/recognition and retryable metadata finalization passed the shared native checks. This is local build/simulator evidence; signed-phone, keyboard cold-start, Cloud deployment and App Review gates remain open.
+
+Commands run from the repository root unless a working directory is shown:
+
+```sh
+make mobile-test
+make mobile-prebuild
+cd apps/mobile && npm run prebuild && npm run prebuild
+cd ios && pod install
+cd .. && npm run test:pods
+```
+
+The `cd` commands above start in `apps/mobile` after the first change of directory. Reinstall pods after the final Prebuild so generated widget targets retain their CocoaPods integration. Clean generation, two subsequent non-clean generations and the final six pod-graph checks passed. Mobile checks passed typecheck, 6 plugin tests, 7 widget tests, 43 UI tests and 61 MobileKit tests.
+
+From the repository root:
+
+```sh
+make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0-F1F19690D2E4'
+```
+
+Expo runtime/keyboard: 22 + 2 tests passed on iPhone 17 / iOS 26.5. Retained native iPhone tests passed 66 + 2 tests using `xcodebuild test -project apps/ios/Pennel.xcodeproj -scheme Pennel -configuration Debug -destination 'platform=iOS Simulator,id=D01BA00B-81A5-4AEA-BEA8-1551BB6D14CB' -derivedDataPath apps/ios/build/BluetoothDerivedData -resultBundlePath apps/ios/build/BluetoothTestsRetry.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=`. Toolchain: Xcode 27.0 (27A266a), iOS SDK 27.0.
+
+From `apps/mobile`, both unsigned Release builds passed sequentially:
+
+```sh
+npm run build:ios
+PENNEL_IOS_DESTINATION='generic/platform=iOS' npm run build:ios
+```
+
+The first uses the script's iOS Simulator destination; the second produces `build/DerivedData/Build/Products/Release-iphoneos/Pennel.app`. The retained native app also passed an unsigned ARM64 Release device build. Matching Rust artifacts remain outside generated projects. Logs are retained locally under `build/verification/recording-2026-10-28`, with retained-app results under `apps/ios/build/BluetoothTestsRetry.xcresult`. See [recording format and Mac acceptance](recording-format.md); Windows/Linux CI and the affected-Mac Bluetooth call are still pending.

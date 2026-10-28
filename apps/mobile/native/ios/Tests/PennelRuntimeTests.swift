@@ -54,6 +54,36 @@ private final class PreflightGate {
 
 @Suite("Expo native runtime", .serialized)
 struct PennelRuntimeTests {
+    @Test func roomAndLegacyArchivesUseTheSharedResolver() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let engine = try PennelEngine.newPreview(dataDir: directory.path)
+        let session = try engine.startMeeting(title: "Room fixture", keys: ApiKeys(byProvider: [:]))
+        let id = session.id()
+        let tracks = try engine.prepareMeetingRecording(id: id, environment: RecordingEnvironment(
+            appVersion: "test", build: "test", platform: "ios", osVersion: "test"
+        ), roomRecording: true)
+        let track = try #require(tracks.first)
+        #expect(track.source == .roomMicrophone)
+        #expect(track.speaker == .others)
+        #expect(track.relativePath == "audio/room.m4a")
+        let root = URL(fileURLWithPath: engine.meetingDir(id: id))
+        let room = root.appendingPathComponent(track.relativePath)
+        try Data([1, 2, 3]).write(to: room)
+        #expect(engine.meetingArchiveURL(id: id, speaker: .others) == room.resolvingSymlinksInPath())
+        try session.stop()
+        try engine.finishMeetingRecording(id: id, durationMs: 1_234, complete: true)
+        #expect(try engine.meetingRecordingMetadata(id: id)?.durationMs == 1_234)
+
+        let legacy = try engine.startMeeting(title: "Legacy fixture", keys: ApiKeys(byProvider: [:]))
+        try legacy.stop()
+        let legacyID = legacy.id()
+        let legacyURL = URL(fileURLWithPath: engine.meetingDir(id: legacyID)).appendingPathComponent("anderen.m4a")
+        try Data([1, 2, 3]).write(to: legacyURL)
+        #expect(engine.meetingArchiveURL(id: legacyID, speaker: .others) == legacyURL.resolvingSymlinksInPath())
+        #expect(try engine.meetingRecordingMetadata(id: legacyID) == nil)
+    }
+
     @MainActor @Test func staleRetryCannotSaveAnotherRecording() async throws {
         _ = try PennelNativeRuntime.shared.bootstrap()
         do {

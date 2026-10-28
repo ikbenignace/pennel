@@ -12,68 +12,122 @@ final class SystemAudioTap: @unchecked Sendable {
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
-    private let queue = DispatchQueue(label: "dev.pennel.systemaudio", qos: .userInitiated)
-
+    private let queue = DispatchQueue(label: "dev.pennel.systemaudio.io", qos: .userInitiated)
+    private let generationLock = NSLock()
+    private var generation = CaptureGeneration()
+    private var listeners: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
     private var description: CATapDescription?
-    private var tapOnly: UnsafeMutableAudioBufferListPointer?
-    private var format: AVAudioFormat?
+    private var outputID = AudioObjectID(kAudioObjectUnknown)
+    private var layout: TapInputLayout?
+    private var callbackTime: TimeInterval = 0
+    private(set) var tapSampleRate = 0.0
+    private(set) var aggregateSampleRate = 0.0
+    private(set) var transport = "unknown"
+    var onConfigurationChange: (@Sendable () -> Void)?
+    var onInvalidBuffer: (@Sendable () -> Void)?
 
-    /// Creates the tap and returns the format its buffers will have.
-    /// `processes` limits it to one app's audio (a detected call); nil taps everything except Pennel.
+    /// Construct the aggregate before resolving the tap's effective input format. Bluetooth
+    /// profiles can leave the tap ASBD at 48 kHz while the aggregate actually delivers 24 kHz.
     func prepare(processes: [AudioObjectID]? = nil) throws -> AVAudioFormat {
-        let description = if let processes, !processes.isEmpty {
-            CATapDescription(stereoMixdownOfProcesses: processes)
-        } else {
-            CATapDescription(stereoGlobalTapButExcludeProcesses: ownProcessObject().map { [$0] } ?? [])
-        }
-        description.uuid = UUID()
-        description.muteBehavior = .unmuted
-        description.isPrivate = true
-        try check("create tap", AudioHardwareCreateProcessTap(description, &tapID))
-
-        var streamDescription = try tapFormat()
-        guard let format = AVAudioFormat(streamDescription: &streamDescription) else {
-            throw SystemAudioTapError(step: "tap format", status: -1)
-        }
-        self.description = description
-        self.format = format
-        return format
+        stop()
+        do {
+            let description = if let processes, !processes.isEmpty {
+                CATapDescription(stereoMixdownOfProcesses: processes)
+            } else {
+                CATapDescription(stereoGlobalTapButExcludeProcesses: ownProcessObject().map { [$0] } ?? [])
+            }
+            description.uuid = UUID()
+            description.muteBehavior = .unmuted
+            description.isPrivate = true
+            try check("create tap", AudioHardwareCreateProcessTap(description, &tapID))
+            self.description = description
+            outputID = try property(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice,
+                                    initial: AudioObjectID(kAudioObjectUnknown))
+            let outputUID = try defaultOutputUID()
+            let aggregate: [String: Any] = [
+                kAudioAggregateDeviceNameKey: "Pennel System Audio",
+                kAudioAggregateDeviceUIDKey: UUID().uuidString,
+                kAudioAggregateDeviceMainSubDeviceKey: outputUID,
+                kAudioAggregateDeviceIsPrivateKey: true,
+                kAudioAggregateDeviceIsStackedKey: false,
+                kAudioAggregateDeviceTapAutoStartKey: true,
+                kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: outputUID]],
+                kAudioAggregateDeviceTapListKey: [[kAudioSubTapDriftCompensationKey: true,
+                                                 kAudioSubTapUIDKey: description.uuid.uuidString]],
+            ]
+            try check("create aggregate device", AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID))
+            let resolved = try inputLayout()
+            layout = resolved
+            let code = (try? property(outputID, kAudioDevicePropertyTransportType, initial: UInt32(0))) ?? 0
+            transport = CaptureDeviceTransport.name(code)
+            return resolved.format
+        } catch { stop(); throw error }
     }
 
-    func start(onBuffer: @escaping @Sendable (AVAudioPCMBuffer) -> Void) throws {
-        guard let description, let format else { throw SystemAudioTapError(step: "not prepared", status: -1) }
-        let outputUID = try defaultOutputUID()
-        let aggregate: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Pennel System Audio",
-            kAudioAggregateDeviceUIDKey: UUID().uuidString,
-            kAudioAggregateDeviceMainSubDeviceKey: outputUID,
-            kAudioAggregateDeviceIsPrivateKey: true,
-            kAudioAggregateDeviceIsStackedKey: false,
-            kAudioAggregateDeviceTapAutoStartKey: true,
-            kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: outputUID]],
-            kAudioAggregateDeviceTapListKey: [[
-                kAudioSubTapDriftCompensationKey: true,
-                kAudioSubTapUIDKey: description.uuid.uuidString,
-            ]],
-        ]
-        try check("create aggregate device", AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID))
-
-        let wanted = format.isInterleaved ? 1 : Int(format.channelCount)
-        let tapOnly = AudioBufferList.allocate(maximumBuffers: wanted)
-        self.tapOnly = tapOnly
-        try check("create io proc", AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { _, input, _, _, _ in
+    func start(onBuffer: @escaping @Sendable (AVAudioPCMBuffer, TimeInterval) -> Void) throws {
+        guard let layout, aggregateID != kAudioObjectUnknown else {
+            throw SystemAudioTapError(step: "not prepared", status: -1)
+        }
+        let token = generationLock.withLock { generation.begin() }
+        let selected = AudioBufferList.allocate(maximumBuffers: layout.bufferIndices.count)
+        let storage = TapBufferStorage(selected)
+        try check("create io proc", AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { [weak self, storage] now, input, acquired, _, _ in
+            guard let self, self.generationLock.withLock({ self.generation.accepts(token) }) else { return }
             let all = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
-            guard let range = TapBuffers.range(total: all.count, interleaved: format.isInterleaved, channels: Int(format.channelCount))
-            else { return }
-            for (slot, index) in range.enumerated() { tapOnly[slot] = all[index] }
-            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: tapOnly.unsafePointer, deallocator: nil)
-            else { return }
-            onBuffer(buffer)
+            guard layout.validBuffers(all) else { self.onInvalidBuffer?(); return }
+            for (slot, index) in layout.bufferIndices.enumerated() { storage.buffers[slot] = all[index] }
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: layout.format, bufferListNoCopy: storage.buffers.unsafePointer, deallocator: nil) else {
+                self.onInvalidBuffer?(); return
+            }
+            let stamp = acquired.pointee
+            let uptime: TimeInterval
+            if stamp.mFlags.contains(.hostTimeValid) {
+                uptime = AVAudioTime.seconds(forHostTime: stamp.mHostTime)
+            } else if now.pointee.mFlags.contains(.hostTimeValid) {
+                uptime = AVAudioTime.seconds(forHostTime: now.pointee.mHostTime) - Double(buffer.frameLength) / layout.format.sampleRate
+            } else {
+                uptime = ProcessInfo.processInfo.systemUptime - Double(buffer.frameLength) / layout.format.sampleRate
+            }
+            self.generationLock.withLock { self.callbackTime = ProcessInfo.processInfo.systemUptime }
+            onBuffer(buffer, uptime)
         })
-        try check("start device", AudioDeviceStart(aggregateID, procID))
+        do {
+            // Selecting buffers in the callback does not disable a Bluetooth headset's mic.
+            // Tell HAL that this IOProc consumes only the tap and no output streams.
+            try setStreamUsage(scope: kAudioObjectPropertyScopeInput, enabled: Set(layout.streamIndices))
+            try setStreamUsage(scope: kAudioObjectPropertyScopeOutput, enabled: [])
+            observe(aggregateID, kAudioDevicePropertyNominalSampleRate)
+            observe(aggregateID, kAudioDevicePropertyStreams, scope: kAudioObjectPropertyScopeInput)
+            observe(aggregateID, kAudioDevicePropertyStreamConfiguration, scope: kAudioObjectPropertyScopeInput)
+            observe(outputID, kAudioDevicePropertyNominalSampleRate)
+            observe(tapID, kAudioTapPropertyFormat)
+            observe(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice)
+            for stream in try streams(aggregateID, scope: kAudioObjectPropertyScopeInput) {
+                observe(stream, kAudioStreamPropertyVirtualFormat)
+            }
+            try check("start device", AudioDeviceStart(aggregateID, procID))
+        } catch { stop(); throw error }
+    }
+
+    func configurationUnchangedAndFlowing() -> Bool {
+        guard let layout, aggregateID != kAudioObjectUnknown,
+              generationLock.withLock({ ProcessInfo.processInfo.systemUptime - callbackTime < 1 }),
+              let currentOutput: AudioObjectID = try? property(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice,
+                                                             initial: AudioObjectID(kAudioObjectUnknown)), currentOutput == outputID,
+              let actual = try? inputLayout() else { return false }
+        return actual.bufferIndices == layout.bufferIndices && actual.streamIndices == layout.streamIndices && actual.format == layout.format
+    }
+
+    func suspendDelivery() {
+        generationLock.withLock { generation.suspend() }
     }
 
     func stop() {
+        generationLock.withLock { generation.stop() }
+        for (object, var address, block) in listeners {
+            AudioObjectRemovePropertyListenerBlock(object, &address, .main, block)
+        }
+        listeners.removeAll()
         if aggregateID != kAudioObjectUnknown {
             if let procID {
                 AudioDeviceStop(aggregateID, procID)
@@ -81,39 +135,91 @@ final class SystemAudioTap: @unchecked Sendable {
             }
             AudioHardwareDestroyAggregateDevice(aggregateID)
         }
-        if tapID != kAudioObjectUnknown {
-            AudioHardwareDestroyProcessTap(tapID)
-        }
+        if tapID != kAudioObjectUnknown { AudioHardwareDestroyProcessTap(tapID) }
         procID = nil
         aggregateID = AudioObjectID(kAudioObjectUnknown)
         tapID = AudioObjectID(kAudioObjectUnknown)
-        tapOnly?.unsafeMutablePointer.deallocate()
-        tapOnly = nil
+        outputID = AudioObjectID(kAudioObjectUnknown)
         description = nil
-        format = nil
+        layout = nil
     }
 
     deinit { stop() }
 
-    /// Calls `handler` on the main queue when the default output device changes (headphones in/out).
-    static func observeOutputChanges(_ handler: @escaping @Sendable () -> Void) -> AudioObjectPropertyListenerBlock {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        let block: AudioObjectPropertyListenerBlock = { _, _ in handler() }
-        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, block)
-        return block
+    private func observe(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) {
+        var address = AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+        let token = generationLock.withLock { generation.value }
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self, self.generationLock.withLock({ self.generation.value == token }) else { return }
+            self.onConfigurationChange?()
+        }
+        if AudioObjectAddPropertyListenerBlock(object, &address, .main, block) == noErr {
+            listeners.append((object, address, block))
+        }
     }
 
-    static func stopObserving(_ block: @escaping AudioObjectPropertyListenerBlock) {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, block)
+    private func inputLayout() throws -> TapInputLayout {
+        let tap = try tapFormat()
+        let rate = try property(aggregateID, kAudioDevicePropertyNominalSampleRate, initial: Double(0))
+        let inputStreams = try streams(aggregateID, scope: kAudioObjectPropertyScopeInput)
+        let starts = try inputStreams.map { Int(try property($0, kAudioStreamPropertyStartingChannel, initial: UInt32(0))) }
+        let formats = try inputStreams.map { try property($0, kAudioStreamPropertyVirtualFormat, initial: AudioStreamBasicDescription()) }
+        let hardwareChannels = (try? bufferChannels(outputID, scope: kAudioObjectPropertyScopeInput).reduce(0, +)) ?? 0
+        let channels = try bufferChannels(aggregateID, scope: kAudioObjectPropertyScopeInput)
+        guard let resolved = TapInputLayout.resolve(tap: tap, deviceRate: rate, hardwareChannels: hardwareChannels,
+                                                   streamStarts: starts, streamFormats: formats, bufferChannels: channels) else {
+            throw SystemAudioTapError(step: "resolve input streams", status: -1)
+        }
+        tapSampleRate = tap.mSampleRate
+        aggregateSampleRate = rate
+        return resolved
+    }
+
+    private func streams(_ device: AudioObjectID, scope: AudioObjectPropertyScope) throws -> [AudioObjectID] {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreams, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        try check("read stream list size", AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size))
+        var result = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        if size > 0 { try check("read streams", AudioObjectGetPropertyData(device, &address, 0, nil, &size, &result)) }
+        return result
+    }
+
+    private func bufferChannels(_ device: AudioObjectID, scope: AudioObjectPropertyScope) throws -> [Int] {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        try check("read stream configuration size", AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size))
+        guard size >= MemoryLayout<AudioBufferList>.size else { return [] }
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { raw.deallocate() }
+        try check("read stream configuration", AudioObjectGetPropertyData(device, &address, 0, nil, &size, raw))
+        return UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self)).map { Int($0.mNumberChannels) }
+    }
+
+    private func setStreamUsage(scope: AudioObjectPropertyScope, enabled: Set<Int>) throws {
+        guard let procID else { throw SystemAudioTapError(step: "missing io proc", status: -1) }
+        let count = try streams(aggregateID, scope: scope).count
+        guard count > 0 else { return }
+        let offset = MemoryLayout<AudioHardwareIOProcStreamUsage>.offset(of: \.mStreamIsOn)!
+        let size = max(MemoryLayout<AudioHardwareIOProcStreamUsage>.size, offset + count * MemoryLayout<UInt32>.size)
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: MemoryLayout<AudioHardwareIOProcStreamUsage>.alignment)
+        defer { raw.deallocate() }
+        raw.initializeMemory(as: UInt8.self, repeating: 0, count: size)
+        let usage = raw.assumingMemoryBound(to: AudioHardwareIOProcStreamUsage.self)
+        usage.pointee.mIOProc = unsafeBitCast(procID, to: UnsafeMutableRawPointer.self)
+        usage.pointee.mNumberStreams = UInt32(count)
+        let flags = raw.advanced(by: offset).assumingMemoryBound(to: UInt32.self)
+        for index in 0..<count { flags[index] = enabled.contains(index) ? 1 : 0 }
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyIOProcStreamUsage, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+        try check("set stream usage", AudioObjectSetPropertyData(aggregateID, &address, 0, nil, UInt32(size), raw))
+    }
+
+    private func property<T: BitwiseCopyable>(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector,
+                             scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal, initial: T) throws -> T {
+        var address = AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+        var value = initial
+        var size = UInt32(MemoryLayout<T>.size)
+        try check("read audio property", AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value))
+        return value
     }
 
     private func check(_ step: String, _ status: OSStatus) throws {
@@ -167,4 +273,10 @@ final class SystemAudioTap: @unchecked Sendable {
         )
         return status == noErr && object != kAudioObjectUnknown ? object : nil
     }
+}
+
+private final class TapBufferStorage: @unchecked Sendable {
+    let buffers: UnsafeMutableAudioBufferListPointer
+    init(_ buffers: UnsafeMutableAudioBufferListPointer) { self.buffers = buffers }
+    deinit { buffers.unsafeMutablePointer.deallocate() }
 }
