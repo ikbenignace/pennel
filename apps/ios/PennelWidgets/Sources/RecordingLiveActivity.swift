@@ -50,17 +50,18 @@ private struct RecordingStatus: View {
     let state: RecordingActivityState
 
     var body: some View {
+        let copy = ActivityCopy.current
         switch state.phase {
         case .recording:
             HStack(spacing: 0) {
-                Text("\(Copy.Meetings.recordingRow) · ")
+                Text("\(copy.text(.recordingActive)) · ")
                 RecordingClock(startedAt: state.startedAt)
             }
         case .interrupted:
-            Text(state.message ?? Copy.Meetings.recordingRow)
+            Text(copy.recordingMessage(state.message))
                 .lineLimit(2)
         case .finishing:
-            Text(Copy.Meetings.finishing)
+            Text(copy.text(.finishingRecording))
         }
     }
 }
@@ -80,7 +81,7 @@ private struct RecordingStopButton: View {
     var body: some View {
         if state.phase != .finishing {
             Button(intent: StopMeetingIntent()) {
-                Text(Copy.Meetings.stopRecording)
+                Text(ActivityCopy.current.text(.stopRecording))
                     .font(.figtree(Brand.FontSize.content, weight: .semibold))
             }
             .tint(Brand.wave.color)

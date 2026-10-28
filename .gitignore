@@ -19,3 +19,12 @@ apps/ios/build/
 apps/ios/PennelMobileKit/.build/
 core/speakers/target/
 output/localization-2026-10-26/
+apps/mobile/node_modules/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/.expo/
+apps/mobile/artifacts/
+apps/mobile/dist/
+apps/mobile/build/
+apps/mobile/modules/pennel-mobile/generated/
+apps/ios/PennelMobileKit/Generated/

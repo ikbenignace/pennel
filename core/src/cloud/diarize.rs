@@ -57,12 +57,21 @@ fn post(session: &Session, wav: &[u8]) -> Result<Diarization, PennelError> {
         response = send(&session.refreshed_token()?)?;
     }
     let (status, _, body) = response;
+    parse_response(status, &body)
+}
+
+pub(crate) fn parse_response(status: u16, body: &[u8]) -> Result<Diarization, PennelError> {
+    if body.len() > 8 * 1024 * 1024 {
+        return Err(PennelError::InvalidResponse {
+            message: "Pennel Cloud gaf een te groot sprekersresultaat.".into(),
+        });
+    }
     if !(200..300).contains(&status) {
-        let json = serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
+        let json = serde_json::from_slice(body).unwrap_or(serde_json::Value::Null);
         return Err(error_from(status, &json));
     }
     let parsed: Response =
-        serde_json::from_slice(&body).map_err(|_| PennelError::InvalidResponse {
+        serde_json::from_slice(body).map_err(|_| PennelError::InvalidResponse {
             message: "Pennel Cloud gaf een onleesbaar sprekersresultaat.".into(),
         })?;
     if !consistent(&parsed.diarization) {
@@ -83,7 +92,15 @@ fn post(session: &Session, wav: &[u8]) -> Result<Diarization, PennelError> {
 fn consistent(diarization: &Diarization) -> bool {
     let ids: Vec<u32> = diarization.speakers.iter().map(|s| s.speaker).collect();
     let unique = ids.iter().enumerate().all(|(i, id)| !ids[..i].contains(id));
-    unique && diarization.turns.iter().all(|t| ids.contains(&t.speaker))
+    unique
+        && diarization.speakers.iter().all(|speaker| {
+            speaker.embedding.len() <= 4096
+                && speaker.embedding.iter().all(|value| value.is_finite())
+        })
+        && diarization
+            .turns
+            .iter()
+            .all(|t| t.end_ms > t.start_ms && ids.contains(&t.speaker))
 }
 
 /// Diarizes 16 kHz mono audio in chunks and joins the voices across them.

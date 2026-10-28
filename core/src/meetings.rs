@@ -82,6 +82,7 @@ fn rollback_replacement(root: &Path, pending: &PendingReplacement) -> Result<(),
             ));
         }
     }
+    durable_write(&backup.join("rolled-back"), b"1")?;
     clear_replacement_journal(root)
 }
 
@@ -575,6 +576,27 @@ impl MeetingStore {
         names: &[SpeakerName],
         tracks: &[Speaker],
     ) -> Result<PathBuf, PennelError> {
+        self.replace_transcript(id, segments, names, tracks, true)
+    }
+
+    pub(crate) fn replace_speaker_labels(
+        &self,
+        id: &str,
+        segments: &[Segment],
+        names: &[SpeakerName],
+        tracks: &[Speaker],
+    ) -> Result<PathBuf, PennelError> {
+        self.replace_transcript(id, segments, names, tracks, false)
+    }
+
+    fn replace_transcript(
+        &self,
+        id: &str,
+        segments: &[Segment],
+        names: &[SpeakerName],
+        tracks: &[Speaker],
+        move_failed_audio: bool,
+    ) -> Result<PathBuf, PennelError> {
         let _gate = REPLACEMENT_GATE
             .lock()
             .unwrap_or_else(|error| error.into_inner());
@@ -617,7 +639,7 @@ impl MeetingStore {
         let pending = PendingReplacement {
             version: 1,
             backup: uuid::Uuid::now_v7().to_string(),
-            had_failed: root.join("failed").is_dir(),
+            had_failed: move_failed_audio && root.join("failed").is_dir(),
         };
         let backup = backups.join(&pending.backup);
         fs::create_dir_all(&backup).map_err(PennelError::storage)?;
@@ -1045,7 +1067,7 @@ impl MeetingStore {
     }
 }
 
-fn render_transcript(segments: &[Segment]) -> String {
+pub(crate) fn render_transcript(segments: &[Segment]) -> String {
     segments
         .iter()
         .map(|s| {

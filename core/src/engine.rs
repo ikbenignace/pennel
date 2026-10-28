@@ -99,6 +99,8 @@ pub struct PennelEngine {
     pub(crate) meeting_jobs: Mutex<HashSet<String>>,
     pub(crate) retranscriptions:
         Mutex<HashMap<String, crate::retranscription::MeetingRetranscriptionStatus>>,
+    pub(crate) speaker_jobs:
+        Mutex<HashMap<String, Arc<crate::speaker_jobs::SpeakerRecognitionJob>>>,
     library_lease: Mutex<Option<(PathBuf, DirectoryLease)>>,
     /// Held for a whole sync pass and for every vault change, so they never interleave.
     pub(crate) sync_gate: Mutex<()>,
@@ -278,6 +280,7 @@ impl PennelEngine {
     }
 
     pub fn set_secret_store(&self, store: Arc<dyn SecretStore>) -> Result<(), PennelError> {
+        let _identity = crate::speaker_jobs::speaker_identity_guard();
         let _gate = self.meeting_gate.lock().unwrap();
         self.ensure_cloud_identity_mutable()?;
         *self.secrets.write().unwrap() = Some(store);
@@ -290,6 +293,7 @@ impl PennelEngine {
         device_name: String,
         platform: String,
     ) -> Result<CloudLoginStart, PennelError> {
+        let _identity = crate::speaker_jobs::speaker_identity_guard();
         let _gate = self.meeting_gate.lock().unwrap();
         self.ensure_cloud_identity_mutable()?;
         let started = self.cloud_session()?.login_start(&device_name, &platform)?;
@@ -298,9 +302,18 @@ impl PennelEngine {
     }
 
     pub fn cloud_login_poll(&self, device_code: String) -> Result<CloudLoginPoll, PennelError> {
+        let _identity = crate::speaker_jobs::speaker_identity_guard();
         let _gate = self.meeting_gate.lock().unwrap();
         self.ensure_cloud_identity_mutable()?;
         self.cloud_session()?.login_poll(&device_code)
+    }
+
+    /// Invalidates pending login work without waiting for a network or recording operation.
+    pub fn cloud_login_cancel(&self) {
+        let session = self.cloud_session.lock().unwrap().clone();
+        if let Some(session) = session {
+            session.cancel_login();
+        }
     }
 
     pub fn cloud_signed_in(&self) -> bool {
@@ -310,6 +323,7 @@ impl PennelEngine {
 
     /// Meeting files stay; only what this device knew about the cloud is forgotten.
     pub fn cloud_logout(&self) -> Result<(), PennelError> {
+        let _identity = crate::speaker_jobs::speaker_identity_guard();
         self.ensure_cloud_identity_mutable()?;
         {
             // Sync settings take these locks in this order too. Do not invert them during logout.
@@ -341,6 +355,7 @@ impl PennelEngine {
     }
 
     pub fn cloud_delete_account(&self) -> Result<(), PennelError> {
+        let _identity = crate::speaker_jobs::speaker_identity_guard();
         self.ensure_cloud_identity_mutable()?;
         {
             let _sync = self.sync_gate.lock().unwrap();
@@ -499,49 +514,9 @@ impl PennelEngine {
         self.settings.read().unwrap().clone()
     }
 
-    pub fn update_settings(&self, mut settings: Settings) -> Result<(), PennelError> {
+    pub fn update_settings(&self, settings: Settings) -> Result<(), PennelError> {
         let _gate = self.meeting_gate.lock().unwrap();
-        if self.preview {
-            enforce_preview_library(
-                self.settings_path.parent().expect("data directory"),
-                &mut settings,
-            )?;
-        }
-        let changing_library = settings.meetings_dir != self.settings.read().unwrap().meetings_dir;
-        if changing_library
-            && (self.has_active_session() || !self.meeting_jobs.lock().unwrap().is_empty())
-        {
-            return Err(PennelError::Storage {
-                message: "de meetingmap kan pas na het afronden van de opname worden gewijzigd"
-                    .into(),
-            });
-        }
-        let next_lease = if changing_library {
-            let root = library_root(&settings);
-            let canonical = root.canonicalize().unwrap_or_else(|_| root.clone());
-            if self
-                .library_lease
-                .lock()
-                .unwrap()
-                .as_ref()
-                .is_some_and(|(held, _)| *held == canonical)
-            {
-                None
-            } else {
-                let lease = DirectoryLease::acquire_library(&root)?;
-                MeetingStore::new(&root).recover_retranscriptions()?;
-                Some((root.canonicalize().map_err(PennelError::storage)?, lease))
-            }
-        } else {
-            None
-        };
-        let settings = settings.normalized_with(&self.models.downloaded());
-        settings.save(&self.settings_path)?;
-        *self.settings.write().unwrap() = settings;
-        if let Some(lease) = next_lease {
-            *self.library_lease.lock().unwrap() = Some(lease);
-        }
-        Ok(())
+        self.update_settings_locked(settings)
     }
 
     pub fn dictate(&self, request: DictationRequest) -> Result<DictationResult, PennelError> {
@@ -888,6 +863,9 @@ impl PennelEngine {
         let _edit = self.edit_meeting(&id)?;
         let store = self.meeting_store();
         let uid = store.uid_of(&id);
+        if let Some(uid) = uid.as_deref() {
+            self.discard_speaker_jobs_for(uid)?;
+        }
         store.delete(&id)?;
         let _ = self
             .voice_store()
@@ -907,6 +885,7 @@ impl PennelEngine {
         if self.claim_library().is_err()
             || self.has_active_session()
             || !self.meeting_jobs.lock().unwrap().is_empty()
+            || self.active_speaker_jobs()
         {
             return 0;
         }
@@ -1449,12 +1428,10 @@ impl PennelEngine {
     }
 
     fn set_cloud_sync(&self, enabled: bool) -> Result<(), PennelError> {
-        let mut settings = self.settings();
-        if settings.cloud_sync == enabled {
-            return Ok(());
-        }
-        settings.cloud_sync = enabled;
-        self.update_settings(settings)
+        self.update_settings_with(|mut settings| {
+            settings.cloud_sync = enabled;
+            Ok(settings)
+        })
     }
 
     fn report(&self, status: SyncStatus) -> SyncReport {
@@ -1554,11 +1531,78 @@ impl PennelEngine {
 }
 
 impl PennelEngine {
+    pub(crate) fn update_settings_locked(&self, mut settings: Settings) -> Result<(), PennelError> {
+        if self.preview {
+            enforce_preview_library(
+                self.settings_path.parent().expect("data directory"),
+                &mut settings,
+            )?;
+        }
+        let changing_library = settings.meetings_dir != self.settings.read().unwrap().meetings_dir;
+        if changing_library
+            && (self.has_active_session()
+                || !self.meeting_jobs.lock().unwrap().is_empty()
+                || self.active_speaker_jobs())
+        {
+            return Err(PennelError::Storage {
+                message: "de meetingmap kan pas na het afronden van de opname worden gewijzigd"
+                    .into(),
+            });
+        }
+        let next_lease = if changing_library {
+            let root = library_root(&settings);
+            let canonical = root.canonicalize().unwrap_or_else(|_| root.clone());
+            if self
+                .library_lease
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|(held, _)| *held == canonical)
+            {
+                None
+            } else {
+                let lease = DirectoryLease::acquire_library(&root)?;
+                MeetingStore::new(&root).recover_retranscriptions()?;
+                Some((root.canonicalize().map_err(PennelError::storage)?, lease))
+            }
+        } else {
+            None
+        };
+        let settings = settings.normalized_with(&self.models.downloaded());
+        settings.save(&self.settings_path)?;
+        *self.settings.write().unwrap() = settings;
+        if let Some(lease) = next_lease {
+            *self.library_lease.lock().unwrap() = Some(lease);
+        }
+        if changing_library {
+            self.recover_speaker_commits()?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn update_settings_with(
+        &self,
+        update: impl FnOnce(Settings) -> Result<Settings, PennelError>,
+    ) -> Result<(), PennelError> {
+        let _gate = self.meeting_gate.lock().unwrap();
+        let current = self.settings();
+        let next = update(current.clone())?;
+        if next == current {
+            return Ok(());
+        }
+        self.update_settings_locked(next)
+    }
+
     fn ensure_cloud_identity_mutable(&self) -> Result<(), PennelError> {
         if self.has_active_session() {
             return Err(PennelError::Storage {
                 message: "Rond eerst de opname af voordat je het Pennel Cloud-account wijzigt."
                     .into(),
+            });
+        }
+        if self.active_speaker_jobs() {
+            return Err(PennelError::Storage {
+                message: "Rond eerst de sprekerherkenning af voordat je het Pennel Cloud-account wijzigt.".into(),
             });
         }
         Ok(())
@@ -1818,6 +1862,7 @@ impl PennelEngine {
             active_sessions: Mutex::new(Vec::new()),
             meeting_jobs: Mutex::new(HashSet::new()),
             retranscriptions: Mutex::new(HashMap::new()),
+            speaker_jobs: Mutex::new(HashMap::new()),
             library_lease: Mutex::new(library_lease),
             sync_gate: Mutex::new(()),
             sync_state: Mutex::new(None),
@@ -1831,6 +1876,7 @@ impl PennelEngine {
             preview,
             _storage: storage,
         });
+        engine.load_speaker_recognition_jobs()?;
         registry.insert(dir, Arc::downgrade(&engine));
         Ok(engine)
     }

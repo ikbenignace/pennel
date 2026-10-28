@@ -35,6 +35,8 @@ mod rules;
 mod session;
 mod settings;
 mod setup;
+mod speaker_commit;
+mod speaker_jobs;
 mod speakers;
 mod speech;
 mod status;
@@ -96,6 +98,11 @@ pub use settings::{
     StyleRule, default_settings,
 };
 pub use setup::{SetupAccess, SetupFacts, SetupReadiness, dictation_readiness, meeting_readiness};
+pub use speaker_jobs::{
+    RecognitionAudioBlock, RecognitionAudioInfo, RecognitionAudioReader, RecognitionFileTransport,
+    RecognitionUploadProgress, RecognitionUploadRequest, RecognitionUploadResponse,
+    SpeakerRecognitionJob, SpeakerRecognitionJobSnapshot, SpeakerRecognitionStage,
+};
 pub use speakers::{MeetingVoice, SpeakerRecognition};
 pub use status::{CommandIntent, DictationStatus, PillState};
 pub use system_llm::{LanguageModelMessage, SystemLanguageModel};

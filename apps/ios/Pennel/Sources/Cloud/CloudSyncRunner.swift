@@ -142,7 +142,7 @@ final class CloudSyncRunner: SyncHolding {
 /// `BGAppRefreshTask` `app.pennel.ios.sync`: iOS decides when it runs, and Pennel promises nothing about it.
 @MainActor
 enum CloudSyncBackground {
-    static let identifier = "app.pennel.ios.sync"
+    static var identifier: String { (Bundle.main.bundleIdentifier ?? "app.pennel.ios") + ".sync" }
     private static let earliest: TimeInterval = 15 * 60
     private static let log = Logger(subsystem: "app.pennel.ios", category: "sync")
 

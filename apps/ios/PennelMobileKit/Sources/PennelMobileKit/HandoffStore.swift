@@ -7,7 +7,7 @@ public final class HandoffStore: @unchecked Sendable {
         case result = "result.json"
     }
 
-    public static let appGroup = "group.app.pennel"
+    public static var appGroup: String { HandoffConfiguration.current.appGroup }
 
     /// The `handoff/` folder in the App Group container that the app and the keyboard share.
     public static var groupDirectory: URL? {

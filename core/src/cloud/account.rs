@@ -51,6 +51,32 @@ struct AccessToken {
     expires_at: Instant,
 }
 
+#[derive(Default)]
+struct LoginFlow {
+    generation: u64,
+    managed: bool,
+    device_code: Option<String>,
+}
+
+impl LoginFlow {
+    fn invalidate(&mut self) -> u64 {
+        self.generation = self.generation.wrapping_add(1);
+        self.managed = true;
+        self.device_code = None;
+        self.generation
+    }
+
+    fn check_poll(&self, generation: u64, code: &str) -> Result<(), PennelError> {
+        if self.generation != generation
+            || (self.managed && self.device_code.as_deref() != Some(code))
+        {
+            Err(PennelError::Cancelled)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// Holding `access` across the refresh request makes refreshes single-flight: the server
 /// revokes a device when a refresh token is presented twice.
 pub struct Session {
@@ -58,6 +84,7 @@ pub struct Session {
     secrets: Arc<dyn SecretStore>,
     http: ureq::Agent,
     access: Mutex<Option<AccessToken>>,
+    login: Mutex<LoginFlow>,
 }
 
 fn invalid(what: &str) -> PennelError {
@@ -89,6 +116,7 @@ impl Session {
             secrets,
             http: agent(REQUEST_TIMEOUT_SECS),
             access: Mutex::new(None),
+            login: Mutex::new(LoginFlow::default()),
         }
     }
 
@@ -106,6 +134,7 @@ impl Session {
 
     /// Signing out on purpose also forgets the vault key.
     fn clear_secrets(&self) {
+        self.cancel_login();
         let mut access = self.access.lock().unwrap();
         self.end_session_locked(&mut access);
         self.secrets.set(super::VAULT_KEY_ACCOUNT.into(), None);
@@ -196,6 +225,7 @@ impl Session {
         device_name: &str,
         platform: &str,
     ) -> Result<CloudLoginStart, PennelError> {
+        let generation = self.login.lock().unwrap().invalidate();
         let (status, body) = send_json(
             &self.http,
             "POST",
@@ -206,7 +236,7 @@ impl Session {
         if status != 200 {
             return Err(error_from(status, &body));
         }
-        Ok(CloudLoginStart {
+        let started = CloudLoginStart {
             user_code: text(&body, "user_code", "login")?,
             verification_uri: text(&body, "verification_uri", "login")?,
             device_code: text(&body, "device_code", "login")?,
@@ -214,23 +244,52 @@ impl Session {
                 .get("interval")
                 .and_then(Value::as_u64)
                 .map_or(5, |secs| secs as u32),
-        })
+        };
+        let mut login = self.login.lock().unwrap();
+        if login.generation != generation {
+            return Err(PennelError::Cancelled);
+        }
+        login.device_code = Some(started.device_code.clone());
+        Ok(started)
+    }
+
+    /// Invalidates queued and in-flight login work without waiting for HTTP or token refresh.
+    pub fn cancel_login(&self) {
+        self.login.lock().unwrap().invalidate();
     }
 
     pub fn login_poll(&self, device_code: &str) -> Result<CloudLoginPoll, PennelError> {
-        let (status, body) = send_json(
+        let generation = {
+            let login = self.login.lock().unwrap();
+            login.check_poll(login.generation, device_code)?;
+            login.generation
+        };
+        let response = send_json(
             &self.http,
             "POST",
             &self.url("/v1/auth/token"),
             None,
             Some(&json!({ "device_code": device_code })),
-        )?;
+        );
+        self.login
+            .lock()
+            .unwrap()
+            .check_poll(generation, device_code)?;
+        let (status, body) = response?;
         if status == 400 {
-            match body.get("error").and_then(Value::as_str) {
-                Some("authorization_pending") => return Ok(CloudLoginPoll::Pending),
-                Some("slow_down") => return Ok(CloudLoginPoll::SlowDown),
-                Some("expired_token") => return Ok(CloudLoginPoll::Expired),
-                _ => {}
+            let poll = match body.get("error").and_then(Value::as_str) {
+                Some("authorization_pending") => Some(CloudLoginPoll::Pending),
+                Some("slow_down") => Some(CloudLoginPoll::SlowDown),
+                Some("expired_token") => Some(CloudLoginPoll::Expired),
+                _ => None,
+            };
+            if let Some(poll) = poll {
+                let mut login = self.login.lock().unwrap();
+                login.check_poll(generation, device_code)?;
+                if login.managed && poll == CloudLoginPoll::Expired {
+                    login.device_code = None;
+                }
+                return Ok(poll);
             }
         }
         if status != 200 {
@@ -242,11 +301,21 @@ impl Session {
             .get("expires_in")
             .and_then(Value::as_u64)
             .ok_or_else(|| invalid("login"))?;
-        self.secrets.set(REFRESH_ACCOUNT.into(), Some(refresh));
-        *self.access.lock().unwrap() = Some(AccessToken {
-            value: access,
-            expires_at: Instant::now() + Duration::from_secs(lifetime),
-        });
+        {
+            // Refresh can hold `access` during HTTP. Wait before taking the short login lock,
+            // so cancellation remains responsive; committing inside both locks is final.
+            let mut stored_access = self.access.lock().unwrap();
+            let mut login = self.login.lock().unwrap();
+            login.check_poll(generation, device_code)?;
+            self.secrets.set(REFRESH_ACCOUNT.into(), Some(refresh));
+            *stored_access = Some(AccessToken {
+                value: access,
+                expires_at: Instant::now() + Duration::from_secs(lifetime),
+            });
+            if login.managed {
+                login.device_code = None;
+            }
+        }
         // The tokens are already stored; the UI fetches the account again if the e-mail is missing.
         let email = self
             .account()
@@ -394,6 +463,12 @@ mod tests {
         assert_eq!(stored(&secrets).as_deref(), Some("ref1"));
         assert!(session.signed_in());
         assert_eq!(session.access_token().unwrap(), "acc");
+        session.cancel_login();
+        assert_eq!(
+            stored(&secrets).as_deref(),
+            Some("ref1"),
+            "a completed token commit is final"
+        );
     }
 
     #[test]
@@ -413,6 +488,222 @@ mod tests {
             .with_body(r#"{"error":"expired_token"}"#)
             .create();
         assert_eq!(session.login_poll("dc").unwrap(), CloudLoginPoll::Expired);
+    }
+
+    fn managed_login(server: &mut mockito::ServerGuard, session: &Session, code: &str) {
+        let start = server
+            .mock("POST", "/v1/auth/device")
+            .with_body(
+                json!({
+                    "device_code": code,
+                    "user_code": "ABCD-1234",
+                    "verification_uri": "https://example.test/device",
+                    "interval": 5,
+                })
+                .to_string(),
+            )
+            .expect(1)
+            .create();
+        assert_eq!(
+            session.login_start("Fixture", "ios").unwrap().device_code,
+            code
+        );
+        start.assert();
+        start.remove();
+    }
+
+    struct ReleaseResponse(std::sync::mpsc::Sender<()>);
+
+    impl Drop for ReleaseResponse {
+        fn drop(&mut self) {
+            let _ = self.0.send(());
+        }
+    }
+
+    #[test]
+    fn cancelling_in_flight_login_prevents_a_late_token_commit() {
+        let mut server = mockito::Server::new();
+        let (secrets, session) = fixture(&server);
+        managed_login(&mut server, &session, "old-code");
+        let (entered, observed) = std::sync::mpsc::channel();
+        let (release, blocked) = std::sync::mpsc::channel();
+        let release = ReleaseResponse(release);
+        let blocked = Arc::new(Mutex::new(blocked));
+        let response = server
+            .mock("POST", "/v1/auth/token")
+            .with_body_from_request(move |_| {
+                entered.send(()).unwrap();
+                blocked.lock().unwrap().recv().unwrap();
+                br#"{"access_token":"late-access","refresh_token":"late-refresh","expires_in":900}"#
+                    .to_vec()
+            })
+            .expect(1)
+            .create();
+        let no_account = server.mock("GET", "/v1/account").expect(0).create();
+        let session = Arc::new(session);
+        let polling = {
+            let session = session.clone();
+            std::thread::spawn(move || session.login_poll("old-code"))
+        };
+        observed.recv_timeout(Duration::from_secs(5)).unwrap();
+        let (cancelled, cancellation) = std::sync::mpsc::channel();
+        let cancelling = {
+            let session = session.clone();
+            std::thread::spawn(move || {
+                session.cancel_login();
+                cancelled.send(()).unwrap();
+            })
+        };
+        cancellation
+            .recv_timeout(Duration::from_secs(1))
+            .expect("cancel must not wait for the token response");
+        drop(release);
+        assert_eq!(polling.join().unwrap(), Err(PennelError::Cancelled));
+        cancelling.join().unwrap();
+        assert_eq!(stored(&secrets), None);
+        assert!(session.access.lock().unwrap().is_none());
+        response.assert();
+        no_account.assert();
+    }
+
+    #[test]
+    fn cancelled_and_superseded_codes_cannot_start_queued_polls() {
+        let mut server = mockito::Server::new();
+        let (secrets, session) = fixture(&server);
+        managed_login(&mut server, &session, "cancelled-code");
+        session.cancel_login();
+        let cancelled = server
+            .mock("POST", "/v1/auth/token")
+            .match_body(Matcher::Json(json!({"device_code": "cancelled-code"})))
+            .expect(0)
+            .create();
+        assert_eq!(
+            session.login_poll("cancelled-code"),
+            Err(PennelError::Cancelled)
+        );
+
+        managed_login(&mut server, &session, "first-code");
+        managed_login(&mut server, &session, "current-code");
+        let old = server
+            .mock("POST", "/v1/auth/token")
+            .match_body(Matcher::Json(json!({"device_code": "first-code"})))
+            .expect(0)
+            .create();
+        assert_eq!(
+            session.login_poll("first-code"),
+            Err(PennelError::Cancelled)
+        );
+        let current = server
+            .mock("POST", "/v1/auth/token")
+            .match_body(Matcher::Json(json!({"device_code": "current-code"})))
+            .with_body(r#"{"access_token":"current-access","refresh_token":"current-refresh","expires_in":900}"#)
+            .expect(1)
+            .create();
+        let account = server
+            .mock("GET", "/v1/account")
+            .match_header("authorization", "Bearer current-access")
+            .with_body(ACCOUNT)
+            .expect(1)
+            .create();
+        assert_eq!(
+            session.login_poll("current-code").unwrap(),
+            CloudLoginPoll::Done {
+                email: "a@b.nl".into()
+            }
+        );
+        assert_eq!(stored(&secrets).as_deref(), Some("current-refresh"));
+        cancelled.assert();
+        old.assert();
+        current.assert();
+        account.assert();
+    }
+
+    #[test]
+    fn cancel_does_not_wait_for_an_in_flight_access_refresh_lock() {
+        let server = mockito::Server::new();
+        let (_, session) = fixture(&server);
+        let session = Arc::new(session);
+        let access = session.access.lock().unwrap();
+        let (finished, completion) = std::sync::mpsc::channel();
+        let cancelling = {
+            let session = session.clone();
+            std::thread::spawn(move || {
+                session.cancel_login();
+                finished.send(()).unwrap();
+            })
+        };
+        completion
+            .recv_timeout(Duration::from_secs(1))
+            .expect("cancel only takes the short login-state lock");
+        drop(access);
+        cancelling.join().unwrap();
+    }
+
+    #[test]
+    fn new_login_supersedes_an_in_flight_old_poll_before_token_commit() {
+        let mut server = mockito::Server::new();
+        let (secrets, session) = fixture(&server);
+        managed_login(&mut server, &session, "old-code");
+        let session = Arc::new(session);
+        let access = session.access.lock().unwrap();
+        let (entered, observed) = std::sync::mpsc::channel();
+        let old = server
+            .mock("POST", "/v1/auth/token")
+            .match_body(Matcher::Json(json!({"device_code": "old-code"})))
+            .with_body_from_request(move |_| {
+                entered.send(()).unwrap();
+                br#"{"access_token":"old-access","refresh_token":"old-refresh","expires_in":900}"#
+                    .to_vec()
+            })
+            .expect(1)
+            .create();
+        let no_account = server.mock("GET", "/v1/account").expect(0).create();
+        let polling = {
+            let session = session.clone();
+            std::thread::spawn(move || session.login_poll("old-code"))
+        };
+        observed.recv_timeout(Duration::from_secs(5)).unwrap();
+        managed_login(&mut server, &session, "new-code");
+        drop(access);
+        assert_eq!(polling.join().unwrap(), Err(PennelError::Cancelled));
+        assert_eq!(stored(&secrets), None);
+        assert_eq!(
+            session.login.lock().unwrap().device_code.as_deref(),
+            Some("new-code")
+        );
+        old.assert();
+        no_account.assert();
+    }
+
+    #[test]
+    fn cancelled_start_cannot_reactivate_a_flow_when_its_response_arrives() {
+        let mut server = mockito::Server::new();
+        let (_, session) = fixture(&server);
+        let (entered, observed) = std::sync::mpsc::channel();
+        let (release, blocked) = std::sync::mpsc::channel();
+        let release = ReleaseResponse(release);
+        let blocked = Arc::new(Mutex::new(blocked));
+        let start = server
+            .mock("POST", "/v1/auth/device")
+            .with_body_from_request(move |_| {
+                entered.send(()).unwrap();
+                blocked.lock().unwrap().recv().unwrap();
+                br#"{"device_code":"late-code","user_code":"ABCD-1234","verification_uri":"https://example.test/device","interval":5}"#.to_vec()
+            })
+            .expect(1)
+            .create();
+        let session = Arc::new(session);
+        let starting = {
+            let session = session.clone();
+            std::thread::spawn(move || session.login_start("Fixture", "ios"))
+        };
+        observed.recv_timeout(Duration::from_secs(5)).unwrap();
+        session.cancel_login();
+        drop(release);
+        assert_eq!(starting.join().unwrap(), Err(PennelError::Cancelled));
+        assert_eq!(session.login_poll("late-code"), Err(PennelError::Cancelled));
+        assert!(session.login.lock().unwrap().device_code.is_none());
+        start.assert();
     }
 
     #[test]

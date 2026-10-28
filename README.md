@@ -93,7 +93,7 @@ Pennel is under active development. Follow the [Pennel roadmap](https://github.c
 
 [Report a bug](https://github.com/pennel-app/pennel/issues/new) or read the [contributing guide](CONTRIBUTING.md).
 
-For builds, troubleshooting and platform details, start with the [desktop development guide](docs/desktop.md).
+For builds, troubleshooting and platform details, start with the [desktop development guide](docs/desktop.md) or the [Expo mobile development and acceptance guide](docs/mobile.md). The Expo iPhone candidate is under validation; Android follows iPhone acceptance.
 
 ## License
 

@@ -42,7 +42,9 @@ for target in "$device_target" "$sim_target"; do
   echo "stripped libpennel_core.a ($target): $(stat -f %z "$strip_dir/$target.a") bytes"
 done
 
-if [ -f "$mac_bindings/pennel_core.swift" ]; then
+if [ "${PENNEL_SKIP_MAC_BINDINGS_CHECK:-0}" = 1 ]; then
+  echo "mobile preparation: Swift bindings come from the matching iOS library; desktop parity is checked separately"
+elif [ -f "$mac_bindings/pennel_core.swift" ]; then
   if ! diff -q "$mac_bindings/pennel_core.swift" "$bindings/pennel_core.swift" >/dev/null; then
     echo "iOS and macOS uniffi bindings differ; the API surface must be identical" >&2
     diff "$mac_bindings/pennel_core.swift" "$bindings/pennel_core.swift" | head -40 >&2

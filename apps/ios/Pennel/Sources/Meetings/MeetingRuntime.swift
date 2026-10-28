@@ -129,6 +129,7 @@ final class MeetingRuntime: DictationMeetingHook {
     @ObservationIgnored var onFinished: (@MainActor (MeetingFinish) -> Void)?
     /// After a later write to a finished meeting (the automatic summary).
     @ObservationIgnored var onUpdated: (@MainActor (String) -> Void)?
+    @ObservationIgnored var postprocessHandler: (@MainActor (MeetingFinish) async -> Void)?
     @ObservationIgnored private(set) var finishing: Task<Void, Never>?
 
     @ObservationIgnored private let engine: PennelEngine
@@ -282,13 +283,20 @@ final class MeetingRuntime: DictationMeetingHook {
 
     /// Writes only a real change, so an untouched field can never overwrite what was typed earlier.
     func setNotes(_ text: String) {
-        guard isRecording, let session, text != notes else { return }
-        notes = text
         do {
-            try session.setNotes(text: text)
+            try saveLiveNotes(text)
         } catch {
             Self.log.error("live notes: \(ErrorText.code(error), privacy: .public)")
         }
+    }
+
+    func saveLiveNotes(_ text: String) throws {
+        guard isRecording, let session else {
+            throw PennelError.Cloud(code: "meeting_busy", message: "De opname wordt afgerond. Bewaar je notities zodra het afronden klaar is.")
+        }
+        guard text != notes else { return }
+        try session.setNotes(text: text)
+        notes = text
     }
 
     // MARK: Stop
@@ -380,6 +388,13 @@ final class MeetingRuntime: DictationMeetingHook {
     /// Like the desktop: summarise when a language model is ready, never after a recording that stopped early or
     /// was not saved. Speaker recognition is not run on iPhone (one track, spec §4.1).
     private func postprocess(_ finish: MeetingFinish) {
+        if let postprocessHandler {
+            Task {
+                await postprocessHandler(finish)
+                endFinishTask(success: finish.error == nil)
+            }
+            return
+        }
         guard finish.error == nil, finish.stoppedEarly == nil, languageModelReady(engine.settings()) else {
             endFinishTask(success: finish.error == nil)
             return
@@ -597,7 +612,7 @@ private final class Flag: @unchecked Sendable {
 /// app runs, and otherwise **Opnieuw proberen** recovers failed chunks later.
 @MainActor
 final class SystemFinishScheduler: FinishTaskScheduling {
-    static let identifier = "app.pennel.ios.finish"
+    static var identifier: String { (Bundle.main.bundleIdentifier ?? "app.pennel.ios") + ".finish" }
     private static let log = Logger(subsystem: "app.pennel.ios", category: "meeting")
     private static var current: SystemFinishTask?
 
@@ -648,7 +663,10 @@ private final class SystemFinishTask: FinishTask {
     func attach(_ task: BGContinuedProcessingTask) {
         self.task = task
         task.expirationHandler = { [weak self] in
-            Task { @MainActor in self?.end(success: false) }
+            Task { @MainActor in
+                NotificationCenter.default.post(name: Notification.Name("PennelFinishTaskExpired"), object: nil)
+                self?.end(success: false)
+            }
         }
         task.progress.totalUnitCount = Int64(highest)
         report()

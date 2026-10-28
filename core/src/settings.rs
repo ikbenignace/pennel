@@ -334,14 +334,16 @@ impl Settings {
         self.normalized_with(&[])
     }
 
-    /// Points every task whose provider no longer exists at the first provider that can do it,
-    /// and keeps local choices on a model that is actually downloaded.
+    /// Keeps explicitly unassigned tasks, repairs deleted providers, and selects downloaded local models.
     pub fn normalized_with(mut self, downloaded_local: &[String]) -> Settings {
         for (task, slot) in [
             (ProviderTask::DictationStt, &mut self.dictation_stt),
             (ProviderTask::MeetingStt, &mut self.meeting_stt),
             (ProviderTask::Llm, &mut self.llm),
         ] {
+            if slot.provider_id.is_empty() && slot.model.is_empty() {
+                continue;
+            }
             let current = self.providers.iter().find(|p| p.id == slot.provider_id);
             let account = match current {
                 Some(account) => account,

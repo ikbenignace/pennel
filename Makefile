@@ -1,4 +1,4 @@
-.PHONY: core test app app-preview run desktop desktop-preview desktop-test packaging-test theme theme-check ios-core ios ios-test
+.PHONY: core test app app-preview run desktop desktop-preview desktop-test packaging-test theme theme-check ios-core ios ios-test mobile-core mobile-prebuild mobile-test mobile-ios mobile-native-test
 
 core: theme
 	scripts/with-toolchain.sh scripts/build-core.sh
@@ -52,3 +52,25 @@ ios-test: ios-core
 	swift test --package-path apps/ios/PennelMobileKit
 	xcodebuild test -project apps/ios/Pennel.xcodeproj -scheme Pennel -destination '$(IOS_DESTINATION)' \
 		-derivedDataPath $(IOS_DERIVED_DATA)
+
+mobile-core:
+	cd apps/mobile && npm run native:prepare
+
+mobile-prebuild: mobile-core
+	cd apps/mobile && npm run test:prebuild
+	cd apps/mobile && npm run prebuild:clean
+	cd apps/mobile/ios && pod install
+	cd apps/mobile && npm run test:pods
+
+mobile-test:
+	cd apps/mobile && npm run typecheck && npm run test:plugins && npm run test:widgets && npm run test:ui
+	swift test --package-path apps/ios/PennelMobileKit
+
+mobile-ios: mobile-prebuild
+	cd apps/mobile && npm run build:ios
+
+mobile-native-test:
+	xcodebuild test -workspace apps/mobile/ios/Pennel.xcworkspace -scheme Pennel -configuration Debug \
+		-destination '$(IOS_DESTINATION)' -derivedDataPath apps/mobile/build/TestDerivedData \
+		-only-testing:PennelRuntimeTests -only-testing:PennelKeyboardTests \
+		CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
