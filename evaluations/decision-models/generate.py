@@ -56,6 +56,7 @@ def read_archive(path):
 
 
 def prepare(config, binary):
+    from generative_measurements import panel_manifest
     corpus = build_corpus()
     bridge = run.collect_bridge(corpus, binary)
     inputs = {"corpus": corpus, "bridges": {split: selected_bridge(corpus, bridge, split)
@@ -67,6 +68,7 @@ def prepare(config, binary):
                 "source_commit": run.git("rev-parse", "HEAD"), "hardware": run.hardware(),
                 "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                 "workloads": {split: workload_ids(value) for split, value in inputs["bridges"].items()},
+                "latency_panel": panel_manifest(inputs),
                 "heldout_before_inference": True, "hosted_total_ceiling_usd": "2.00"}
     return manifest, inputs
 
@@ -117,6 +119,10 @@ def validate_rows(rows, manifest, inputs):
             case = pairs[row["id"]]
             if annotation.get("raw") != case["raw"]:
                 raise ValueError("Generated cleanup raw differs from frozen inputs")
+        elif row["task"] == "summary":
+            from generative import summary_targets
+            if annotation.get("event_targets") != summary_targets(inputs["corpus"], row["meeting_id"]):
+                raise ValueError("Generated summary event gold differs from frozen inputs")
 
 
 def report(directory):
@@ -138,6 +144,8 @@ def report(directory):
     result["billable_cost_usd"] = str(sum((Decimal(r["cost_usd"])
         for r in rows if r.get("cost_usd") is not None), Decimal(0)))
     result["unknown_cost_rows"] = sum(r.get("cost_usd") is None and bool(r.get("attempts")) for r in rows)
+    if (directory / "timing.json").is_file():
+        result["resources"] = run.read_json(directory / "timing.json")
     return result
 
 
@@ -146,14 +154,19 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--prepare", action="store_true")
     mode.add_argument("--live", action="store_true")
+    mode.add_argument("--timing", action="store_true", help="Explicit timing-only continuation; no quality cases are repeated")
     mode.add_argument("--replay", type=Path)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--frozen", type=Path)
     parser.add_argument("--inputs", type=Path)
     parser.add_argument("--binary", type=Path)
+    parser.add_argument("--measure", action="store_true", help="Run the frozen repeated timing panel after held-out quality")
+    parser.add_argument("--timing-prior", type=Path, help="Prior timing records from an explicitly resumed panel")
     parser.add_argument("--split", choices=("development", "heldout"), default="development")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
+    if (args.measure or args.timing) and args.split != "heldout":
+        parser.error("Repeated timing requires --split heldout")
     args.output.mkdir(parents=True, exist_ok=True)
     if args.replay:
         run.save_json(args.output / "report.json", report(args.replay))
@@ -193,19 +206,40 @@ def main(argv=None):
         if ledger.unresolved or ledger.pending:
             raise ValueError("Reconcile the shared ledger before paid work")
         runner = OpenRouterGenerativeRunner(config["generative"], ledger=ledger)
-        with path.open("x", encoding="utf-8") as stream:
-            def capture(row):
-                row["run_manifest_hash"] = run.digest(manifest)
-                stream.write(json.dumps(row, ensure_ascii=False) + "\n")
-                stream.flush()
-                print(json.dumps({"task": row["task"], "id": row["id"], "status": row["status"], "error": row.get("error"), "billed_total_usd": str(ledger.spent)}), flush=True)
-            rows = run_baselines(inputs["corpus"], inputs["bridges"][args.split], runner, args.split,
-                                 lambda request: run.bridge_call(binary, request), checkpoint=capture)
+        rows = []
+        if not args.timing:
+            with path.open("x", encoding="utf-8") as stream:
+                def capture(row):
+                    row["run_manifest_hash"] = run.digest(manifest)
+                    stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    stream.flush()
+                    print(json.dumps({"task": row["task"], "id": row["id"], "status": row["status"], "error": row.get("error"), "billed_total_usd": str(ledger.spent)}), flush=True)
+                rows = run_baselines(inputs["corpus"], inputs["bridges"][args.split], runner, args.split,
+                                     lambda request: run.bridge_call(binary, request), checkpoint=capture)
+        if args.timing or args.measure:
+            from generative_measurements import measure, panel_manifest
+            if manifest["latency_panel"] != panel_manifest(inputs):
+                raise ValueError("Frozen generative timing panel changed")
+            prior = run.read_json(args.timing_prior) if args.timing_prior else []
+            with (args.output / "timing-receipts.jsonl").open("x", encoding="utf-8") as timing_stream:
+                count = 0
+                def capture_timing(row):
+                    nonlocal count
+                    timing_stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    timing_stream.flush()
+                    count += 1
+                    if count % 20 == 0 or row.get("status") != "ok":
+                        print(json.dumps({"phase": "generative_timing", "records": count,
+                                          "status": row.get("status"), "billed_total_usd": str(ledger.spent)}), flush=True)
+                timing = measure(inputs, config, ledger, lambda request: run.bridge_call(binary, request),
+                                 checkpoint=capture_timing, prior_records=prior)
+                timing["run_manifest_hash"] = run.digest(manifest)
+                run.save_json(args.output / "timing.json", timing)
         run.save_json(args.output / "availability.json", runner.preflight())
         run.save_json(args.output / "manifest.json", manifest)
         archive(args.output / "inputs.json.gz", inputs)
         run.save_json(args.output / "ledger-summary.json", {k: v for k, v in ledger.snapshot().items() if k != "attempts"})
-        if len(rows) != len(manifest["workloads"][args.split]):
+        if not args.timing and len(rows) != len(manifest["workloads"][args.split]):
             raise ValueError("Generative workload incomplete; preserve completed receipts and reconcile before continuing")
 
 

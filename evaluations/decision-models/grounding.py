@@ -3,6 +3,8 @@
 import hashlib
 import json
 
+from metrics import classification_metrics
+
 
 RUBRIC = {
     "version": "bilingual-grounding-v1",
@@ -14,6 +16,8 @@ RUBRIC = {
                      "nl": "Verwante tekst bewijst de bewering niet. Geldige bronverwijzingen op zich volstaan niet."},
     "cleanup": {"en": "Preserve meaning, language, polarity, names, owners, numbers, dates and final commitments; grammar alone may change.",
                 "nl": "Behoud betekenis, taal, ontkenningen, namen, eigenaars, getallen, datums en definitieve afspraken; alleen taalverzorging mag wijzigen."},
+    "summary_events": {"en": "Classify each of six marked original statements using final context. Omitted events are none; a correctly described retracted or tentative event remains none. Check action owners and final status.",
+                       "nl": "Classificeer elk van zes oorspronkelijke gemarkeerde uitspraken in de definitieve context. Ontbrekende gebeurtenissen zijn none; correct vermelde ingetrokken of voorlopige gebeurtenissen blijven none. Controleer eigenaars en definitieve status."},
     "review": "A stored reviewer judgment covers every substantive generated claim. Unresolved rows block adoption. Citation coverage and factual support are separate denominators.",
 }
 
@@ -26,12 +30,14 @@ RUBRIC_SHA256 = _hash(RUBRIC)
 ACCEPTANCE = {"answer_claim_precision_min": 0.98, "answer_coverage_min": 0.5,
               "citation_support_min": 0.98, "citation_coverage_min": 0.98,
               "cleanup_accepted_critical_corruptions_max": 0,
-              "cleanup_valid_acceptance_min": 0.9, "unresolved_judgments_max": 0}
+              "cleanup_valid_acceptance_min": 0.9, "unresolved_judgments_max": 0,
+              "event_macro_f1_min": 0.9, "event_positive_precision_min": 0.95,
+              "event_owner_errors_max": 0, "event_final_status_errors_max": 0}
 
 
 def response_hash(row):
     value = {key: row.get(key) for key in ("id", "task", "meeting_id", "language", "split", "status", "text", "identity", "citations", "guard")}
-    value["gold"] = {key: row.get("adjudication", {})[key] for key in ("expected_answer", "gold_evidence", "raw") if key in row.get("adjudication", {})}
+    value["gold"] = {key: row.get("adjudication", {})[key] for key in ("expected_answer", "gold_evidence", "raw", "event_targets") if key in row.get("adjudication", {})}
     return _hash(value)
 
 
@@ -43,7 +49,7 @@ def pending_adjudication(row):
     return {"id": row["id"], "task": row["task"], "response_sha256": response_hash(row),
             "rubric_sha256": RUBRIC_SHA256, "status": "pending", "reviewer": None,
             "all_substantive_claims_reviewed": False, "claims": [], "answer_outcome": None,
-            "cleanup": None, "notes": "Apply the frozen bilingual rubric to exact synthetic evidence; do not equate citation syntax with support."}
+            "cleanup": None, "summary_events": None, "notes": "Apply the frozen bilingual rubric to exact synthetic evidence; do not equate citation syntax with support."}
 
 
 def _source(span, meetings, split):
@@ -137,6 +143,43 @@ def validate_adjudication(row, judgment, meetings):
             raise ValueError("grounding_cleanup_raw_hash_mismatch")
         if cleanup["valid_cleanup"] != (cleanup["meaning_preserved"] and not cleanup["critical_corruption"]):
             raise ValueError("grounding_cleanup_inconsistent_judgment")
+    if row["task"] == "summary":
+        targets = row.get("adjudication", {}).get("event_targets", [])
+        events = judgment.get("summary_events")
+        if targets:
+            if not isinstance(targets, list) or len(targets) != 6 or any(not isinstance(t, dict) or not isinstance(t.get("id"), str) or t.get("expected") not in ("action", "decision", "open_question", "none") for t in targets) or len({t["id"] for t in targets}) != 6:
+                raise ValueError("grounding_six_distinct_summary_targets_required")
+            if not isinstance(events, list) or len(events) != len(targets) or any(not isinstance(e, dict) or not isinstance(e.get("id"), str) for e in events) or {e["id"] for e in events} != {t["id"] for t in targets}:
+                raise ValueError("grounding_summary_events_must_cover_every_target_once")
+            if sorted(t.get("expected") for t in targets) != ["action", "decision", "none", "none", "none", "open_question"]:
+                raise ValueError("grounding_invalid_summary_target_inventory")
+            for target in targets:
+                if not isinstance(target["id"], str) or not target["id"] or not target.get("evidence"):
+                    raise ValueError("grounding_summary_target_identity_and_evidence_required")
+                for span in target["evidence"]:
+                    _source(span, meetings, row["split"])
+                    if span["meeting_id"] != row["meeting_id"]:
+                        raise ValueError("grounding_summary_target_wrong_meeting")
+                owner = target.get("expected_owner")
+                if target["expected"] == "action":
+                    if not isinstance(owner, dict) or not isinstance(owner.get("speaker_id"), str) or not isinstance(owner.get("name"), str) or not owner.get("evidence"):
+                        raise ValueError("grounding_summary_owner_gold_required")
+                    for span in owner["evidence"]:
+                        _source(span, meetings, row["split"])
+                elif owner is not None:
+                    raise ValueError("grounding_summary_non_action_owner_must_be_null")
+            for event in events:
+                prediction, indices = event.get("prediction"), event.get("claim_indices")
+                if prediction not in ("action", "decision", "open_question", "none") or not isinstance(indices, list) or any(isinstance(i, bool) or not isinstance(i, int) or not 0 <= i < len(claims) for i in indices) or len(indices) != len(set(indices)):
+                    raise ValueError("grounding_invalid_summary_event_prediction_or_claims")
+                if prediction != "none" and not indices:
+                    raise ValueError("grounding_positive_summary_event_requires_claim")
+                if prediction == "action" and not isinstance(event.get("owner_correct"), bool) or prediction != "action" and event.get("owner_correct") is not None:
+                    raise ValueError("grounding_invalid_summary_event_owner_judgment")
+                if not isinstance(event.get("final_status_correct"), bool) or not isinstance(event.get("reason"), str) or not event["reason"].strip():
+                    raise ValueError("grounding_summary_event_status_and_reason_required")
+        elif events not in (None, []):
+            raise ValueError("grounding_summary_events_without_gold_targets")
     return judgment
 
 
@@ -167,8 +210,21 @@ def grounding_report(rows, adjudications, meetings):
                                                "answered_gold_answerable": 0, "answered_gold_unanswerable": 0,
                                                "correct_answers_gold_answerable": 0,
                                                "cleanups": 0, "valid_cleanups": 0, "accepted_valid_cleanups": 0,
-                                               "critical_corruptions": 0, "accepted_critical_corruptions": 0})
+                                               "critical_corruptions": 0, "accepted_critical_corruptions": 0,
+                                               "event_target_count": 0, "event_reviewed_targets": 0, "event_gold_missing_rows": 0,
+                                               "gold_positive_events": 0, "predicted_positive_events": 0, "correct_positive_events": 0,
+                                               "event_owner_errors": 0, "event_final_status_errors": 0,
+                                               "_event_rows": [], "_event_index": {}})
         cell["planned"] += 1
+        if row["task"] == "summary":
+            targets = row.get("adjudication", {}).get("event_targets", [])
+            cell["event_gold_missing_rows"] += not bool(targets)
+            for target in targets:
+                event_row = {"id": target["id"], "expected": target["expected"], "prediction": None}
+                cell["_event_rows"].append(event_row)
+                cell["_event_index"][target["id"]] = event_row
+                cell["event_target_count"] += 1
+                cell["gold_positive_events"] += target["expected"] != "none"
         if row["task"] == "meeting_qa":
             if "expected_answer" not in row.get("adjudication", {}):
                 cell["gold_answerability_unknown"] += 1
@@ -206,6 +262,16 @@ def grounding_report(rows, adjudications, meetings):
             cell["accepted_valid_cleanups"] += accepted and cleanup["valid_cleanup"]
             cell["critical_corruptions"] += cleanup["critical_corruption"]
             cell["accepted_critical_corruptions"] += accepted and cleanup["critical_corruption"]
+        if row["task"] == "summary":
+            for event in judgment.get("summary_events") or []:
+                target = cell["_event_index"][event["id"]]
+                target["prediction"] = event["prediction"]
+                cell["event_reviewed_targets"] += 1
+                positive = event["prediction"] != "none"
+                cell["predicted_positive_events"] += positive
+                cell["correct_positive_events"] += positive and event["prediction"] == target["expected"] and event["final_status_correct"] and (event["prediction"] != "action" or event["owner_correct"])
+                cell["event_owner_errors"] += event["prediction"] == "action" and not event["owner_correct"]
+                cell["event_final_status_errors"] += not event["final_status_correct"]
     for language in result["languages"].values():
         for task, cell in language.items():
             cell.update(factual_support=_ratio(cell["supported_claims"], cell["claims"]),
@@ -236,8 +302,20 @@ def grounding_report(rows, adjudications, meetings):
                 gates["valid_cleanup_acceptance"] = cell["valid_cleanup_acceptance"] is not None and cell["valid_cleanup_acceptance"] >= ACCEPTANCE["cleanup_valid_acceptance_min"]
             elif task == "summary":
                 gates["all_factual_claims_supported"] = cell["claims"] > 0 and cell["supported_claims"] == cell["claims"]
-                gates["structured_event_completeness_measured"] = False
-                cell["structured_event_gap"] = "Atomic claim support does not establish complete action/decision/open-question recall with correct owners/final status; structured extraction adoption remains deferred."
+                event_metrics = classification_metrics(cell["_event_rows"])
+                cell.update(event_classification=event_metrics, event_macro_f1=event_metrics["macro_f1"],
+                            event_positive_precision=_ratio(cell["correct_positive_events"], cell["predicted_positive_events"]),
+                            event_positive_recall=_ratio(cell["correct_positive_events"], cell["gold_positive_events"]),
+                            structured_event_scope="Six marked original statements per meeting (action, final decision, retracted proposal, tentative commitment, open question, quoted injection). This is not exhaustive natural-meeting event extraction.")
+                gates["structured_event_completeness_measured"] = cell["event_target_count"] > 0 and cell["event_gold_missing_rows"] == 0 and cell["event_reviewed_targets"] == cell["event_target_count"]
+                gates["event_macro_f1"] = cell["event_macro_f1"] is not None and cell["event_macro_f1"] >= ACCEPTANCE["event_macro_f1_min"]
+                gates["event_positive_precision"] = cell["event_positive_precision"] is not None and cell["event_positive_precision"] >= ACCEPTANCE["event_positive_precision_min"]
+                gates["event_owner_correct"] = cell["event_owner_errors"] <= ACCEPTANCE["event_owner_errors_max"]
+                gates["event_final_status_correct"] = cell["event_final_status_errors"] <= ACCEPTANCE["event_final_status_errors_max"]
+                if not gates["structured_event_completeness_measured"]:
+                    cell["structured_event_gap"] = "At least one marked statement lacks a terminal event judgment or frozen gold target; structured extraction adoption remains deferred."
+            cell.pop("_event_rows")
+            cell.pop("_event_index")
             cell["gates"] = gates
             cell["adoption_blocked"] = not all(gates.values())
     return result

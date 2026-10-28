@@ -15,10 +15,68 @@
   "heldout_before_inference": true,
   "hosted_total_ceiling_usd": "2.00",
   "inputs_sha256": "6cf4411a15f97b38a67889f2982a9a14e75c6ab4bbf90f9f15f76cc39e7c6dc8",
-  "protocol_sha256": "88fe52faa3fe20183b6bd3f183534e05c32defb99bbce42088f145ee3e328d18",
-  "rubric_sha256": "c9156cdf0db8b715cc9040993e0ca7d4bca1eeb28e1015ff8a7383bcdce1de91",
-  "source_commit": "48f334e82cfd787e3552d12611613fe9a19881c0",
-  "source_fingerprint": "9101b4b36e4820e4489d6cf5a8799ec81116597ba9d7e38b5c5ce372b7b598d5",
+  "latency_panel": {
+    "cases": [
+      {
+        "id": "en-heldout-01-cleanup-punctuation",
+        "language": "en",
+        "task": "cleanup"
+      },
+      {
+        "id": "en-heldout-01-q0",
+        "language": "en",
+        "task": "meeting_qa"
+      },
+      {
+        "id": "en-heldout-01-summary",
+        "language": "en",
+        "task": "summary"
+      },
+      {
+        "id": "mixed-heldout-01-cleanup-punctuation",
+        "language": "mixed",
+        "task": "cleanup"
+      },
+      {
+        "id": "mixed-heldout-01-q0",
+        "language": "mixed",
+        "task": "meeting_qa"
+      },
+      {
+        "id": "mixed-heldout-01-summary",
+        "language": "mixed",
+        "task": "summary"
+      },
+      {
+        "id": "nl-heldout-01-cleanup-punctuation",
+        "language": "nl",
+        "task": "cleanup"
+      },
+      {
+        "id": "nl-heldout-01-q0",
+        "language": "nl",
+        "task": "meeting_qa"
+      },
+      {
+        "id": "nl-heldout-01-summary",
+        "language": "nl",
+        "task": "summary"
+      }
+    ],
+    "cases_sha256": "71f14ebd4652f33c5558952daf55eb7826977d888eed7a5c556b6b3ed7f72b93",
+    "cold_client_samples_per_language": 5,
+    "excluded_warmups_per_case": 1,
+    "latency_concurrency": 1,
+    "panel_hash": "5512c2226d4edddfe18e143b16c65689bee3dd3efc2e75859f5525ff55a0a588",
+    "planned_posts": 294,
+    "split": "heldout",
+    "version": 1,
+    "warm_samples_per_case": 30
+  },
+  "protocol_sha256": "3e6482f3f03831705570f9814e756fcd42a217fc28dc3821ada432f95b34efe9",
+  "rubric_sha256": "b13d66cf6b4142baa80c8613be80e6c3fc95618291ef3a77c56725a08909e936",
+  "source_commit": "2bff0d625a1b1b61330ece95c1eabd2f6cfd5e71",
+  "source_fingerprint": "9688899cf4fecfa42213177d8373eee9b67b064ce20d6b742ca8520d2f8a219c",
   "workloads": {
     "development": [
       [

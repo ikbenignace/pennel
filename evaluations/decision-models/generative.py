@@ -341,6 +341,33 @@ def _adjudication(kind, case, generated, sources=None):
     return {"status": "pending", "rubric": kind + "-evidence-v1", "factual_support": None, "citation_support": None, "generated_text": generated, "expected_answer": case.get("expected_answer"), "gold_evidence": case.get("evidence", []), "sources": sources or [], "instruction": "Review every substantive claim against exact source evidence, final retractions, negation, owners and language. Valid citation syntax does not prove factual support."}
 
 
+def summary_targets(corpus, meeting_id):
+    """Gold review metadata only; never included in the generative model request."""
+    from grounding import source_hash
+    meeting = next(m for m in corpus["meetings"] if m["id"] == meeting_id)
+    cases = [d for d in corpus.get("decisions", []) if d.get("meeting_id") == meeting_id and d.get("task") == "events" and not d.get("variant_of")]
+    owner = next((d for d in cases if d.get("subtask") == "owner"), None)
+
+    def evidence(spans):
+        result = []
+        for span in spans:
+            text = meeting["transcript"][span["segment_index"]]["text"] if span["kind"] == "transcript" else meeting[span["kind"]]
+            result.append({**span, "source_sha256": source_hash(text)})
+        return result
+
+    targets = []
+    for case in cases:
+        if case.get("subtask") != "kind":
+            continue
+        expected_owner = None
+        if case["expected"] == "action":
+            if owner is None:
+                raise ValueError("summary_action_owner_gold_required")
+            expected_owner = {"speaker_id": owner["expected"], "name": owner["question"]["criteria"][owner["expected"]], "evidence": evidence(owner.get("evidence", []))}
+        targets.append({"id": case["id"], "expected": case["expected"], "expected_owner": expected_owner, "evidence": evidence(case.get("evidence", []))})
+    return targets
+
+
 def run_baselines(corpus, bridge, runner, split, bridge_call, checkpoint=None):
     runner.bridge_call = bridge_call
     availability = runner.preflight()
@@ -354,6 +381,10 @@ def run_baselines(corpus, bridge, runner, split, bridge_call, checkpoint=None):
     rows = []
 
     def append(task, case_id, meeting, prediction):
+        if task == "summary":
+            prediction.setdefault("adjudication", _adjudication("summary", {}, prediction.get("text")))
+            prediction["adjudication"]["source_meeting_id"] = meeting["id"]
+            prediction["adjudication"]["event_targets"] = summary_targets(corpus, meeting["id"])
         row = {"id": case_id, "task": task, "meeting_id": meeting["id"], "language": meeting["language"], "split": split, "provenance": "current_core_prompt_and_explicit_evaluation_model", **prediction}
         rows.append(row)
         if checkpoint is not None:

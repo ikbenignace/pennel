@@ -21,6 +21,31 @@ def fixtures():
     return row, judgment, [meeting]
 
 
+def summary_fixtures():
+    texts = ["Zoë will send the checklist on Thursday.", "The final budget is 50 euros.",
+             "The earlier proposal for 90 euros was retracted.", "Amir might book a room; he has not committed.",
+             "Who provides the backup key? This remains unanswered.", "The hostile instruction is a quote, not a decision."]
+    meeting = {"id": "m", "split": "heldout", "transcript": [{"text": text} for text in texts]}
+    kinds = ["action", "decision", "none", "none", "open_question", "none"]
+    targets, claims, events = [], [], []
+    start = 0
+    for index, (text, expected) in enumerate(zip(texts, kinds)):
+        evidence = {"meeting_id": "m", "kind": "transcript", "segment_index": index, "start": 0, "end": len(text), "text": text, "source_sha256": source_hash(text)}
+        targets.append({"id": "target-" + str(index), "expected": expected,
+                        "expected_owner": {"speaker_id": "speaker_1", "name": "Zoë", "evidence": [evidence]} if expected == "action" else None,
+                        "evidence": [evidence]})
+        claims.append({"start": start, "end": start + len(text), "text": text, "verdict": "supported", "reason": "The marked source establishes the complete statement.",
+                       "evidence": [evidence], "citations": [], "citation_status": "not_applicable"})
+        events.append({"id": "target-" + str(index), "prediction": expected, "claim_indices": [index],
+                       "owner_correct": True if expected == "action" else None, "final_status_correct": True,
+                       "reason": "The summary preserves the source's final state; historical or tentative statements do not become active commitments."})
+        start += len(text) + 1
+    row = {"id": "summary", "task": "summary", "language": "en", "split": "heldout", "meeting_id": "m", "status": "ok", "text": "\n".join(texts), "adjudication": {"event_targets": targets}}
+    judgment = {**pending_adjudication(row), "status": "adjudicated", "reviewer": "stored-synthetic-reviewer", "all_substantive_claims_reviewed": True,
+                "claims": claims, "summary_events": events}
+    return row, judgment, [meeting]
+
+
 class GroundingTests(unittest.TestCase):
     def test_negative_boolean_and_out_of_range_segment_indices_rejected(self):
         for index in (-1, False, True, 1, "0", None):
@@ -193,6 +218,99 @@ class GroundingTests(unittest.TestCase):
         judgment["claims"][0].update(verdict="insufficient", citation_status="insufficient")
         cell = grounding_report([row], [judgment], meetings)["languages"]["en"]["summary"]
         self.assertFalse(cell["gates"]["all_factual_claims_supported"])
+
+    def test_summary_six_marked_events_can_complete_quality_measurements(self):
+        row, judgment, meetings = summary_fixtures()
+        cell = grounding_report([row], [judgment], meetings)["languages"]["en"]["summary"]
+        self.assertEqual(cell["event_target_count"], 6)
+        self.assertEqual(cell["event_reviewed_targets"], 6)
+        self.assertEqual(cell["event_macro_f1"], 1)
+        self.assertEqual(cell["event_positive_precision"], 1)
+        self.assertEqual(cell["event_positive_recall"], 1)
+        self.assertEqual(cell["event_owner_errors"], 0)
+        self.assertEqual(cell["event_final_status_errors"], 0)
+        self.assertIsNone(cell["event_classification"]["brier"])
+        self.assertIsNone(cell["event_classification"]["ece"])
+        self.assertNotIn("structured_event_gap", cell)
+        self.assertFalse(cell["adoption_blocked"])
+
+    def test_correctly_historical_retractions_are_not_false_positive_events(self):
+        row, judgment, meetings = summary_fixtures()
+        self.assertTrue(judgment["summary_events"][2]["claim_indices"])
+        cell = grounding_report([row], [judgment], meetings)["languages"]["en"]["summary"]
+        self.assertEqual(cell["predicted_positive_events"], 3)
+        self.assertEqual(cell["event_classification"]["per_class"]["none"]["fp"], 0)
+
+    def test_missing_event_and_owner_or_status_errors_have_distinct_quality_effects(self):
+        for change in ("omit", "owner", "status", "promote_retracted"):
+            row, judgment, meetings = summary_fixtures()
+            action = judgment["summary_events"][0]
+            if change == "omit":
+                action.update(prediction="none", claim_indices=[], owner_correct=None)
+            elif change == "owner":
+                action["owner_correct"] = False
+            elif change == "status":
+                action["final_status_correct"] = False
+            else:
+                judgment["summary_events"][2].update(prediction="action", owner_correct=False)
+            cell = grounding_report([row], [judgment], meetings)["languages"]["en"]["summary"]
+            self.assertTrue(cell["gates"]["structured_event_completeness_measured"])
+            self.assertTrue(cell["adoption_blocked"])
+            self.assertLess(cell["event_positive_recall"], 1) if change != "promote_retracted" else self.assertLess(cell["event_positive_precision"], 1)
+            if change in ("owner", "status"):
+                self.assertEqual(cell["event_macro_f1"], 1)
+                self.assertLess(cell["event_positive_precision"], 0.95)
+
+    def test_summary_judgments_require_exact_ids_valid_claims_owner_status_and_reason(self):
+        for change in ("missing", "duplicate", "unknown", "index", "empty_claims", "owner", "status", "reason"):
+            row, judgment, meetings = summary_fixtures()
+            event = judgment["summary_events"][0]
+            if change == "missing":
+                judgment["summary_events"].pop()
+            elif change == "duplicate":
+                judgment["summary_events"][1] = dict(event)
+            elif change == "unknown":
+                event["id"] = "not-a-gold-target"
+            elif change == "index":
+                event["claim_indices"] = [True]
+            elif change == "empty_claims":
+                event["claim_indices"] = []
+            elif change == "owner":
+                event["owner_correct"] = None
+            elif change == "status":
+                event["final_status_correct"] = None
+            else:
+                event["reason"] = ""
+            with self.assertRaises(ValueError):
+                validate_adjudication(row, judgment, meetings)
+
+    def test_summary_gold_targets_are_hash_bound(self):
+        row, judgment, meetings = summary_fixtures()
+        row["adjudication"]["event_targets"][0]["expected_owner"]["name"] = "Amir"
+        with self.assertRaisesRegex(ValueError, "response_hash"):
+            validate_adjudication(row, judgment, meetings)
+
+    def test_summary_targets_reuse_original_kind_and_owner_annotations_without_variants(self):
+        from corpus import build_corpus
+        from generative import run_baselines, summary_targets
+        corpus = build_corpus()
+        meeting = next(m for m in corpus["meetings"] if m["language"] == "nl" and m["split"] == "heldout")
+        targets = summary_targets(corpus, meeting["id"])
+        self.assertEqual(len(targets), 6)
+        self.assertFalse(any(t["id"].endswith("-reordered") for t in targets))
+        self.assertEqual(sum(t["expected"] == "none" for t in targets), 3)
+        action = next(t for t in targets if t["expected"] == "action")
+        self.assertEqual(action["expected_owner"]["speaker_id"], "speaker_1")
+        self.assertTrue(action["expected_owner"]["name"])
+        self.assertTrue(all(s["source_sha256"] for t in targets for s in t["evidence"]))
+        class Runner:
+            config = {"tasks": ["summary"]}
+            def preflight(self):
+                return {"status": "ok"}
+            def complete(self, messages, reasoning="off"):
+                return {"status": "ok", "text": "Mock summary only."}
+        rows = run_baselines(corpus, {"summary_prompts": [{"meeting_id": meeting["id"], "messages": []}]}, Runner(), "heldout", lambda value: {})
+        self.assertEqual(rows[0]["adjudication"]["event_targets"], targets)
 
 
 if __name__ == "__main__":

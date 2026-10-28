@@ -18,7 +18,10 @@
     "citation_coverage_min": 0.98,
     "cleanup_accepted_critical_corruptions_max": 0,
     "cleanup_valid_acceptance_min": 0.9,
-    "summary": "Measure factual/event support including final status and owners; defer generated structured extraction if any required event evidence is missing.",
+    "summary": "Audit the original six marked event statements per selected meeting, including omitted positive events, retracted/tentative statements and injection negatives; report event-kind macro-F1, positive-event precision/recall and owner/final-status correctness. This target inventory is scoped, not exhaustive natural-meeting extraction.",
+    "summary_event_macro_f1_min": 0.9,
+    "summary_event_precision_min": 0.95,
+    "summary_owner_or_final_status_errors_max": 0,
     "unresolved_judgments_max": 0
   },
   "budgets": {
@@ -31,7 +34,17 @@
     "provider_zdr_required": true,
     "data_collection": "deny"
   },
-  "timing": "Report observed quality-workload request p50/p95 and sample counts; do not relabel one-shot observations as repeated warm/cold or server/model load measurements.",
+  "timing": {
+    "panel": "First selected q0, unique raw cleanup and short non-map-reduce summary per language; hash exact IDs/messages before inference.",
+    "cold_client_samples_per_language_on_qa": 5,
+    "warm_samples_per_task_language": 30,
+    "excluded_warmups_per_task_language": 1,
+    "planned_requests": 294,
+    "concurrency": 1,
+    "admission": "Run only when the entire conservative remaining panel bound fits the reconciled cumulative US$2 ledger. Include all warmups, repeated prompts and prior charges.",
+    "continuation": "Explicitly resume only unsent slots after reconciliation; preserve failed consumed slots and exclude continuation warmups.",
+    "scope": "OpenRouter end-to-end round trips; fresh-client metadata setup separate. No server/model-cold, opaque memory or hardware claim. Quality-workload one-shot timings are reported separately."
+  },
   "limitations": [
     "The evaluation-selected model with current core prompts is not a measurement of the user's saved provider/model.",
     "Small authored synthetic sample and AI adjudication are not natural-meeting, human, packaging or device acceptance.",

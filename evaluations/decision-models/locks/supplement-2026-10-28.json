@@ -3500,7 +3500,7 @@
   "schema_version": 1,
   "separation": "Independent supplement; original corpus, calibration and results remain unchanged.",
   "shared_ledger_path": "build/decision-model-evaluation/spend-ledger.json",
-  "source_commit": "48f334e82cfd787e3552d12611613fe9a19881c0",
-  "source_fingerprint": "9101b4b36e4820e4489d6cf5a8799ec81116597ba9d7e38b5c5ce372b7b598d5",
+  "source_commit": "2bff0d625a1b1b61330ece95c1eabd2f6cfd5e71",
+  "source_fingerprint": "9688899cf4fecfa42213177d8373eee9b67b064ce20d6b742ca8520d2f8a219c",
   "supplement_protocol_hash": "425d796e43ae5a5eaf2793d4656899c6df459ad502d8380bd40e2eb477581c98"
 }
