@@ -22,6 +22,13 @@ def fixtures():
 
 
 class GroundingTests(unittest.TestCase):
+    def test_negative_boolean_and_out_of_range_segment_indices_rejected(self):
+        for index in (-1, False, True, 1, "0", None):
+            row, judgment, meetings = fixtures()
+            judgment["claims"][0]["evidence"][0]["segment_index"] = index
+            with self.assertRaisesRegex(ValueError, "segment_index"):
+                validate_adjudication(row, judgment, meetings)
+
     def test_exact_stored_judgments_replay_without_inference(self):
         row, judgment, meetings = fixtures()
         self.assertEqual(validate_adjudication(row, judgment, meetings), judgment)

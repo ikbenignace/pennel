@@ -17,8 +17,8 @@
   "inputs_sha256": "6cf4411a15f97b38a67889f2982a9a14e75c6ab4bbf90f9f15f76cc39e7c6dc8",
   "protocol_sha256": "88fe52faa3fe20183b6bd3f183534e05c32defb99bbce42088f145ee3e328d18",
   "rubric_sha256": "c9156cdf0db8b715cc9040993e0ca7d4bca1eeb28e1015ff8a7383bcdce1de91",
-  "source_commit": "b49d14d1ad6a4beb2d42af9c247a29a72f86cffd",
-  "source_fingerprint": "63b8203fc44e0212105e3d03764af095b0711b4988431bc577a60814dd1a28ff",
+  "source_commit": "48f334e82cfd787e3552d12611613fe9a19881c0",
+  "source_fingerprint": "9101b4b36e4820e4489d6cf5a8799ec81116597ba9d7e38b5c5ce372b7b598d5",
   "workloads": {
     "development": [
       [

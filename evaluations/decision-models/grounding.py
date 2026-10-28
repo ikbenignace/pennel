@@ -51,6 +51,10 @@ def _source(span, meetings, split):
     if meeting is None or meeting.get("split") != split:
         raise ValueError("grounding_cross_split_or_missing_source")
     kind = span.get("kind")
+    if kind == "transcript":
+        index = span.get("segment_index")
+        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(meeting.get("transcript", [])):
+            raise ValueError("grounding_invalid_segment_index")
     try:
         text = meeting["transcript"][span["segment_index"]]["text"] if kind == "transcript" else meeting[kind]
     except (IndexError, KeyError, TypeError):

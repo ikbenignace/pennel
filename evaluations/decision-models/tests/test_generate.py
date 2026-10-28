@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import generate
@@ -31,9 +32,10 @@ class GenerateTests(unittest.TestCase):
         inputs = {"corpus": {"meetings": []}, "bridges": {"heldout": {"queries": [], "cleanup": [], "summary_prompts": []}}}
         config = {"explicit": "synthetic"}
         manifest = {"inputs_sha256": run.digest(inputs), "corpus_hash": corpus_hash(inputs["corpus"]),
-                    "rubric_sha256": RUBRIC_SHA256, "config_sha256": run.digest(config), "workloads": {"heldout": []}}
+                    "rubric_sha256": RUBRIC_SHA256, "config_sha256": run.digest(config), "workloads": {"heldout": []},
+                    "protocol_sha256": run.digest(run.read_json(run.DIRECTORY / "protocol-generative.json"))}
         generate.validate_inputs(manifest, inputs, config)
-        for field in ("inputs_sha256", "corpus_hash", "rubric_sha256", "config_sha256"):
+        for field in ("inputs_sha256", "corpus_hash", "rubric_sha256", "config_sha256", "protocol_sha256"):
             changed = copy.deepcopy(manifest)
             changed[field] = "changed"
             with self.assertRaises(ValueError):
@@ -54,6 +56,38 @@ class GenerateTests(unittest.TestCase):
             data = build_corpus()
             generate.archive(first, data)
             self.assertEqual(corpus_hash(data), corpus_hash(generate.read_archive(first)))
+
+    def test_live_binary_hardware_and_shared_budget_cannot_silently_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "synthetic-binary"
+            binary.write_bytes(b"fixture")
+            config = {"ledger_path": "build/decision-model-evaluation/spend-ledger.json"}
+            manifest = {"binary_sha256": generate.hashlib.sha256(binary.read_bytes()).hexdigest(),
+                        "hardware": {"system": "fixture"}, "source_fingerprint": "fixture-source"}
+            with patch.object(run, "hardware", return_value=manifest["hardware"]), patch.object(run, "source_fingerprint", return_value="fixture-source"):
+                generate.validate_live(manifest, config, binary)
+                with self.assertRaisesRegex(ValueError, "shared"):
+                    generate.validate_live(manifest, {"ledger_path": "build/other-ledger.json"}, binary)
+                with self.assertRaisesRegex(ValueError, "hardware"):
+                    generate.validate_live({**manifest, "hardware": {"system": "other"}}, config, binary)
+                binary.write_bytes(b"different-core-behavior")
+                with self.assertRaisesRegex(ValueError, "binary"):
+                    generate.validate_live(manifest, config, binary)
+
+    def test_prediction_gold_metadata_must_match_frozen_inputs(self):
+        manifest = {"workloads": {"heldout": [["meeting_qa", "q"], ["cleanup", "c"]]}}
+        inputs = {"corpus": {"queries": [{"id": "q", "expected_answer": "50", "evidence": ["synthetic-span"]}],
+                             "cleanup_pairs": [{"id": "c", "raw": "do not send fifty"}]}}
+        rows = [{"id": "q", "task": "meeting_qa", "split": "heldout", "status": "ok", "run_manifest_hash": run.digest(manifest),
+                 "adjudication": {"expected_answer": "50", "gold_evidence": ["synthetic-span"]}},
+                {"id": "c", "task": "cleanup", "split": "heldout", "status": "ok", "run_manifest_hash": run.digest(manifest),
+                 "adjudication": {"raw": "do not send fifty"}}]
+        generate.validate_rows(rows, manifest, inputs)
+        for index, field in ((0, "expected_answer"), (0, "gold_evidence"), (1, "raw")):
+            changed = copy.deepcopy(rows)
+            changed[index]["adjudication"][field] = "changed"
+            with self.assertRaisesRegex(ValueError, "frozen inputs"):
+                generate.validate_rows(changed, manifest, inputs)
 
 
 if __name__ == "__main__":

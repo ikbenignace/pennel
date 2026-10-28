@@ -14,6 +14,8 @@ from generative import OpenRouterGenerativeRunner, run_baselines
 from grounding import RUBRIC_SHA256, grounding_report
 from runners import SpendLedger
 
+SHARED_LEDGER = run.ROOT / "build/decision-model-evaluation/spend-ledger.json"
+
 
 def selected_bridge(corpus, bridge, split):
     indices = (1,) if split == "development" else (1, 2)
@@ -74,11 +76,47 @@ def validate_inputs(manifest, inputs, config=None):
         raise ValueError("Frozen generative inputs changed")
     if manifest["rubric_sha256"] != RUBRIC_SHA256:
         raise ValueError("Frozen grounding rubric changed")
+    if manifest.get("protocol_sha256") != run.digest(run.read_json(run.DIRECTORY / "protocol-generative.json")):
+        raise ValueError("Frozen generative protocol changed")
     for split, bridge in inputs["bridges"].items():
         if manifest["workloads"][split] != [list(x) for x in workload_ids(bridge)]:
             raise ValueError("Frozen generative workload changed")
     if config is not None and manifest["config_sha256"] != run.digest(config):
         raise ValueError("Frozen generative configuration changed")
+
+
+def validate_live(manifest, config, binary):
+    if (run.ROOT / config.get("ledger_path", "")).resolve() != SHARED_LEDGER.resolve():
+        raise ValueError("Preserve the canonical shared evaluation spend ledger")
+    if manifest["binary_sha256"] != hashlib.sha256(binary.read_bytes()).hexdigest():
+        raise ValueError("Frozen core evaluation binary changed")
+    if manifest["hardware"] != run.hardware():
+        raise ValueError("Frozen generative evaluation hardware changed")
+    if manifest["source_fingerprint"] != run.source_fingerprint():
+        raise ValueError("Generative source changed after freeze")
+
+
+def validate_rows(rows, manifest, inputs):
+    expected = {tuple(x) for x in manifest["workloads"]["heldout"]}
+    observed = [(r["task"], r["id"]) for r in rows]
+    if len(set(observed)) != len(observed) or set(observed) != expected:
+        raise ValueError("Missing or duplicate generative workload rows")
+    queries = {q["id"]: q for q in inputs["corpus"]["queries"]}
+    pairs = {p["id"]: p for p in inputs["corpus"]["cleanup_pairs"]}
+    for row in rows:
+        if row.get("run_manifest_hash") != run.digest(manifest) or row.get("split") != "heldout":
+            raise ValueError("Generative predictions belong to another freeze or split")
+        if row.get("status") != "ok":
+            continue
+        annotation = row.get("adjudication", {})
+        if row["task"] == "meeting_qa":
+            case = queries[row["id"]]
+            if annotation.get("expected_answer") != case.get("expected_answer") or annotation.get("gold_evidence") != case.get("evidence", []):
+                raise ValueError("Generated answer gold differs from frozen inputs")
+        elif row["task"] == "cleanup":
+            case = pairs[row["id"]]
+            if annotation.get("raw") != case["raw"]:
+                raise ValueError("Generated cleanup raw differs from frozen inputs")
 
 
 def report(directory):
@@ -87,12 +125,7 @@ def report(directory):
     validate_inputs(manifest, inputs)
     with directory.joinpath("predictions.jsonl").open(encoding="utf-8") as stream:
         rows = [json.loads(line) for line in stream if line.strip()]
-    expected = {tuple(x) for x in manifest["workloads"]["heldout"]}
-    observed = [(r["task"], r["id"]) for r in rows]
-    if len(set(observed)) != len(observed) or set(observed) != expected:
-        raise ValueError("Missing or duplicate generative workload rows")
-    if any(r.get("run_manifest_hash") != run.digest(manifest) for r in rows):
-        raise ValueError("Generative predictions belong to another freeze")
+    validate_rows(rows, manifest, inputs)
     judgments = run.read_json(directory / "adjudications.json")
     result = grounding_report(rows, judgments, inputs["corpus"]["meetings"])
     from metrics import timing_metrics
@@ -140,8 +173,7 @@ def main(argv=None):
         parser.error("--live requires frozen --inputs")
     manifest, inputs = run.read_json(args.frozen), read_archive(args.inputs)
     validate_inputs(manifest, inputs, config)
-    if manifest["source_fingerprint"] != run.source_fingerprint():
-        raise ValueError("Generative source changed after freeze")
+    validate_live(manifest, config, binary)
     if args.split == "heldout":
         relative = str(args.frozen.resolve().relative_to(run.ROOT))
         if not run.git("ls-files", "--", relative) or run.git("status", "--porcelain", "--", relative, "evaluations/decision-models", "core/src"):
