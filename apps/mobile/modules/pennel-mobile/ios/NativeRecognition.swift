@@ -185,8 +185,8 @@ private final class NativeRecognitionUpload: NSObject, URLSessionDataDelegate, U
     }
 
     func cancel() {
-        let task = lock.withLock { cancelled = true; return task }
-        task?.cancel()
+        let currentTask = lock.withLock { cancelled = true; return self.task }
+        currentTask?.cancel()
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
