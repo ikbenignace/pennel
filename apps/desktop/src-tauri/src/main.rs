@@ -1063,6 +1063,7 @@ fn main() {
             commands::open_log,
             commands::open_path,
             commands::meeting_status,
+            commands::meeting_runtime_status,
             commands::start_meeting,
             commands::stop_meeting,
             commands::retry_meeting_persistence,

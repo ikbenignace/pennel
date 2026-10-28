@@ -573,8 +573,16 @@ pub async fn retry_history(id: String, shared: State<'_, Arc<Shared>>) -> Result
 }
 
 #[tauri::command]
-pub fn delete_history(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
-    shared.engine.delete_history(id).map_err(err)?;
+pub async fn delete_history(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("delete_history", move || {
+        shared.engine.delete_history(id).map_err(err)
+    })
+    .await?;
     let _ = app.emit("history-changed", ());
     Ok(())
 }
@@ -655,7 +663,7 @@ fn require_inactive_meeting(shared: &Shared, id: &str) -> Result<()> {
 }
 
 #[derive(Serialize)]
-pub struct MeetingStatus {
+pub struct MeetingRuntimeStatus {
     recognition: Option<pennel_core::MeetingRecognition>,
     recording: bool,
     busy: bool,
@@ -675,16 +683,56 @@ pub struct MeetingStatus {
     can_retry_persistence: bool,
     consent_copied: bool,
     pending: u32,
+    transcript_revision: u64,
+}
+
+#[derive(Serialize)]
+pub struct MeetingStatus {
+    #[serde(flatten)]
+    runtime: MeetingRuntimeStatus,
     transcript: Vec<Segment>,
     notes: String,
 }
 
 #[tauri::command]
-pub fn meeting_status(shared: State<'_, Arc<Shared>>) -> MeetingStatus {
-    status(&shared)
+pub async fn meeting_status(shared: State<'_, Arc<Shared>>) -> Result<MeetingStatus> {
+    let shared = shared.inner().clone();
+    off_main("meeting_status", move || Ok(status(&shared))).await
+}
+
+#[tauri::command]
+pub async fn meeting_runtime_status(
+    shared: State<'_, Arc<Shared>>,
+) -> Result<MeetingRuntimeStatus> {
+    let shared = shared.inner().clone();
+    off_main("meeting_runtime_status", move || {
+        Ok(runtime_status(&shared).0)
+    })
+    .await
 }
 
 fn status(shared: &Shared) -> MeetingStatus {
+    let (mut runtime, session) = runtime_status(shared);
+    let (transcript, notes) = if let Some(session) = session {
+        let (revision, transcript) = session.transcript_snapshot();
+        runtime.transcript_revision = revision;
+        (transcript, shared.engine.meeting_notes(session.id()))
+    } else {
+        (Vec::new(), String::new())
+    };
+    MeetingStatus {
+        runtime,
+        transcript,
+        notes,
+    }
+}
+
+fn runtime_status(
+    shared: &Shared,
+) -> (
+    MeetingRuntimeStatus,
+    Option<Arc<pennel_core::MeetingSession>>,
+) {
     let (state, details) = {
         let lifecycle = shared.recording.lock().unwrap();
         let state = lifecycle.snapshot();
@@ -737,7 +785,7 @@ fn status(shared: &Shared) -> MeetingStatus {
                 echo,
             )
         });
-    let mut result = MeetingStatus {
+    let mut result = MeetingRuntimeStatus {
         recognition: None,
         recording,
         busy,
@@ -757,9 +805,9 @@ fn status(shared: &Shared) -> MeetingStatus {
         can_retry_persistence: false,
         consent_copied: false,
         pending: 0,
-        transcript: Vec::new(),
-        notes: String::new(),
+        transcript_revision: 0,
     };
+    let mut active_session = None;
     if let Some((
         session,
         title,
@@ -771,7 +819,6 @@ fn status(shared: &Shared) -> MeetingStatus {
     )) = details
     {
         let id = session.id();
-        result.notes = shared.engine.meeting_notes(id.clone());
         result.id = Some(id);
         result.title = Some(title);
         result.elapsed_secs = elapsed_secs;
@@ -785,7 +832,7 @@ fn status(shared: &Shared) -> MeetingStatus {
             result.audio_warning = warning.map(crate::ui::message);
             result.terminal_error = terminal;
             result.echo_cancellation_active = echo;
-            if recording && shared.settings().echo_cancellation && !echo {
+            if recording && !echo && shared.settings().echo_cancellation {
                 let explanation = "Echo-onderdrukking is niet actief. Gebruik een koptelefoon om dubbel geluid te vermijden.";
                 let explanation = crate::ui::message(explanation);
                 result.audio_warning = Some(match result.audio_warning {
@@ -796,12 +843,13 @@ fn status(shared: &Shared) -> MeetingStatus {
         }
         result.pending = session.pending();
         result.recognition = Some(session.recognition_config());
-        result.transcript = session.transcript();
+        result.transcript_revision = session.transcript_revision();
         let health = session.health();
         result.persistence_error = health.persistence_error;
         result.transcription_warning = health.transcription_warning;
         result.terminal_error = health.terminal_error.or(result.terminal_error);
         result.can_retry_persistence = health.can_retry_persistence;
+        active_session = Some(session);
     }
     for message in [
         &mut result.error,
@@ -812,7 +860,7 @@ fn status(shared: &Shared) -> MeetingStatus {
     ] {
         *message = message.take().map(localize_error_message);
     }
-    result
+    (result, active_session)
 }
 
 #[tauri::command]
@@ -822,8 +870,12 @@ pub async fn start_meeting(title: String, shared: State<'_, Arc<Shared>>) -> Res
 }
 
 #[tauri::command]
-pub fn stop_meeting(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
-    meeting_runtime::stop(app, shared.inner().clone(), None)
+pub async fn stop_meeting(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("stop_meeting", move || {
+        meeting_runtime::stop(app, shared, None)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -837,11 +889,23 @@ pub async fn retry_meeting_persistence(
 }
 
 #[tauri::command]
-pub fn set_meeting_notes(
+pub async fn set_meeting_notes(
     text: String,
     session_id: String,
+    app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("set_meeting_notes", move || {
+        save_live_notes(&shared, text, &session_id)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
+    Ok(())
+}
+
+fn save_live_notes(shared: &Shared, text: String, session_id: &str) -> Result<()> {
+    // Keep the session guard through the durable write, as before moving it off the UI thread.
     let lifecycle = shared.recording.lock().unwrap();
     let state = lifecycle.snapshot();
     if !matches!(
@@ -849,7 +913,7 @@ pub fn set_meeting_notes(
         pennel_core::RecordingPhase::Recording
             | pennel_core::RecordingPhase::Stopping
             | pennel_core::RecordingPhase::Error
-    ) || state.session_id.as_deref() != Some(session_id.as_str())
+    ) || state.session_id.as_deref() != Some(session_id)
     {
         return Err("Deze opnamesessie is niet meer beschikbaar om notities te wijzigen.".into());
     }
@@ -865,12 +929,16 @@ pub fn set_meeting_notes(
 }
 
 #[tauri::command]
-pub fn set_meeting_title(
+pub async fn set_meeting_title(
     title: String,
     session_id: String,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
-    meeting_runtime::set_title(&shared, title, &session_id)
+    let shared = shared.inner().clone();
+    off_main("set_meeting_title", move || {
+        meeting_runtime::set_title(&shared, title, &session_id)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -979,6 +1047,7 @@ pub async fn summarize_meeting(
             .map_err(err)
     })
     .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(summary)
 }
@@ -998,6 +1067,7 @@ pub async fn retranscribe_meeting(
         shared.engine.retranscribe_failed(id, keys).map_err(err)
     })
     .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(count)
 }
@@ -1028,29 +1098,46 @@ pub async fn retranscribe_meeting_audio(
             let _=events.emit("meeting-retranscription-changed",serde_json::json!({"id":id,"status":localize_retranscription_status(status)}));
         }).map_err(err)
     }).await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(count)
 }
 
 #[tauri::command]
-pub fn rename_meeting(
+pub async fn rename_meeting(
     id: String,
     title: String,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<String> {
-    checked_meeting_dir(&shared.engine, &id)?;
-    require_inactive_meeting(&shared, &id)?;
-    let renamed = shared.engine.rename_meeting(id, title).map_err(err)?;
+    let shared = shared.inner().clone();
+    let renamed = off_main("rename_meeting", move || {
+        let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
+        checked_meeting_dir(&shared.engine, &id)?;
+        require_inactive_meeting(&shared, &id)?;
+        shared.engine.rename_meeting(id, title).map_err(err)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(renamed)
 }
 
 #[tauri::command]
-pub fn delete_meeting(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
-    checked_meeting_dir(&shared.engine, &id)?;
-    require_inactive_meeting(&shared, &id)?;
-    shared.engine.delete_meeting(id).map_err(err)?;
+pub async fn delete_meeting(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("delete_meeting", move || {
+        let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
+        checked_meeting_dir(&shared.engine, &id)?;
+        require_inactive_meeting(&shared, &id)?;
+        shared.engine.delete_meeting(id).map_err(err)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(())
 }
@@ -1089,21 +1176,34 @@ fn remove_conflict_copy(directory: &Path, name: &str) -> std::result::Result<(),
 }
 
 #[tauri::command]
-pub fn meeting_conflict_files(id: String, shared: State<'_, Arc<Shared>>) -> Result<Vec<String>> {
-    let directory = checked_meeting_dir(&shared.engine, &id)?;
-    list_conflict_copies(&directory).map_err(err)
+pub async fn meeting_conflict_files(
+    id: String,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<Vec<String>> {
+    let shared = shared.inner().clone();
+    off_main("meeting_conflict_files", move || {
+        let directory = checked_meeting_dir(&shared.engine, &id)?;
+        list_conflict_copies(&directory).map_err(err)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn delete_conflict_copy(
+pub async fn delete_conflict_copy(
     id: String,
     name: String,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
-    let directory = checked_meeting_dir(&shared.engine, &id)?;
-    require_inactive_meeting(&shared, &id)?;
-    remove_conflict_copy(&directory, &name)?;
+    let shared = shared.inner().clone();
+    off_main("delete_conflict_copy", move || {
+        let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
+        let directory = checked_meeting_dir(&shared.engine, &id)?;
+        require_inactive_meeting(&shared, &id)?;
+        remove_conflict_copy(&directory, &name)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(())
 }
@@ -1146,12 +1246,16 @@ pub async fn ask_meetings(
 }
 
 #[tauri::command]
-pub fn template_source(id: String, shared: State<'_, Arc<Shared>>) -> Option<String> {
-    shared.engine.template_source(id)
+pub async fn template_source(id: String, shared: State<'_, Arc<Shared>>) -> Result<Option<String>> {
+    let shared = shared.inner().clone();
+    off_main("template_source", move || {
+        Ok(shared.engine.template_source(id))
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn save_template(
+pub async fn save_template(
     id: Option<String>,
     name: String,
     body: String,
@@ -1161,29 +1265,51 @@ pub fn save_template(
     if name.trim().is_empty() {
         return Err("Geef het sjabloon een naam.".into());
     }
-    let saved = shared.engine.save_template(id, name, body).map_err(err)?;
+    let shared = shared.inner().clone();
+    let saved = off_main("save_template", move || {
+        let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
+        shared.engine.save_template(id, name, body).map_err(err)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(saved)
 }
 
 #[tauri::command]
-pub fn delete_template(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
-    shared.engine.delete_template(id).map_err(err)?;
+pub async fn delete_template(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("delete_template", move || {
+        let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
+        shared.engine.delete_template(id).map_err(err)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(())
 }
 
 #[tauri::command]
-pub fn rename_speaker(
+pub async fn rename_speaker(
     id: String,
     voice: u32,
     name: String,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
-    checked_meeting_dir(&shared.engine, &id)?;
-    require_inactive_meeting(&shared, &id)?;
-    shared.engine.rename_speaker(id, voice, name).map_err(err)?;
+    let shared = shared.inner().clone();
+    off_main("rename_speaker", move || {
+        let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
+        checked_meeting_dir(&shared.engine, &id)?;
+        require_inactive_meeting(&shared, &id)?;
+        shared.engine.rename_speaker(id, voice, name).map_err(err)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(())
 }
@@ -1202,6 +1328,7 @@ pub async fn diarize_meeting(
         speakers::recognize(&shared, &id, &dir)
     })
     .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(recognition)
 }
@@ -1263,63 +1390,96 @@ pub async fn cancel_voice_enrollment() {
 }
 
 #[tauri::command]
-pub fn forget_voice_profile(shared: State<'_, Arc<Shared>>) -> Result<()> {
-    shared
-        .engine
-        .forget_voice_profile()
-        .map_err(speakers::speaker_error)
+pub async fn forget_voice_profile(shared: State<'_, Arc<Shared>>) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("forget_voice_profile", move || {
+        shared
+            .engine
+            .forget_voice_profile()
+            .map_err(speakers::speaker_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn rename_known_voice(id: String, name: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
+pub async fn rename_known_voice(
+    id: String,
+    name: String,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
     if name.trim().is_empty() {
         return Err("Geef de stem een naam.".into());
     }
-    shared
-        .engine
-        .rename_known_voice(id, name.trim().to_owned())
-        .map_err(speakers::speaker_error)
+    let shared = shared.inner().clone();
+    off_main("rename_known_voice", move || {
+        shared
+            .engine
+            .rename_known_voice(id, name.trim().to_owned())
+            .map_err(speakers::speaker_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn forget_known_voice(id: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
-    shared
-        .engine
-        .forget_known_voice(id)
-        .map_err(speakers::speaker_error)
+pub async fn forget_known_voice(id: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("forget_known_voice", move || {
+        shared
+            .engine
+            .forget_known_voice(id)
+            .map_err(speakers::speaker_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn forget_all_voices(shared: State<'_, Arc<Shared>>) -> Result<()> {
-    shared
-        .engine
-        .forget_all_voices()
-        .map_err(speakers::speaker_error)
+pub async fn forget_all_voices(shared: State<'_, Arc<Shared>>) -> Result<()> {
+    let shared = shared.inner().clone();
+    off_main("forget_all_voices", move || {
+        shared
+            .engine
+            .forget_all_voices()
+            .map_err(speakers::speaker_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn meeting_voices(id: String, shared: State<'_, Arc<Shared>>) -> Result<Vec<MeetingVoice>> {
-    checked_meeting_dir(&shared.engine, &id)?;
-    Ok(shared.engine.meeting_voices(id))
+pub async fn meeting_voices(
+    id: String,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<Vec<MeetingVoice>> {
+    let shared = shared.inner().clone();
+    off_main("meeting_voices", move || {
+        checked_meeting_dir(&shared.engine, &id)?;
+        Ok(shared.engine.meeting_voices(id))
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn remember_speaker(
+pub async fn remember_speaker(
     id: String,
     voice: u32,
     name: String,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
-    checked_meeting_dir(&shared.engine, &id)?;
-    require_inactive_meeting(&shared, &id)?;
     if name.trim().is_empty() {
         return Err("Geef de stem een naam om ze te onthouden.".into());
     }
-    shared
-        .engine
-        .remember_speaker(id, voice, name.trim().to_owned())
-        .map_err(speakers::speaker_error)?;
+    let shared = shared.inner().clone();
+    off_main("remember_speaker", move || {
+        let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
+        checked_meeting_dir(&shared.engine, &id)?;
+        require_inactive_meeting(&shared, &id)?;
+        shared
+            .engine
+            .remember_speaker(id, voice, name.trim().to_owned())
+            .map_err(speakers::speaker_error)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(())
 }
@@ -1343,30 +1503,41 @@ pub async fn export_meeting(
 }
 
 #[tauri::command]
-pub fn save_meeting_notes(
+pub async fn save_meeting_notes(
     id: String,
     text: String,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
-    checked_meeting_dir(&shared.engine, &id)?;
-    shared.engine.set_meeting_notes(id, text).map_err(err)?;
+    let shared = shared.inner().clone();
+    off_main("save_meeting_notes", move || {
+        checked_meeting_dir(&shared.engine, &id)?;
+        shared.engine.set_meeting_notes(id, text).map_err(err)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(())
 }
 
 #[tauri::command]
-pub fn set_meeting_attendees(
+pub async fn set_meeting_attendees(
     id: String,
     attendees: Vec<String>,
     app: AppHandle,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
-    checked_meeting_dir(&shared.engine, &id)?;
-    shared
-        .engine
-        .set_meeting_attendees(id, attendees)
-        .map_err(err)?;
+    let shared = shared.inner().clone();
+    off_main("set_meeting_attendees", move || {
+        let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
+        checked_meeting_dir(&shared.engine, &id)?;
+        shared
+            .engine
+            .set_meeting_attendees(id, attendees)
+            .map_err(err)
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
     crate::cloud::poke(&app);
     Ok(())
 }
@@ -1433,6 +1604,52 @@ pub fn hide_window(window: tauri::Window) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn live_note_saves_keep_the_owned_session_and_surface_storage_failures() {
+        let root = tempfile::tempdir().unwrap();
+        let shared = Shared::testing(root.path().join("data"));
+        let session = shared
+            .engine
+            .clone()
+            .start_meeting(
+                "Fixture".into(),
+                pennel_core::ApiKeys {
+                    by_provider: HashMap::new(),
+                },
+            )
+            .unwrap();
+        let token = shared.recording.lock().unwrap().begin(None).unwrap();
+        shared.recording.lock().unwrap().recording(&token).unwrap();
+        *shared.meeting_context.lock().unwrap() = Some(meeting_runtime::MeetingContext {
+            token: token.clone(),
+            session: session.clone(),
+            title: "Fixture".into(),
+            started: std::time::Instant::now(),
+            duration_secs: None,
+            pending_recording_finish: None,
+            system_audio: false,
+            heard_system_audio: false,
+            audio_warning: None,
+            consent_copied: false,
+        });
+        save_live_notes(&shared, "Saved before stop".into(), &token).unwrap();
+        assert!(save_live_notes(&shared, "Stale".into(), "other-session").is_err());
+        assert_eq!(
+            shared.engine.meeting_notes(session.id()),
+            "Saved before stop"
+        );
+        shared.recording.lock().unwrap().stopping(&token).unwrap();
+        save_live_notes(&shared, "Flushed during stop".into(), &token).unwrap();
+        let notes = PathBuf::from(session.dir()).join("notes.md");
+        std::fs::remove_file(&notes).unwrap();
+        std::fs::create_dir(&notes).unwrap();
+        assert!(save_live_notes(&shared, "Cannot write".into(), &token).is_err());
+        std::fs::remove_dir(&notes).unwrap();
+        shared.recording.lock().unwrap().finalizing(&token).unwrap();
+        assert!(save_live_notes(&shared, "Too late".into(), &token).is_err());
+        session.stop().unwrap();
+    }
 
     #[test]
     fn saved_interface_preference_changes_presentation_without_changing_speech_settings() {
@@ -1694,19 +1911,37 @@ mod tests {
             })),
         };
         let snapshot = status(&shared);
-        assert!(snapshot.busy);
-        assert!(!snapshot.recording);
-        assert_eq!(snapshot.phase, pennel_core::RecordingPhase::Finalizing);
-        assert_eq!(snapshot.id.as_deref(), Some(session.id().as_str()));
-        assert_eq!(snapshot.title.as_deref(), Some("Klantgesprek"));
-        assert_eq!(snapshot.notes, "Mijn eigen notities.");
-        assert_eq!(snapshot.elapsed_secs, 42);
+        assert!(snapshot.runtime.busy);
+        assert!(!snapshot.runtime.recording);
         assert_eq!(
-            snapshot.audio_warning.as_deref(),
+            snapshot.runtime.phase,
+            pennel_core::RecordingPhase::Finalizing
+        );
+        assert_eq!(snapshot.runtime.id.as_deref(), Some(session.id().as_str()));
+        assert_eq!(snapshot.runtime.title.as_deref(), Some("Klantgesprek"));
+        assert_eq!(snapshot.notes, "Mijn eigen notities.");
+        assert_eq!(snapshot.runtime.elapsed_secs, 42);
+        assert_eq!(
+            snapshot.runtime.audio_warning.as_deref(),
             Some("Systeemgeluid is onderbroken.")
         );
-        assert!(snapshot.system_audio);
-        assert!(snapshot.consent_copied);
+        assert!(snapshot.runtime.system_audio);
+        assert!(snapshot.runtime.consent_copied);
+        let metadata = serde_json::to_value(runtime_status(&shared).0).unwrap();
+        assert!(metadata.get("notes").is_none());
+        assert!(metadata.get("transcript").is_none());
+        assert_eq!(
+            metadata["transcript_revision"],
+            snapshot.runtime.transcript_revision
+        );
+        assert_eq!(metadata["id"].as_str(), snapshot.runtime.id.as_deref());
+        assert_eq!(metadata["phase"], "finalizing");
+        assert_eq!(metadata["elapsed_secs"], 42);
+        let mut serialized = serde_json::to_value(snapshot).unwrap();
+        let fields = serialized.as_object_mut().unwrap();
+        assert!(fields.remove("notes").is_some());
+        assert!(fields.remove("transcript").is_some());
+        assert_eq!(serialized, metadata);
         assert!(require_inactive_meeting(&shared, &session.id()).is_err());
         session.stop().unwrap();
     }

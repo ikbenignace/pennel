@@ -42,6 +42,8 @@ a { color: inherit; }
 .titlebar-drag { display: none; }
 :root[data-platform="macos"] .titlebar-drag { display: block; position: fixed; inset: 0 0 auto 0; height: 28px; z-index: 40; }
 .notice-banner { flex-shrink: 0; padding: 6px 24px; color: var(--accent); background: var(--surface); font-size: var(--font-label); overflow-wrap: anywhere; }
+.navigation-progress { position: fixed; z-index: 45; top: var(--space-8); right: var(--space-4); margin: 0; padding: var(--space-1) var(--space-2); border-radius: var(--radius-control); background: var(--surface); pointer-events: none; }
+:root[data-window-focused="false"] .meeting-row.selected { background: var(--subtle); }
 :root[data-platform="macos"] body:not([data-window="workspace"]):not([data-window="prompt"]) #app { padding-top: 28px; }
 :root[data-platform="macos"] .workspace-body { padding-top: 28px; }
 
@@ -158,6 +160,8 @@ details > summary { cursor: default; }
 .library-record.library-live:hover { opacity: .9; }
 .library-record.library-live[aria-current] { background: var(--selection); color: var(--foreground); }
 .library-record .status-dot { background: currentColor; }
+.library-record-symbol { display: flex; align-items: center; }
+.meeting-snippets { display: contents; }
 .library-record .help { color: inherit; font-size: var(--font-caption); }
 .library-record-state { flex: 1 1 100%; margin: 0; line-height: 1.35; }
 .library-shortcuts { display: flex; flex-direction: column; margin: var(--space-1) var(--space-2) 0; }

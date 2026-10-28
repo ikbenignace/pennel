@@ -44,3 +44,14 @@ test("meeting retranscription metadata translates without rewriting meeting cont
   assert.equal(result.notes,text);
   assert.equal(result.transcript[0].text,text);
 });
+
+test("lightweight recording metadata localizes errors while preserving identity and revision", () => {
+  setInterfaceLanguage("en");
+  const status = { title: "Kies een spraakmodel.", error: "Kies een spraakmodel.", session_id: "qa-session", transcript_revision: 12, busy: true };
+  const value = localizeUiResponse("meeting_runtime_status", status);
+  assert.equal(value.error, "Choose a speech model.");
+  assert.equal(value.title, status.title);
+  assert.equal(value.session_id, status.session_id);
+  assert.equal(value.transcript_revision, 12);
+  assert.equal(Object.hasOwn(value, "transcript"), false);
+});

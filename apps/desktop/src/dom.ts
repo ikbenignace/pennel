@@ -1,5 +1,7 @@
 import { bindLocalization, formatNumber, l, liveText, LiveText, localizeBackendText, type UiText } from "./i18n.ts";
 import { contentHeadingTags } from "./content-headings.ts";
+import { nativeMenusAvailable, popupOwnerAvailable, showNativePopup } from "./native-menu.ts";
+import type { MenuPoint } from "./native-menu-state.ts";
 
 type Child = Node | UiText | null | undefined | false;
 type Attrs = Record<string, UiText | number | boolean | EventListener | null | undefined>;
@@ -75,8 +77,8 @@ export interface ChoiceElement<T extends string = string> extends HTMLElement {
 export type ChoiceStyle = "auto" | "segmented" | "menu";
 
 /**
- * A few short fixed options become a segmented pill; longer or open-ended lists a pill button that opens
- * a menu. Neither uses a system dropdown, so both keep the brand look on every platform.
+ * A few short fixed options become a segmented control; longer lists keep a branded trigger and open
+ * a system menu in the app. Browser fixtures use the renderer menu without touching native IPC.
  */
 export function select<T extends string>(
   options: [T, UiText][],
@@ -138,7 +140,7 @@ function menuChoice<T extends string>(options: [T, UiText][], value: T, onChange
   let name = "";
   const disabledOptions = new Set<string>();
   const text = h("span", { class: "menu-button-label" });
-  const root = h("button", { type: "button", class: "menu-button choice", "aria-haspopup": "listbox", "aria-expanded": "false" }, text, chevron()) as unknown as ChoiceElement<T>;
+  const root = h("button", { type: "button", class: "menu-button choice", "aria-haspopup": nativeMenusAvailable() ? "menu" : "listbox", "aria-expanded": nativeMenusAvailable() ? null : "false" }, text, chevron()) as unknown as ChoiceElement<T>;
   const setAttribute = root.setAttribute.bind(root);
   const draw = () => {
     const label = options.find(([option]) => option === current)?.[1] ?? current;
@@ -146,10 +148,10 @@ function menuChoice<T extends string>(options: [T, UiText][], value: T, onChange
     if (name) setAttribute("aria-label", `${name}: ${label}`);
   };
   root.setAttribute = (attribute: string, next: string) => { if (attribute === "aria-label") { name = next; draw(); } else setAttribute(attribute, next); };
-  root.addEventListener("click", () => openList(root, options.map(([option, label]) => ({ value: option, label, disabled: disabledOptions.has(option) })), current, (option) => {
-    if (option === current) return;
-    current = option as T; draw(); onChange(current);
-  }));
+  root.addEventListener("click", () => showPopupMenu(root, options.map(([option, label]) => ({ value: option, label, disabled: disabledOptions.has(option), run: () => {
+    if (option === current || disabledOptions.has(option) || root.disabled) return;
+    current = option; draw(); onChange(current);
+  } })), { current, role: "listbox" }));
   root.addEventListener("keydown", (event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); root.click(); } });
   draw();
   bindLocalization(root, draw);
@@ -169,8 +171,8 @@ function menuChoice<T extends string>(options: [T, UiText][], value: T, onChange
 
 /** A pill button that offers a list of actions in a menu, such as Delen or Provider toevoegen…. */
 export function menuButton(label: UiText, items: { label: UiText; disabled?: boolean; title?: UiText | null; run: () => unknown }[], className = ""): HTMLButtonElement {
-  const button = h("button", { type: "button", class: `menu-button ${className}`.trim(), "aria-haspopup": "menu", "aria-expanded": "false" }, h("span", { class: "menu-button-label" }, label), chevron());
-  button.addEventListener("click", () => openList(button, items.map((item, index) => ({ value: String(index), label: item.label, disabled: !!item.disabled, title: item.title ?? undefined })), null, (index) => { void items[Number(index)].run(); }, "menu"));
+  const button = h("button", { type: "button", class: `menu-button ${className}`.trim(), "aria-haspopup": "menu", "aria-expanded": nativeMenusAvailable() ? null : "false" }, h("span", { class: "menu-button-label" }, label), chevron());
+  button.addEventListener("click", () => showPopupMenu(button, items.map((item, index) => ({ value: String(index), label: item.label, disabled: !!item.disabled, title: item.title ?? undefined, run: () => { if (!item.disabled) return item.run(); } }))));
   button.addEventListener("keydown", (event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); button.click(); } });
   return button;
 }
@@ -185,26 +187,95 @@ function chevron(): SVGSVGElement {
   return svg;
 }
 
-let openMenu: { close: () => void } | null = null;
+export interface PopupMenuItem {
+  value: string;
+  label: UiText;
+  disabled?: boolean;
+  title?: UiText;
+  separatorBefore?: boolean;
+  run: () => unknown;
+}
 
-function openList(anchor: HTMLElement, items: { value: string; label: UiText; disabled: boolean; title?: UiText }[], current: string | null, choose: (value: string) => void, role: "listbox" | "menu" = "listbox") {
+export interface PopupMenuOptions {
+  position?: MenuPoint;
+  current?: string;
+  role?: "listbox" | "menu";
+  report?: (error: unknown) => void;
+}
+
+export interface PopupMenuHandle { close: (restoreFocus?: boolean) => void }
+let openMenu: PopupMenuHandle | null = null;
+globalThis.window?.addEventListener("beforeunload", () => openMenu?.close());
+
+function popupError(error: unknown) { void Promise.reject(error); }
+
+export function showPopupMenu(anchor: HTMLElement, items: PopupMenuItem[], options: PopupMenuOptions = {}): PopupMenuHandle {
   openMenu?.close();
+  if (!nativeMenusAvailable()) return rendererPopup(anchor, items, options);
+  let closed = false;
+  let fallback: PopupMenuHandle | null = null;
+  const close = (restoreFocus = false) => {
+    if (closed) return;
+    closed = true;
+    observer.disconnect(); unbind(); native.close(); fallback?.close(restoreFocus);
+    if (openMenu === handle) openMenu = null;
+    if (restoreFocus && anchor.isConnected) anchor.focus({ preventScroll: true });
+  };
+  const handle = { close };
+  const observer = new MutationObserver(() => { if (!popupOwnerAvailable(anchor)) close(); });
+  observer.observe(document.body, { childList: true, attributes: true, attributeFilter: ["hidden", "inert", "disabled"], subtree: true });
+  const unbind = bindLocalization(anchor, () => close());
+  anchor.setAttribute("aria-haspopup", "menu");
+  // The native accessibility tree owns expanded/dismissed state, including Escape and outside clicks.
+  anchor.removeAttribute("aria-expanded");
+  const native = showNativePopup(anchor, items.map((item) => ({ ...item, label: String(item.label) })), {
+    current: options.current,
+    position: options.position,
+    selected: () => close(true),
+    report: options.report ?? popupError,
+  });
+  openMenu = handle;
+  void native.ready.catch((error) => {
+    if (closed || !popupOwnerAvailable(anchor)) return;
+    observer.disconnect(); unbind();
+    options.report?.(error);
+    fallback = rendererPopup(anchor, items, options);
+  });
+  return handle;
+}
+
+function rendererPopup(anchor: HTMLElement, items: PopupMenuItem[], options: PopupMenuOptions): PopupMenuHandle {
+  const role = options.role ?? "menu";
+  const current = options.current;
   const itemRole = role === "listbox" ? "option" : "menuitem";
   const list = h("div", { class: "context-menu choice-list", role });
+  let closed = false;
   const close = (focus = true) => {
+    if (closed) return;
+    closed = true;
     list.remove(); anchor.setAttribute("aria-expanded", "false");
+    observer.disconnect();
     document.removeEventListener("pointerdown", outside, true);
-    if (openMenu?.close === closer) openMenu = null;
-    if (focus) anchor.focus();
+    if (openMenu === handle) openMenu = null;
+    if (focus && anchor.isConnected) anchor.focus({ preventScroll: true });
   };
-  const closer = () => close(false);
+  const handle = { close: (focus = false) => close(focus) };
+  const observer = new MutationObserver(() => { if (!anchor.isConnected || anchor.matches(":disabled") || anchor.closest("[hidden],[inert]")) close(false); });
+  observer.observe(document.body, { childList: true, attributes: true, attributeFilter: ["hidden", "inert", "disabled"], subtree: true });
   const outside = (event: Event) => { if (!list.contains(event.target as Node) && event.target !== anchor && !anchor.contains(event.target as Node)) close(false); };
   const entries = items.map((item) => {
     const entry = h("button", { type: "button", role: itemRole, disabled: item.disabled, title: item.title ?? null, "aria-selected": role === "listbox" ? String(item.value === current) : null, class: item.value === current ? "chosen" : null }, item.label);
-    entry.addEventListener("click", () => { close(); choose(item.value); });
+    entry.addEventListener("click", () => {
+      if (item.disabled || !anchor.isConnected || anchor.matches(":disabled")) return;
+      close();
+      try { void Promise.resolve(item.run()).catch(options.report ?? popupError); }
+      catch (error) { (options.report ?? popupError)(error); }
+    });
     return entry;
   });
-  list.append(...entries);
+  entries.forEach((entry, index) => { if (items[index].separatorBefore && index > 0) list.append(h("hr", { role: "separator" })); list.append(entry); });
+  let typed = "";
+  let typedAt = 0;
   list.addEventListener("keydown", (event) => {
     const enabled = entries.filter((entry) => !entry.disabled);
     const index = enabled.indexOf(document.activeElement as HTMLButtonElement);
@@ -213,19 +284,28 @@ function openList(anchor: HTMLElement, items: { value: string; label: UiText; di
     const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
     if (event.key === "Home" || event.key === "End") { event.preventDefault(); (event.key === "Home" ? enabled[0] : enabled.at(-1))?.focus(); }
     if (step) { event.preventDefault(); enabled[(index + step + enabled.length) % enabled.length]?.focus(); }
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== " ") {
+      const now = performance.now();
+      typed = now - typedAt > 700 ? event.key : typed + event.key;
+      typedAt = now;
+      const match = [...enabled.slice(index + 1), ...enabled.slice(0, index + 1)].find((entry) => entry.textContent?.trim().toLocaleLowerCase().startsWith(typed.toLocaleLowerCase()));
+      if (match) { event.preventDefault(); match.focus(); }
+    }
   });
   // Controls inside a modal must keep their menu in its active top-layer subtree.
   (anchor.closest("dialog[open]") ?? document.body).append(list);
   const bounds = anchor.getBoundingClientRect();
   list.style.minWidth = `${Math.min(Math.max(bounds.width, 160), innerWidth - 16)}px`;
   const size = list.getBoundingClientRect();
-  list.style.left = `${Math.max(8, Math.min(bounds.left, innerWidth - size.width - 8))}px`;
-  const below = bounds.bottom + 4;
+  list.style.left = `${Math.max(8, Math.min(options.position?.x ?? bounds.left, innerWidth - size.width - 8))}px`;
+  const below = options.position?.y ?? bounds.bottom + 4;
   list.style.top = `${below + size.height > innerHeight - 8 ? Math.max(8, bounds.top - size.height - 4) : below}px`;
+  anchor.setAttribute("aria-haspopup", role);
   anchor.setAttribute("aria-expanded", "true");
   document.addEventListener("pointerdown", outside, true);
-  openMenu = { close: closer };
+  openMenu = handle;
   (entries.find((entry) => entry.classList.contains("chosen") && !entry.disabled) ?? entries.find((entry) => !entry.disabled))?.focus();
+  return handle;
 }
 
 export function formatBytes(bytes: number): string {

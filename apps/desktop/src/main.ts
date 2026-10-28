@@ -1,7 +1,7 @@
 import "./styles.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, fixtureClient, listen, listenToWindow, type AppInfo, type MeetingFinished, type MeetingStatus, type Settings, type UpdateInfo } from "./api";
-import { LatestRequest, SerialQueue, fillWhenReady, persistAll } from "./async";
+import { api, fixtureClient, listen, listenToWindow, type AppInfo, type MeetingFinished, type MeetingRuntimeStatus, type Settings, type UpdateInfo } from "./api";
+import { LatestRequest, SerialQueue, afterPaint, fillWhenReady, persistAll } from "./async";
 import { errorText, h, section, select } from "./dom";
 import { dictationView, dictionaryView, stylesView } from "./views/dictation";
 import { historyView } from "./views/history";
@@ -88,6 +88,8 @@ let needsRefresh = false;
 let guardedFinishSeen = false;
 let windowVisible = true;
 let sidebarPoll: VisibilityPoll | null = null;
+let runtimePoll: VisibilityPoll | null = null;
+let pendingRoute: WorkspaceRoute | null = null;
 const settingsQueue = new SerialQueue();
 const pendingSettings: ((settings: Settings) => void)[] = [];
 const barrier = new FrontendBarrier();
@@ -99,7 +101,8 @@ const recoveryBanner = h("div", { class: "notice-banner row", "data-recovery-ban
 type RecoveryNotice = { id: string; unsaved: boolean; reason: string };
 let recoveryNotice: RecoveryNotice | null = null;
 let library: LibrarySidebar | null = null;
-let currentMeetingStatus: MeetingStatus | null = null;
+let currentMeetingStatus: MeetingRuntimeStatus | null = null;
+const navigationStatus = h("p", { class: "navigation-progress settings-loading help", role: "status", hidden: true }, l("common.loading"));
 const contentPositions = new Map<string, number>();
 const settingsPositions = new Map<string, number>();
 
@@ -209,20 +212,32 @@ async function go(route: WorkspaceRoute) {
   }
   if (route.section === "settings" && route.tab === null) route = navigation.select("settings");
   if (route.section === "dictation" && route.tab === null) route = navigation.select("dictation");
-  if (route.section === "settings" && routeKey(navigation.current) === routeKey(route)) { restoreSettingsFocus(); return; }
-  if (samePadRoute(navigation.current, route)) { ++navigationGeneration; content.inert = false; return; }
-  if (route.section === "history" && routeKey(navigation.current) === routeKey(route)) { ++navigationGeneration; content.inert = false; return; }
+  if (mounted?.key === routeKey(route) && ((route.section === "settings" && routeKey(navigation.current) === routeKey(route))
+      || samePadRoute(navigation.current, route) || (route.section === "history" && routeKey(navigation.current) === routeKey(route)))) {
+    ++navigationGeneration; ++generation; content.inert = false; showPendingNavigation(null); restoreSettingsFocus(); return;
+  }
   const mine = ++navigationGeneration;
+  ++generation;
+  showPendingNavigation(route);
   try {
     content.inert = true;
+    await afterPaint();
+    if (mine !== navigationGeneration) return;
     await flushAll();
     if (mine !== navigationGeneration) return;
     await persistAll(mounted?.leave ?? []);
     if (mine !== navigationGeneration) return;
     navigation.set(route);
-    await render();
+    await render(() => mine === navigationGeneration, mine);
   } catch (error) { if (!(error instanceof PadNavigationBlocked)) report(error); }
-  finally { if (mine === navigationGeneration) { content.inert = false; restoreSettingsFocus(); } }
+  finally { if (mine === navigationGeneration) { content.inert = false; showPendingNavigation(null); restoreSettingsFocus(); } }
+}
+
+function showPendingNavigation(route: WorkspaceRoute | null) {
+  pendingRoute = route;
+  library?.setPendingRoute(route);
+  navigationStatus.hidden = !route;
+  if (route) content.setAttribute("aria-busy", "true"); else content.removeAttribute("aria-busy");
 }
 
 function restoreSettingsFocus() {
@@ -299,7 +314,7 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
   const nav = h("nav", { class: "settings-categories", "aria-label": l("navigation.settings_categories") },
     h("button", { class: "settings-back", "data-action": "back-to-work", onclick: () => navigate("settings-back") }, icon("arrowLeft"), l("navigation.back_to_work")),
     h("button", { class: "settings-recording", hidden: true, onclick: async () => {
-      try { const status = await api.meetingStatus(); currentMeetingStatus = status; const entry = recordingEntry(status); await go(entry.kind === "new" ? navigation.settingsBack() : workspaceRoute("recording", null, entry.meetingId)); }
+      try { const status = await api.meetingRuntimeStatus(); currentMeetingStatus = status; const entry = recordingEntry(status); await go(entry.kind === "new" ? navigation.settingsBack() : workspaceRoute("recording", null, entry.meetingId)); }
       catch (error) { report(error); }
     } }),
     tabButton(tabs[0]),
@@ -356,8 +371,9 @@ async function chooseMeeting() {
   if (first && navigation.current === route) navigation.set(workspaceRoute("meetings", null, first.id));
 }
 
-async function render(allowed: () => boolean = () => true) {
+async function render(allowed: () => boolean = () => true, request?: number) {
   if (!allowed()) return;
+  if (pendingRoute && request !== navigationGeneration) { needsRefresh = true; return; }
   if (taskSetup || setupOpening) { deferredRender = true; return; }
   const mine = ++generation;
   await chooseMeeting().catch(report);
@@ -401,6 +417,9 @@ async function render(allowed: () => boolean = () => true) {
 
 function updateNavigation() {
   if (library) library.element.hidden = navigation.current.section === "settings";
+  const visible = presentationVisible() && navigation.current.section !== "settings";
+  library?.setVisible(visible);
+  sidebarPoll?.setVisible(visible);
   library?.highlight();
   updateSettingsRecording();
   if (navigation.current.section === "settings" && !currentMeetingStatus) void library?.refreshLive().catch(report);
@@ -428,8 +447,8 @@ function workspaceShell() {
 }
 
 async function refreshSidebar() {
-  if (mode !== "workspace" || !presentationVisible()) return;
-  await library?.refresh();
+  if (mode !== "workspace") return;
+  await library?.invalidate();
 }
 
 function lockInterface() {
@@ -458,7 +477,7 @@ function prepareFlush(requestId: number, kind: FrontendBarrierKind) {
 
 function meetingFinished(event: MeetingFinished) {
   finishMeetingDrafts(event);
-  void finishedRequests.run(api.meetingStatus, (status) => {
+  void finishedRequests.run(api.meetingRuntimeStatus, (status) => {
     const accepted = canShowFinished(status, event.session_id, displayedMeetingSession());
     if (accepted && event.id) navigation.recordingFinished(event.id);
     const showing = navigation.current.section === "recording" || (navigation.current.section === "meetings" && navigation.current.meeting_id === event.id);
@@ -499,10 +518,15 @@ function settingsFooter(ctx: Context) {
 }
 
 function focusChanged(focused: boolean) {
+  document.documentElement.dataset.windowFocused = String(focused);
   if (!presentationVisible() || barrier.locked) return;
   mounted?.focus.forEach((listener) => listener(focused));
   taskSetup?.focusChanged(focused);
-  if (focused) void refresh(() => true, true).catch(report);
+  if (focused) {
+    void refresh(() => true, true).catch(report);
+    void refreshSidebar().catch(report);
+    void library?.refreshLive().catch(report);
+  }
 }
 
 function windowShortcuts() {
@@ -523,7 +547,10 @@ function presentationVisible(): boolean {
 
 function notifyVisibility() {
   const visible = presentationVisible();
-  sidebarPoll?.setVisible(visible);
+  const sidebarVisible = visible && navigation.current.section !== "settings";
+  library?.setVisible(sidebarVisible);
+  sidebarPoll?.setVisible(sidebarVisible);
+  runtimePoll?.setVisible(visible);
   mounted?.visibility.forEach((listener) => listener(visible));
   taskSetup?.visibilityChanged(visible);
 }
@@ -539,6 +566,7 @@ async function boot() {
   document.documentElement.dataset.platform = info.platform;
   windowVisible = !!fixtureClient() || info.platform !== "macos" || mode === "prompt";
   if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "prompt" ? [] : [titlebarDragRegion(), recoveryBanner]), banner, content);
+  if (mode !== "prompt") app.append(navigationStatus);
   if (mode !== "prompt") showRecovery();
   if (mode !== "prompt") windowShortcuts();
   await listen("capabilities-changed", () => { if (!booted) capabilitiesDirty = true; else void refresh().catch(report); });
@@ -560,9 +588,12 @@ async function boot() {
     showRecovery();
   });
   await listen("history-changed", () => { void refresh(() => true, true).catch(report); });
-  await listen("meeting-updated", () => {
+  await listen("library-changed", () => { void refreshSidebar().catch(report); });
+  await listen<string>("meeting-updated", (event) => {
     void refreshSidebar().catch(report);
-    if (navigation.current.section === "meetings") { if (editing()) needsRefresh = true; else void render(); }
+    if (navigation.current.section === "meetings" && (typeof event.payload !== "string" || event.payload === navigation.current.meeting_id)) {
+      if (editing()) needsRefresh = true; else void render();
+    }
   });
   await listen<MeetingFinished>("meeting-finished", (event) => { guardedFinishSeen = true; meetingFinished(event.payload); });
   await listen("meeting-stopped", () => { if (!guardedFinishSeen && ["recording", "meetings"].includes(navigation.current.section)) void render(); void refreshSidebar().catch(report); });
@@ -598,16 +629,17 @@ async function boot() {
   if (mode === "workspace" && library) {
     const sidebar = library;
     let started = false;
-    sidebarPoll = new VisibilityPoll(2000, async () => {
+    sidebarPoll = new VisibilityPoll(30_000, async () => {
       if (!started) { await sidebar.start(); started = true; }
       else await refreshSidebar();
     }, report);
-    sidebarPoll.setVisible(presentationVisible());
+    runtimePoll = new VisibilityPoll(2000, () => sidebar.refreshLive(), report);
+    notifyVisibility();
   }
 }
 
 content.addEventListener("focusout", () => { window.setTimeout(() => { if (needsRefresh && !editing() && !mounted?.info.length) void render(); }, 0); });
 window.addEventListener("unhandledrejection", (event) => { event.preventDefault(); report(event.reason); });
-window.addEventListener("beforeunload", () => { sidebarPoll?.dispose(); mounted?.cleanup.forEach((cleanup) => cleanup()); });
+window.addEventListener("beforeunload", () => { sidebarPoll?.dispose(); runtimePoll?.dispose(); library?.dispose(); mounted?.cleanup.forEach((cleanup) => cleanup()); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (info) applyAppearance(); });
 void boot().catch(report);

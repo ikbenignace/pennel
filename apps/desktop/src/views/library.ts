@@ -1,13 +1,14 @@
-import { bindLocalization, getInterfaceLanguage, l, t, formatNumber, type UiText } from "../i18n.ts";
-import { api, type AppInfo, type MeetingInfo, type MeetingStatus, type Passage } from "../api";
+import { bindLocalization, getInterfaceLanguage, l, t, formatNumber } from "../i18n.ts";
+import { api, type AppInfo, type MeetingInfo, type MeetingRuntimeStatus, type Passage } from "../api";
 import { LatestRequest, SerialQueue } from "../async";
-import { askText, confirmDialog, h, snippet } from "../dom";
+import { askText, confirmDialog, h, showPopupMenu, snippet, type PopupMenuItem } from "../dom";
 import { meetingDate, dayGroup } from "../meeting-labels.ts";
 export { meetingDate, dayGroup } from "../meeting-labels.ts";
 import { icon } from "../icons";
 import { badgeFor, resolveOpenMeeting, syncActive, type SyncItemState } from "../sync-badge";
 import { workspaceRoute, type WorkspaceRoute } from "../workspace-state";
 import { recordingEntry } from "../voice-flow-state";
+import { ListTypeahead, listKeyIndex, reconcileChildren } from "../library-list.ts";
 
 export interface LibraryHost {
   info: () => AppInfo;
@@ -15,7 +16,22 @@ export interface LibraryHost {
   go: (route: WorkspaceRoute) => void;
   select?: (section: WorkspaceRoute["section"]) => void;
   report: (error: unknown) => void;
-  statusChanged?: (status: MeetingStatus) => void;
+  statusChanged?: (status: MeetingRuntimeStatus) => void;
+}
+
+interface LibraryRow {
+  element: HTMLElement;
+  open: HTMLButtonElement;
+  more: HTMLButtonElement;
+  title: HTMLElement;
+  metadata: HTMLElement;
+  badge: HTMLElement;
+  snippets: HTMLElement;
+  meeting: MeetingInfo;
+  source?: Passage;
+  signature: string;
+  hits: string;
+  sync: string;
 }
 
 /** Persistent task actions stay above search and the grouped meeting library. */
@@ -24,19 +40,33 @@ export class LibrarySidebar {
   private readonly search: HTMLInputElement;
   private readonly ask: HTMLButtonElement;
   private readonly live: HTMLButtonElement;
+  private readonly liveTitle: HTMLElement;
+  private readonly liveState: HTMLElement;
+  private readonly liveSymbol: HTMLElement;
   private readonly list: HTMLElement;
   private readonly requests = new LatestRequest();
   private readonly syncQueue = new SerialQueue();
+  private readonly typeahead = new ListTypeahead();
+  private readonly rows = new Map<string, LibraryRow>();
+  private readonly headings = new Map<string, HTMLElement>();
   private query = "";
   private searchTimer: number | undefined;
   private syncOn = false;
   private syncStates = new Map<string, SyncItemState>();
   private shown: MeetingInfo[] = [];
-  private rendered = "";
-  private menu: HTMLElement | null = null;
-  private menuAnchor: HTMLElement | null = null;
-  private status: MeetingStatus | null = null;
+  private passages: Passage[] = [];
+  private menu: { close: (restoreFocus?: boolean) => void } | null = null;
+  private menuRow: LibraryRow | null = null;
+  private status: MeetingRuntimeStatus | null = null;
   private openingRecording = false;
+  private visible = true;
+  private disposed = false;
+  private started = false;
+  private dirty = true;
+  private refreshing: Promise<void> | null = null;
+  private pendingRoute: WorkspaceRoute | null = null;
+  private syncChanged = false;
+  private unsubscribe: (() => void) | null = null;
 
   constructor(private readonly host: LibraryHost) {
     const select = (section: WorkspaceRoute["section"]) => host.select ? host.select(section) : host.go(workspaceRoute(section));
@@ -44,11 +74,16 @@ export class LibrarySidebar {
     this.search.addEventListener("input", () => {
       this.query = this.search.value;
       window.clearTimeout(this.searchTimer);
-      this.searchTimer = window.setTimeout(() => { void this.refresh().catch(host.report); }, 180);
+      this.searchTimer = window.setTimeout(() => { void this.invalidate().catch(host.report); }, 180);
     });
     this.ask = h("button", { class: "library-ask", onclick: () => host.go(workspaceRoute("meetings", "chat")) }, icon("chat"), h("span", {}, l("meetings.ask_all")));
-    this.live = h("button", { class: "library-record library-live", onclick: () => { void this.openRecording(); } }, icon("mic"), h("span", { class: "library-live-title" }, l("meetings.new_recording")));
+    this.liveTitle = h("span", { class: "library-live-title" }, t("meetings.new_recording"));
+    this.liveState = h("span", { class: "help library-record-state", hidden: true }, l("meetings.finishing"));
+    this.liveSymbol = h("span", { class: "library-record-symbol" }, icon("mic"));
+    this.live = h("button", { class: "library-record library-live", onclick: () => { void this.openRecording(); } }, this.liveSymbol, this.liveTitle, this.liveState);
     this.list = h("div", { class: "meeting-list", role: "list" });
+    this.list.addEventListener("keydown", (event) => this.listKeydown(event));
+    this.list.addEventListener("focusin", () => this.highlight());
     this.element = h("aside", { class: "library-sidebar", "aria-label": l("meetings.library_label") },
       h("div", { class: "library-actions" }, this.live),
       h("div", { class: "library-shortcuts" },
@@ -58,52 +93,94 @@ export class LibrarySidebar {
       h("div", { class: "library-search" }, this.search), this.ask, this.list,
       h("button", { class: "text-button library-settings", onclick: () => host.go(workspaceRoute("settings")) }, icon("settings"), l("common.settings")));
     bindLocalization(this.live, () => { if (this.status) this.showLive(this.status); });
-    document.addEventListener("pointerdown", (event) => { if (this.menu && !this.menu.contains(event.target as Node)) this.closeMenu(false); });
-    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && this.menu) { event.preventDefault(); this.closeMenu(); } });
+    bindLocalization(this.list, () => { if (!this.disposed) this.draw(this.shown, this.passages, this.query.trim()); });
     void api.onSyncChanged((report) => {
+      if (this.disposed) return;
       void this.syncQueue.run(async () => {
         const wasOn = this.syncOn;
         this.syncOn = syncActive(this.host.info().settings.cloud_sync === true, report.status.kind);
         if (!this.syncOn && !wasOn) return;
-        const route = this.host.current();
-        const open = route.section === "meetings" ? route.meeting_id : null;
-        const remembered = this.shown.find((meeting) => meeting.id === open) ?? null;
-        await this.refresh();
-        if (open && route === this.host.current()) {
-          const resolved = resolveOpenMeeting(open, this.shown, remembered);
-          if (resolved !== open) this.host.go(workspaceRoute("meetings", null, resolved ?? null));
-        }
+        this.syncChanged = true;
+        await this.invalidate();
       }).catch(this.host.report);
-    }).catch(() => undefined);
+    }).then((unsubscribe) => { if (this.disposed) unsubscribe(); else this.unsubscribe = unsubscribe; }).catch(() => undefined);
   }
 
   async start() {
-    this.syncOn = this.host.info().settings.cloud_sync === true
-      && syncActive(true, (await api.cloudSyncLast().catch(() => null))?.status.kind);
+    if (!this.started) {
+      this.started = true;
+      this.syncOn = this.host.info().settings.cloud_sync === true
+        && syncActive(true, (await api.cloudSyncLast().catch(() => null))?.status.kind);
+    }
     await this.refresh();
   }
 
-  async refresh() {
-    const query = this.query.trim();
-    const states = this.syncOn ? api.meetingSyncStates().catch(() => []) : Promise.resolve([]);
-    await this.requests.run(async () => {
-      const [result, sync, status] = await Promise.all([
-        query ? api.searchLibrary(query) : api.meetings("").then((meetings) => ({ meetings, passages: [] as Passage[] })),
-        states, api.meetingStatus(),
-      ]);
-      return { result, sync, status };
-    }, ({ result, sync, status }) => {
-      this.syncStates = new Map(sync.map((item) => [item.id, item.state]));
-      this.shown = result.meetings;
-      this.showLive(status);
-      const key = JSON.stringify([getInterfaceLanguage(), query, result, sync]);
-      if (key !== this.rendered) { this.rendered = key; this.draw(result.meetings, result.passages, query); }
-      this.highlight();
-    }, this.host.report);
+  setVisible(visible: boolean): void {
+    if (this.disposed || this.visible === visible) return;
+    this.visible = visible;
+    if (!visible) {
+      this.requests.cancel();
+      this.dirty = true;
+      window.clearTimeout(this.searchTimer);
+      this.closeMenu();
+    } else if (this.started && this.dirty) void this.refresh().catch(this.host.report);
+  }
+
+  setPendingRoute(route: WorkspaceRoute | null): void {
+    this.pendingRoute = route;
+    this.highlight();
+  }
+
+  invalidate(): Promise<void> {
+    return this.refresh();
+  }
+
+  async refresh(): Promise<void> {
+    if (this.disposed) return;
+    this.dirty = true;
+    if (!this.visible) return;
+    if (this.refreshing) return this.refreshing;
+    this.refreshing = this.refreshPending().finally(() => { this.refreshing = null; });
+    return this.refreshing;
+  }
+
+  private async refreshPending(): Promise<void> {
+    while (this.dirty && this.visible && !this.disposed) {
+      this.dirty = false;
+      const query = this.query.trim();
+      const route = this.host.current();
+      const open = route.section === "meetings" ? route.meeting_id : null;
+      const remembered = this.shown.find((meeting) => meeting.id === open) ?? null;
+      const resolveRemote = this.syncChanged;
+      const states = this.syncOn ? api.meetingSyncStates().catch(() => []) : Promise.resolve([]);
+      await this.requests.run(async () => {
+        const [result, sync, status] = await Promise.all([
+          query ? api.searchLibrary(query) : api.meetings("").then((meetings) => ({ meetings, passages: [] as Passage[] })),
+          states, api.meetingRuntimeStatus(),
+        ]);
+        return { result, sync, status };
+      }, ({ result, sync, status }) => {
+        if (query !== this.query.trim()) { this.dirty = true; return; }
+        this.syncStates = new Map(sync.map((item) => [item.id, item.state]));
+        this.shown = result.meetings;
+        this.passages = result.passages;
+        this.showLive(status);
+        this.draw(result.meetings, result.passages, query);
+        this.highlight();
+        if (resolveRemote) {
+          this.syncChanged = false;
+          if (open && route === this.host.current()) {
+            const resolved = resolveOpenMeeting(open, this.shown, remembered);
+            if (resolved !== open) this.host.go(workspaceRoute("meetings", null, resolved ?? null));
+          }
+        }
+      }, this.host.report);
+    }
   }
 
   async refreshLive() {
-    this.showLive(await api.meetingStatus());
+    const status = await api.meetingRuntimeStatus();
+    if (!this.disposed) this.showLive(status);
   }
 
   meetings(): MeetingInfo[] {
@@ -111,32 +188,38 @@ export class LibrarySidebar {
   }
 
   highlight() {
-    const route = this.host.current();
+    const route = this.pendingRoute ?? this.host.current();
     for (const button of this.element.querySelectorAll<HTMLButtonElement>("[data-workspace-section]")) {
       if (button.dataset.workspaceSection === route.section) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
     const chat = route.section === "meetings" && route.tab === "chat";
     this.ask.toggleAttribute("aria-current", chat);
     this.live.toggleAttribute("aria-current", route.section === "recording");
-    for (const row of this.list.querySelectorAll<HTMLElement>(".meeting-row")) {
-      const selected = !chat && route.section === "meetings" && row.dataset.id === route.meeting_id;
-      row.classList.toggle("selected", selected);
-      row.querySelector(".meeting-select")?.toggleAttribute("aria-current", selected);
+    const focused = document.activeElement?.closest<HTMLElement>(".meeting-row")?.dataset.id;
+    const tabStop = focused && this.rows.has(focused) ? focused : route.meeting_id && this.rows.has(route.meeting_id) ? route.meeting_id : this.shown[0]?.id;
+    for (const [id, row] of this.rows) {
+      const selected = !chat && route.section === "meetings" && id === route.meeting_id;
+      row.element.classList.toggle("selected", selected);
+      row.open.toggleAttribute("aria-current", selected);
+      row.open.tabIndex = id === tabStop ? 0 : -1;
+      row.more.tabIndex = id === tabStop ? 0 : -1;
     }
   }
 
-  private showLive(status: MeetingStatus) {
+  private showLive(status: MeetingRuntimeStatus) {
     this.status = status;
     this.host.statusChanged?.(status);
     const entry = recordingEntry(status);
-    const label = entry.kind === "new" ? l("meetings.new_recording") : entry.kind === "recovery" ? l("meetings.recording_needs_attention")
-      : entry.kind === "finishing" ? l("meetings.return_finishing") : l("meetings.return_recording");
-    this.live.dataset.phase = entry.kind;
+    const label = t(entry.kind === "new" ? "meetings.new_recording" : entry.kind === "recovery" ? "meetings.recording_needs_attention"
+      : entry.kind === "finishing" ? "meetings.return_finishing" : "meetings.return_recording");
+    if (this.live.dataset.phase !== entry.kind) {
+      this.live.dataset.phase = entry.kind;
+      this.liveSymbol.replaceChildren(entry.kind === "new" ? icon("mic") : entry.kind === "recovery" ? icon("warning") : h("span", { class: "status-dot" }));
+    }
+    if (this.liveTitle.textContent !== label) this.liveTitle.textContent = label;
+    this.liveState.hidden = entry.kind !== "finishing";
     this.live.disabled = this.openingRecording;
     this.live.title = entry.kind === "new" ? "" : status.title ?? "";
-    this.live.replaceChildren(entry.kind === "new" ? icon("mic") : entry.kind === "recovery" ? icon("warning") : h("span", { class: "status-dot" }),
-      h("span", { class: "library-live-title" }, label));
-    if (entry.kind === "finishing") this.live.append(h("span", { class: "help library-record-state" }, l("meetings.finishing")));
   }
 
   private async openRecording() {
@@ -144,7 +227,7 @@ export class LibrarySidebar {
     this.openingRecording = true;
     this.live.disabled = true;
     try {
-      const status = await api.meetingStatus();
+      const status = await api.meetingRuntimeStatus();
       this.showLive(status);
       this.host.go(workspaceRoute("recording", null, recordingEntry(status).meetingId));
     } catch (error) { this.host.report(error); }
@@ -152,112 +235,159 @@ export class LibrarySidebar {
   }
 
   private draw(meetings: MeetingInfo[], passages: Passage[], query: string) {
-    this.closeMenu();
-    this.list.replaceChildren();
-    if (!meetings.length) {
-      this.list.append(h("p", { class: "library-empty help" }, query ? l("meetings.none_found") : l("meetings.empty_meetings")));
-      return;
+    const wanted: HTMLElement[] = [];
+    const retained = new Set(meetings.map((meeting) => meeting.id));
+    const focused = this.list.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
+    const focusedId = focused?.closest<HTMLElement>(".meeting-row")?.dataset.id;
+    const focusedIndex = focusedId ? [...this.list.querySelectorAll<HTMLElement>(".meeting-row")].findIndex((row) => row.dataset.id === focusedId) : -1;
+    const selection = document.getSelection();
+    const selected = selection?.anchorNode && selection.focusNode && this.list.contains(selection.anchorNode) && this.list.contains(selection.focusNode)
+      ? { anchor: selection.anchorNode, anchorOffset: selection.anchorOffset, focus: selection.focusNode, focusOffset: selection.focusOffset } : null;
+    const grouped = new Set<string>();
+    for (const [id, row] of this.rows) {
+      if (retained.has(id)) continue;
+      if (row === this.menuRow) this.closeMenu();
+      this.rows.delete(id);
     }
-    let group = "";
+    const hitsByMeeting = new Map<string, Passage[]>();
+    for (const passage of passages) {
+      const hits = hitsByMeeting.get(passage.meeting_id) ?? [];
+      if (hits.length >= 2) continue;
+      hits.push(passage);
+      hitsByMeeting.set(passage.meeting_id, hits);
+    }
     for (const meeting of meetings) {
       const day = dayGroup(meeting.start_iso);
-      if (day !== group) {
-        group = day;
-        const heading = h("h3", { class: "meeting-day" }, day);
-        bindLocalization(heading, () => { heading.textContent = dayGroup(meeting.start_iso); });
-        this.list.append(heading);
+      if (!grouped.has(day)) {
+        grouped.add(day);
+        let heading = this.headings.get(day);
+        if (!heading) { heading = h("h3", { class: "meeting-day" }, day); this.headings.set(day, heading); }
+        wanted.push(heading);
       }
-      const state = this.syncStates.get(meeting.id);
-      const badge = badgeFor(state, this.syncOn);
-      const hits = passages.filter((passage) => passage.meeting_id === meeting.id).slice(0, 2);
-      const source = hits[0];
-      const metadataText = () => `${meetingDate(meeting.start_iso)}${meeting.duration_min ? ` · ${t("meetings.duration_minutes", { count: formatNumber(meeting.duration_min) })}` : ""}`;
-      const metadata = h("span", { class: "meeting-meta" }, metadataText());
-      bindLocalization(metadata, () => { metadata.textContent = metadataText(); });
-      const syncBadge = badge ? h("span", { class: `sync-badge ${state}`, title: badge.label, role: "img", "aria-label": badge.label }, icon(badge.icon)) : null;
-      if (syncBadge) bindLocalization(syncBadge, () => {
-        const label = badgeFor(state, this.syncOn)?.label ?? "";
-        syncBadge.title = label;
-        syncBadge.setAttribute("aria-label", label);
-      });
-      const open = h("button", { class: "meeting-select", onclick: () => this.host.go(workspaceRoute("meetings", null, meeting.id, source?.start_ms ?? null,
-        source ? { kind: source.kind, start_ms: source.start_ms, text: source.text } : undefined)) },
-        h("span", { class: "meeting-name" }, h("span", { class: "meeting-title" }, meeting.title),
-          syncBadge),
-        metadata,
-        hits.map((passage) => snippet(passage.snippet)));
-      const more = h("button", { class: "meeting-more button-icon", "aria-label": l("meetings.actions_for", { title: meeting.title }), "aria-haspopup": "menu", "aria-expanded": "false" }, icon("more"));
-      const row = h("div", { class: "meeting-row", role: "listitem", "data-id": meeting.id }, open, more);
-      more.addEventListener("click", (event) => { event.stopPropagation(); this.openMenu(meeting, row, more.getBoundingClientRect(), more); });
-      more.addEventListener("keydown", (event) => {
-        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-          event.preventDefault(); this.openMenu(meeting, row, more.getBoundingClientRect(), more);
-          if (event.key === "ArrowUp") this.menu?.querySelectorAll<HTMLButtonElement>("button").item(2)?.focus();
-        }
-      });
-      row.addEventListener("contextmenu", (event) => { event.preventDefault(); this.openMenu(meeting, row, new DOMRect(event.clientX, event.clientY, 0, 0), more); });
-      open.addEventListener("keydown", (event) => {
-        if (event.key === "F10" && event.shiftKey) { event.preventDefault(); this.openMenu(meeting, row, more.getBoundingClientRect(), more); }
-      });
-      this.list.append(row);
+      let row = this.rows.get(meeting.id);
+      if (!row) { row = this.createRow(meeting); this.rows.set(meeting.id, row); }
+      row.meeting = meeting;
+      const hits = hitsByMeeting.get(meeting.id) ?? [];
+      row.source = hits[0];
+      const signature = JSON.stringify([getInterfaceLanguage(), meeting.title, meeting.start_iso, meeting.duration_min]);
+      if (row.signature !== signature) {
+        row.signature = signature;
+        if (row.title.textContent !== meeting.title) row.title.textContent = meeting.title;
+        row.metadata.textContent = `${meetingDate(meeting.start_iso)}${meeting.duration_min ? ` · ${t("meetings.duration_minutes", { count: formatNumber(meeting.duration_min) })}` : ""}`;
+        row.more.setAttribute("aria-label", t("meetings.actions_for", { title: meeting.title }));
+      }
+      const syncState = this.syncStates.get(meeting.id);
+      const syncKey = JSON.stringify([getInterfaceLanguage(), syncState, this.syncOn]);
+      if (syncKey !== row.sync) {
+        row.sync = syncKey;
+        const badge = badgeFor(syncState, this.syncOn);
+        row.badge.replaceChildren(...(badge ? [h("span", { class: `sync-badge ${syncState}`, title: badge.label, role: "img", "aria-label": badge.label }, icon(badge.icon))] : []));
+      }
+      const hitKey = JSON.stringify(hits.map((passage) => passage.snippet));
+      if (hitKey !== row.hits) { row.hits = hitKey; row.snippets.replaceChildren(...hits.map((passage) => snippet(passage.snippet))); }
+      row.snippets.hidden = !hits.length;
+      wanted.push(row.element);
+    }
+    for (const key of this.headings.keys()) if (!grouped.has(key)) this.headings.delete(key);
+    if (!meetings.length) {
+      const label = t(query ? "meetings.none_found" : "meetings.empty_meetings");
+      const empty = this.list.querySelector<HTMLElement>(".library-empty") ?? h("p", { class: "library-empty help" });
+      if (empty.textContent !== label) empty.textContent = label;
+      wanted.push(empty);
+    }
+    reconcileChildren<Element>(this.list, wanted);
+    if (focused?.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    else if (focusedId && !retained.has(focusedId)) this.rows.get(meetings[Math.min(Math.max(0, focusedIndex), meetings.length - 1)]?.id)?.open.focus({ preventScroll: true });
+    if (selected?.anchor.isConnected && selected.focus.isConnected && selection
+      && (selection.anchorNode !== selected.anchor || selection.anchorOffset !== selected.anchorOffset || selection.focusNode !== selected.focus || selection.focusOffset !== selected.focusOffset)) {
+      selection.setBaseAndExtent(selected.anchor, selected.anchorOffset, selected.focus, selected.focusOffset);
     }
   }
 
-  private openMenu(meeting: MeetingInfo, row: HTMLElement, anchor: DOMRect, invoker: HTMLElement) {
-    this.closeMenu(false);
-    this.menuAnchor = invoker;
-    invoker.setAttribute("aria-expanded", "true");
-    const status = api.meetingStatus();
-    const item = (label: UiText, action: () => Promise<void>, danger = false) => h("button", { role: "menuitem", class: danger ? "danger" : null, onclick: () => {
-      this.closeMenu();
-      void action().catch(this.host.report);
-    } }, label);
-    const menu = h("div", { class: "context-menu", role: "menu", "aria-label": l("meetings.actions_for", { title: meeting.title }) },
-      item(l("meetings.rename_action"), async () => {
-        const title = await askText(l("meetings.rename_title"), meeting.title);
-        if (!title) return;
-        const id = await api.renameMeeting(meeting.id, title);
-        await this.refresh();
-        this.host.go(workspaceRoute("meetings", null, id));
-      }),
-      item(this.host.info().platform === "macos" ? l("meetings.show_finder") : l("meetings.open_folder"), async () => { await api.openPath((await api.meetingDetail(meeting.id)).dir); }),
-      h("hr"),
-      item(l("meetings.delete_action"), async () => {
-        if (!await confirmDialog(l("meetings.delete_title", { title: meeting.title }), l("meetings.delete_help"), l("meetings.delete_confirm"))) return;
-        await api.deleteMeeting(meeting.id);
-        const route = this.host.current();
-        await this.refresh();
-        if (route.section === "meetings" && route.meeting_id === meeting.id) this.host.go(workspaceRoute("meetings"));
-      }, true));
-    menu.addEventListener("keydown", (event) => {
-      const entries = [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
-      const index = entries.indexOf(document.activeElement as HTMLButtonElement);
-      if (event.key === "Tab") { this.closeMenu(); return; }
-      const next = event.key === "ArrowDown" ? (index + 1) % entries.length : event.key === "ArrowUp" ? (index - 1 + entries.length) % entries.length
-        : event.key === "Home" ? 0 : event.key === "End" ? entries.length - 1 : -1;
-      if (next >= 0) { event.preventDefault(); entries[next]?.focus(); }
+  private createRow(meeting: MeetingInfo): LibraryRow {
+    const title = h("span", { class: "meeting-title" });
+    const metadata = h("span", { class: "meeting-meta" });
+    const badge = h("span", { class: "meeting-sync" });
+    const snippets = h("span", { class: "meeting-snippets" });
+    const open = h("button", { class: "meeting-select" }, h("span", { class: "meeting-name" }, title, badge), metadata, snippets);
+    const more = h("button", { class: "meeting-more button-icon", "aria-haspopup": "menu", "aria-expanded": "false" }, icon("more"));
+    const element = h("div", { class: "meeting-row", role: "listitem", "data-id": meeting.id }, open, more);
+    const row: LibraryRow = { element, open, more, title, metadata, badge, snippets, meeting, signature: "", hits: "", sync: "" };
+    open.addEventListener("click", () => this.host.go(workspaceRoute("meetings", null, row.meeting.id, row.source?.start_ms ?? null,
+      row.source ? { kind: row.source.kind, start_ms: row.source.start_ms, text: row.source.text } : undefined)));
+    const menu = (position?: { x: number; y: number }) => this.openMenu(row, position);
+    more.addEventListener("click", (event) => { event.stopPropagation(); menu(); });
+    more.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); event.stopPropagation(); menu(); }
     });
-    void status.then((current) => {
-      if (current.busy && current.id === meeting.id) {
-        menu.replaceChildren(h("p", { class: "help", role: "status" }, l("meetings.recording_active")));
-        if (this.menu === menu) { menu.tabIndex = -1; menu.focus(); }
-      }
-    }).catch(() => undefined);
-    row.classList.add("menu-open");
-    document.body.append(menu);
-    const bounds = menu.getBoundingClientRect();
-    menu.style.left = `${Math.max(8, Math.min(anchor.left, innerWidth - bounds.width - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 2, innerHeight - bounds.height - 8))}px`;
-    this.menu = menu;
-    menu.querySelector("button")?.focus();
+    element.addEventListener("contextmenu", (event) => { event.preventDefault(); menu({ x: event.clientX, y: event.clientY }); });
+    open.addEventListener("keydown", (event) => {
+      if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) { event.preventDefault(); event.stopPropagation(); menu(); }
+    });
+    return row;
   }
 
-  private closeMenu(restoreFocus = true) {
-    this.menu?.remove();
+  private listKeydown(event: KeyboardEvent): void {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".meeting-select");
+    if (!button || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+    const current = this.shown.findIndex((meeting) => meeting.id === button.closest<HTMLElement>(".meeting-row")?.dataset.id);
+    const next = listKeyIndex(event.key, current, this.shown.length);
+    const index = next >= 0 ? next : this.typeahead.find(this.shown.map((meeting) => meeting.title), current, event.key, performance.now(), getInterfaceLanguage());
+    if (index < 0) return;
+    event.preventDefault();
+    const row = this.rows.get(this.shown[index].id);
+    row?.open.focus({ preventScroll: true });
+    row?.element.scrollIntoView({ block: "nearest" });
+    row?.open.click();
+  }
+
+  private openMenu(row: LibraryRow, position?: { x: number; y: number }) {
+    this.closeMenu();
+    const meeting = row.meeting;
+    const currentBusy = this.status?.busy && this.status.id === meeting.id;
+    const inactive = async () => {
+      const status = await api.meetingRuntimeStatus();
+      if (status.busy && status.id === meeting.id) throw new Error(t("meetings.recording_active"));
+    };
+    const items: PopupMenuItem[] = [
+      { value: "rename", label: l("meetings.rename_action"), disabled: currentBusy, run: async () => {
+        await inactive();
+        const title = await askText(l("meetings.rename_title"), meeting.title);
+        if (!title) return;
+        await inactive();
+        const id = await api.renameMeeting(meeting.id, title);
+        await this.invalidate();
+        this.host.go(workspaceRoute("meetings", null, id));
+      } },
+      { value: "folder", label: this.host.info().platform === "macos" ? l("meetings.show_finder") : l("meetings.open_folder"), run: async () => {
+        await api.openPath((await api.meetingDetail(meeting.id)).dir);
+      } },
+      { value: "delete", label: l("meetings.delete_action"), disabled: currentBusy, separatorBefore: true, run: async () => {
+        await inactive();
+        if (!await confirmDialog(l("meetings.delete_title", { title: meeting.title }), l("meetings.delete_help"), l("meetings.delete_confirm"))) return;
+        await inactive();
+        await api.deleteMeeting(meeting.id);
+        const route = this.host.current();
+        await this.invalidate();
+        if (route.section === "meetings" && route.meeting_id === meeting.id) this.host.go(workspaceRoute("meetings"));
+      } },
+    ];
+    this.menuRow = row;
+    this.menu = showPopupMenu(row.more, items, { position, report: this.host.report });
+  }
+
+  private closeMenu() {
+    this.menu?.close();
     this.menu = null;
-    this.menuAnchor?.setAttribute("aria-expanded", "false");
-    if (restoreFocus && this.menuAnchor?.isConnected) this.menuAnchor.focus();
-    this.menuAnchor = null;
-    this.list.querySelectorAll(".menu-open").forEach((row) => row.classList.remove("menu-open"));
+    this.menuRow = null;
+  }
+
+  dispose(): void {
+    this.setVisible(false);
+    this.disposed = true;
+    this.requests.cancel();
+    window.clearTimeout(this.searchTimer);
+    this.unsubscribe?.();
+    this.unsubscribe = null;
   }
 }
