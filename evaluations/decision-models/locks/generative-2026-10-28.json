@@ -75,7 +75,7 @@
   },
   "protocol_sha256": "3e6482f3f03831705570f9814e756fcd42a217fc28dc3821ada432f95b34efe9",
   "rubric_sha256": "b13d66cf6b4142baa80c8613be80e6c3fc95618291ef3a77c56725a08909e936",
-  "source_commit": "2bff0d625a1b1b61330ece95c1eabd2f6cfd5e71",
+  "source_commit": "8e693d98ca475ec86b7fe524416356f494c3c771",
   "source_fingerprint": "9688899cf4fecfa42213177d8373eee9b67b064ce20d6b742ca8520d2f8a219c",
   "workloads": {
     "development": [
