@@ -511,7 +511,11 @@ def replay_recorded(report, directory, corpus):
     manifest_hash = digest(recorded)
     if any(row.get("run_manifest_hash") != manifest_hash for row in rows):
         raise ValueError("Recorded prediction identity does not match its manifest")
-    report["recorded_inference"] = {"evidence_kind": "replay_of_measured_local_inference",
+    transports = {row.get("identity", {}).get("transport") for row in rows if row.get("status") == "ok"}
+    evidence_kind = ("replay_of_measured_openrouter_inference" if transports == {"openrouter"}
+                     else "replay_of_measured_local_inference" if transports == {"local"}
+                     else "replay_of_measured_inference")
+    report["recorded_inference"] = {"evidence_kind": evidence_kind,
                                     "manifest": recorded, "source": str(directory)}
     report["live"] = predictions_report(rows)
     report["reranking"] = reranking_report(rows)

@@ -1,0 +1,138 @@
+{
+  "observations": {
+    "billing-reconciliation-22514-fifth.json": {
+      "difference_usd": "0E-9",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.246065484",
+      "observed_at": "2026-10-28T17:45:16.768994+00:00",
+      "pending_reservations": {
+        "22514": "0.00008134"
+      },
+      "provider_reported_key_usage_usd": "0.246065484"
+    },
+    "billing-reconciliation-22514-first.json": {
+      "difference_usd": "-0.000210360",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.246065484",
+      "observed_at": "2026-10-28T17:37:56.647522+00:00",
+      "pending_reservations": {
+        "22514": "0.00008134"
+      },
+      "provider_reported_key_usage_usd": "0.245855124"
+    },
+    "billing-reconciliation-22514-fourth.json": {
+      "difference_usd": "0E-9",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.246065484",
+      "observed_at": "2026-10-28T17:43:38.484282+00:00",
+      "pending_reservations": {
+        "22514": "0.00008134"
+      },
+      "provider_reported_key_usage_usd": "0.246065484"
+    },
+    "billing-reconciliation-22514-second.json": {
+      "difference_usd": "-0.000112400",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.246065484",
+      "observed_at": "2026-10-28T17:40:06.152775+00:00",
+      "pending_reservations": {
+        "22514": "0.00008134"
+      },
+      "provider_reported_key_usage_usd": "0.245953084"
+    },
+    "billing-reconciliation-22514-third.json": {
+      "difference_usd": "-0.000036940",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.246065484",
+      "observed_at": "2026-10-28T17:41:49.729635+00:00",
+      "pending_reservations": {
+        "22514": "0.00008134"
+      },
+      "provider_reported_key_usage_usd": "0.246028544"
+    },
+    "billing-reconciliation-28398-first.json": {
+      "difference_usd": "0E-9",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.294097692",
+      "observed_at": "2026-10-28T18:27:35.896421+00:00",
+      "pending_reservations": {
+        "28398": "0.00002690"
+      },
+      "provider_reported_key_usage_usd": "0.294097692"
+    },
+    "billing-reconciliation-28398-second.json": {
+      "difference_usd": "0E-9",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.294097692",
+      "observed_at": "2026-10-28T18:29:37.622636+00:00",
+      "pending_reservations": {
+        "28398": "0.00002690"
+      },
+      "provider_reported_key_usage_usd": "0.294097692"
+    },
+    "billing-reconciliation-30162-first.json": {
+      "difference_usd": "0E-9",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.313064388",
+      "observed_at": "2026-10-28T18:52:06.820554+00:00",
+      "pending_reservations": {
+        "30162": "0.00008064"
+      },
+      "provider_reported_key_usage_usd": "0.313064388"
+    },
+    "billing-reconciliation-30162-second.json": {
+      "difference_usd": "0E-9",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.313064388",
+      "observed_at": "2026-10-28T18:53:48.009137+00:00",
+      "pending_reservations": {
+        "30162": "0.00008064"
+      },
+      "provider_reported_key_usage_usd": "0.313064388"
+    },
+    "billing-reconciliation-first.json": {
+      "difference_usd": "0E-9",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.098340172",
+      "observed_at": "2026-10-28T16:52:19.041707+00:00",
+      "pending_reservations": {
+        "8290": "0.000103094"
+      },
+      "provider_reported_key_usage_usd": "0.098340172"
+    },
+    "billing-reconciliation.json": {
+      "difference_usd": "0E-9",
+      "endpoint": "https://openrouter.ai/api/v1/key",
+      "key_identity": "Dedicated local evaluation credential; secret and API key identifiers omitted",
+      "key_usage_baseline_usd": "0",
+      "known_request_billed_usd": "0.098340172",
+      "observed_at": "2026-10-28T16:58:06.611381+00:00",
+      "pending_reservations": {
+        "8290": "0.000103094"
+      },
+      "provider_reported_key_usage_usd": "0.098340172"
+    }
+  },
+  "policy": "Unknown charges halted paid work. Each missing-cost failure was reconciled against quiescent current-key usage before further inference. Inline responses and failures remain unchanged.",
+  "zero_baseline_key_usage": true
+}

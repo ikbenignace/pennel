@@ -1,7 +1,9 @@
 # Decision-model evaluation
 
-Measured results: [28 October 2026 report](../evaluations/decision-models/results/2026-10-28/README.md).
-The recommendation is to retain current behavior and adopt no new model from this run.
+Measured results: [initial local comparison](../evaluations/decision-models/results/2026-10-28/README.md)
+and [OpenRouter follow-up](../evaluations/decision-models/results/openrouter-2026-10-28/README.md).
+The hosted follow-up identifies bounded, calibrated verification candidates. Production
+behavior remains unchanged while latency, corpus and product acceptance gaps are addressed.
 
 Issue [#53](https://github.com/pennel-app/pennel/issues/53) owns this suite. Its corpus and
 retrieval receipts are shared with [#43](https://github.com/pennel-app/pennel/issues/43).
@@ -29,12 +31,18 @@ Replay the published actual inference scores with no optional model dependencies
 ```sh
 python3 evaluations/decision-models/run.py --offline \
   --replay evaluations/decision-models/results/2026-10-28
+
+python3 evaluations/decision-models/run.py --offline \
+  --replay evaluations/decision-models/results/openrouter-2026-10-28
 ```
 
 The compressed predictions are measured local inference, not canned mock replies. Replay
 recomputes quality/calibration/ranking metrics; its resource observations retain the
 original hardware and sample counts. A regression test compares the replay with the
 recorded report, allowing only floating-point roundoff.
+Plotting-only confidence knots within 12 decimal places are coalesced by the portability
+test when different Python/libm versions split floating-point ties. Stored predictions,
+calibration thresholds, coverage, decisions and acceptance gates are not changed.
 
 Reports are written under `build/decision-model-evaluation/offline/`. The semantic digest
 covers deterministic scores rather than timing noise. Model inputs and predictions are
@@ -224,3 +232,12 @@ requests were made. Full selected-route retention/region verification, hosted us
 measurements, generative answer/citation support, Q8 parity, other local candidates and
 packaged/platform acceptance remain explicit gaps. The small synthetic corpus is not
 evidence of broad production accuracy.
+
+The hosted follow-up made 30,162 requests for US$0.313064388, including development,
+calibration, testing, warmups and timing. All missing-cost service failures were reconciled
+against current-key usage before paid work continued. Failed requests/samples remain
+failures; only previously unsent work was continued. Mercury's serial timing is partial
+after a gateway error. The [report](../evaluations/decision-models/results/openrouter-2026-10-28/README.md)
+includes API timings separately from ranking workload/accounting time and records the
+template coverage ceiling and owner/ambiguity calibration limitations. No frozen criteria
+were changed after viewing held-out results.
