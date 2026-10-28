@@ -15,7 +15,7 @@ struct MicUser: Hashable, Sendable {
 }
 
 struct NoInputDevice: LocalizedError {
-    var errorDescription: String? { "Geen bruikbare microfoon gevonden" }
+    var errorDescription: String? { "No usable microphone found" }
 }
 
 final class Diagnostics {

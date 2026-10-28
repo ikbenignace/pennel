@@ -18,13 +18,13 @@ pub enum PennelError {
     Cancelled,
     #[error("model not downloaded")]
     ModelNotDownloaded,
-    #[error("Log in bij Pennel Cloud in Instellingen → Account.")]
+    #[error("Sign in to Pennel Cloud under Settings → Account.")]
     NotSignedIn,
     #[error("{message}")]
     Cloud { code: String, message: String },
-    #[error("Voer je herstelcode in om sync aan te zetten.")]
+    #[error("Enter your recovery code to turn on sync.")]
     VaultLocked,
-    #[error("Deze processor is te oud voor lokale modellen. Kies een cloudprovider.")]
+    #[error("This processor is too old for local models. Choose a cloud provider.")]
     UnsupportedProcessor,
 }
 
@@ -38,7 +38,7 @@ impl PennelError {
     #[cfg_attr(feature = "local-models", allow(dead_code))]
     pub(crate) fn local_models_unavailable() -> Self {
         PennelError::InvalidResponse {
-            message: "Lokale modellen zijn niet beschikbaar op dit toestel.".into(),
+            message: "Local models are unavailable on this device.".into(),
         }
     }
 }
@@ -49,22 +49,24 @@ mod tests {
 
     #[test]
     fn cloud_error_displays_only_its_message() {
-        let error = PennelError::Cloud {
-            code: "quota".into(),
-            message: "Je tegoed is op.".into(),
-        };
-        assert_eq!(error.to_string(), "Je tegoed is op.");
+        for message in ["Je tegoed is op.", "Your credit has run out."] {
+            let error = PennelError::Cloud {
+                code: "quota".into(),
+                message: message.into(),
+            };
+            assert_eq!(error.to_string(), message);
+        }
     }
 
     #[test]
-    fn cloud_login_errors_display_in_dutch() {
+    fn cloud_login_errors_are_canonical_english() {
         assert_eq!(
             PennelError::NotSignedIn.to_string(),
-            "Log in bij Pennel Cloud in Instellingen → Account."
+            "Sign in to Pennel Cloud under Settings → Account."
         );
         assert_eq!(
             PennelError::VaultLocked.to_string(),
-            "Voer je herstelcode in om sync aan te zetten."
+            "Enter your recovery code to turn on sync."
         );
     }
 }

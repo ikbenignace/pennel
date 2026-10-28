@@ -111,7 +111,7 @@ impl Hook {
                     SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_proc), Some(module.into()), 0)
                 });
                 if let Err(e) = hook {
-                    let _ = ready_tx.send(Err(format!("toetsenbordhook mislukt: {e}")));
+                    let _ = ready_tx.send(Err(format!("keyboard hook failed: {e}")));
                     return;
                 }
                 let _ = ready_tx.send(Ok(()));

@@ -42,8 +42,8 @@ pub(super) fn output(
         .env("LC_ALL", "C")
         .env("GST_DEBUG", "0")
         .spawn()
-        .map_err(|_| format!("{program} is niet beschikbaar"))?;
-    let stdout = child.stdout.take().ok_or("Procesuitvoer ontbreekt")?;
+        .map_err(|_| format!("{program} is unavailable"))?;
+    let stdout = child.stdout.take().ok_or("Process output is missing")?;
     let reader = match std::thread::Builder::new()
         .name("pennel-platform-output".into())
         .spawn(move || read_bounded(stdout, limit))
@@ -57,9 +57,9 @@ pub(super) fn output(
     let status = wait(&mut child, timeout);
     let bytes = reader
         .join()
-        .map_err(|_| "Procesuitvoer lezen is mislukt".to_owned())??;
+        .map_err(|_| "Reading process output failed".to_owned())??;
     if !status?.success() {
-        return Err(format!("{program} kon niet worden uitgevoerd"));
+        return Err(format!("{program} could not be run"));
     }
     Ok(bytes)
 }
@@ -73,7 +73,7 @@ pub(super) fn read_bounded(mut reader: impl Read, limit: usize) -> Result<Vec<u8
             break;
         }
         if bytes.len().saturating_add(read) > limit {
-            return Err("Procesuitvoer is te groot".into());
+            return Err("Process output is too large".into());
         }
         bytes.extend_from_slice(&block[..read]);
     }
@@ -88,7 +88,7 @@ pub(super) fn wait(child: &mut Child, timeout: Duration) -> Result<ExitStatus, S
         }
         if Instant::now() >= deadline {
             terminate(child);
-            return Err("Het systeemproces reageerde niet op tijd".into());
+            return Err("The system process did not respond in time".into());
         }
         std::thread::sleep(Duration::from_millis(10));
     }

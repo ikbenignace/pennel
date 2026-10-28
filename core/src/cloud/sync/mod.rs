@@ -78,13 +78,13 @@ const TRASH_DAYS: u32 = 30;
 /// The server's per-object limit (5 MiB), checked on the sealed blob before uploading. Content
 /// travels base64-encoded inside the sealed JSON, so files above roughly 3.75 MB do not fit.
 const MAX_OBJECT_BYTES: usize = 5_242_880;
-const MISSING_ROOT: &str = "De meetingmap is niet gevonden.";
-const TOO_LARGE: &str = "Dit bestand is te groot voor Pennel Cloud (maximaal ongeveer 3,5 MB).";
-const UNKNOWN_DEVICE: &str = "ander toestel";
-const UNEXPECTED_RESPONSE: &str = "Pennel Cloud gaf een onverwacht antwoord.";
+const MISSING_ROOT: &str = "The meeting folder was not found.";
+const TOO_LARGE: &str = "This file is too large for Pennel Cloud (approximately 3.5 MB maximum).";
+const UNKNOWN_DEVICE: &str = "other device";
+const UNEXPECTED_RESPONSE: &str = "Pennel Cloud returned an unexpected response.";
 const CHANGED_DURING_SYNC: &str =
-    "Een meetingbestand werd tijdens de sync gewijzigd; Pennel probeert het straks opnieuw.";
-pub const MASS_DELETE: &str = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
+    "A meeting file changed during sync; Pennel will try again shortly.";
+pub const MASS_DELETE: &str = "Many meetings disappeared from your folder. Sync has deleted nothing; confirm under Settings → Account if this was intentional.";
 
 struct Stop(SyncStatus);
 
@@ -1054,7 +1054,9 @@ pub fn folder_warning(root: &Path, home: &Path) -> Option<String> {
         segments.iter().find_map(|segment| provider_of(segment))
     };
     name.map(|name| {
-        format!("Deze map synct al via {name}. Dubbel synchroniseren kan conflicten geven.")
+        format!(
+            "This folder already syncs through {name}. Using two sync services can cause conflicts."
+        )
     })
 }
 
@@ -1548,7 +1550,7 @@ mod tests {
         assert_eq!(
             a.sync(&api).status,
             SyncStatus::StorageFull {
-                message: "Je cloudopslag is vol (1 GB). Lokaal blijft alles werken.".into()
+                message: "Your cloud storage is full (1 GB). Local features keep working.".into()
             }
         );
     }
@@ -1590,7 +1592,7 @@ mod tests {
         let home = Path::new("/Users/els");
         let message = |name: &str| {
             Some(format!(
-                "Deze map synct al via {name}. Dubbel synchroniseren kan conflicten geven."
+                "This folder already syncs through {name}. Using two sync services can cause conflicts."
             ))
         };
         let cases = [
@@ -1679,7 +1681,7 @@ mod tests {
         assert_eq!(
             report.status,
             SyncStatus::Error {
-                message: "Een bestand uit Pennel Cloud kon niet worden ontsleuteld.".into()
+                message: "A file from Pennel Cloud could not be decrypted.".into()
             }
         );
         assert_eq!(b.read(&format!("{id}/notes.md")).as_deref(), Some("ok\n"));
@@ -1773,7 +1775,7 @@ mod tests {
         assert_eq!(
             report.status,
             SyncStatus::Error {
-                message: "Dit bestand is te groot voor Pennel Cloud (maximaal ongeveer 3,5 MB)."
+                message: "This file is too large for Pennel Cloud (approximately 3.5 MB maximum)."
                     .into()
             }
         );
@@ -1794,7 +1796,7 @@ mod tests {
         assert_eq!(api.live_objects(), 3);
     }
 
-    const BRAKE_MESSAGE: &str = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was.";
+    const BRAKE_MESSAGE: &str = "Many meetings disappeared from your folder. Sync has deleted nothing; confirm under Settings → Account if this was intentional.";
 
     fn meetings(device: &Device, count: usize) -> Vec<String> {
         (0..count)
@@ -1848,7 +1850,7 @@ mod tests {
         assert_eq!(
             report.status,
             SyncStatus::Error {
-                message: "De meetingmap kon niet worden gelezen.".into()
+                message: "The meeting folder could not be read.".into()
             }
         );
         assert_eq!(api.live_objects(), 3);
@@ -1958,11 +1960,11 @@ mod tests {
     }
 
     #[test]
-    fn transient_and_unexpected_errors_map_to_dutch_statuses() {
+    fn transient_and_unexpected_errors_preserve_server_messages() {
         assert_eq!(
             status_for(PennelError::Cloud {
                 code: "rate_limited".into(),
-                message: "Te veel pogingen. Wacht even en probeer opnieuw.".into()
+                message: "Too many attempts. Wait a moment and try again.".into()
             }),
             SyncStatus::Offline
         );
@@ -1971,7 +1973,7 @@ mod tests {
                 message: "unexpected changes response".into()
             }),
             SyncStatus::Error {
-                message: "Pennel Cloud gaf een onverwacht antwoord.".into()
+                message: "Pennel Cloud returned an unexpected response.".into()
             }
         );
     }
@@ -2045,13 +2047,14 @@ mod tests {
     }
 
     #[test]
-    fn storage_errors_map_to_dutch() {
+    fn storage_errors_use_canonical_english() {
         assert_eq!(
             status_for(PennelError::Storage {
                 message: crate::meetings::UID_RACE.into()
             }),
             SyncStatus::Error {
-                message: "Een meetingbestand werd tijdens de sync gewijzigd; Pennel probeert het straks opnieuw.".into()
+                message: "A meeting file changed during sync; Pennel will try again shortly."
+                    .into()
             }
         );
         assert_eq!(

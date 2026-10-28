@@ -4,7 +4,7 @@
 use crate::error::PennelError;
 
 pub const UNSUPPORTED_PROCESSOR: &str =
-    "Deze processor is te oud voor lokale modellen. Kies een cloudprovider.";
+    "This processor is too old for local models. Choose a cloud provider.";
 
 /// Must match the GGML flags `scripts/desktop-release.py` builds Windows/Linux x64 releases with
 /// (x86-64-v3 without AVX-512); the packaging tests compare both lists.
@@ -73,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn a_processor_without_avx_is_refused_with_a_dutch_reason() {
+    fn a_processor_without_avx_is_refused_with_an_english_reason() {
         // Intel Pentium Gold/Celeron (Coffee Lake) stop at SSE4.2.
         let pentium = |feature: &str| feature == "sse4.2";
         assert_eq!(

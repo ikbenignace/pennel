@@ -202,8 +202,10 @@ fn local_models_capability(unavailable_reason: Option<String>) -> Capability {
 
 #[cfg(any(target_os = "macos", test))]
 fn apple_intelligence_capability(native: &serde_json::Value) -> Capability {
-    let reason = native.get("reason").and_then(|value| value.as_str())
-        .unwrap_or("De beschikbaarheid van Apple Intelligence kon niet worden gecontroleerd. Probeer opnieuw.");
+    let reason = native
+        .get("reason")
+        .and_then(|value| value.as_str())
+        .unwrap_or("Apple Intelligence availability could not be checked. Try again.");
     match native.get("status").and_then(|value| value.as_str()) {
         Some("available") => Capability::available(),
         Some("unsupported") => Capability::unsupported(reason),
@@ -215,15 +217,15 @@ fn apple_intelligence_capability(native: &serde_json::Value) -> Capability {
 fn apple_speech_capability(permission: &PermissionInfo) -> Capability {
     match permission.status {
         PermissionStatus::Restricted => Capability::unavailable(
-            "Spraakherkenning is beperkt door de instellingen of het beheer van deze Mac.",
+            "Speech recognition is restricted by this Mac’s settings or management policy.",
         ),
         PermissionStatus::Denied => Capability::permission(
             permission,
-            "Schakel Pennel in bij Systeeminstellingen → Privacy en beveiliging → Spraakherkenning.",
+            "Enable Pennel in System Settings → Privacy & Security → Speech Recognition.",
         ),
         _ => Capability::permission(
             permission,
-            "Geef Pennel toegang tot spraakherkenning om Apple-dicteren te gebruiken.",
+            "Give Pennel Speech Recognition access to use Apple dictation.",
         ),
     }
 }
@@ -244,7 +246,7 @@ fn echo_capability(result: Result<bool, String>) -> Capability {
     match result {
         Ok(true) => Capability::available(),
         Ok(false) => Capability::unsupported(
-            "Deze microfoon biedt geen actieve echo-onderdrukking. Gebruik een koptelefoon.",
+            "This microphone provides no active echo cancellation. Use headphones.",
         ),
         Err(reason) => Capability::unavailable(reason),
     }
@@ -278,7 +280,7 @@ impl ProbeState {
 #[cfg(any(windows, target_os = "linux"))]
 fn probe_cache() -> &'static Mutex<ProbeState> {
     static STATE: OnceLock<Mutex<ProbeState>> = OnceLock::new();
-    STATE.get_or_init(|| Mutex::new(ProbeState::pending("Beschikbaarheid wordt gecontroleerd…")))
+    STATE.get_or_init(|| Mutex::new(ProbeState::pending("Checking availability…")))
 }
 
 /// Device/CLI checks never run on the IPC or UI thread. Windows only initializes a probe stream;
@@ -302,14 +304,14 @@ pub fn spawn_probe(app: &tauri::AppHandle) {
                 };
                 let detection = crate::linux_meetings::detection_support();
                 let browser = if crate::linux_input::is_wayland() {
-                    Err("Browsercalls herkennen vereist een X11-sessie. Op Wayland kun je browsermeetings handmatig opnemen; native call-apps blijven herkenbaar via de audioserver.".into())
+                    Err("Detecting browser calls requires an X11 session. On Wayland you can record browser meetings manually; native call apps can still be detected through the audio server.".into())
                 } else { crate::linux_meetings::browser_detection_support() };
                 ProbeState { archive, detection: call_capability(detection, browser) }
             };
             *probe_cache().lock().unwrap() = state;
             let _ = events.emit("capabilities-changed", ());
         }).is_err() {
-            *probe_cache().lock().unwrap() = ProbeState::pending("Beschikbaarheid kon niet worden gecontroleerd. Herstart Pennel.");
+            *probe_cache().lock().unwrap() = ProbeState::pending("Availability could not be checked. Restart Pennel.");
             let _ = app.emit("capabilities-changed", ());
         }
     }
@@ -321,31 +323,31 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
     let mut result = PlatformCapabilities {
         global_hotkey: hotkey_error.map_or_else(Capability::available, Capability::unavailable),
         record_shortcut: Capability::unsupported(
-            "De algemene opnamesneltoets is op dit platform nog niet beschikbaar. Start een opname vanuit Pennel.",
+            "The global recording shortcut is not available on this platform yet. Start recording from Pennel.",
         ),
         microphone: Capability::available(),
         system_audio: Capability::available(),
         echo_cancellation: Capability::unsupported(
-            "Echo-onderdrukking is op dit apparaat niet beschikbaar. Gebruik een koptelefoon.",
+            "Echo cancellation is unavailable on this device. Use headphones.",
         ),
         call_detection: Capability::unsupported(
-            "Automatische meetingdetectie is op dit platform niet beschikbaar.",
+            "Automatic meeting detection is unavailable on this platform.",
         ),
         calendar: Capability::unsupported(
-            "Agendagegevens zijn voorlopig alleen beschikbaar via de macOS-agenda.",
+            "Calendar information is currently only available through the macOS calendar.",
         ),
-        apple_speech: Capability::unsupported("Apple-dicteren vereist macOS 26 of nieuwer."),
+        apple_speech: Capability::unsupported("Apple Dictation requires macOS 26 or later."),
         apple_intelligence: Capability::unsupported(
-            "Apple Intelligence is alleen beschikbaar op een geschikte Mac met macOS 26 of nieuwer.",
+            "Apple Intelligence is only available on a supported Mac running macOS 26 or later.",
         ),
         selection: Capability::available(),
         pad_external_paste: Capability::available(),
         rich_clipboard: Capability::available(),
         audio_playback: Capability::unsupported(
-            "Audio afspelen is op dit platform nog niet beschikbaar.",
+            "Audio playback is not available on this platform yet.",
         ),
         diarization: Capability::unsupported(
-            "Sprekers herkennen vereist een bewaard audiospoor en een lokaal sprekermodel.",
+            "Speaker recognition requires a saved audio track and a local speaker model.",
         ),
         local_models: local_models_capability(pennel_core::local_models_unavailable_reason()),
         local_acceleration: if cfg!(target_os = "macos") {
@@ -368,22 +370,21 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
         };
         result.microphone = Capability::permission(
             find(PermissionKind::Microphone),
-            "Geef Pennel toegang tot de microfoon in Systeeminstellingen.",
+            "Give Pennel microphone access in System Settings.",
         );
-        result.system_audio.reason = Some(
-            "Toegang tot systeemgeluid wordt gecontroleerd wanneer je een opname start.".into(),
-        );
+        result.system_audio.reason =
+            Some("System audio access is checked when you start recording.".into());
         result.selection = Capability::permission(
             find(PermissionKind::Accessibility),
-            "Geef Pennel toegang tot Toegankelijkheid om selectie te lezen en tekst te plakken.",
+            "Give Pennel Accessibility access to read selections and paste text.",
         );
         result.record_shortcut = Capability::permission(
             find(PermissionKind::Accessibility),
-            "Geef Pennel toegang tot Toegankelijkheid om de opnamesneltoets te gebruiken.",
+            "Give Pennel Accessibility access to use the recording shortcut.",
         );
         result.calendar = Capability::permission(
             find(PermissionKind::Calendar),
-            "Geef Pennel toegang tot je agenda om meetinggegevens te gebruiken.",
+            "Give Pennel calendar access to use meeting information.",
         );
         result.call_detection = Capability::available();
         result.echo_cancellation = Capability::available();
@@ -416,20 +417,20 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
         if crate::linux_input::is_wayland() {
             result.global_hotkey = Capability::unavailable(crate::linux_input::SHORTCUT_HELP);
             result.selection = Capability::unavailable(
-                "Selectie lezen en automatisch plakken worden op Wayland niet ondersteund. Pennel kopieert de tekst; plak zelf met Ctrl+V.",
+                "Reading selections and automatic pasting are not supported on Wayland. Pennel copies the text; paste it with Ctrl+V yourself.",
             );
             result.rich_clipboard = Capability::unsupported(
-                "Op Wayland kopieert Pennel alleen platte tekst. Plak zelf met Ctrl+V.",
+                "On Wayland, Pennel copies plain text only. Paste it yourself with Ctrl+V.",
             );
             result.record_shortcut = Capability::unavailable(
-                "Wayland: stel in je desktopinstellingen een opnamesneltoets in voor pennel --toggle-meeting.",
+                "Wayland: configure a recording shortcut for pennel --toggle-meeting in your desktop settings.",
             );
         } else if crate::linux_input::has_x11_display() {
             result.record_shortcut = Capability::available();
-            result.rich_clipboard = Capability { status: CapabilityStatus::Available, reason: Some("Rijk kopiëren wordt ondersteund. Na dicteren herstelt Pennel op Linux alleen tekst of één afbeelding van het vorige klembord.".into()) };
+            result.rich_clipboard = Capability { status: CapabilityStatus::Available, reason: Some("Rich copying is supported. After dictation, Pennel on Linux restores only text or one image from the previous clipboard.".into()) };
         } else {
             let reason =
-                "Geen X11-sessie beschikbaar voor globale sneltoetsen, selectie of het klembord.";
+                "No X11 session is available for global shortcuts, selections or the clipboard.";
             result.global_hotkey = Capability::unavailable(reason);
             result.selection = Capability::unavailable(reason);
             result.rich_clipboard = Capability::unavailable(reason);
@@ -451,7 +452,7 @@ pub fn snapshot(hotkey_error: Option<&str>) -> PlatformCapabilities {
     #[cfg(target_os = "linux")]
     if crate::linux_input::is_wayland() {
         result.pad_external_paste = Capability::unsupported(
-            "Wayland staat automatisch extern plakken niet toe. Kopieer de tekst en plak zelf met Ctrl+V.",
+            "Wayland does not allow automatic external pasting. Copy the text and paste it with Ctrl+V yourself.",
         );
     }
     result
@@ -468,7 +469,7 @@ mod tests {
         assert_eq!(old.status, CapabilityStatus::Unsupported);
         assert_eq!(
             old.reason.as_deref(),
-            Some("Deze processor is te oud voor lokale modellen. Kies een cloudprovider.")
+            Some("This processor is too old for local models. Choose a cloud provider.")
         );
     }
 
@@ -516,7 +517,7 @@ mod tests {
         };
         let denied = apple_speech_capability(&speech);
         assert_eq!(denied.status, CapabilityStatus::PermissionRequired);
-        assert!(denied.reason.unwrap().contains("Systeeminstellingen"));
+        assert!(denied.reason.unwrap().contains("System Settings"));
         speech.status = PermissionStatus::Restricted;
         assert_eq!(
             apple_speech_capability(&speech).status,

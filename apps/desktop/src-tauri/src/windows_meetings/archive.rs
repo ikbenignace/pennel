@@ -34,7 +34,7 @@ enum WriteCommand {
 impl AudioArchive {
     pub fn create(path: &Path) -> Result<Self, String> {
         if path.exists() {
-            return Err("Het audiobestand bestaat al".into());
+            return Err("The audio file already exists".into());
         }
         let path = path.to_owned();
         let (sender, receiver) = mpsc::sync_channel::<WriteCommand>(QUEUE_BATCHES);
@@ -81,7 +81,7 @@ impl AudioArchive {
                 let _ = worker.join();
                 Err(match result {
                     Ok(Err(error)) => error,
-                    _ => "Audio-opslag kon niet worden gestart".into(),
+                    _ => "Audio storage could not be started".into(),
                 })
             }
         }
@@ -117,8 +117,8 @@ impl AudioArchive {
         };
         sender.try_send(command).map_err(|error| {
             let message = match error {
-                TrySendError::Full(_) => "Audio-opslag houdt de opname niet bij",
-                TrySendError::Disconnected(_) => "Audio-opslag is onverwacht gestopt",
+                TrySendError::Full(_) => "Audio storage cannot keep up with the recording",
+                TrySendError::Disconnected(_) => "Audio storage stopped unexpectedly",
             };
             *self.error.lock().unwrap() = Some(message.into());
             message.into()
@@ -134,7 +134,7 @@ impl AudioArchive {
         let finalized = self.worker.take().map_or(Ok(()), |worker| {
             worker
                 .join()
-                .map_err(|_| "Audio-opslag is onverwacht gestopt".to_owned())?
+                .map_err(|_| "Audio storage stopped unexpectedly".to_owned())?
         });
         self.error.lock().unwrap().clone().map_or(finalized, Err)
     }
@@ -154,7 +154,7 @@ impl MediaFoundation {
     fn new() -> Result<Self, String> {
         let apartment = ComApartment::new()?;
         unsafe { MFStartup(MF_VERSION, MFSTARTUP_FULL) }
-            .map_err(|error| format!("Windows-mediaondersteuning is niet beschikbaar: {error}"))?;
+            .map_err(|error| format!("Windows media support is unavailable: {error}"))?;
         Ok(Self {
             _apartment: apartment,
         })
@@ -173,7 +173,7 @@ fn wide_path(path: &Path) -> Result<Vec<u16>, String> {
     use std::os::windows::ffi::OsStrExt;
     let path: Vec<_> = path.as_os_str().encode_wide().collect();
     if path.contains(&0) {
-        return Err("Ongeldig audiopad".into());
+        return Err("Invalid audio path".into());
     }
     Ok(path.into_iter().chain([0]).collect())
 }
@@ -194,7 +194,7 @@ impl AacWriter {
                 None::<&IMFByteStream>,
                 None::<&IMFAttributes>,
             )
-            .map_err(|error| format!("M4A-opslag kon niet starten: {error}"))?;
+            .map_err(|error| format!("M4A storage could not start: {error}"))?;
             let output = MFCreateMediaType().map_err(|error| error.to_string())?;
             set_audio_type(&output, &MFAudioFormat_AAC, ENCODE_RATE as u32, 16)?;
             output
@@ -239,7 +239,7 @@ impl AacWriter {
             {
                 let locked = LockedBuffer::new(&buffer)?;
                 if locked.capacity < length || locked.data.is_null() {
-                    return Err("Windows gaf een ongeldig audiobuffer terug".into());
+                    return Err("Windows returned an invalid audio buffer".into());
                 }
                 std::ptr::copy_nonoverlapping(bytes.as_ptr(), locked.data, bytes.len());
             }
@@ -253,10 +253,10 @@ impl AacWriter {
             let end = self
                 .frames
                 .checked_add(pcm.len() as u64)
-                .ok_or("Opname is te lang")?;
+                .ok_or("Recording is too long")?;
             let clock = |frames: u64| -> Result<i64, String> {
                 i64::try_from(u128::from(frames) * 10_000_000 / u128::from(ENCODE_RATE))
-                    .map_err(|_| "Opname is te lang".into())
+                    .map_err(|_| "Recording is too long".into())
             };
             let start_time = clock(self.frames)?;
             sample
@@ -274,7 +274,7 @@ impl AacWriter {
     }
 
     fn finish(self) -> Result<(), String> {
-        unsafe { self.writer.Finalize() }.map_err(|error| format!("M4A afronden mislukt: {error}"))
+        unsafe { self.writer.Finalize() }.map_err(|error| format!("Finalizing M4A failed: {error}"))
     }
 
     fn write_silence(&mut self, mut samples: u64) -> Result<(), String> {
@@ -354,7 +354,7 @@ pub fn decode_audio(path: &Path) -> Result<Vec<f32>, String> {
         .spawn(move || decode_mta(path))
         .map_err(|error| error.to_string())?
         .join()
-        .map_err(|_| "Audiodecodering is onverwacht gestopt".to_owned())?
+        .map_err(|_| "Audio decoding stopped unexpectedly".to_owned())?
 }
 
 unsafe fn decoded_format(reader: &IMFSourceReader, stream: u32) -> Result<PcmFormat, String> {
@@ -395,7 +395,7 @@ fn decode_mta(path: PathBuf) -> Result<Vec<f32>, String> {
     let path = wide_path(&path)?;
     unsafe {
         let reader = MFCreateSourceReaderFromURL(PCWSTR(path.as_ptr()), None::<&IMFAttributes>)
-            .map_err(|error| format!("Audio openen mislukt: {error}"))?;
+            .map_err(|error| format!("Opening audio failed: {error}"))?;
         let stream = MF_SOURCE_READER_FIRST_AUDIO_STREAM.0 as u32;
         reader
             .SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS.0 as u32, false)
@@ -424,7 +424,7 @@ fn decode_mta(path: PathBuf) -> Result<Vec<f32>, String> {
                 .ReadSample(stream, 0, None, Some(&mut flags), None, Some(&mut sample))
                 .map_err(|error| error.to_string())?;
             if flags & MF_SOURCE_READERF_ERROR.0 as u32 != 0 {
-                return Err("Audio bevat een onleesbaar blok".into());
+                return Err("Audio contains an unreadable block".into());
             }
             if flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED.0 as u32 != 0 {
                 let next = decoded_format(&reader, stream)?;
@@ -441,7 +441,7 @@ fn decode_mta(path: PathBuf) -> Result<Vec<f32>, String> {
                     || locked.length % format.block_alignment() != 0
                     || (locked.length != 0 && locked.data.is_null())
                 {
-                    return Err("Windows gaf een ongeldig audiobuffer terug".into());
+                    return Err("Windows returned an invalid audio buffer".into());
                 }
                 if locked.length != 0 {
                     received_audio = true;
@@ -454,7 +454,7 @@ fn decode_mta(path: PathBuf) -> Result<Vec<f32>, String> {
                         .collect();
                     let normalized = resampler.push(&decoded);
                     if samples.len().saturating_add(normalized.len()) > MAX_SAMPLES {
-                        return Err("Audio langer dan drie uur kan niet worden verwerkt".into());
+                        return Err("Audio longer than three hours cannot be processed".into());
                     }
                     samples.extend(normalized);
                 }

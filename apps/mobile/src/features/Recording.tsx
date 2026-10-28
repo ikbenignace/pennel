@@ -8,7 +8,7 @@ import { Wave } from '../components/Wave';
 import { useNoteDraft } from '../use-note-draft';
 import { RecordingIdentity, stopThenSave } from '../recording-finish';
 import type { RuntimeSnapshot } from '../domain';
-import { ownedMetadata } from '../owned-labels';
+import { ownedFailureText } from '../errors';
 
 export default function Recording() {
   const { snapshot, busy, run, t, theme, language } = useRuntime();
@@ -36,7 +36,7 @@ export default function Recording() {
   return <Page title={meeting?.title || t('meetings.default_title')} subtitle={meeting?.phase === 'finishing' ? t('meetings.finishing_recording') : t(recording ? 'meetings.recording_clock' : 'meetings.recording_stopped', { time: clock(meeting?.elapsed_secs ?? 0) })} scroll={false} action={<Button title={t('common.close')} subtle onPress={() => { void save().then((saved) => { if (saved) router.back(); }); }} />}>
     <Section>
       <View style={{ backgroundColor: theme.colors['pill-background'], borderRadius: theme.radius.panel, padding: theme.space[4] }}><Wave active={recording} /></View>
-      {meeting?.error && <Notice error>{ownedMetadata(language, meeting.error, 'mobile.errors.operation_failed')}</Notice>}
+      {meeting?.error && <Notice error>{ownedFailureText(language, meeting.error, meeting.error_code)}</Notice>}
       {meeting?.phase === 'finishing' && <Notice>{t('meetings.finishing_pending_many', { count: meeting.pending })}</Notice>}
       <Actions>{recording && <Button title={t('common.stop_recording')} icon="stop" busy={busy.has('meeting-stop')} onPress={() => void finish()} />}{snapshot?.meeting.retained_id === meeting?.id && meeting?.id && <Button title={t('meetings.retry_save')} busy={busy.has('meeting-retry-save')} onPress={() => void run<RuntimeSnapshot>('meeting-retry-save', 'meetings.retrySave', { id: meeting.id }).then((result) => { if (result) return save(); return false; })} />}{meeting?.phase === 'idle' && <Button title={t('common.back')} subtle onPress={() => router.back()} />}</Actions>
     </Section>

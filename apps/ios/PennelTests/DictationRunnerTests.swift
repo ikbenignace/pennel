@@ -44,7 +44,7 @@ struct DictationRunnerTests {
         #expect(entry.appBundleId == nil)
     }
 
-    @Test func no_speech_maps_to_dutch_message() async throws {
+    @Test func no_speech_has_an_english_diagnostic_and_stable_presentation_code() async throws {
         let engine = try tempEngine()
         engine.setSystemTranscriber(transcriber: FakeTranscriber())
         try appleSpeechSettings(engine)
@@ -54,7 +54,8 @@ struct DictationRunnerTests {
 
         guard case .failure(let error) = result else { Issue.record("expected a failure"); return }
         #expect(error == .NoSpeech)
-        #expect(ErrorText.message(error) == "Geen spraak herkend. Probeer opnieuw.")
+        #expect(ErrorText.message(error) == "No speech recognized. Try again.")
+        #expect(ErrorText.failureCode(error) == "no_speech")
     }
 
     @Test func first_run_defaults_pick_apple_providers_without_overwriting() throws {

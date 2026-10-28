@@ -8,7 +8,7 @@ import { clock, dateLabel, recognitionActions } from '../format';
 import { resolveSource } from '../source-navigation';
 import { useNoteDraft } from '../use-note-draft';
 import { saveThenRename } from '../meeting-rename';
-import { localizedFailure } from '../errors';
+import { localizedFailure, ownedFailureText } from '../errors';
 import { templateLabel } from '../owned-labels';
 import { Actions, Body, Button, Choice, Empty, Field, Loading, Notice, Page, Row, Section, confirm } from '../components/ui';
 import { TextDialog } from '../components/TextDialog';
@@ -87,7 +87,7 @@ export default function Meeting() {
   return <Page title={detail.info.title} subtitle={`${dateLabel(detail.info.start_iso, language)} · ${t('meetings.duration_minutes', { count: detail.info.duration_min })}`} inset={false} scroll={pane !== 'transcript'}>
     <Stack.Screen options={{ title: detail.info.title }} />
     {notice && <Section><Notice>{notice}</Notice></Section>}
-    {detail.interruption && <Section><Notice error>{detail.interruption}</Notice></Section>}
+    {detail.interruption && <Section><Notice error>{ownedFailureText(language, detail.interruption, detail.interruption_code)}</Notice></Section>}
     {(detail.conflicts ?? []).length > 0 && <Section description={t('meetings.conflict_notice')}>{detail.conflicts?.map((conflict) => <Row key={conflict.name} title={conflict.name} onPress={() => setViewConflict({ name: conflict.name, text: conflict.text ?? '' })} />)}</Section>}
     <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: theme.colors.subtle, borderRadius: theme.radius.segmented, marginBottom: theme.space[5] }}>{(['notes', 'transcript', 'questions'] as const).map((value) => <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: pane === value }} onPress={() => setPane(value)} style={{ flex: 1, minHeight: 44, padding: theme.space[3], backgroundColor: pane === value ? theme.colors.selection : 'transparent', borderRadius: theme.radius.segmented }}><Text style={{ fontFamily: theme.font.medium, fontSize: theme.size.content, color: theme.colors.foreground, textAlign: 'center' }}>{t(`meetings.${value}`)}</Text></Pressable>)}</View>
     {pane === 'notes' && <>

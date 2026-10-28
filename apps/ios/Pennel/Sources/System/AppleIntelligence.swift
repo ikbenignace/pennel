@@ -1,4 +1,4 @@
-// Port of apps/macos-platform/Sources/PennelMacPlatform/FoundationLanguageModel.swift. Keep behaviour and Dutch errors in step with it.
+// Port of apps/macos-platform/Sources/PennelMacPlatform/FoundationLanguageModel.swift. Keep behavior and canonical English diagnostics in step with it.
 import Foundation
 #if canImport(FoundationModels)
 import FoundationModels
@@ -15,18 +15,18 @@ struct NativeLanguageModelAvailability: Sendable, Equatable {
     let reason: String?
 
     static let ready = Self(status: "available", reason: nil)
-    static let unsupported = Self(status: "unsupported", reason: "Apple Intelligence vereist iOS 26 of nieuwer en een geschikte iPhone.")
+    static let unsupported = Self(status: "unsupported", reason: "Apple Intelligence requires iOS 26 or later and a supported iPhone.")
 
     static func unavailable(_ cause: Cause) -> Self {
         switch cause {
         case .deviceNotEligible:
-            Self(status: "unsupported", reason: "Deze iPhone ondersteunt het ingebouwde taalmodel van Apple Intelligence niet.")
+            Self(status: "unsupported", reason: "This iPhone does not support Apple's on-device language model.")
         case .disabled:
-            Self(status: "unavailable", reason: "Schakel Apple Intelligence in bij Instellingen → Apple Intelligence en Siri.")
+            Self(status: "unavailable", reason: "Enable Apple Intelligence in Settings → Apple Intelligence & Siri.")
         case .notReady:
-            Self(status: "unavailable", reason: "Het Apple Intelligence-model is nog niet klaar. Wacht tot iOS het model heeft gedownload en probeer opnieuw.")
+            Self(status: "unavailable", reason: "The Apple Intelligence model is not ready yet. Wait until iOS has downloaded it and try again.")
         case .unknown:
-            Self(status: "unavailable", reason: "Het Apple Intelligence-model is momenteel niet beschikbaar. Controleer Apple Intelligence in Instellingen en probeer opnieuw.")
+            Self(status: "unavailable", reason: "The Apple Intelligence model is currently unavailable. Check Apple Intelligence in Settings and try again.")
         }
     }
 }
@@ -36,15 +36,15 @@ enum NativeLanguageModelError: Error, LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .invalidRequest: "Ongeldige aanvraag voor het ingebouwde Apple-taalmodel."
-        case .inputTooLong: "Deze tekst is te lang voor het ingebouwde Apple-taalmodel. Kies een ander taalmodel of verkort de tekst."
-        case .timedOut: "Het ingebouwde Apple-taalmodel antwoordde niet op tijd. Probeer opnieuw."
-        case .cancelled: "De aanvraag aan het ingebouwde Apple-taalmodel is geannuleerd."
-        case .refused: "Het ingebouwde Apple-taalmodel kon deze tekst niet verwerken. Je oorspronkelijke tekst blijft bewaard."
-        case .unsupportedLanguage: "Het ingebouwde Apple-taalmodel ondersteunt deze taal of regio niet."
+        case .invalidRequest: "Invalid request for the built-in Apple text model."
+        case .inputTooLong: "This text is too long for the built-in Apple text model. Choose another model or shorten the text."
+        case .timedOut: "The built-in Apple text model did not respond in time. Try again."
+        case .cancelled: "The request to the built-in Apple language model was cancelled."
+        case .refused: "The built-in Apple text model could not process this text. Your original text is preserved."
+        case .unsupportedLanguage: "The built-in Apple text model does not support this language or region."
         case .unavailable(let reason): reason
-        case .generationFailed: "Het ingebouwde Apple-taalmodel kon geen antwoord maken. Probeer opnieuw of kies een ander taalmodel."
-        case .emptyResponse: "Het ingebouwde Apple-taalmodel gaf geen tekst terug."
+        case .generationFailed: "The built-in Apple text model could not produce an answer. Try again or choose another model."
+        case .emptyResponse: "The built-in Apple text model returned no text."
         }
     }
 }

@@ -16,12 +16,12 @@ final class MicrophoneAccessTests: XCTestCase {
         XCTAssertEqual(MicrophoneStartError.forEngineFailure(access: .granted), .failed)
     }
 
-    func testMessagesAreDutchAndNeverExposeCoreAudio() {
+    func testMessagesAreEnglishAndNeverExposeCoreAudio() {
         for error in [MicrophoneStartError.permissionDenied, .permissionPending, .failed] {
             let message = error.localizedDescription
             XCTAssertFalse(message.contains("coreaudio"), message)
             XCTAssertFalse(message.contains("-10875"), message)
         }
-        XCTAssertTrue(MicrophoneStartError.permissionDenied.localizedDescription.contains("Systeeminstellingen"))
+        XCTAssertTrue(MicrophoneStartError.permissionDenied.localizedDescription.contains("System Settings"))
     }
 }

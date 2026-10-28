@@ -71,8 +71,8 @@ pub const DIARIZER_ID: &str = "diar_streaming_sortformer_4spk-v2.1";
 fn diarizer_entry() -> ModelEntry {
     ModelEntry {
         id: DIARIZER_ID.into(),
-        name: "Sortformer (sprekers)".into(),
-        description: "Herkent tot 4 sprekers in een meeting".into(),
+        name: "Sortformer (speakers)".into(),
+        description: "Recognizes up to 4 speakers in a meeting".into(),
         size_bytes: 139_310_336,
         sha256: "a5dacdc650790266c7a362e54e6bf51952015487edaa606c4e11632bc32442a9".into(),
         url: "https://huggingface.co/handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf/resolve/ae4afbb5c3d33b71cf2dbf600022b655ee706dd0/diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf".into(),
@@ -90,8 +90,8 @@ fn speaker_entries() -> Vec<ModelEntry> {
     vec![
         ModelEntry {
             id: SEGMENTATION_ID.into(),
-            name: "pyannote segmentatie 3.0".into(),
-            description: "Hoort wie wanneer spreekt".into(),
+            name: "pyannote segmentation 3.0".into(),
+            description: "Detects who speaks when".into(),
             size_bytes: 5_992_913,
             sha256: "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079".into(),
             url: "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/model.onnx".into(),
@@ -101,8 +101,8 @@ fn speaker_entries() -> Vec<ModelEntry> {
         },
         ModelEntry {
             id: EMBEDDING_ID.into(),
-            name: "CAM++ stemafdruk".into(),
-            description: "Herkent stemmen over meetings heen".into(),
+            name: "CAM++ voiceprint".into(),
+            description: "Recognizes voices across meetings".into(),
             size_bytes: 28_281_164,
             sha256: "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2".into(),
             url: "https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/0743f301363dec56491a490f6d6cbc9d67f9a3bf/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx".into(),
@@ -132,7 +132,7 @@ fn legacy_entries() -> Vec<ModelEntry> {
         ModelEntry {
             id: "whisper-large-v3-turbo-q5_0".into(),
             name: "Whisper large-v3 turbo (q5)".into(),
-            description: "Eerder gedownloade versie".into(),
+            description: "Previously downloaded version".into(),
             size_bytes: 574_041_195,
             sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2".into(),
             url: format!("{hf}/ggml-large-v3-turbo-q5_0.bin"),
@@ -143,7 +143,7 @@ fn legacy_entries() -> Vec<ModelEntry> {
         ModelEntry {
             id: "whisper-small-q5_1".into(),
             name: "Whisper small (q5)".into(),
-            description: "Eerder gedownloade versie".into(),
+            description: "Previously downloaded version".into(),
             size_bytes: 190_085_487,
             sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb".into(),
             url: format!("{hf}/ggml-small-q5_1.bin"),
@@ -441,6 +441,27 @@ mod tests {
     use std::sync::Mutex;
 
     const MB: usize = 1024 * 1024;
+
+    #[test]
+    fn bundled_model_metadata_uses_english_with_stable_model_ids() {
+        let diarizer = diarizer_entry();
+        assert_eq!(diarizer.id, DIARIZER_ID);
+        assert_eq!(diarizer.name, "Sortformer (speakers)");
+        assert_eq!(
+            diarizer.description,
+            "Recognizes up to 4 speakers in a meeting"
+        );
+        let speakers = speaker_entries();
+        assert_eq!(speakers[0].id, SEGMENTATION_ID);
+        assert_eq!(speakers[0].name, "pyannote segmentation 3.0");
+        assert_eq!(speakers[1].id, EMBEDDING_ID);
+        assert_eq!(speakers[1].name, "CAM++ voiceprint");
+        assert!(
+            legacy_entries()
+                .iter()
+                .all(|entry| entry.description == "Previously downloaded version")
+        );
+    }
 
     fn payload() -> Vec<u8> {
         (0..3 * MB).map(|i| (i % 251) as u8).collect()

@@ -153,12 +153,12 @@ pub fn begin_capture(app: &AppHandle, shared: &Shared, id: &str) -> Result<Owned
     let (kind, live, owner) = {
         let sessions = app.state::<Sessions>();
         let entries = sessions.entries.lock().unwrap();
-        let session = entries.get(id).ok_or("Deze dicteersessie is gesloten")?;
+        let session = entries.get(id).ok_or("This dictation session is closed")?;
         if matches!(
             session.snapshot.phase,
             SessionPhase::Listening | SessionPhase::Working
         ) {
-            return Err("Rond eerst je huidige dictaat af".into());
+            return Err("Finish your current dictation first".into());
         }
         (
             session.snapshot.kind,
@@ -171,21 +171,21 @@ pub fn begin_capture(app: &AppHandle, shared: &Shared, id: &str) -> Result<Owned
             .get_webview_window(&owner)
             .is_some_and(|window| window.is_focused().unwrap_or(false))
     {
-        return Err("Activeer het dicteerpad of oefenveld voordat je begint".into());
+        return Err("Activate the dictation pad or practice field before starting".into());
     }
     let readiness = readiness(shared, "practice");
     if !readiness.can_record {
         return Err(readiness
             .reason
-            .unwrap_or("Stel eerst spraakherkenning in".into()));
+            .unwrap_or("Set up speech recognition first".into()));
     }
     if shared.dictation_jobs.load(Ordering::SeqCst) > 0
         || shared.paste_jobs.load(Ordering::SeqCst) > 0
     {
-        return Err("Wacht tot je vorige dictaat is verwerkt".into());
+        return Err("Wait until your previous dictation has finished processing".into());
     }
     if kind == SessionKind::Practice && shared.recording.lock().unwrap().is_busy() {
-        return Err("Rond eerst je meetingopname af voordat je de introductie probeert".into());
+        return Err("Finish your meeting recording before trying the introduction".into());
     }
     let external_requested = kind == SessionKind::Pad && shared.settings().dictation_pad_auto_paste;
     let external = external_requested.then(external_paste::capture).flatten();
@@ -203,7 +203,7 @@ pub fn begin_capture(app: &AppHandle, shared: &Shared, id: &str) -> Result<Owned
         let mut entries = sessions.entries.lock().unwrap();
         let session = entries
             .get_mut(id)
-            .ok_or("Deze dicteersessie is gesloten")?;
+            .ok_or("This dictation session is closed")?;
         session.capture = Some(valid);
         // Navigation's idle-only close uses this same lock, including while capture is starting.
         session.snapshot.phase = SessionPhase::Listening;
@@ -255,11 +255,7 @@ pub fn cancelled(app: &AppHandle, capture: &OwnedCapture) {
 pub fn complete(app: &AppHandle, shared: &Shared, capture: &OwnedCapture, text: String) -> bool {
     if text.trim().is_empty() {
         if capture.valid() {
-            failed(
-                app,
-                &capture.id,
-                "Geen spraak herkend. Probeer opnieuw.".into(),
-            );
+            failed(app, &capture.id, "No speech recognized. Try again.".into());
         }
         return false;
     }
@@ -273,7 +269,7 @@ pub fn complete(app: &AppHandle, shared: &Shared, capture: &OwnedCapture, text: 
                     snapshot.phase = SessionPhase::Error;
                     snapshot.text = unsaved.text;
                     snapshot.error = Some(format!(
-                        "Bewaren mislukt. Je tekst staat hier; kopieer hem of probeer opnieuw: {}",
+                        "Saving failed. Your text is here; copy it or try again: {}",
                         unsaved.error
                     ));
                 });
@@ -295,9 +291,9 @@ pub fn complete(app: &AppHandle, shared: &Shared, capture: &OwnedCapture, text: 
         }
     }
     let external_notice = if capture.external_requested && capture.external.is_none() {
-        Some("Geen doelapp beschikbaar. Je tekst staat in Pennel.".into())
+        Some("No destination app is available. Your text is in Pennel.".into())
     } else if capture.external_requested && !external_allowed(shared, capture) {
-        Some("Extern plakken is geannuleerd. Je tekst staat in Pennel.".into())
+        Some("External paste was cancelled. Your text is in Pennel.".into())
     } else {
         None
     };
@@ -379,7 +375,7 @@ fn take_session(
 ) -> Result<Option<Session>, String> {
     if let Some(session) = entries.get(id) {
         if session.owner != owner {
-            return Err("Deze dicteersessie hoort bij een ander venster".into());
+            return Err("This dictation session belongs to another window".into());
         }
         if only_if_idle
             && matches!(
@@ -387,7 +383,7 @@ fn take_session(
                 SessionPhase::Listening | SessionPhase::Working
             )
         {
-            return Err("Rond eerst je huidige dictaat af".into());
+            return Err("Finish your current dictation first".into());
         }
     }
     Ok(entries.remove(id))
@@ -530,7 +526,7 @@ pub fn refresh_idle_pads(app: &AppHandle, shared: &Shared) {
                 };
                 if unsaved.is_some() {
                     session.snapshot.error = Some(
-                        "Je dicteerpad is nog niet bewaard. Kopieer je tekst of probeer opnieuw."
+                        "Your dictation pad has not been saved. Copy your text or try again."
                             .into(),
                     );
                 }
@@ -664,7 +660,7 @@ pub fn open_dictation_session(
 ) -> Result<DictationSessionSnapshot, String> {
     let owner = window.label();
     if !session_owner_allowed(kind, owner) {
-        return Err("Dit venster kan geen dicteersessie openen".into());
+        return Err("This window cannot open a dictation session".into());
     }
     close_owner(&app, owner);
     let id = format!(
@@ -695,9 +691,8 @@ pub fn open_dictation_session(
         } else {
             String::new()
         },
-        error: unsaved.then(|| {
-            "Je dicteerpad is nog niet bewaard. Kopieer je tekst of probeer opnieuw.".into()
-        }),
+        error: unsaved
+            .then(|| "Your dictation pad has not been saved. Copy your text or try again.".into()),
         target_name: if kind == SessionKind::Pad {
             external_paste::hint()
         } else {
@@ -732,7 +727,7 @@ pub fn get_dictation_session(
         let session = entries
             .get_mut(&session_id)
             .filter(|session| session.owner == window.label())
-            .ok_or("Deze dicteersessie is gesloten")?;
+            .ok_or("This dictation session is closed")?;
         let Some(query) = begin_target_refresh(session) else {
             return Ok(session.snapshot.clone().localized());
         };
@@ -745,7 +740,7 @@ pub fn get_dictation_session(
     let session = entries
         .get_mut(&session_id)
         .filter(|session| session.owner == window.label())
-        .ok_or("Deze dicteersessie is gesloten")?;
+        .ok_or("This dictation session is closed")?;
     apply_target_refresh(session, query, target_name, availability);
     Ok(session.snapshot.clone().localized())
 }
@@ -792,7 +787,7 @@ pub fn toggle_dictation_session(
     shared
         .dictation
         .send(crate::dictation::Msg::OwnedToggle(session_id))
-        .map_err(|_| "Dicteren is niet beschikbaar".into())
+        .map_err(|_| "Dictation is unavailable".into())
 }
 
 #[tauri::command]
@@ -807,7 +802,7 @@ pub fn cancel_dictation_session(
     shared
         .dictation
         .send(crate::dictation::Msg::OwnedCancel(session_id))
-        .map_err(|_| "Dicteren is niet beschikbaar".into())
+        .map_err(|_| "Dictation is unavailable".into())
 }
 
 #[tauri::command]

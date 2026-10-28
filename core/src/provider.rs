@@ -77,15 +77,15 @@ impl ProviderKind {
             ProviderKind::Mistral => "Mistral",
             ProviderKind::Ollama => "Ollama",
             ProviderKind::LmStudio => "LM Studio",
-            ProviderKind::Custom => "Eigen server",
-            ProviderKind::Local => "Lokaal",
+            ProviderKind::Custom => "Custom server",
+            ProviderKind::Local => "Local",
             ProviderKind::ClaudeCode => "Claude Code",
             ProviderKind::Codex => "Codex",
             ProviderKind::OpenCode => "OpenCode",
             ProviderKind::Copilot => "GitHub Copilot",
             ProviderKind::CursorAgent => "Cursor",
             ProviderKind::GeminiCli => "Gemini CLI",
-            ProviderKind::AppleSpeech => "Apple-dicteren",
+            ProviderKind::AppleSpeech => "Apple dictation",
             ProviderKind::AppleIntelligence => "Apple Intelligence",
             ProviderKind::PennelCloud => "Pennel Cloud",
         }
@@ -203,6 +203,22 @@ pub fn new_account(kind: ProviderKind, existing: Vec<ProviderAccount>) -> Provid
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_names_are_english_without_renaming_existing_accounts() {
+        for (kind, name) in [
+            (ProviderKind::Local, "Local"),
+            (ProviderKind::Custom, "Custom server"),
+            (ProviderKind::AppleSpeech, "Apple dictation"),
+        ] {
+            let mut existing = new_account(kind, vec![]);
+            assert_eq!(existing.name, name);
+            existing.name = "Mijn eigen provider".into();
+            let next = new_account(kind, vec![existing.clone()]);
+            assert_eq!(next.name, name);
+            assert_eq!(existing.name, "Mijn eigen provider");
+        }
+    }
 
     #[test]
     fn apple_intelligence_is_a_keyless_text_only_system_provider() {

@@ -214,7 +214,7 @@ impl VoiceStore {
         let name = clean_name(name);
         if name.is_empty() || embedding.is_empty() {
             return Err(PennelError::InvalidResponse {
-                message: "geef de stem een naam".into(),
+                message: "give the voice a name".into(),
             });
         }
         let mut file = self.load()?;
@@ -246,7 +246,7 @@ impl VoiceStore {
         let name = clean_name(name);
         if name.is_empty() {
             return Err(PennelError::InvalidResponse {
-                message: "geef de stem een naam".into(),
+                message: "give the voice a name".into(),
             });
         }
         let mut file = self.load()?;

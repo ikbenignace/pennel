@@ -60,7 +60,12 @@ pub fn browser_apps() -> Vec<String> {
 
 #[uniffi::export]
 pub fn consent_sentence() -> String {
-    "Ik neem notities met transcript via Pennel.".into()
+    consent_sentence_for_language(crate::InterfaceLanguage::English)
+}
+
+#[uniffi::export]
+pub fn consent_sentence_for_language(language: crate::InterfaceLanguage) -> String {
+    crate::ui_text(language, "meetings.consent_sentence", &[])
 }
 
 /// Most specific rule wins: meeting title, then calendar, then app; otherwise ask.
@@ -104,9 +109,13 @@ mod tests {
     const TEAMS: &str = "com.microsoft.teams2";
 
     #[test]
-    fn consent_announcement_keeps_the_same_copy_on_every_platform() {
+    fn consent_announcement_uses_english_by_default_and_localizes_explicitly() {
         assert_eq!(
             consent_sentence(),
+            "I am taking notes with a transcript using Pennel."
+        );
+        assert_eq!(
+            consent_sentence_for_language(crate::InterfaceLanguage::Dutch),
             "Ik neem notities met transcript via Pennel."
         );
     }

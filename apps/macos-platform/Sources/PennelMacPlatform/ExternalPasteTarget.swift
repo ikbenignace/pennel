@@ -35,11 +35,11 @@ public enum ExternalPasteError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .unavailable: "De doelapp is niet meer beschikbaar. Je tekst staat in Pennel."
-        case .cancelled: "Extern plakken is geannuleerd. Je tekst staat in Pennel."
-        case .permission: "Geef Pennel toegang tot Toegankelijkheid om extern te plakken."
-        case .activation: "De doelapp kon niet worden geactiveerd. Je tekst staat in Pennel."
-        case .clipboard: "Het klembord kon niet worden bijgewerkt. Je tekst staat in Pennel."
+        case .unavailable: "The destination app is no longer available. Your text is in Pennel."
+        case .cancelled: "External paste was cancelled. Your text is in Pennel."
+        case .permission: "Give Pennel Accessibility access to paste into other apps."
+        case .activation: "The destination app could not be activated. Your text is in Pennel."
+        case .clipboard: "The clipboard could not be updated. Your text is in Pennel."
         }
     }
 }

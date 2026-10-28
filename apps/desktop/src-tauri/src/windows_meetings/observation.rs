@@ -23,7 +23,7 @@ pub fn snapshot() -> Result<Vec<pennel_core::CallObservation>, String> {
         .spawn(snapshot_mta)
         .map_err(|error| error.to_string())?
         .join()
-        .map_err(|_| "Meetingdetectie is onverwacht gestopt".to_owned())?
+        .map_err(|_| "Meeting detection stopped unexpectedly".to_owned())?
 }
 
 fn snapshot_mta() -> Result<Vec<pennel_core::CallObservation>, String> {

@@ -1,4 +1,5 @@
-import { liveText, bindLocalization, l, t, uiLocale, localizeBackendText, type LocalizedText } from "../i18n.ts";
+import { liveText, bindLocalization, l, t, uiLocale, localizeBackendText, type LocalizedText, type UiText } from "../i18n.ts";
+import { localModelDisplayName } from "../settings-presentation.ts";
 import { api, listen, type ModelChoice, type RemoteModel, type Settings } from "../api";
 import { errorText, field, formatBytes, h, isCancellation, section, select } from "../dom";
 import type { Context } from "../main";
@@ -82,11 +83,11 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
     ready = ready && downloadedChoice;
     if (!downloadedChoice) { repair = () => t("providers.download_first"); repairTarget = "local"; }
     model = taskSetup ? select(
-      all.map((item) => [item.id, `${item.name} · ${formatBytes(item.size_bytes)}`] as [string, string]),
+      all.map((item) => [item.id, liveText(() => `${localModelDisplayName(item)} · ${formatBytes(item.size_bytes)}`)] as [string, UiText]),
       choice.model, (id) => set((c) => (c.model = id)), "menu",
     ) : downloaded.length
       ? select(
-          downloaded.map((m) => [m.id, m.name] as [string, string]),
+          downloaded.map((m) => [m.id, localModelDisplayName(m)] as [string, UiText]),
           choice.model,
           (id) => set((c) => (c.model = id)),
           "menu",
@@ -97,7 +98,7 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
       if (selectedModel) {
         let disposed = false;
         let active = ctx.info.active_model_downloads?.includes(selectedModel.id) ?? false;
-        const progress = h("progress", { hidden: !active, "aria-label": l("providers.local.downloading_model", () => ({ model: selectedModel.name })) });
+        const progress = h("progress", { hidden: !active, "aria-label": l("providers.local.downloading_model", () => ({ model: String(localModelDisplayName(selectedModel)) })) });
         const outcome = h("p", { class: "help", role: "status" });
         const download = h("button", { class: "btn", disabled: active || accountKind?.availability.status !== "available", onclick: async () => {
           active = true; download.disabled = true; cancel.hidden = false; progress.hidden = false;

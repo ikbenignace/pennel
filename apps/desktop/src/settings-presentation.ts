@@ -1,5 +1,5 @@
-import type { MeetingTemplate, RecordAction } from "./api";
-import { l, uiLocale, type LocalizedText } from "./i18n.ts";
+import type { LocalModel, MeetingTemplate, RecordAction } from "./api";
+import { l, liveText, localizeBackendText, uiLocale, type LocalizedText, type UiText } from "./i18n.ts";
 
 const builtinTemplateKeys = {
   algemeen: "settings.template.general",
@@ -11,6 +11,14 @@ const builtinTemplateKeys = {
 export function templateDisplayName(template: Pick<MeetingTemplate, "id" | "name" | "builtin" | "customized">): string | LocalizedText {
   const key = builtinTemplateKeys[template.id as keyof typeof builtinTemplateKeys];
   return template.builtin && !template.customized && key ? l(key) : template.name;
+}
+
+export function hasOwnedModelName(id: unknown): boolean {
+  return ["diar_streaming_sortformer_4spk-v2.1", "pyannote-segmentation-3.0", "3dspeaker-campplus-zh-en-advanced"].includes(String(id));
+}
+
+export function localModelDisplayName(model: Pick<LocalModel, "id" | "name">): UiText {
+  return hasOwnedModelName(model.id) ? liveText(() => localizeBackendText(model.name)) : model.name;
 }
 
 export function localModelLanguageName(code: string): string {

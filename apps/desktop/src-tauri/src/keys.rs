@@ -29,7 +29,7 @@ pub fn send(shortcut: Shortcut) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     if crate::linux_input::is_wayland() {
         return Err(
-            "Wayland staat automatisch plakken of selectie lezen niet toe — plak zelf met Ctrl+V"
+            "Wayland does not allow automatic pasting or reading selections — paste with Ctrl+V yourself"
                 .into(),
         );
     }
@@ -84,7 +84,7 @@ mod platform {
         if sent as usize == inputs.len() {
             Ok(())
         } else {
-            Err("toetsaanslag geblokkeerd (UIPI: venster draait als administrator?)".into())
+            Err("keystroke blocked (UIPI: is the window running as administrator?)".into())
         }
     }
 }

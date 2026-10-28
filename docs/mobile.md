@@ -11,7 +11,7 @@ Tracking: [Expo migration #42](https://github.com/pennel-app/pennel/issues/42), 
 - Expo Widgets owns widget/Live Activity generation and presentation wherever verified native integration supports the required actions. Pennel's addon owns remaining native source membership and system actions.
 - One native-owned Rust engine. Recording, keyboard handoff, processing and synchronization do not depend on JavaScript remaining active.
 - iOS 26 minimum. No bundled local speech or speaker models. Private Apple providers and account-free ordinary use remain supported; Cloud is optional.
-- English and Dutch, system-first supported language with English fallback, independent of speech language and user content. Use canonical brand assets.
+- English and Dutch, system-first supported language with English fallback, independent of speech language and user content. Use canonical brand assets. Follow the shared [language policy](language-policy.md): English canonical diagnostics, localized owned failure messages, and literal user content. Older string-only keyboard/session failures remain readable alongside optional failure codes.
 - iOS uses Expo Router's native system tabs with Liquid Glass on iOS 26+, localized accessibility labels and system appearance. Keep native materials and system tab behavior.
 - Use [Expo Device Hub](mobile-device-hub.md) for simulator interaction, accessibility inspection and app-owned screenshots. It is a pinned development dependency, separate from the application runtime.
 - Desktop remains Tauri. Preserve the native SwiftUI iPhone shell until Expo parity and signed upgrade acceptance are established.

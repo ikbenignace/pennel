@@ -65,14 +65,16 @@ fn presentation(
                 elapsed_secs / 60,
                 elapsed_secs % 60
             ),
-            "Stop opname",
+            "Stop recording",
             true,
         ),
-        RecordingPhase::Starting => ("Opname starten…".into(), "Opname starten…", false),
-        RecordingPhase::Stopping | RecordingPhase::Finalizing => {
-            ("Opname afronden…".into(), "Opname afronden…", true)
-        }
-        RecordingPhase::Idle | RecordingPhase::Error => ("Pennel".into(), "Start opname", true),
+        RecordingPhase::Starting => ("Starting recording…".into(), "Starting recording…", false),
+        RecordingPhase::Stopping | RecordingPhase::Finalizing => (
+            "Finalizing recording…".into(),
+            "Finalizing recording…",
+            true,
+        ),
+        RecordingPhase::Idle | RecordingPhase::Error => ("Pennel".into(), "Start recording", true),
     };
     Presentation {
         status: pennel_core::localize_ui_text(language, &status),
@@ -117,9 +119,9 @@ fn snapshot(app: &AppHandle, shared: &Shared) -> Snapshot {
     let hint = if listening {
         crate::hotkey_hint(shared)
     } else if !permitted {
-        "Dicteren wacht op toegang tot Toegankelijkheid".into()
+        "Dictation is waiting for Accessibility access".into()
     } else {
-        "Sneltoets niet beschikbaar (zie logboek)".into()
+        "Shortcut unavailable (see log)".into()
     };
     let dark = match shared.settings().appearance {
         pennel_core::AppearancePreference::Dark => true,
@@ -210,7 +212,7 @@ pub fn build(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "dictation",
-                crate::ui::message("Dicteren starten/stoppen"),
+                crate::ui::message("Start/stop dictation"),
                 true,
                 None::<&str>,
             )?,
@@ -225,21 +227,21 @@ pub fn build(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "history",
-                crate::ui::message("Geschiedenis…"),
+                crate::ui::message("History…"),
                 true,
                 None::<&str>,
             )?,
             &MenuItem::with_id(
                 app,
                 "settings",
-                crate::ui::message("Instellingen…"),
+                crate::ui::message("Settings…"),
                 true,
                 Some("CmdOrCtrl+,"),
             )?,
             &MenuItem::with_id(
                 app,
                 "log",
-                crate::ui::message("Logboek openen"),
+                crate::ui::message("Open log"),
                 true,
                 None::<&str>,
             )?,
@@ -247,7 +249,7 @@ pub fn build(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "quit",
-                crate::ui::message("Stop Pennel"),
+                crate::ui::message("Quit Pennel"),
                 true,
                 Some("CmdOrCtrl+Q"),
             )?,

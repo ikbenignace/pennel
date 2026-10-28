@@ -472,7 +472,7 @@ pub(crate) mod fake {
             if generation != server.generation {
                 return Err(PennelError::Cloud {
                     code: "generation".into(),
-                    message: "De kluis is opnieuw begonnen op een ander toestel.".into(),
+                    message: "The vault was reset on another device.".into(),
                 });
             }
             match (create, server.vault.is_some()) {
@@ -480,7 +480,7 @@ pub(crate) mod fake {
                 (false, false) => {
                     return Err(PennelError::Cloud {
                         code: "vault_missing".into(),
-                        message: "Er bestaat nog geen kluis.".into(),
+                        message: "No vault exists yet.".into(),
                     });
                 }
                 _ => {}
@@ -495,7 +495,7 @@ pub(crate) mod fake {
             if generation != server.generation {
                 return Err(PennelError::Cloud {
                     code: "generation".into(),
-                    message: "De kluis is opnieuw begonnen op een ander toestel.".into(),
+                    message: "The vault was reset on another device.".into(),
                 });
             }
             server.objects.clear();
@@ -591,7 +591,8 @@ pub(crate) mod fake {
                 if used + blob.len() > limit {
                     return Err(PennelError::Cloud {
                         code: "storage_full".into(),
-                        message: "Je cloudopslag is vol (1 GB). Lokaal blijft alles werken.".into(),
+                        message: "Your cloud storage is full (1 GB). Local features keep working."
+                            .into(),
                     });
                 }
             }

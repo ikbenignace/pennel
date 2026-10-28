@@ -3,23 +3,23 @@ use std::path::{Path, PathBuf};
 use crate::error::PennelError;
 
 pub const FALLBACK_ID: &str = "algemeen";
-pub const DEFAULT_SECTIONS: [&str; 3] = ["Samenvatting", "Beslissingen", "Actiepunten"];
+pub const DEFAULT_SECTIONS: [&str; 3] = ["Summary", "Decisions", "Action items"];
 const ID_MAX: usize = 40;
 
 const BUILTINS: &[(&str, &str, &str)] = &[
     (
         "algemeen",
-        "Algemeen",
+        "General",
         "Focus on what was discussed and agreed.",
     ),
     (
         "een-op-een",
-        "1-op-1",
+        "One-to-one",
         "This is a 1-on-1. Include feedback, wellbeing and personal follow-ups.",
     ),
     (
         "klantgesprek",
-        "Klantgesprek",
+        "Client meeting",
         "This is a client meeting. Capture the client's needs, questions, commitments made to them and next steps.",
     ),
     (
@@ -42,6 +42,7 @@ pub struct TemplateSpec {
     pub name: String,
     pub instruction: String,
     pub sections: Vec<String>,
+    pub(crate) default_sections: bool,
 }
 
 impl TemplateSpec {
@@ -57,13 +58,15 @@ impl TemplateSpec {
                 _ => instruction.push(line),
             }
         }
-        if sections.is_empty() {
+        let default_sections = sections.is_empty();
+        if default_sections {
             sections = DEFAULT_SECTIONS.iter().map(|s| s.to_string()).collect();
         }
         Self {
             name: name.to_owned(),
             instruction: instruction.join("\n").trim().to_owned(),
             sections,
+            default_sections,
         }
     }
 }
@@ -122,7 +125,7 @@ pub fn slug(name: &str) -> String {
     let slug: String = slug.trim_end_matches('-').chars().take(ID_MAX).collect();
     let slug = slug.trim_end_matches('-').to_owned();
     if slug.is_empty() {
-        "sjabloon".to_owned()
+        "template".to_owned()
     } else {
         slug
     }
@@ -212,7 +215,7 @@ impl TemplateStore {
         let (_, name, instruction) = Self::builtin(id)
             .or_else(|| Self::builtin(FALLBACK_ID))
             .expect("fallback exists");
-        TemplateSpec::parse(name, &builtin_body(instruction))
+        TemplateSpec::parse(name, instruction)
     }
 
     /// Body shown in the editor, without frontmatter.
@@ -288,6 +291,46 @@ mod tests {
         );
         assert!(store.list()[0].builtin);
         assert!(!store.list()[4].builtin);
+    }
+
+    #[test]
+    fn builtin_sources_are_english_without_changing_persisted_ids() {
+        let (_dir, store) = store();
+        let names: Vec<_> = store
+            .list()
+            .into_iter()
+            .map(|template| (template.id, template.name))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                ("algemeen", "General"),
+                ("een-op-een", "One-to-one"),
+                ("klantgesprek", "Client meeting"),
+                ("standup", "Standup")
+            ]
+            .map(|(id, name)| (id.to_owned(), name.to_owned()))
+        );
+        assert!(store.spec("algemeen").default_sections);
+        assert_eq!(
+            store.spec("algemeen").sections,
+            ["Summary", "Decisions", "Action items"]
+        );
+        assert!(store.source("algemeen").unwrap().contains("## Summary"));
+    }
+
+    #[test]
+    fn heading_provenance_preserves_authored_and_customized_templates() {
+        let (_dir, store) = store();
+        let headingless = store
+            .save(None, "Mijn sjabloon", "Behoud mijn tekst.")
+            .unwrap();
+        assert!(store.spec(&headingless).default_sections);
+        let body = store.source("algemeen").unwrap();
+        store.save(Some("algemeen"), "Algemeen", &body).unwrap();
+        assert!(!store.spec("algemeen").default_sections);
+        assert_eq!(store.list()[0].name, "Algemeen");
+        assert!(!TemplateSpec::parse("Custom", "## Summary\n## Actiepunten").default_sections);
     }
 
     #[test]
@@ -367,7 +410,7 @@ mod tests {
     fn missing_template_falls_back() {
         let (_dir, store) = store();
         let spec = store.spec("bestaat-niet");
-        assert_eq!(spec.name, "Algemeen");
+        assert_eq!(spec.name, "General");
         assert_eq!(spec.instruction, "Focus on what was discussed and agreed.");
     }
 
@@ -379,7 +422,7 @@ mod tests {
             store.save(None, "Retro / Q4: 🚀", "x").unwrap(),
             "retro-q4-2"
         );
-        assert_eq!(store.save(None, "🚀", "x").unwrap(), "sjabloon");
+        assert_eq!(store.save(None, "🚀", "x").unwrap(), "template");
         assert_eq!(store.save(None, "Algemeen", "x").unwrap(), "algemeen-2");
     }
 

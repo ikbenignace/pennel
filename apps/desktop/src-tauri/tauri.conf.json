@@ -36,8 +36,12 @@
     "createUpdaterArtifacts": false,
     "targets": "all",
     "category": "Productivity",
-    "shortDescription": "Dicteren en meetingnotities",
-    "longDescription": "Houd een toets ingedrukt om opgekuiste tekst in eender welke app te dicteren, en neem meetings op als transcript en notities.",
+    "shortDescription": "Dictation and meeting notes",
+    "longDescription": "Hold a key to dictate clean text in any app, and record meetings as transcripts and notes.",
+    "resources": {
+      "resources/en.lproj/InfoPlist.strings": "en.lproj/InfoPlist.strings",
+      "resources/nl.lproj/InfoPlist.strings": "nl.lproj/InfoPlist.strings"
+    },
     "copyright": "Apache-2.0",
     "icon": [
       "icons/32x32.png",

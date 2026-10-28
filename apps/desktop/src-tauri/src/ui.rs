@@ -113,13 +113,13 @@ pub fn register_tray(app: &tauri::AppHandle, menu: &Menu<tauri::Wry>) -> tauri::
         if let MenuItemKind::MenuItem(item) = item {
             let source = match item.id().as_ref() {
                 "open" => "Open Pennel",
-                "dictation" => "Dicteren starten/stoppen",
-                "pad" => "Dicteren…",
-                "history" => "Geschiedenis…",
-                "settings" => "Instellingen…",
-                "log" => "Logboek openen",
-                "quit" => "Stop Pennel",
-                "meeting" if !cfg!(target_os = "macos") => "Meeting opnemen…",
+                "dictation" => "Start/stop dictation",
+                "pad" => "Dictation…",
+                "history" => "History…",
+                "settings" => "Settings…",
+                "log" => "Open log",
+                "quit" => "Quit Pennel",
+                "meeting" if !cfg!(target_os = "macos") => "Record meeting…",
                 _ => continue,
             };
             items.push((item, source));

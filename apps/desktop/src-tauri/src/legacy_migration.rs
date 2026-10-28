@@ -29,11 +29,11 @@ pub enum MigrationError {
 impl std::fmt::Display for MigrationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Io(error) => write!(formatter, "Musli-gegevens konden niet worden overgenomen: {error}"),
-            Self::InvalidMarker => formatter.write_str("De Musli-migratie is onvolledig of vereist een andere appversie. De oorspronkelijke gegevens zijn bewaard."),
-            Self::Busy => formatter.write_str("Een andere Pennel-app neemt de Musli-gegevens over. Sluit die app en probeer opnieuw."),
-            Self::SourceChanged => formatter.write_str("De Musli-gegevens zijn tijdens het kopiëren gewijzigd. Sluit Musli en probeer opnieuw. De oorspronkelijke gegevens zijn bewaard."),
-            Self::UnsupportedEntry => formatter.write_str("De Musli-map bevat een gekoppeld of bijzonder bestand. De gegevens zijn niet gewijzigd; neem de map handmatig over."),
+            Self::Io(error) => write!(formatter, "Could not import Musli data: {error}"),
+            Self::InvalidMarker => formatter.write_str("The Musli migration is incomplete or requires another app version. The original data has been preserved."),
+            Self::Busy => formatter.write_str("Another Pennel app is importing the Musli data. Close it and try again."),
+            Self::SourceChanged => formatter.write_str("The Musli data changed while being copied. Close Musli and try again. Your original data has been kept."),
+            Self::UnsupportedEntry => formatter.write_str("The Musli folder contains a linked or special file. Your data is unchanged; import the folder manually."),
             Self::Credentials(message) | Self::Settings(message) => formatter.write_str(message),
         }
     }

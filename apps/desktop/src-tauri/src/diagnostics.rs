@@ -76,7 +76,7 @@ impl Log {
     }
 
     pub fn error(&self, message: impl AsRef<str>) {
-        self.write(&format!("FOUT {}", message.as_ref()));
+        self.write(&error_line(message.as_ref()));
     }
 
     fn write(&self, message: &str) {
@@ -89,9 +89,23 @@ impl Log {
     }
 }
 
+fn error_line(message: &str) -> String {
+    format!("ERROR {message}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn error_severity_is_english_and_log_content_remains_metadata_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = LogFile::new(dir.path().join("pennel.log"), MAX_BYTES);
+        log.append("recording", &error_line("microphone stopped after 240 ms"));
+        let text = std::fs::read_to_string(log.path()).unwrap();
+        assert!(text.contains("[recording] ERROR microphone stopped after 240 ms"));
+        assert!(!text.contains("FOUT"));
+    }
 
     #[test]
     fn appends_lines_and_rotates() {

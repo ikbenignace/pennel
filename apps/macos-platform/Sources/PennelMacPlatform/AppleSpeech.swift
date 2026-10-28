@@ -20,7 +20,7 @@ final class AppleSpeechTranscriber: @unchecked Sendable {
     private static func locale(for language: String?) async throws -> Locale {
         let wanted = Locale(identifier: language ?? Locale.preferredLanguages.first ?? "en")
         guard let supported = await DictationTranscriber.supportedLocale(equivalentTo: wanted) else {
-            throw NativeSpeechError(message: "Apple-dicteren ondersteunt \(wanted.identifier) niet")
+            throw NativeSpeechError(message: "Apple Dictation does not support \(wanted.identifier)")
         }
         return supported
     }

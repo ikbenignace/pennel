@@ -1,4 +1,5 @@
 import { localizeBackendText, localizeBackendTextForLanguage, type InterfaceLanguage } from "./i18n.ts";
+import { hasOwnedModelName } from "./settings-presentation.ts";
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -25,6 +26,11 @@ export function localizeUiResponse(command: string, value: unknown): unknown {
     return result;
   }
   if (command === "get_permissions" && Array.isArray(value)) return value.map(permission => fields(permission, ["label", "description", "detail", "reason"]));
+  if (command === "local_models" && Array.isArray(value)) return value.map(model => {
+    if (!record(model)) return model;
+    const ownedName = hasOwnedModelName(model.id);
+    return fields(model, ownedName ? ["name", "description"] : ["description"]);
+  });
   if (command === "meeting_status" || command === "meeting_runtime_status") return fields(value, ["error", "audio_warning", "persistence_error", "transcription_warning", "terminal_error"]);
   if (command === "meeting_detail" && record(value)) return {
     ...value,

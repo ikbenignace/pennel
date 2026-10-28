@@ -84,31 +84,31 @@ fn readiness(
     let Some((account, model)) = settings.resolve(choice) else {
         return blocked(
             false,
-            "Kies eerst een spraakherkenning.",
+            "Choose speech recognition first.",
             OnboardingStep::Engine,
         );
     };
     if !supports(account.kind, task) {
         return blocked(
             false,
-            "Deze provider ondersteunt geen spraakherkenning.",
+            "This provider does not support speech recognition.",
             OnboardingStep::Engine,
         );
     }
     if model.trim().is_empty() {
-        return blocked(false, "Kies een spraakmodel.", OnboardingStep::Engine);
+        return blocked(false, "Choose a speech model.", OnboardingStep::Engine);
     }
     if requires_key(account.kind) && !facts.keyed_providers.contains(&account.id) {
         return blocked(
             false,
-            "Voeg de API-sleutel van je provider toe.",
+            "Add your provider’s API key.",
             OnboardingStep::Engine,
         );
     }
     if account.kind == ProviderKind::Local && !downloaded_models.contains(&model) {
         return blocked(
             false,
-            "Download eerst het gekozen spraakmodel.",
+            "Download the selected speech model first.",
             OnboardingStep::Engine,
         );
     }
@@ -118,21 +118,21 @@ fn readiness(
             SetupAccess::Unsupported => {
                 return blocked(
                     true,
-                    "Apple-dicteren vereist een geschikte Mac met macOS 26 of nieuwer.",
+                    "Apple dictation requires a supported Mac running macOS 26 or later.",
                     OnboardingStep::Engine,
                 );
             }
             SetupAccess::PermissionRequired => {
                 return blocked(
                     true,
-                    "Geef Pennel toegang tot spraakherkenning.",
+                    "Give Pennel Speech Recognition access.",
                     OnboardingStep::Permissions,
                 );
             }
             SetupAccess::Unavailable | SetupAccess::Unknown => {
                 return blocked(
                     true,
-                    "Apple-dicteren is nog niet beschikbaar. Controleer spraakherkenning in de systeeminstellingen.",
+                    "Apple dictation is not ready yet. Check Speech Recognition in system settings.",
                     OnboardingStep::Permissions,
                 );
             }
@@ -144,14 +144,14 @@ fn readiness(
         SetupAccess::PermissionRequired => {
             return blocked(
                 true,
-                "Geef Pennel toegang tot de microfoon.",
+                "Give Pennel microphone access.",
                 OnboardingStep::Permissions,
             );
         }
         SetupAccess::Unavailable | SetupAccess::Unsupported => {
             return blocked(
                 true,
-                "Microfoon niet beschikbaar. Controleer je invoerapparaat.",
+                "Microphone unavailable. Check your input device.",
                 OnboardingStep::Permissions,
             );
         }

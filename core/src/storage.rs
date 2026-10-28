@@ -48,7 +48,7 @@ impl DirectoryLease {
             .open(dir.join(name))
             .map_err(PennelError::storage)?;
         file.try_lock().map_err(|_| PennelError::Storage {
-            message: "deze gegevensmap wordt al door een andere Pennel-app gebruikt".into(),
+            message: "this data folder is already being used by another Pennel app".into(),
         })?;
         Ok(Self { _file: file })
     }
@@ -73,7 +73,7 @@ impl StartupStorage {
         if let Some(journal) = previous {
             if journal.version != FORMAT_VERSION {
                 return Err(PennelError::Storage {
-                    message: "deze Pennel-gegevens vereisen een andere appversie".into(),
+                    message: "this Pennel data requires a different app version".into(),
                 });
             }
             if !journal.complete && journal.snapshot {
@@ -175,7 +175,9 @@ fn ensure_snapshot(dir: &Path) -> Result<(), PennelError> {
             .file_type()
             .is_symlink()
         {
-            return Err(PennelError::Storage { message: "een gegevensbestand is een symbolische koppeling; maak eerst een gewone lokale kopie".into() });
+            return Err(PennelError::Storage {
+                message: "a data file is a symbolic link; make a regular local copy first".into(),
+            });
         }
         let target = staging.join(name);
         if name.ends_with(".sqlite") {
@@ -219,9 +221,7 @@ fn copy_tree(
     let metadata = source.symlink_metadata().map_err(PennelError::storage)?;
     if metadata.file_type().is_symlink() {
         return Err(PennelError::Storage {
-            message:
-                "een audiobestand is een symbolische koppeling; maak eerst een gewone lokale kopie"
-                    .into(),
+            message: "an audio file is a symbolic link; make a regular local copy first".into(),
         });
     }
     let target = target_root.join(relative);

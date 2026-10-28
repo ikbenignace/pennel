@@ -34,7 +34,7 @@ impl Hook {
             return Err(crate::linux_input::SHORTCUT_HELP.into());
         }
         if !crate::linux_input::has_x11_display() {
-            return Err("geen X11-scherm (DISPLAY) gevonden".into());
+            return Err("no X11 display (DISPLAY) found".into());
         }
         let tracker = Arc::new(Mutex::new(TriggerTracker::new(trigger)));
         let hook_tracker = tracker.clone();
@@ -54,7 +54,7 @@ impl Hook {
                     dispatch(&hook_tracker, &sender, key_for(key), down);
                 });
                 if let Err(e) = result {
-                    let _ = error_tx.send(format!("X11-toetsenbord niet beschikbaar: {e:?}"));
+                    let _ = error_tx.send(format!("X11 keyboard unavailable: {e:?}"));
                 }
             })
             .map_err(|e| e.to_string())?;

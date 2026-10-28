@@ -10,7 +10,7 @@ struct StyleApplicationSelection: Equatable, Sendable {
 enum StyleApplicationPickerError: LocalizedError {
     case invalidApplication
 
-    var errorDescription: String? { "Deze app heeft geen bruikbare app-ID. Kies een andere app." }
+    var errorDescription: String? { "This app has no usable app ID. Choose another app." }
 }
 
 func styleApplicationSelection(bundleID: String?, name: String?, fallbackName: String) throws -> StyleApplicationSelection {

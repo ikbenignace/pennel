@@ -39,9 +39,8 @@ impl FrozenLocal {
             .ok_or(PennelError::NotFound)?;
         if account.kind != ProviderKind::Local {
             return Err(PennelError::InvalidResponse {
-                message:
-                    "Kies een lokaal spraakmodel voor het opnieuw transcriberen van een opname."
-                        .into(),
+                message: "Choose a local speech model to transcribe a saved recording again."
+                    .into(),
             });
         }
         crate::local_engine::ensure_available()?;
@@ -157,7 +156,7 @@ impl PennelEngine {
             available: result.is_ok(),
             reason: result.err().map(|error| match error {
                 PennelError::ModelNotDownloaded => {
-                    "Download eerst het gekozen lokale spraakmodel.".into()
+                    "Download the selected local speech model first.".into()
                 }
                 error => error.to_string(),
             }),
@@ -315,7 +314,7 @@ impl PennelEngine {
                         &candidates,
                     );
                 } else {
-                    status.warning=Some("De tekst is opnieuw herkend. Download lokale sprekermodellen om de sprekerlabels opnieuw te bepalen.".into());
+                    status.warning=Some("The text has been transcribed again. Download local speaker models to rebuild the speaker labels.".into());
                 }
             }
             if sources
@@ -323,7 +322,7 @@ impl PennelEngine {
                 .any(|(name, stamp)| store.file_stamp(id, name) != *stamp)
             {
                 return Err(PennelError::storage(
-                    "De opname of meeting is ondertussen gewijzigd. Het transcript is niet vervangen.",
+                    "The recording or meeting changed during processing. The transcript has not been replaced.",
                 ));
             }
             status.progress = RetranscriptionProgress {
@@ -439,7 +438,7 @@ pub(crate) fn saved_tracks(
     }
     if tracks.is_empty() {
         return Err(PennelError::InvalidResponse {
-            message: "Er is geen bewaarde audio om opnieuw te transcriberen.".into(),
+            message: "There is no saved audio to transcribe again.".into(),
         });
     }
     let required = match store.transcript_tracks(id)? {
@@ -447,7 +446,7 @@ pub(crate) fn saved_tracks(
         None if before.iter().any(|segment| segment.voice.is_some()) => {
             if tracks.len() != 2 {
                 return Err(PennelError::InvalidResponse {
-                    message: "De oorspronkelijke opnamesporen konden niet worden vastgesteld. Voor oudere transcripties met sprekerlabels zijn beide sporen nodig."
+                    message: "The original recording tracks could not be determined. Both tracks are required for older speaker-labeled transcripts."
                         .into(),
                 });
             }
@@ -460,9 +459,7 @@ pub(crate) fn saved_tracks(
         .any(|required| !tracks.iter().any(|(speaker, _)| speaker == required))
     {
         return Err(PennelError::InvalidResponse {
-            message:
-                "Niet alle oorspronkelijke audio is bewaard. Het transcript is niet gewijzigd."
-                    .into(),
+            message: "Some original audio is missing. The transcript has not been changed.".into(),
         });
     }
     Ok(tracks)
@@ -486,9 +483,8 @@ pub(crate) fn stage_audio(
         let mut samples = decode(path)?;
         if samples.is_empty() || samples.iter().any(|sample| !sample.is_finite()) {
             return Err(PennelError::InvalidResponse {
-                message:
-                    "De bewaarde audio kon niet worden gelezen. Het transcript is niet gewijzigd."
-                        .into(),
+                message: "The saved audio could not be read. The transcript has not been changed."
+                    .into(),
             });
         }
         for &(start, end) in exclusions {

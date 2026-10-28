@@ -29,6 +29,7 @@ final class DictationSession {
     private(set) var phase = SessionPhase.off
     private(set) var expiresAt: Date?
     private(set) var startError: String?
+    private(set) var startErrorCode: String?
 
     @ObservationIgnored private let capture: AudioCapturing
     @ObservationIgnored private let audioSession: AudioSessionControlling
@@ -114,10 +115,12 @@ final class DictationSession {
         pendingStart = token
         defer { if pendingStart == token { pendingStart = nil } }
         startError = nil
+        startErrorCode = nil
         let allowed = await requestPermission()
         guard pendingStart == token else { return false }
         guard allowed else {
-            startError = "Geen toegang tot de microfoon. Sta de microfoon toe in Instellingen."
+            startError = "No microphone access. Allow microphone access in Settings."
+            startErrorCode = "microphone_denied"
             return false
         }
         guard phase == .off else { return true }
@@ -130,6 +133,7 @@ final class DictationSession {
             capture.stop()
             audioSession.deactivate()
             startError = ErrorText.failed(error)
+            startErrorCode = ErrorText.failureCode(error)
             return false
         }
         let now = now()
@@ -171,7 +175,7 @@ final class DictationSession {
         generation += 1
         server.publish(SessionState(phase: .off, expiresAt: nil, heartbeatAt: now(), level: 0))
         server.purgeExpiredResult(now: now())
-        activity.end(message: reason == .interrupted ? Copy.Session.stoppedByCall : nil)
+        activity.end(message: reason == .interrupted ? "Session stopped by a call." : nil)
         Self.log.info("session off: \(reason.rawValue, privacy: .public)")
     }
 
@@ -257,7 +261,7 @@ final class DictationSession {
             let seconds = now().timeIntervalSince(started)
             Self.log.info("dictated \(samples.count, privacy: .public) samples, \(dictation.text.count, privacy: .public) chars, \(seconds, privacy: .public)s")
         case .failure(let error):
-            result = HandoffResult(id: command.id, text: nil, error: ErrorText.message(error), at: now())
+            result = HandoffResult(id: command.id, text: nil, error: ErrorText.message(error), errorCode: ErrorText.failureCode(error), at: now())
             Self.log.error("dictation failed: \(ErrorText.code(error), privacy: .public)")
         }
         server.publish(result)
@@ -270,7 +274,7 @@ final class DictationSession {
 
     /// The keyboard waits for a result for its stop id; if its start was never seen, answer instead of leaving it hanging.
     private func answerMissedStart(_ command: HandoffCommand) {
-        server.publish(HandoffResult(id: command.id, text: nil, error: ErrorText.message(PennelError.NoSpeech), at: now()))
+        server.publish(HandoffResult(id: command.id, text: nil, error: ErrorText.message(PennelError.NoSpeech), errorCode: "no_speech", at: now()))
     }
 
     // MARK: Helpers

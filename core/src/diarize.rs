@@ -24,7 +24,7 @@ pub fn diarize(model_path: &Path, samples: &[f32]) -> Result<Vec<Turn>, PennelEr
     }
     crate::cpu_support::ensure_local_models_supported()?;
     let error = |e: transcribe_cpp::Error| PennelError::InvalidResponse {
-        message: format!("sprekers herkennen: {e}"),
+        message: format!("speaker recognition: {e}"),
     };
     let model = Model::load(model_path).map_err(error)?;
     let mut session = model.diarize_session().map_err(error)?;
@@ -557,7 +557,7 @@ mod tests {
 
     #[cfg(not(feature = "local-models"))]
     #[test]
-    fn diarize_without_feature_is_dutch_error() {
+    fn diarize_without_feature_has_an_english_diagnostic() {
         let file = tempfile::NamedTempFile::new().unwrap();
         assert_eq!(
             diarize(file.path(), &[0.0; 16_000]),

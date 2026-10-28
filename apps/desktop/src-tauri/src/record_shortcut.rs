@@ -62,12 +62,12 @@ pub fn refresh(app: &AppHandle, shared: &Shared) {
         }
         #[cfg(target_os = "linux")]
         if crate::linux_input::is_wayland() || !crate::linux_input::has_x11_display() {
-            *failure().lock().unwrap() = Some("Wayland: stel in je desktopinstellingen een opnamesneltoets in voor pennel --toggle-meeting.".into());
+            *failure().lock().unwrap() = Some("Wayland: configure a recording shortcut for pennel --toggle-meeting in your desktop settings.".into());
             return;
         }
         if enabled { app.global_shortcut().register("Ctrl+Shift+R") }
         else { app.global_shortcut().unregister("Ctrl+Shift+R") }
-            .map_err(|_| "De opnamesneltoets Ctrl+Shift+R is niet beschikbaar. Kies een andere binding in je desktopinstellingen.".to_owned())
+            .map_err(|_| "The Ctrl+Shift+R recording shortcut is unavailable. Choose another binding in your desktop settings.".to_owned())
     };
     #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     let result: Result<(), String> = {

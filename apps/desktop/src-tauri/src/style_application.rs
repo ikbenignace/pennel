@@ -37,7 +37,7 @@ pub async fn pick_style_application(app: AppHandle) -> Result<Option<StyleApplic
             let dialog = dialog
                 .set_directory("/usr/share/applications")
                 .add_filter(crate::ui::message("Apps"), &["desktop"])
-                .add_filter(crate::ui::message("Alle bestanden"), &["*"]);
+                .add_filter(crate::ui::message("All files"), &["*"]);
             resolve_selection(dialog.blocking_pick_file(), |selection| {
                 let path = selection.into_path().map_err(|error| error.to_string())?;
                 selected_application(&path)
@@ -45,7 +45,7 @@ pub async fn pick_style_application(app: AppHandle) -> Result<Option<StyleApplic
         }
     })
     .await
-    .map_err(|_| "De appkiezer is onderbroken.".to_owned())?
+    .map_err(|_| "The app picker was interrupted.".to_owned())?
 }
 
 #[cfg(any(not(target_os = "macos"), test))]
@@ -59,18 +59,18 @@ fn resolve_selection<T>(
 #[cfg(any(not(target_os = "macos"), test))]
 fn selected_application(path: &std::path::Path) -> Result<StyleApplication, String> {
     let metadata =
-        std::fs::metadata(path).map_err(|_| "De gekozen app is niet meer beschikbaar.")?;
+        std::fs::metadata(path).map_err(|_| "The selected app is no longer available.")?;
     if !metadata.is_file() {
-        return Err("Kies een appbestand.".into());
+        return Err("Choose an application file.".into());
     }
     let filename = path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or("De appnaam bevat ongeldige tekst.")?;
+        .ok_or("The app name contains invalid text.")?;
     #[cfg(windows)]
     {
         if !filename.to_ascii_lowercase().ends_with(".exe") {
-            return Err("Kies een Windows-app (.exe).".into());
+            return Err("Choose a Windows app (.exe).".into());
         }
         executable_application(filename)
     }
@@ -86,15 +86,15 @@ fn selected_application(path: &std::path::Path) -> Result<StyleApplication, Stri
             let mut text = String::new();
             std::fs::File::open(path)
                 .and_then(|file| file.take(65_537).read_to_string(&mut text))
-                .map_err(|_| "Het appbestand kan niet worden gelezen.")?;
+                .map_err(|_| "The application file could not be read.")?;
             if text.len() > 65_536 {
-                return Err("Het appbestand is te groot.".into());
+                return Err("The app file is too large.".into());
             }
             desktop_application(&text)
         } else if metadata.permissions().mode() & 0o111 != 0 {
             executable_application(filename)
         } else {
-            Err("Kies een .desktop-app of een uitvoerbaar appbestand.".into())
+            Err("Choose a .desktop app or an executable application file.".into())
         }
     }
 }
@@ -110,7 +110,7 @@ fn executable_application(filename: &str) -> Result<StyleApplication, String> {
             .all(|character| character.is_alphanumeric() || "._+- ".contains(character))
         || matches!(filename, "." | "..")
     {
-        return Err("Deze app-ID is niet bruikbaar. Vul de app-ID in bij Geavanceerd.".into());
+        return Err("This app ID cannot be used. Enter the app ID under Advanced.".into());
     }
     let lowercase = filename.to_lowercase();
     let name = if lowercase.ends_with(".exe") {
@@ -119,7 +119,7 @@ fn executable_application(filename: &str) -> Result<StyleApplication, String> {
         filename
     };
     if name.is_empty() {
-        return Err("Kies een app met een geldige naam.".into());
+        return Err("Choose an app with a valid name.".into());
     }
     Ok(StyleApplication {
         id: crate::foreground::style_id(&lowercase),
@@ -146,27 +146,25 @@ fn desktop_application(text: &str) -> Result<StyleApplication, String> {
         }
     }
     if app_type != Some("Application") {
-        return Err("Dit bestand is geen app.".into());
+        return Err("This file is not an app.".into());
     }
     let name = name.unwrap_or("").trim();
     if name.is_empty() || name.len() > 255 || name.chars().any(char::is_control) {
-        return Err("De app heeft geen bruikbare naam.".into());
+        return Err("The app has no usable name.".into());
     }
     let mut words = desktop_exec_words(exec.unwrap_or(""))?.into_iter();
-    let mut command = words.next().ok_or("De app heeft geen startopdracht.")?;
+    let mut command = words.next().ok_or("The app has no launch command.")?;
     if command.rsplit('/').next() == Some("env") {
         command = words
             .find(|word| !word.contains('=') && word != "--")
-            .ok_or("De app heeft geen uitvoerbaar bestand.")?;
+            .ok_or("The app has no executable file.")?;
     }
     let filename = command.rsplit('/').next().unwrap_or("");
     if matches!(
         filename,
         "flatpak" | "snap" | "sh" | "bash" | "dash" | "zsh"
     ) {
-        return Err(
-            "Deze app gebruikt een startprogramma. Vul de app-ID in bij Geavanceerd.".into(),
-        );
+        return Err("This app uses a launcher. Enter the app ID under Advanced.".into());
     }
     let mut application = executable_application(filename)?;
     application.name = name.to_owned();
@@ -303,7 +301,7 @@ mod tests {
         assert!(
             selected_application(&path)
                 .unwrap_err()
-                .contains("te groot")
+                .contains("too large")
         );
         assert!(selected_application(directory.path()).is_err());
         assert!(selected_application(&directory.path().join("missing.desktop")).is_err());

@@ -64,8 +64,8 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Model(detail) => write!(f, "sprekersmodel kon niet laden: {detail}"),
-            Error::Audio(detail) => write!(f, "sprekers herkennen mislukt: {detail}"),
+            Error::Model(detail) => write!(f, "could not load speaker model: {detail}"),
+            Error::Audio(detail) => write!(f, "speaker recognition failed: {detail}"),
         }
     }
 }
@@ -353,6 +353,18 @@ pub fn identify_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn errors_use_english_context_and_preserve_provider_details() {
+        assert_eq!(
+            Error::Model("file missing".into()).to_string(),
+            "could not load speaker model: file missing"
+        );
+        assert_eq!(
+            Error::Audio("eigen foutbericht".into()).to_string(),
+            "speaker recognition failed: eigen foutbericht"
+        );
+    }
 
     fn unit(direction: &[f32]) -> Vec<f32> {
         normalized(direction)

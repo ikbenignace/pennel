@@ -36,7 +36,7 @@ pub fn copy_secret<C: Clipboard>(clipboard: &mut C, text: &str) -> Result<(), St
         .map_err(|_| COPY_FAILED.to_owned())
 }
 
-pub const COPY_FAILED: &str = "Kopiëren is mislukt.";
+pub const COPY_FAILED: &str = "Copying failed.";
 
 pub struct Token<S> {
     saved: S,

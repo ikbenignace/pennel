@@ -24,6 +24,7 @@ final class MeetingInterruptionLog: @unchecked Sendable {
     struct Record: Codable, Equatable {
         var gaps: [MeetingGap]
         var stoppedEarly: String?
+        var stoppedEarlyCode: String? = nil
     }
 
     private static let key = "meetingInterruptions"
@@ -92,19 +93,30 @@ final class MeetingRuntime: DictationMeetingHook {
 
         var errorDescription: String? {
             switch self {
-            case .busy: "Er wordt al een meeting opgenomen of afgerond."
-            case .microphone: "Geen toegang tot de microfoon. Sta de microfoon toe in Instellingen."
-            case .syncBusy: "Pennel is nog aan het synchroniseren. Probeer over een paar seconden opnieuw."
+            case .busy: "A meeting is already being recorded or finalized."
+            case .microphone: "No microphone access. Allow microphone access in Settings."
+            case .syncBusy: "Pennel is still syncing. Try again in a few seconds."
             }
         }
     }
 
     enum Message {
-        static let interrupted = "Opname gepauzeerd door een oproep. Pennel neemt verder op zodra de oproep voorbij is."
-        static let couldNotResume = "De opname is na een onderbreking gestopt omdat de microfoon niet terugkwam."
-        static let microphoneLost = "Pennel hoort de microfoon niet meer. De opname gaat verder zodra hij terug is."
-        static let terminated = "De opname is gestopt omdat iOS Pennel heeft afgesloten."
+        static let interrupted = "Recording paused by a call. Pennel resumes after the call ends."
+        static let couldNotResume = "The recording stopped after an interruption because the microphone did not return."
+        static let microphoneLost = "Pennel cannot hear the microphone. Recording resumes when it returns."
+        static let terminated = "The recording stopped because iOS closed Pennel."
         static let defaultTitle = "Meeting"
+
+        static func code(for message: String?) -> String? {
+            switch message {
+            case interrupted, "Opname gepauzeerd door een oproep. Pennel neemt verder op zodra de oproep voorbij is.": "recording_paused"
+            case couldNotResume, "De opname is na een onderbreking gestopt omdat de microfoon niet terugkwam.": "recording_resume_failed"
+            case microphoneLost, "Pennel hoort de microfoon niet meer. De opname gaat verder zodra hij terug is.": "recording_microphone_lost"
+            case terminated, "De opname is gestopt omdat iOS Pennel heeft afgesloten.": "recording_terminated"
+            case "The audio recording could not be saved. Check available storage.", "De audio-opname kon niet worden bewaard. Controleer de vrije opslagruimte.": "storage"
+            default: nil
+            }
+        }
     }
 
     static let shared = MeetingRuntime.live()
@@ -269,7 +281,7 @@ final class MeetingRuntime: DictationMeetingHook {
             archive = try AACArchive(url: URL(fileURLWithPath: session.dir()).appendingPathComponent(track.relativePath))
         } catch {
             Self.log.error("archive: \(ErrorText.code(error), privacy: .public)")
-            archiveOpeningError = "De audio-opname kon niet worden bewaard. Controleer de vrije opslagruimte."
+            archiveOpeningError = "The audio recording could not be saved. Check available storage."
             warning = archiveOpeningError
         }
         let recorder = MeetingRecorder(sink: OthersTrack(session: session), archive: archive, clock: clock)
@@ -323,7 +335,7 @@ final class MeetingRuntime: DictationMeetingHook {
 
     func saveLiveNotes(_ text: String) throws {
         guard isRecording, let session else {
-            throw PennelError.Cloud(code: "meeting_busy", message: "De opname wordt afgerond. Bewaar je notities zodra het afronden klaar is.")
+            throw PennelError.Cloud(code: "meeting_busy", message: "The recording is being finalized. Save your notes when finalization has finished.")
         }
         guard text != notes else { return }
         try session.setNotes(text: text)
@@ -373,7 +385,7 @@ final class MeetingRuntime: DictationMeetingHook {
             try engine.finishMeetingRecording(id: id, durationMs: durationMs, complete: captureComplete && error == nil)
         } catch let metadataFailure {
             Self.log.error("recording metadata: \(ErrorText.code(metadataFailure), privacy: .public)")
-            self.metadataError = "De opnamegegevens konden niet worden bewaard. Probeer opnieuw te bewaren."
+            self.metadataError = "The recording details could not be saved. Try saving again."
             if error == nil { error = self.metadataError }
         }
         if error == nil, title.trimmingCharacters(in: .whitespacesAndNewlines) != originalTitle,
@@ -392,7 +404,7 @@ final class MeetingRuntime: DictationMeetingHook {
 
         let finish = MeetingFinish(id: id, gaps: recorder.gaps, stoppedEarly: stoppedEarly, error: error)
         if !finish.gaps.isEmpty || stoppedEarly != nil {
-            interruptions.save(.init(gaps: finish.gaps, stoppedEarly: stoppedEarly), for: id)
+            interruptions.save(.init(gaps: finish.gaps, stoppedEarly: stoppedEarly, stoppedEarlyCode: Message.code(for: stoppedEarly)), for: id)
         }
         self.session = nil
         self.recorder = nil
@@ -519,7 +531,7 @@ final class MeetingRuntime: DictationMeetingHook {
         do {
             try flushCaptureEvents(id: id)
         } catch {
-            metadataError = "De opnamegegevens konden niet worden bewaard. Probeer opnieuw te bewaren."
+            metadataError = "The recording details could not be saved. Try saving again."
             warning = metadataError
             Self.log.error("capture metadata: \(ErrorText.code(error), privacy: .public)")
         }
@@ -689,7 +701,7 @@ final class MeetingRuntime: DictationMeetingHook {
                 self.recorder?.finish()
                 // No finish runs after this, so the record is what tells the user after a relaunch that it is partial.
                 if let id = self.activeMeetingId {
-                    self.interruptions.save(.init(gaps: self.recorder?.gaps ?? [], stoppedEarly: Message.terminated), for: id)
+                    self.interruptions.save(.init(gaps: self.recorder?.gaps ?? [], stoppedEarly: Message.terminated, stoppedEarlyCode: "recording_terminated"), for: id)
                     self.recordCapture(.captureError, errorCode: "application_terminated")
                     self.recordCapture(.metrics, metrics: self.recorder?.metrics)
                     try? self.engine.finishMeetingRecording(id: id, durationMs: self.recorder?.elapsedMs ?? 0, complete: false)
@@ -755,7 +767,7 @@ final class SystemFinishScheduler: FinishTaskScheduling {
 
     func begin() -> FinishTask? {
         let request = BGContinuedProcessingTaskRequest(
-            identifier: Self.identifier, title: Copy.Meetings.finishing, subtitle: MeetingRuntime.Message.defaultTitle)
+            identifier: Self.identifier, title: ActivityCopy.current.text(.finishingRecording), subtitle: MeetingRuntime.Message.defaultTitle)
         request.strategy = .fail
         do {
             try BGTaskScheduler.shared.submit(request)
@@ -809,7 +821,8 @@ private final class SystemFinishTask: FinishTask {
         guard let task else { return }
         task.progress.totalUnitCount = Int64(highest)
         task.progress.completedUnitCount = Int64(highest - min(pending, highest))
-        task.updateTitle(Copy.Meetings.finishing, subtitle: Copy.Meetings.finishing(pending: pending))
+        let copy = ActivityCopy.current
+        task.updateTitle(copy.text(.finishingRecording), subtitle: copy.finishing(pending: pending))
     }
 
     private func complete(_ success: Bool) {

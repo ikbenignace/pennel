@@ -41,7 +41,7 @@ pub enum CaptureError {
 impl std::fmt::Display for CaptureError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CaptureError::NoDevice => write!(f, "geen apparaat gevonden"),
+            CaptureError::NoDevice => write!(f, "no device found"),
             CaptureError::Failed(message) => write!(f, "{message}"),
         }
     }
@@ -148,7 +148,7 @@ impl Capture {
             if let Some(thread) = self.thread.take()
                 && thread.join().is_err()
             {
-                *self.error.lock().unwrap() = Some("Audio-opname is onverwacht gestopt".into());
+                *self.error.lock().unwrap() = Some("Audio recording stopped unexpectedly".into());
             }
         }
     }
@@ -212,7 +212,7 @@ fn open(
         return Err(CaptureError::NoDevice);
     }
     LOG.info(format!(
-        "{source:?}: {} Hz, {} kanalen, {:?}",
+        "{source:?}: {} Hz, {} channels, {:?}",
         config.sample_rate,
         config.channels,
         supported.sample_format()
@@ -224,7 +224,7 @@ fn open(
         cpal::SampleFormat::I32 => build::<i32>(&device, config, sink, error),
         cpal::SampleFormat::F64 => build::<f64>(&device, config, sink, error),
         cpal::SampleFormat::U8 => build::<u8>(&device, config, sink, error),
-        other => return Err(CaptureError::Failed(format!("formaat {other:?}"))),
+        other => return Err(CaptureError::Failed(format!("format {other:?}"))),
     }
     .map_err(|e| CaptureError::Failed(e.to_string()))?;
     stream
@@ -264,7 +264,7 @@ where
         move |e| {
             let message = e.to_string();
             *error.lock().unwrap() = Some(message.clone());
-            LOG.error(format!("audiostroom: {message}"));
+            LOG.error(format!("audio stream: {message}"));
         },
         None,
     )

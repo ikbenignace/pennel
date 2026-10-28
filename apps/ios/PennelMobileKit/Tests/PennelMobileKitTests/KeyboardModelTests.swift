@@ -165,10 +165,35 @@ struct KeyboardModelTests {
         let stop = try #require(h.lastCommand)
         try h.store.write(HandoffResult(id: stop.id, text: nil, error: "Geen spraak gehoord.", at: h.now), as: .result)
         model.refresh()
-        #expect(model.pad == .failed("Geen spraak gehoord."))
+        #expect(model.pad == .failed("No speech recognized. Try again."))
         #expect(h.inserted.isEmpty)
         model.retry()
         #expect(model.pad == .ready)
+    }
+
+    @Test func handoff_failure_code_uses_the_keyboard_language_and_never_inserts_diagnostics() throws {
+        try h.session(.ready)
+        let model = KeyboardModel(hasFullAccess: true, client: HandoffClient(store: h.store, pending: PendingHandoff()),
+            now: { h.now }, context: { .init(document: h.document, lifetime: h.document, generation: h.generation) },
+            copy: KeyboardCopy(language: .dutch), onResult: { h.inserted.append($0) })
+        model.refresh()
+        model.tapPill()
+        model.tapPill()
+        let stop = try #require(h.lastCommand)
+        try h.store.write(HandoffResult(id: stop.id, text: nil, error: "No connection", errorCode: "network", at: h.now), as: .result)
+        model.refresh()
+        #expect(model.pad == .failed("Geen verbinding. Probeer opnieuw."))
+        #expect(h.inserted.isEmpty)
+    }
+
+    @Test func provider_authentication_failures_keep_the_provider_recovery_action() {
+        let english = KeyboardCopy(language: .english)
+        let dutch = KeyboardCopy(language: .dutch)
+        for code in ["provider_auth", "http_401", "http_403"] {
+            #expect(english.failure(code: code, message: "Private diagnostics") == "Check your provider API key and model access in Pennel Settings.")
+            #expect(dutch.failure(code: code, message: "Private diagnostics") == "Controleer de API-sleutel en modeltoegang van je provider bij Instellingen in Pennel.")
+        }
+        #expect(english.failure(code: nil, message: "API-sleutel geweigerd") == "Check your provider API key and model access in Pennel Settings.")
     }
 
     @Test func dismiss_and_reappear_offers_last_result_once() throws {

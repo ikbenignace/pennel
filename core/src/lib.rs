@@ -96,7 +96,7 @@ pub use retranscription::{
 };
 pub use rules::{
     AppRule, CalendarRule, EventRule, RecordAction, browser_apps, consent_sentence,
-    decide_recording, known_call_apps,
+    consent_sentence_for_language, decide_recording, known_call_apps,
 };
 pub use session::{MeetingHealth, MeetingRecognition, MeetingSession};
 pub use settings::{

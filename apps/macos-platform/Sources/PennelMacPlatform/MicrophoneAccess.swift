@@ -21,9 +21,9 @@ enum MicrophoneStartError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .permissionDenied: "Geef Pennel toegang tot de microfoon in Systeeminstellingen → Privacy en beveiliging → Microfoon en probeer opnieuw."
-        case .permissionPending: "Sta microfoontoegang toe in de melding van macOS en probeer opnieuw."
-        case .failed: "De microfoon kon niet starten. Kies een ander invoerapparaat of probeer opnieuw."
+        case .permissionDenied: "Give Pennel microphone access in System Settings → Privacy & Security → Microphone, then try again."
+        case .permissionPending: "Allow microphone access in the macOS prompt, then try again."
+        case .failed: "The microphone could not start. Choose another input device or try again."
         }
     }
 

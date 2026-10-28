@@ -1,5 +1,5 @@
 import { bindLocalization, liveText, l, t, uiLocale, formatNumber, localizeBackendText, type LocalizedText } from "../i18n.ts";
-import { localModelLanguageName } from "../settings-presentation.ts";
+import { localModelDisplayName, localModelLanguageName } from "../settings-presentation.ts";
 import { api, listen, type LocalModel } from "../api";
 import { confirmDialog, errorText, field, h, isCancellation, section, select } from "../dom";
 import type { Context } from "../main";
@@ -129,11 +129,11 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     }
     return h("div", { class: "model-card" },
       h("div", { class: "model-card-heading" }, h("div", { class: "grow" },
-        h("div", { class: "row" }, h("strong", {}, model.name), inUseHere || model.recommended ? h("span", { class: "model-badge" }, inUseHere ? l("providers.local.in_use") : l("providers.local.recommended")) : null),
+        h("div", { class: "row" }, h("strong", {}, localModelDisplayName(model)), inUseHere || model.recommended ? h("span", { class: "model-badge" }, inUseHere ? l("providers.local.in_use") : l("providers.local.recommended")) : null),
         h("p", { class: "model-details" }, metadata)),
         h("div", { class: "row model-actions" }, actions)),
       h("div", { class: "model-scores" }, bar(l("providers.local.speed"), model.speed), bar(l("providers.local.accuracy"), model.accuracy)), languageDetails,
-      active ? h("progress", { "data-model": model.id, max: active.total || 1, value: active.downloaded, "aria-label": l("providers.local.downloading_model", () => ({ model: model.name })) }) : null,
+      active ? h("progress", { "data-model": model.id, max: active.total || 1, value: active.downloaded, "aria-label": l("providers.local.downloading_model", () => ({ model: String(localModelDisplayName(model)) })) }) : null,
       failures.has(model.id) ? h("div", { class: "error" }, l("providers.local.download_failed", () => ({ error: errorText(failures.get(model.id)) }))) : null);
   };
 

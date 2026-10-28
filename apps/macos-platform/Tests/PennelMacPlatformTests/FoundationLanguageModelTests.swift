@@ -11,8 +11,8 @@ final class FoundationLanguageModelTests: XCTestCase {
         XCTAssertEqual(NativeLanguageModelAvailability.ready.status, "available")
         XCTAssertNil(NativeLanguageModelAvailability.ready.reason)
         XCTAssertEqual(NativeLanguageModelAvailability.unavailable(.deviceNotEligible).status, "unsupported")
-        XCTAssertTrue(NativeLanguageModelAvailability.unavailable(.disabled).reason!.contains("Schakel Apple Intelligence in"))
-        XCTAssertTrue(NativeLanguageModelAvailability.unavailable(.notReady).reason!.contains("gedownload"))
+        XCTAssertTrue(NativeLanguageModelAvailability.unavailable(.disabled).reason!.contains("Enable Apple Intelligence"))
+        XCTAssertTrue(NativeLanguageModelAvailability.unavailable(.notReady).reason!.contains("downloaded"))
         XCTAssertNotNil(NativeLanguageModelAvailability.unavailable(.unknown).reason)
     }
 

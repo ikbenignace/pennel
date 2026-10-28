@@ -9,8 +9,8 @@ struct KeychainRead {
 struct KeychainMigrationError: LocalizedError {
     let status: OSStatus
     var errorDescription: String? {
-        let reason = SecCopyErrorMessageString(status, nil) as String? ?? "Onbekende fout"
-        return "Sleutelhanger migreren mislukt (\(status)): \(reason)"
+        let reason = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown error"
+        return "Keychain migration failed (\(status)): \(reason)"
     }
 }
 
@@ -68,7 +68,7 @@ enum LegacyKeyMigration {
 @_cdecl("pennel_mac_migrate_legacy_key")
 public func migrateLegacyKey(_ rawAccount: UnsafePointer<CChar>?, _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> Bool {
     guard let account = decodeString(rawAccount), !account.isEmpty else {
-        errorOut?.pointee = bridgeString("Geen provideraccount opgegeven")
+        errorOut?.pointee = bridgeString("No provider account specified")
         return false
     }
     do { return try LegacyKeyMigration.migrate(account: account) }

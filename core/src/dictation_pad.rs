@@ -19,9 +19,7 @@ impl DictationPad {
             .is_ok_and(|metadata| metadata.file_type().is_symlink())
         {
             return Err(PennelError::Storage {
-                message:
-                    "het dicteerpad is een symbolische koppeling; gebruik een gewoon lokaal bestand"
-                        .into(),
+                message: "the dictation pad is a symbolic link; use a regular local file".into(),
             });
         }
         let text = match fs::read_to_string(&path) {

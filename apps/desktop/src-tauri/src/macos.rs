@@ -125,13 +125,13 @@ unsafe extern "C" {
 }
 
 fn c_string(value: &str) -> Result<CString, String> {
-    CString::new(value).map_err(|_| "Tekst bevat een ongeldig nulteken".into())
+    CString::new(value).map_err(|_| "The text contains an invalid null character".into())
 }
 
 fn path_string(path: &Path) -> Result<CString, String> {
     c_string(
         path.to_str()
-            .ok_or("Bestandspad is geen geldige Unicode-tekst")?,
+            .ok_or("The file path is not valid Unicode text")?,
     )
 }
 
@@ -171,7 +171,7 @@ pub fn request_permission(kind: &str) -> Result<(), String> {
     if unsafe { pennel_mac_request_permission(kind.as_ptr()) } {
         Ok(())
     } else {
-        Err("Onbekende toestemming".into())
+        Err("Unknown permission".into())
     }
 }
 
@@ -209,9 +209,9 @@ pub fn pick_style_application() -> Result<Option<crate::style_application::Style
     serde_json::from_str(
         selected
             .as_deref()
-            .ok_or("De appkiezer gaf geen antwoord.")?,
+            .ok_or("The app picker did not respond.")?,
     )
-    .map_err(|_| "De gekozen app heeft geen bruikbare app-ID.".into())
+    .map_err(|_| "The selected app has no usable app ID.".into())
 }
 
 pub fn localize_style_application_picker() -> Result<(), String> {
@@ -289,7 +289,7 @@ unsafe extern "C" fn text_result(context: *mut c_void, value: *const c_char, err
 
 fn wait_text(start: impl FnOnce(TextSink, *mut c_void)) -> Result<Option<String>, String> {
     if unsafe { pennel_mac_is_main_thread() } {
-        return Err("Deze bewerking moet op een achtergrondthread draaien".into());
+        return Err("This operation must run on a background thread".into());
     }
     let (sender, receiver) = mpsc::channel::<Result<Option<String>, String>>();
     let context = Box::into_raw(Box::new(sender)).cast();
@@ -297,7 +297,7 @@ fn wait_text(start: impl FnOnce(TextSink, *mut c_void)) -> Result<Option<String>
     // The native operation owns the sender until its one terminal callback. No timeout can free it early.
     receiver
         .recv()
-        .map_err(|_| "De native bewerking is onderbroken".to_owned())?
+        .map_err(|_| "The native operation was interrupted".to_owned())?
 }
 
 pub fn read_selection() -> Result<Option<String>, String> {
@@ -316,7 +316,7 @@ pub fn copy_text(text: &str, html: Option<&str>) -> Result<(), String> {
     if copied {
         Ok(())
     } else {
-        Err("Tekst kon niet naar het klembord worden gekopieerd".into())
+        Err("Text could not be copied to the clipboard".into())
     }
 }
 
@@ -326,7 +326,7 @@ pub fn copy_secret(text: &str) -> Result<(), String> {
     if unsafe { pennel_mac_copy_secret(text.as_ptr()) } {
         Ok(())
     } else {
-        Err("Kopiëren is mislukt.".into())
+        Err("Copying failed.".into())
     }
 }
 
@@ -404,7 +404,7 @@ impl Hotkey {
         let handle = NonNull::new(unsafe {
             pennel_mac_hotkey_start(trigger.as_ptr(), hotkey_event, context)
         })
-        .ok_or("Sneltoets niet beschikbaar. Geef Pennel toegang tot Toegankelijkheid")?;
+        .ok_or("Shortcut unavailable. Give Pennel Accessibility access")?;
         Ok(Self { handle, callback })
     }
 
@@ -417,7 +417,7 @@ impl Hotkey {
         if unsafe { pennel_mac_hotkey_set_record_shortcut_enabled(self.handle.as_ptr(), enabled) } {
             Ok(())
         } else {
-            Err("Opnamesneltoets niet beschikbaar — controleer Toegankelijkheid".into())
+            Err("Recording shortcut unavailable — check Accessibility".into())
         }
     }
 
@@ -504,7 +504,7 @@ impl Capture {
         });
         let error = unsafe { take_string(error) };
         let handle = handle
-            .ok_or_else(|| error.unwrap_or_else(|| "Audio opnemen kon niet starten".into()))?;
+            .ok_or_else(|| error.unwrap_or_else(|| "Audio recording could not start".into()))?;
         Ok(Self {
             handle: Some(handle),
             callback,
@@ -566,7 +566,7 @@ impl MeetingCapture {
         });
         let error = unsafe { take_string(error) };
         let handle = handle
-            .ok_or_else(|| error.unwrap_or_else(|| "Meeting opnemen kon niet starten".into()))?;
+            .ok_or_else(|| error.unwrap_or_else(|| "Meeting recording could not start".into()))?;
         Ok(Self {
             handle: Some(handle),
             callback,
@@ -581,11 +581,11 @@ impl MeetingCapture {
 
     pub fn stop(mut self) -> Result<Value, String> {
         let Some(handle) = self.handle.take() else {
-            return Err("De audio-opname is niet beschikbaar.".into());
+            return Err("The audio recording is unavailable.".into());
         };
         let status = unsafe { take_json(pennel_mac_meeting_stop_status(handle.as_ptr())) };
         if !status.is_object() {
-            return Err("De opnamestatus kon niet worden gecontroleerd.".into());
+            return Err("The recording status could not be checked.".into());
         }
         Ok(status)
     }
@@ -652,7 +652,7 @@ impl AppleSpeechPreview {
                 context,
             )
         })
-        .ok_or_else(|| "Live Apple-preview is niet beschikbaar".to_owned())?;
+        .ok_or_else(|| "Live Apple preview is unavailable".to_owned())?;
         Ok(Self {
             handle: Some(handle),
             callback,
@@ -706,13 +706,13 @@ pub fn language_model_complete(
     timeout_secs: u64,
 ) -> Result<String, String> {
     let messages =
-        c_string(&serde_json::to_string(&messages).map_err(|_| "Ongeldige taalmodelaanvraag")?)?;
+        c_string(&serde_json::to_string(&messages).map_err(|_| "Invalid language model request")?)?;
     wait_text(|sink, context| unsafe {
         pennel_mac_language_model_complete(messages.as_ptr(), timeout_secs, sink, context)
     })
     .and_then(|text| {
         text.filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| "Apple Intelligence gaf geen tekst terug.".into())
+            .ok_or_else(|| "Apple Intelligence returned no text.".into())
     })
 }
 

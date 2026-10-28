@@ -1,4 +1,5 @@
-use crate::meetings::{MeetingStore, speaker_label, timestamp};
+use crate::meetings::{MeetingStore, Segment, Speaker, SpeakerName, timestamp};
+use crate::{InterfaceLanguage, ui_text};
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize)]
 pub struct MeetingExport {
@@ -22,10 +23,43 @@ fn meta_line(store: &MeetingStore, id: &str, start_iso: &str, duration_min: u32)
     parts.join(" · ")
 }
 
-pub fn export_markdown(
+#[cfg(test)]
+fn export_markdown(
     store: &MeetingStore,
     id: &str,
     include_transcript: bool,
+) -> Option<(String, String)> {
+    export_markdown_for_language(store, id, include_transcript, InterfaceLanguage::English)
+}
+
+fn exported_speaker_label(
+    segment: &Segment,
+    names: &[SpeakerName],
+    language: InterfaceLanguage,
+) -> String {
+    match (segment.speaker, segment.voice) {
+        (Speaker::Me, _) => ui_text(language, "meetings.speaker_me", &[]),
+        (Speaker::Others, Some(voice)) => {
+            names.iter().find(|name| name.voice == voice).map_or_else(
+                || {
+                    ui_text(
+                        language,
+                        "meetings.speaker_number",
+                        &[("number", &voice.to_string())],
+                    )
+                },
+                |name| name.name.clone(),
+            )
+        }
+        (Speaker::Others, None) => ui_text(language, "meetings.speaker_others", &[]),
+    }
+}
+
+pub fn export_markdown_for_language(
+    store: &MeetingStore,
+    id: &str,
+    include_transcript: bool,
+    language: InterfaceLanguage,
 ) -> Option<(String, String)> {
     let info = store.info(id)?;
     let mut out = format!("# {}\n", info.title);
@@ -49,13 +83,14 @@ pub fn export_markdown(
                 format!(
                     "**[{}] {}:** {}",
                     timestamp(s.start_ms),
-                    speaker_label(&s, &names),
+                    exported_speaker_label(&s, &names, language),
                     s.text.trim()
                 )
             })
             .collect();
         if !lines.is_empty() {
-            out.push_str(&format!("\n## Transcript\n\n{}\n", lines.join("\n\n")));
+            let heading = ui_text(language, "meetings.transcript", &[]);
+            out.push_str(&format!("\n## {heading}\n\n{}\n", lines.join("\n\n")));
         }
     }
     Some((info.title, out))
@@ -313,7 +348,56 @@ mod tests {
             .unwrap();
         let (_, md) = export_markdown(&store, &id, true).unwrap();
         assert!(!md.contains("---") && !md.contains("template:"));
-        assert!(md.ends_with("## Transcript\n\n**[00:00] Ik:** Hallo\n"));
+        assert!(md.ends_with("## Transcript\n\n**[00:00] Me:** Hallo\n"));
+    }
+
+    #[test]
+    fn localized_export_changes_only_owned_labels_and_keeps_saved_markers() {
+        let (_dir, store, id) = store();
+        let mut other = segment(1_000, Speaker::Others, "Mijn naam is Ik", false);
+        other.voice = Some(2);
+        store
+            .write_transcript(
+                &id,
+                &[segment(0, Speaker::Me, "Mijn notitie", false), other],
+            )
+            .unwrap();
+        store
+            .write_notes(&id, "## Samenvatting\nMijn eigen tekst.")
+            .unwrap();
+        let saved = std::fs::read_to_string(store.dir_of(&id).join("transcript.md")).unwrap();
+        let english =
+            export_markdown_for_language(&store, &id, true, crate::InterfaceLanguage::English)
+                .unwrap()
+                .1;
+        let dutch =
+            export_markdown_for_language(&store, &id, true, crate::InterfaceLanguage::Dutch)
+                .unwrap()
+                .1;
+        assert!(english.contains("Me:** Mijn notitie"));
+        assert!(english.contains("Speaker 2:** Mijn naam is Ik"));
+        assert!(dutch.contains("Ik:** Mijn notitie"));
+        assert!(dutch.contains("Anderen 2:** Mijn naam is Ik"));
+        assert!(english.contains("## Samenvatting\nMijn eigen tekst."));
+        assert_eq!(
+            std::fs::read_to_string(store.dir_of(&id).join("transcript.md")).unwrap(),
+            saved
+        );
+        store
+            .set_speaker_names(
+                &id,
+                &[SpeakerName {
+                    voice: 2,
+                    name: "Mijn eigen naam".into(),
+                }],
+            )
+            .unwrap();
+        for language in [InterfaceLanguage::English, InterfaceLanguage::Dutch] {
+            let body = export_markdown_for_language(&store, &id, true, language)
+                .unwrap()
+                .1;
+            assert!(body.contains("Mijn eigen naam:** Mijn naam is Ik"));
+        }
     }
 
     #[test]

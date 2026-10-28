@@ -382,12 +382,12 @@ fn hotkey_label(trigger: pennel_core::HotkeyTrigger) -> String {
     use pennel_core::HotkeyTrigger::*;
     crate::ui::message(match trigger {
         Fn if cfg!(target_os = "macos") => "fn",
-        RightControl | Fn => "rechter Ctrl",
-        RightOption if cfg!(target_os = "macos") => "rechter Option",
-        RightCommand if cfg!(target_os = "macos") => "rechter Command",
-        RightOption => "rechter Alt",
-        RightCommand => "rechter Windows-toets",
-        ControlSuper => "Ctrl + Windows-toets",
+        RightControl | Fn => "right Ctrl",
+        RightOption if cfg!(target_os = "macos") => "right Option",
+        RightCommand if cfg!(target_os = "macos") => "right Command",
+        RightOption => "right Alt",
+        RightCommand => "right Windows key",
+        ControlSuper => "Ctrl + Windows key",
     })
 }
 
@@ -470,8 +470,14 @@ pub fn flush_frontends(app: &AppHandle, event: &str) -> FrontendFlush {
     let _operation = state.flush_gate.lock().unwrap();
     let mut flush = flush_frontend_requests(app, event, None);
     if flush.result.is_ok() && matches!(event, "prepare-exit" | "prepare-update") {
-        flush.result = app.state::<Arc<Shared>>().engine.retry_unsaved_history()
-            .map_err(|_| "Bewaar of verwijder eerst je niet-bewaarde dictaten in Geschiedenis. Pennel blijft open.".into());
+        flush.result = app
+            .state::<Arc<Shared>>()
+            .engine
+            .retry_unsaved_history()
+            .map_err(|_| {
+                "Save or discard your unsaved dictations in History first. Pennel will stay open."
+                    .into()
+            });
     }
     flush
 }
@@ -497,9 +503,7 @@ fn flush_frontend_requests(app: &AppHandle, event: &str, target: Option<&str>) -
         if app.emit_to(label, event, sequence).is_err() {
             return FrontendFlush {
                 request_id: sequence,
-                result: Err(ui::message(
-                    "Een venster kon de laatste wijzigingen niet bewaren",
-                )),
+                result: Err(ui::message("A window could not save its latest changes")),
             };
         }
     }
@@ -512,7 +516,7 @@ fn flush_frontend_requests(app: &AppHandle, event: &str, target: Option<&str>) -
         .unwrap();
     let result = if sync.failed || !sync.pending.is_empty() {
         Err(ui::message(
-            "Bewaren is nog niet klaar. Pennel blijft open zodat je wijzigingen bewaard blijven.",
+            "Saving has not finished. Pennel will stay open to preserve your changes.",
         ))
     } else {
         Ok(())
@@ -679,10 +683,10 @@ pub fn refresh_hotkey(app: &AppHandle, shared: &Arc<Shared>) {
 pub fn hotkey_hint(shared: &Shared) -> String {
     crate::ui::message(match shared.hotkey_error.lock().unwrap().as_ref() {
         None => format!(
-            "Dicteren — houd {} ingedrukt",
+            "Dictation — hold {}",
             hotkey_label(shared.settings().hotkey)
         ),
-        Some(_) => "Sneltoets niet beschikbaar (zie logboek)".into(),
+        Some(_) => "Shortcut unavailable (see log)".into(),
     })
 }
 
@@ -710,14 +714,14 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "dictation",
-                crate::ui::message("Dicteren starten/stoppen"),
+                crate::ui::message("Start/stop dictation"),
                 true,
                 None::<&str>,
             )?,
             &MenuItem::with_id(
                 app,
                 "meeting",
-                crate::ui::message("Meeting opnemen…"),
+                crate::ui::message("Record meeting…"),
                 true,
                 None::<&str>,
             )?,
@@ -725,28 +729,28 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "pad",
-                crate::ui::message("Dicteren…"),
+                crate::ui::message("Dictation…"),
                 true,
                 None::<&str>,
             )?,
             &MenuItem::with_id(
                 app,
                 "history",
-                crate::ui::message("Geschiedenis…"),
+                crate::ui::message("History…"),
                 true,
                 None::<&str>,
             )?,
             &MenuItem::with_id(
                 app,
                 "settings",
-                crate::ui::message("Instellingen…"),
+                crate::ui::message("Settings…"),
                 true,
                 None::<&str>,
             )?,
             &MenuItem::with_id(
                 app,
                 "log",
-                crate::ui::message("Logboek openen"),
+                crate::ui::message("Open log"),
                 true,
                 None::<&str>,
             )?,
@@ -754,7 +758,7 @@ fn build_tray(app: &AppHandle, shared: &Shared) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "quit",
-                crate::ui::message("Stop Pennel"),
+                crate::ui::message("Quit Pennel"),
                 true,
                 None::<&str>,
             )?,
@@ -801,7 +805,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         macos::set_accessory();
         if !preview && !macos::other_instances().is_empty() {
-            return Err("Sluit de vorige Pennel-app voordat je deze versie opent. Je gegevens zijn niet gewijzigd.".into());
+            return Err("Close the previous Pennel app before opening this version. Your data is unchanged.".into());
         }
         if !preview {
             legacy_migration::prepare(&dir, &handle.path().home_dir()?)?;
@@ -817,7 +821,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
     diagnostics::init(log);
     LOG.info(format!(
-        "Pennel {} gestart op {}",
+        "Pennel {} started on {}",
         handle.package_info().version,
         std::env::consts::OS
     ));
@@ -900,7 +904,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     match Listener::start(settings.hotkey, hotkey_tx) {
         Ok(listener) => *shared.hotkey.lock().unwrap() = Some(listener),
         Err(e) => {
-            LOG.error(format!("sneltoets niet actief: {e}"));
+            LOG.error(format!("shortcut inactive: {e}"));
             *shared.hotkey_error.lock().unwrap() = Some(e);
         }
     }
@@ -912,13 +916,13 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     LOG.info(format!(
-        "sneltoets actief={} · dicteren {}/{} · opkuis {}/{} · taal {} · modus {:?}",
+        "shortcut active={} · dictation {}/{} · cleanup {}/{} · language {} · mode {:?}",
         shared.hotkey_error.lock().unwrap().is_none(),
         settings.dictation_stt.provider_id,
         settings.dictation_stt.model,
         settings.llm.provider_id,
         settings.llm.model,
-        settings.language.as_deref().unwrap_or("automatisch"),
+        settings.language.as_deref().unwrap_or("automatic"),
         settings.mode
     ));
 
@@ -927,7 +931,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         loop {
             std::thread::sleep(Duration::from_secs(60));
             if idle_engine.unload_idle_models() {
-                Log::new("app").info("lokaal model uit geheugen gehaald");
+                Log::new("app").info("local model unloaded from memory");
             }
         }
     });
@@ -944,7 +948,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if let Ok(_job) = meeting_runtime::LibraryJob::new(&retained) {
                 let count = retained.engine.prune_meeting_audio();
                 if count > 0 {
-                    LOG.info(format!("Audio-retentie toegepast: {count} bestanden"));
+                    LOG.info(format!("Audio retention applied: {count} files"));
                 }
             }
         });
@@ -1158,7 +1162,7 @@ fn main() {
             owned_dictation::close_dictation_session,
         ])
         .build(tauri::generate_context!())
-        .expect("Pennel kon niet starten")
+        .expect("Pennel could not start")
         .run(|_app, event| match event {
             tauri::RunEvent::ExitRequested { api, .. } => {
                 if _app.state::<ExitState>().approved.load(Ordering::SeqCst) {
@@ -1257,7 +1261,7 @@ fn main() {
                         }
                         Err(error) => {
                             let _ = error;
-                            LOG.error("Stoppen uitgesteld na een fout bij het afronden");
+                            LOG.error("Quit deferred after a finalization error");
                             app.state::<ExitState>()
                                 .requested
                                 .store(false, Ordering::SeqCst);

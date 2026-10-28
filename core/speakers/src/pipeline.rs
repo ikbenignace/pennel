@@ -40,7 +40,7 @@ impl Default for Options {
 
 fn existing(path: &Path) -> Result<String, Error> {
     if !path.is_file() {
-        return Err(Error::Model("bestand ontbreekt".into()));
+        return Err(Error::Model("file missing".into()));
     }
     Ok(path.to_string_lossy().into_owned())
 }
@@ -67,7 +67,7 @@ impl Embedder {
         let stream = self
             .extractor
             .create_stream()
-            .ok_or_else(|| Error::Audio("geen stream".into()))?;
+            .ok_or_else(|| Error::Audio("no stream".into()))?;
         stream.accept_waveform(SAMPLE_RATE as i32, samples);
         stream.input_finished();
         if !self.extractor.is_ready(&stream) {
@@ -76,7 +76,7 @@ impl Embedder {
         let embedding = self
             .extractor
             .compute(&stream)
-            .ok_or_else(|| Error::Audio("geen stemafdruk".into()))?;
+            .ok_or_else(|| Error::Audio("no voiceprint".into()))?;
         Ok(normalized(&embedding))
     }
 
@@ -134,7 +134,7 @@ pub fn diarize(models: &Models, samples: &[f32], options: &Options) -> Result<Di
         .ok_or_else(|| Error::Model("segmentatiemodel".into()))?;
     let result = diarizer
         .process(samples)
-        .ok_or_else(|| Error::Audio("geen resultaat".into()))?;
+        .ok_or_else(|| Error::Audio("no result".into()))?;
     let raw = result.sort_by_start_time().into_iter().map(|segment| {
         (
             (segment.start.max(0.0) * 1000.0).round() as u64,

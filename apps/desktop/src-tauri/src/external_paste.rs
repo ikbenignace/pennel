@@ -29,13 +29,13 @@ impl ExternalTarget {
 pub fn availability() -> (bool, Option<String>) {
     #[cfg(target_os = "linux")]
     if crate::linux_input::is_wayland() {
-        return (false, Some("Wayland staat automatisch extern plakken niet toe. Kopieer de tekst en plak zelf met Ctrl+V.".into()));
+        return (false, Some("Wayland does not allow automatic external pasting. Copy the text and paste it with Ctrl+V yourself.".into()));
     }
     #[cfg(target_os = "linux")]
     if !crate::linux_input::has_x11_display() {
         return (
             false,
-            Some("Geen X11-sessie beschikbaar om een externe doelapp te bedienen.".into()),
+            Some("No X11 session is available to control an external destination app.".into()),
         );
     }
     #[cfg(target_os = "macos")]
@@ -46,7 +46,7 @@ pub fn availability() -> (bool, Option<String>) {
     {
         return (
             false,
-            Some("Geef Pennel toegang tot Toegankelijkheid om extern te plakken.".into()),
+            Some("Give Pennel Accessibility access to paste into other apps.".into()),
         );
     }
     (true, None)
@@ -80,7 +80,7 @@ pub fn capture() -> Option<ExternalTarget> {
 pub fn capture_current(_app: &tauri::AppHandle) -> Result<ExternalTarget, String> {
     let (available, reason) = availability();
     if !available {
-        return Err(reason.unwrap_or_else(|| "Extern plakken is niet beschikbaar.".into()));
+        return Err(reason.unwrap_or_else(|| "External pasting is unavailable.".into()));
     }
     #[cfg(target_os = "macos")]
     let target = crate::macos::current_external_target().map(|target| ExternalTarget {
@@ -91,7 +91,7 @@ pub fn capture_current(_app: &tauri::AppHandle) -> Result<ExternalTarget, String
     });
     #[cfg(not(target_os = "macos"))]
     let target = desktop::capture_current();
-    target.ok_or_else(|| "Geen doelapp beschikbaar. Je dictaat staat in Geschiedenis.".into())
+    target.ok_or_else(|| "No destination app is available. Your dictation is in History.".into())
 }
 
 pub fn hint() -> Option<String> {
@@ -118,7 +118,7 @@ pub fn is_current(target: &ExternalTarget) -> bool {
 #[cfg(target_os = "macos")]
 pub fn paste(text: &str, target: &ExternalTarget) -> Result<(), String> {
     if !target.is_valid() {
-        return Err("Extern plakken is geannuleerd. Je tekst staat in Pennel.".into());
+        return Err("External paste was cancelled. Your text is in Pennel.".into());
     }
     crate::macos::paste_external_target(text, &target.token)
 }
@@ -226,7 +226,9 @@ mod desktop {
     pub fn prepare(captured: &ExternalTarget) -> Result<(), String> {
         let target = &captured.target;
         if !captured.is_valid() || process_identity(target.pid).as_ref() != Some(&target.identity) {
-            return Err("De doelapp is niet meer beschikbaar. Je tekst staat in Pennel.".into());
+            return Err(
+                "The destination app is no longer available. Your text is in Pennel.".into(),
+            );
         }
         let foreground = current();
         if foreground.as_ref().is_some_and(|app| app == target) {
@@ -234,16 +236,14 @@ mod desktop {
         }
         if captured.current_only {
             captured.cancel();
-            return Err(
-                "Andere app actief — niet geplakt. Je dictaat staat in Geschiedenis.".into(),
-            );
+            return Err("Another app is active — not pasted. Your dictation is in History.".into());
         }
         if foreground
             .as_ref()
             .is_none_or(|app| app.pid != std::process::id())
         {
             captured.cancel();
-            return Err("Een andere app is actief. Je tekst staat in Pennel.".into());
+            return Err("Another app is active. Your text is in Pennel.".into());
         }
         activate(target)?;
         let deadline = Instant::now() + Duration::from_secs(1);
@@ -251,7 +251,7 @@ mod desktop {
             if !captured.is_valid() || Instant::now() >= deadline {
                 captured.cancel();
                 return Err(
-                    "De doelapp kon niet worden geactiveerd. Je tekst staat in Pennel.".into(),
+                    "The destination app could not be activated. Your text is in Pennel.".into(),
                 );
             }
             std::thread::sleep(Duration::from_millis(20));
@@ -313,7 +313,7 @@ mod desktop {
         if unsafe { SetForegroundWindow(HWND(target.window as *mut std::ffi::c_void)) }.as_bool() {
             Ok(())
         } else {
-            Err("Windows kon de doelapp niet activeren. Je tekst staat in Pennel.".into())
+            Err("Windows could not activate the destination app. Your text is in Pennel.".into())
         }
     }
 
@@ -349,7 +349,7 @@ mod desktop {
     #[cfg(target_os = "linux")]
     fn activate(target: &Target) -> Result<(), String> {
         x11::activate(target.window).then_some(()).ok_or_else(|| {
-            "De doelapp kon niet worden geactiveerd. Je tekst staat in Pennel.".into()
+            "The destination app could not be activated. Your text is in Pennel.".into()
         })
     }
 

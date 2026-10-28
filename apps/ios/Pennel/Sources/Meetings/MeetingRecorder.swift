@@ -263,7 +263,7 @@ final class MeetingRecorder: @unchecked Sendable {
         do {
             try archive.write(samples)
         } catch {
-            fail("De audio-opname kon niet worden bewaard. Controleer de vrije opslagruimte.")
+            fail("The audio recording could not be saved. Check available storage.")
         }
         archived += samples.count
     }

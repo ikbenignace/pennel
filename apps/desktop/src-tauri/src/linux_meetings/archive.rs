@@ -23,14 +23,14 @@ fn codecs() -> Result<Codecs, String> {
     static CODECS: OnceLock<Result<Codecs, String>> = OnceLock::new();
     CODECS.get_or_init(|| {
         output("gst-launch-1.0", &["--version"], Duration::from_secs(2), 16_384)
-            .map_err(|_| "M4A-audio vereist GStreamer (gstreamer1.0-tools). Installeer de audiopakketten en herstart Pennel.".to_owned())?;
+            .map_err(|_| "M4A audio requires GStreamer (gstreamer1.0-tools). Install the audio packages, then restart Pennel.".to_owned())?;
         for plugin in ["fdsrc", "fdsink", "rawaudioparse", "audioconvert", "audioresample", "aacparse", "mp4mux", "qtdemux"] {
-            if !has_plugin(plugin) { return Err(format!("GStreamer-element {plugin} ontbreekt. Installeer gstreamer1.0-plugins-base en gstreamer1.0-plugins-good en herstart Pennel.")); }
+            if !has_plugin(plugin) { return Err(format!("GStreamer element {plugin} is missing. Install gstreamer1.0-plugins-base and gstreamer1.0-plugins-good, then restart Pennel.")); }
         }
         let encoder = ["voaacenc", "avenc_aac"].into_iter().find(|plugin| has_plugin(plugin))
-            .ok_or("Een AAC-encoder ontbreekt. Installeer gstreamer1.0-libav en herstart Pennel.")?;
+            .ok_or("An AAC encoder is missing. Install gstreamer1.0-libav and restart Pennel.")?;
         let decoder = ["avdec_aac", "faad"].into_iter().find(|plugin| has_plugin(plugin))
-            .ok_or("Een AAC-decoder ontbreekt. Installeer gstreamer1.0-libav en herstart Pennel.")?;
+            .ok_or("An AAC decoder is missing. Install gstreamer1.0-libav and restart Pennel.")?;
         Ok(Codecs { encoder, decoder })
     }).clone()
 }
@@ -148,7 +148,7 @@ impl AudioArchive {
                 return Err(error.to_string());
             }
         };
-        let mut input = child.stdin.take().ok_or("Audio-invoer ontbreekt")?;
+        let mut input = child.stdin.take().ok_or("Audio input is missing")?;
         let (sender, receiver) = mpsc::sync_channel::<Block>(32);
         let error = Arc::new(Mutex::new(None));
         let writer_error = error.clone();
@@ -228,8 +228,8 @@ impl AudioArchive {
         };
         sender.try_send(block).map_err(|error| {
             let message = match error {
-                TrySendError::Full(_) => "Audio-opslag houdt de opname niet bij",
-                TrySendError::Disconnected(_) => "Audio-opslag is onverwacht gestopt",
+                TrySendError::Full(_) => "Audio storage cannot keep up with the recording",
+                TrySendError::Disconnected(_) => "Audio storage stopped unexpectedly",
             };
             *self.error.lock().unwrap() = Some(message.into());
             message.into()
@@ -257,14 +257,14 @@ impl AudioArchive {
         }
         let written = writer
             .join()
-            .map_err(|_| "Audio-opslag is onverwacht gestopt".to_owned())
+            .map_err(|_| "Audio storage stopped unexpectedly".to_owned())
             .and_then(|result| result);
         let status = wait(
             &mut self.child.lock().unwrap(),
             deadline.saturating_duration_since(Instant::now()),
         );
         if timeout {
-            return Err("Audio-opslag reageerde niet op tijd".into());
+            return Err("Audio storage did not respond in time".into());
         }
         written?;
         if let Some(error) = self.error.lock().unwrap().clone() {
@@ -272,8 +272,7 @@ impl AudioArchive {
         }
         if !status?.success() {
             return Err(
-                "M4A-opslag is mislukt. Controleer GStreamer en de beschikbare opslagruimte."
-                    .into(),
+                "M4A storage failed. Check GStreamer and the available storage space.".into(),
             );
         }
         Ok(())
@@ -298,7 +297,7 @@ pub fn decode_audio(path: &Path) -> Result<Vec<f32>, String> {
         .env_remove("GST_DEBUG_DUMP_DOT_DIR")
         .spawn()
         .map_err(|error| error.to_string())?;
-    let stdout = child.stdout.take().ok_or("Audio-uitvoer ontbreekt")?;
+    let stdout = child.stdout.take().ok_or("Audio output is missing")?;
     let (done, result) = mpsc::sync_channel(1);
     let reader = match std::thread::Builder::new()
         .name("pennel-gstreamer-decode".into())
@@ -329,19 +328,21 @@ pub fn decode_audio(path: &Path) -> Result<Vec<f32>, String> {
         if Instant::now() >= deadline {
             terminate(&mut child);
             let _ = reader.join();
-            return Err("Audiodecodering reageerde niet op tijd".into());
+            return Err("Audio decoding did not respond in time".into());
         }
         std::thread::sleep(Duration::from_millis(10));
     };
     let _ = reader.join();
     let decoded = decoded
         .or_else(|| result.try_recv().ok())
-        .ok_or("Audiodecodering is onverwacht gestopt")??;
+        .ok_or("Audio decoding stopped unexpectedly")??;
     if !status.success() {
-        return Err("Audio kon niet worden gelezen. Controleer het M4A-bestand en de GStreamer AAC-decoder.".into());
+        return Err(
+            "Audio could not be read. Check the M4A file and the GStreamer AAC decoder.".into(),
+        );
     }
     if decoded.is_empty() {
-        return Err("Het audiobestand bevat geen audiosamples".into());
+        return Err("The audio file contains no audio samples".into());
     }
     Ok(decoded)
 }
@@ -358,7 +359,7 @@ fn read_pcm(mut reader: impl Read) -> Result<Vec<f32>, String> {
         pending.extend_from_slice(&block[..read]);
         let complete = pending.len() / 4 * 4;
         if samples.len().saturating_add(complete / 4) > MAX_SAMPLES {
-            return Err("Audio langer dan drie uur kan niet worden verwerkt".into());
+            return Err("Audio longer than three hours cannot be processed".into());
         }
         samples.extend(
             pending[..complete]
@@ -370,7 +371,7 @@ fn read_pcm(mut reader: impl Read) -> Result<Vec<f32>, String> {
         pending.drain(..complete);
     }
     if !pending.is_empty() {
-        return Err("De decoder gaf een onvolledig audioblok terug".into());
+        return Err("The decoder returned an incomplete audio block".into());
     }
     Ok(samples)
 }

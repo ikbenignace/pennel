@@ -133,7 +133,7 @@ impl SyncRunner {
                     run(recording_ids());
                 }));
                 if pass.is_err() {
-                    LOG.error("synchronisatie onverwacht gestopt; volgende ronde probeert opnieuw");
+                    LOG.error("sync stopped unexpectedly; the next pass will retry");
                 }
                 worker.signals.lock().unwrap().running = false;
             }
@@ -385,7 +385,11 @@ pub async fn cloud_login_start(shared: State<'_, Arc<Shared>>) -> Result<LoginSt
     blocking(move || {
         shared
             .engine
-            .cloud_login_start(device_name(), platform().into())
+            .cloud_login_start_with_locale(
+                device_name(),
+                platform().into(),
+                Some(shared.interface_language().code().into()),
+            )
             .map(Into::into)
             .map_err(err)
     })
@@ -577,11 +581,9 @@ pub async fn cloud_folder_warning(shared: State<'_, Arc<Shared>>) -> Result<Opti
 pub fn open_url(url: String, app: AppHandle) -> Result<()> {
     let parsed = tauri::Url::parse(&url).map_err(CloudError::other)?;
     if parsed.scheme() != "https" {
-        return Err(CloudError::other(
-            "Alleen https-links kunnen worden geopend.",
-        ));
+        return Err(CloudError::other("Only HTTPS links can be opened."));
     }
-    LOG.info("link geopend in de browser");
+    LOG.info("link opened in the browser");
     app.opener()
         .open_url(parsed.to_string(), None::<&str>)
         .map_err(CloudError::other)

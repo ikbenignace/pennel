@@ -150,8 +150,8 @@ fn parse(json: &str) -> Vec<CatalogModel> {
 
 fn generated_description(languages: &[String]) -> String {
     match languages {
-        [only] => format!("Spraak naar tekst, alleen {only}"),
-        _ => format!("Spraak naar tekst in {} talen", languages.len()),
+        [only] => format!("Speech to text, {only} only"),
+        _ => format!("Speech to text in {} languages", languages.len()),
     }
 }
 
@@ -167,6 +167,18 @@ pub fn find(id: &str) -> Option<&'static CatalogModel> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generated_descriptions_use_english_and_preserve_language_codes() {
+        assert_eq!(
+            generated_description(&["nl".into()]),
+            "Speech to text, nl only"
+        );
+        assert_eq!(
+            generated_description(&["nl".into(), "en".into()]),
+            "Speech to text in 2 languages"
+        );
+    }
 
     #[test]
     fn parses_bundled_catalog() {

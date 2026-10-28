@@ -4,7 +4,7 @@ use std::io::Write;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-pub const SHORTCUT_HELP: &str = "Wayland: stel in je desktopinstellingen een sneltoets in voor pennel --toggle-dictation. Pennel kopieert de tekst; plak zelf met Ctrl+V.";
+pub const SHORTCUT_HELP: &str = "Wayland: configure a shortcut for pennel --toggle-dictation in your desktop settings. Pennel copies the text; paste it yourself with Ctrl+V.";
 
 pub fn session_is_wayland(session_type: Option<&str>, display: Option<&str>) -> bool {
     session_type.is_some_and(|value| value.eq_ignore_ascii_case("wayland"))
@@ -68,11 +68,11 @@ fn copy_wayland_with(text: &str, sensitive: bool) -> Result<(), String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|_| "Wayland-klembord niet beschikbaar — installeer wl-clipboard".to_owned())?;
+        .map_err(|_| "Wayland clipboard unavailable — install wl-clipboard".to_owned())?;
     let Some(mut input) = child.stdin.take() else {
         let _ = child.kill();
         let _ = child.wait();
-        return Err("Wayland-klembord kon niet worden geopend".into());
+        return Err("The Wayland clipboard could not be opened".into());
     };
     let owned = text.to_owned();
     let writer = std::thread::spawn(move || input.write_all(owned.as_bytes()));
@@ -84,18 +84,18 @@ fn copy_wayland_with(text: &str, sensitive: bool) -> Result<(), String> {
             _ => {
                 let _ = child.kill();
                 let _ = child.wait();
-                break Err("Wayland-klembord reageert niet".to_owned());
+                break Err("The Wayland clipboard is not responding".to_owned());
             }
         }
     };
     let written = writer
         .join()
-        .map_err(|_| "Kopiëren naar het klembord is onderbroken".to_owned())?;
-    written.map_err(|_| "Tekst kon niet naar het Wayland-klembord worden geschreven".to_owned())?;
+        .map_err(|_| "Copying to the clipboard was interrupted".to_owned())?;
+    written.map_err(|_| "Text could not be written to the Wayland clipboard".to_owned())?;
     if status?.success() {
         Ok(())
     } else {
-        Err("Wayland-klembord weigerde de tekst".into())
+        Err("Wayland clipboard rejected the text".into())
     }
 }
 
