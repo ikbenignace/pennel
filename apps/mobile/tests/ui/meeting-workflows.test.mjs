@@ -64,3 +64,54 @@ test('meeting groups use local day boundaries and stay newest first', () => {
   assert.deepEqual(groups.map((group) => [group.key, group.meetings.map((meeting) => meeting.id)]), [['today', ['afternoon', 'morning']], ['week', ['yesterday']], ['earlier', ['older']]]);
   assert.equal(clock(-5), '0:00'); assert.equal(clock(3723), '62:03');
 });
+
+test('fresh core transcript citations include stable named and own-speaker prefixes', () => {
+  const detail = { info: { id: 'native-fixture' }, speakers: [{ voice: 12, name: 'Chris' }], transcript: [
+    { start_ms: 0, end_ms: 5000, speaker: 'others', voice: 12, failed: false, text: 'A verified decision.' },
+    { start_ms: 5000, end_ms: 9000, speaker: 'me', voice: null, failed: false, text: 'I will follow up.' },
+  ] };
+  const passage = { meeting_id: detail.info.id, title: 'Owned fixture', kind: 'transcript', start_ms: 0, text: 'Chris: A verified decision.\nIk: I will follow up.' };
+  const token = rememberSource(passage, 100);
+  assert.equal(resolveSource(token, detail, 200).changed, false);
+  assert.equal(resolveSource(token, detail, 200).transcriptIndex, 0);
+  assert.equal(resolveSource(token, { ...detail, speakers: [{ voice: 12, name: 'Changed name' }] }, 200).changed, true);
+});
+
+test('unknown multi-digit speaker prefixes and failed chunks match the core source contract', () => {
+  const detail = { info: { id: 'native-fixture' }, speakers: [], transcript: [
+    { start_ms: 0, end_ms: 1000, speaker: 'others', voice: 12, failed: false, text: 'First decision.' },
+    { start_ms: 1000, end_ms: 2000, speaker: 'others', voice: null, failed: true, text: 'Failed chunk.' },
+    { start_ms: 2000, end_ms: 3000, speaker: 'others', voice: null, failed: false, text: 'Next step.' },
+  ] };
+  const token = rememberSource({ meeting_id: detail.info.id, kind: 'transcript', start_ms: 0, text: 'Anderen 12: First decision.\nAnderen: Next step.' }, 100);
+  assert.equal(resolveSource(token, detail, 200).changed, false);
+  const later = rememberSource({ meeting_id: detail.info.id, kind: 'transcript', start_ms: 2000, text: 'Anderen: Next step.' }, 100);
+  assert.equal(resolveSource(later, detail, 200).transcriptIndex, 2);
+});
+
+test('a changed cited turn cannot match identical words from a later turn', () => {
+  const detail = { info: { id: 'native-fixture' }, speakers: [], transcript: [
+    { start_ms: 0, end_ms: 1000, speaker: 'others', voice: null, failed: false, text: 'Changed original.' },
+    { start_ms: 1000, end_ms: 2000, speaker: 'others', voice: null, failed: false, text: 'Repeated decision.' },
+  ] };
+  const token = rememberSource({ meeting_id: detail.info.id, kind: 'transcript', start_ms: 0, text: 'Anderen: Repeated decision.' }, 100);
+  assert.equal(resolveSource(token, detail, 200).changed, true);
+});
+
+test('a long utterance citation can begin after the core split its first labelled chunk', () => {
+  const detail = { info: { id: 'native-fixture' }, speakers: [], transcript: [
+    { start_ms: 5000, end_ms: 10000, speaker: 'others', voice: null, failed: false, text: 'First part. Later unlabelled source chunk.' },
+  ] };
+  const token = rememberSource({ meeting_id: detail.info.id, kind: 'transcript', start_ms: 5000, text: 'Later unlabelled source chunk.' }, 100);
+  assert.equal(resolveSource(token, detail, 200).changed, false);
+});
+
+test('separate core passages may start on different tracks at the same timestamp', () => {
+  const detail = { info: { id: 'native-fixture' }, speakers: [], transcript: [
+    { start_ms: 0, end_ms: 5000, speaker: 'me', voice: null, failed: false, text: 'x'.repeat(596) },
+    { start_ms: 0, end_ms: 5000, speaker: 'others', voice: 12, failed: false, text: 'A fresh second track.' },
+  ] };
+  const token = rememberSource({ meeting_id: detail.info.id, kind: 'transcript', start_ms: 0, text: 'Anderen 12: A fresh second track.' }, 100);
+  assert.equal(resolveSource(token, detail, 200).changed, false);
+  assert.equal(resolveSource(token, detail, 200).transcriptIndex, 1);
+});

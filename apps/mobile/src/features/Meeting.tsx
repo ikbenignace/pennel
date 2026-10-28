@@ -45,9 +45,9 @@ export default function Meeting() {
     const source = resolveSource(token, detail);
     if (source.changed || !source.passage) { setNotice(t('meetings.source_changed')); return; }
     setPane(source.passage.kind === 'transcript' ? 'transcript' : 'notes');
-    if (source.passage.start_ms !== null) {
-      const index = detail.transcript.findIndex((segment) => segment.start_ms >= (source.passage?.start_ms ?? 0));
-      if (index >= 0) setTimeout(() => transcriptList.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 300);
+    if (source.transcriptIndex !== null) {
+      const index = source.transcriptIndex;
+      setTimeout(() => transcriptList.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 300);
     }
   }, [detail, params.source, t]);
   const jobs = (snapshot?.recognition_jobs ?? []).map(speakerJob);
