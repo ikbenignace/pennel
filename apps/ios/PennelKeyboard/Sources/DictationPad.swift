@@ -9,47 +9,46 @@ struct DictationPad: View {
         VStack(spacing: Brand.Spacing.s2) {
             switch model.pad {
             case .needsFullAccess:
-                Text(Copy.Keyboard.fullAccessNeeded)
+                Text(model.copy.text(.fullAccess))
                     .font(.figtree(Brand.FontSize.content, weight: .medium))
                     .foregroundStyle(Brand.foreground.color)
                     .multilineTextAlignment(.center)
-                Button(Copy.Keyboard.openSettings, action: openSettings)
+                Button(model.copy.text(.settings), action: openSettings)
                     .buttonStyle(PadButtonStyle())
-            case .openPennelFallback:
-                Text(Copy.Keyboard.openPennelFallback)
-                    .font(.figtree(Brand.FontSize.content, weight: .medium))
-                    .foregroundStyle(Brand.foreground.color)
-                    .multilineTextAlignment(.center)
             case .failed(let message):
                 Text(message)
                     .font(.figtree(Brand.FontSize.content, weight: .medium))
                     .foregroundStyle(Brand.foreground.color)
                     .multilineTextAlignment(.center)
-                Button(Copy.Keyboard.retry) { model.retry() }
+                Button(model.copy.text(.retry)) { model.retry() }
                     .buttonStyle(PadButtonStyle())
             case .sessionOff:
-                pill(label: Copy.Keyboard.startPennel)
-                caption(Copy.Keyboard.startPennelHint)
+                pill(label: model.copy.text(.sessionOff))
+                caption(model.copy.text(.manualStart))
             case .ready:
                 pill(label: nil)
-                caption(Copy.Keyboard.ready)
+                caption(model.copy.text(.ready))
             case .listening:
                 pill(label: nil)
                 HStack(spacing: Brand.Spacing.s3) {
-                    caption(Copy.Keyboard.listening)
+                    caption(model.copy.text(.listening))
                     Button { model.cancel() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 22))
                             .foregroundStyle(Brand.muted.color)
                     }
-                    .accessibilityLabel("Annuleren")
+                    .accessibilityLabel(model.copy.text(.cancel))
                 }
             case .processing:
                 pill(label: nil)
-                caption(Copy.Keyboard.processing)
+                HStack(spacing: Brand.Spacing.s3) {
+                    caption(model.copy.text(.processing))
+                    Button { model.cancel() } label: { Image(systemName: "xmark.circle.fill") }
+                        .accessibilityLabel(model.copy.text(.cancel))
+                }
             }
             if model.lastResult != nil, model.pad != .listening, model.pad != .processing {
-                Button(Copy.Keyboard.insertLast) { model.insertLast() }
+                Button(model.copy.text(.insertLast)) { model.insertLast() }
                     .buttonStyle(PadButtonStyle())
             }
         }
@@ -94,7 +93,8 @@ struct DictationPad: View {
             if !pressing { model.holdEnded() }
         }
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(label ?? Copy.Keyboard.ready)
+        .accessibilityLabel(label ?? model.copy.text(.ready))
+        .accessibilityHint(model.pad == .sessionOff ? model.copy.text(.manualStart) : "")
     }
 }
 

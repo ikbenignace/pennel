@@ -1,4 +1,5 @@
 import AppIntents
+import PennelMobileKit
 import SwiftUI
 import WidgetKit
 
@@ -6,11 +7,11 @@ struct DictateControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "app.pennel.ios.control.dictate") {
             ControlWidgetButton(action: DictateToClipboardIntent()) {
-                Label("Dicteer", systemImage: "mic")
+                Label(ActivityCopy.current.text(.dictate), systemImage: "mic")
             }
         }
-        .displayName("Dicteer")
-        .description("Dicteer naar het klembord.")
+        .displayName(ActivityCopy.current.resource(.dictate))
+        .description(ActivityCopy.current.resource(.dictateDescription))
     }
 }
 
@@ -18,11 +19,11 @@ struct DictationSessionControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "app.pennel.ios.control.session") {
             ControlWidgetButton(action: StartDictationSessionIntent()) {
-                Label("Dicteersessie", systemImage: "mic.circle")
+                Label(ActivityCopy.current.text(.dictationSession), systemImage: "mic.circle")
             }
         }
-        .displayName("Dicteersessie")
-        .description("Zet de microfoon klaar voor het Pennel-toetsenbord.")
+        .displayName(ActivityCopy.current.resource(.dictationSession))
+        .description(ActivityCopy.current.resource(.dictationSessionDescription))
     }
 }
 
@@ -30,10 +31,10 @@ struct RecordingControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "app.pennel.ios.control.recording") {
             ControlWidgetButton(action: StartMeetingIntent()) {
-                Label("Opname", systemImage: "waveform")
+                Label(ActivityCopy.current.text(.recordingControl), systemImage: "waveform")
             }
         }
-        .displayName("Opname")
-        .description("Start een nieuwe opname.")
+        .displayName(ActivityCopy.current.resource(.recordingControl))
+        .description(ActivityCopy.current.resource(.recordingDescription))
     }
 }

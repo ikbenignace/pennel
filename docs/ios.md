@@ -1,6 +1,9 @@
 # Pennel for iPhone
 
-The iPhone app is native SwiftUI on the shared Rust core (`pennel-core`), linked as an XCFramework.
+This page records the retained SwiftUI iPhone implementation and its shared native services. The
+[Expo mobile migration](mobile.md) reuses the same Rust core and services; the SwiftUI shell remains
+the comparison until generated-app, upgrade and real-device acceptance pass. Shared keyboard changes
+described below also apply to the Expo candidate.
 
 ## Build
 
@@ -31,7 +34,7 @@ condition `PENNEL_APP` so shared intents only perform their action in the app.
 | --- | --- | --- |
 | `Pennel` | `app.pennel.ios` | The app: one `PennelEngine` (`AppModel.shared`), the bindings from `PennelCore/`, `PennelCoreFFI.xcframework`, `PennelMobileKit` |
 | `PennelKeyboard` | `app.pennel.ios.keyboard` | Dictation keyboard. Links `PennelMobileKit` only, never the core; no network, no logging, no Keychain access group; Figtree Medium/SemiBold. It writes only `command.json` (plus the boolean `keyboardFullAccessSeen` flag in the App Group defaults, so the app can tell that Full Access is on) and reads `session.json` / `result.json` |
-| `PennelKeyboardTests` | | Logic tests of `KeyboardModel`; `PennelKeyboard/Model/` (no UIKit) is compiled into both the extension and this hostless bundle, because an extension cannot host tests |
+| `PennelKeyboardTests` | | Hostless logic tests of the shared MobileKit `KeyboardSessionModel`; the extension retains its `KeyboardModel` alias |
 | `PennelWidgets` | `app.pennel.ios.widgets` | Session and recording Live Activities; links `PennelMobileKit` and Figtree Medium/SemiBold |
 | `PennelTests` | | Swift Testing, hosted by the app on the simulator |
 
@@ -59,20 +62,30 @@ a heartbeat. The **Dicteersessie** card at the top of the Dicteren tab shows `Ui
 
 ## Keyboard
 
-Dictation pad (pill with five bars) and an ABC letter pad (QWERTY by default; AZERTY from Instellingen > Dicteren > Toetsenbord > Indeling,
-stored as the name `qwerty`/`azerty` in the App Group defaults, read without Full Access as the default). Hold the pill to talk until release; tap to talk
-hands-free until the next tap; the cross cancels. Taps are ignored while the app is processing (the app drops a `start` then). Without Full Access the pad shows the
-explanation and **Open Instellingen**; letters always work. Opening `pennel://sessie/start` and Settings lives only in
-`AppOpener.swift`; setting `isEnabled` to false (App Review, spec R1) shows `Open Pennel en tik op Start sessie.` instead.
-A result is inserted once, only for the id of the keyboard's own stop command; **Laatste dictaat invoegen** appears only when a fresh keyboard finds an uninserted result.
+The shared native keyboard provides QWERTY/AZERTY, shift/caps lock, numbers and symbols, repeat delete,
+contextual return/email/URL keys, keyboard switching and opt-in local suggestions. `UILexicon` is the
+system supplement; Pennel's dictionary is shared only when Full Access permits the App Group. Typing
+and switching remain available without Full Access. Interface copy is English or Dutch.
+
+Hold the pill to talk until release; tap for hands-free dictation; the cross cancels. Dictation requires
+an already-ready containing-app microphone session. When it is off, the keyboard explains how to start
+one in Pennel. The responder-chain app launcher has been removed; `AppOpener` only opens Settings.
+This interim flow does not complete [keyboard-only cold start #39](https://github.com/pennel-app/pennel/issues/39).
+
+Automatic insertion requires an unconsumed result for the keyboard's own stop command and the same
+live keyboard/document/focus context. Context changes or keyboard restart require explicit recovery;
+document identifiers are not assumed durable across launches. See the [feasibility and verification
+receipt](mobile-keyboard-feasibility.md) for the public API probe, state matrix and pending device work.
 The first time the keyboard runs with Full Access it sets one boolean in the App Group defaults
 (`keyboardFullAccessSeen`, `KeyboardFullAccess`), never any text; the first launch and Instellingen › Dicteren ›
 Toetsenbord read it to show whether the keyboard is ready. Without Full Access the keyboard cannot reach the group, so the
 flag is not cleared when Full Access is switched off later.
-Gap: the opener returns true when the responder chain accepted the call, so a silent refusal by iOS still needs the device check.
+The historical Full Access flag records a prior observation; it is not proof of the current permission.
+The keyboard uses its current access/session state before claiming readiness.
 
 Keyboard memory (Instruments Allocations, 10 dictations plus letter typing, target under 30 MB): pending device acceptance.
-Simulator Release build of `PennelKeyboard.appex`: 782850 bytes in total (binary 651 KB, two fonts).
+The current unsigned extension size and build receipt are in the feasibility document. Package size
+and compiler tests do not establish peak device memory or keyboard-only cold-start behavior.
 
 ## Meetings
 
@@ -198,12 +211,11 @@ Text for the App Review notes field in App Store Connect (English, for the revie
 > the clipboard. Meetings tab → "Start opname" records a meeting from the microphone; "Stop opname" finishes it and shows
 > the transcript.
 >
-> **Why the keyboard opens its own app.** Keyboard extensions cannot use the microphone. When the user taps "Start
-> Pennel" on the Pennel keyboard (only with Full Access), the keyboard opens its own containing app, Pennel, through
-> the `pennel://sessie/start` link, which starts a short dictation session; the user returns with the system back arrow.
-> The keyboard opens no other app and no website. It never uses the network and never stores what is typed; Full Access
-> is only used to exchange small files with the Pennel app in the shared App Group. Without Full Access the letter keys
-> work normally.
+> **Keyboard session setup.** Keyboard extensions cannot directly use the microphone. In this candidate the user starts
+> a bounded session in Pennel or through its system actions, then returns to the receiving app. The keyboard does not
+> launch Pennel or another app; its Settings action is limited to system settings. Full Access enables the small-file
+> handoff with Pennel and opt-in local dictionary preferences. Typed text is not uploaded or logged. Letter keys and
+> keyboard switching work without Full Access. A completely keyboard-only cold start remains under investigation.
 >
 > **Why background audio is used.** After the user starts a dictation session, the app keeps the microphone open in the
 > background (background mode `audio`) for a limited time (5 minutes by default, chosen by the user: 5 min, 15 min or

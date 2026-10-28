@@ -54,14 +54,18 @@ public enum HandoffSignal: String, Sendable {
     case session = "app.pennel.handoff.session"
     case result = "app.pennel.handoff.result"
 
+    public func notificationName(namespace: String = HandoffConfiguration.current.namespace) -> String {
+        namespace + "." + (rawValue.split(separator: ".").last.map(String.init) ?? rawValue)
+    }
+
     public func post() {
         CFNotificationCenterPostNotification(
-            CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName(rawValue as CFString), nil, nil, true)
+            CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName(notificationName() as CFString), nil, nil, true)
     }
 
     /// Notifications carry no content; the handler only means "read the file again". Keep the returned token alive to keep observing.
     public func observe(_ handler: @escaping @Sendable () -> Void) -> Observation {
-        Observation(name: rawValue, handler: handler)
+        Observation(name: notificationName(), handler: handler)
     }
 
     public final class Observation: @unchecked Sendable {
@@ -100,6 +104,7 @@ public final class PendingHandoff: @unchecked Sendable {
     private let lock = NSLock()
     private var id: UUID?
     private var since: Date?
+    private var consumed: [UUID] = []
 
     public init() {}
 
@@ -146,6 +151,17 @@ public final class PendingHandoff: @unchecked Sendable {
             }
         }
     }
+
+    func consume(_ value: UUID) -> Bool {
+        lock.withLock {
+            guard !consumed.contains(value) else { return false }
+            consumed.append(value)
+            if consumed.count > 128 { consumed.removeFirst(consumed.count - 128) }
+            return true
+        }
+    }
+
+    func wasConsumed(_ value: UUID) -> Bool { lock.withLock { consumed.contains(value) } }
 }
 
 public struct HandoffClient: Sendable {
@@ -163,6 +179,7 @@ public struct HandoffClient: Sendable {
     @discardableResult
     public func send(_ action: HandoffCommand.Action, now: Date = Date()) throws -> UUID {
         let id = UUID()
+        if action == .cancel, let previous = pending.current { _ = pending.consume(previous) }
         pending.set(id, at: now)
         do {
             try store.write(HandoffCommand(id: id, action: action, at: now), as: .command)
@@ -187,14 +204,22 @@ public struct HandoffClient: Sendable {
 
     /// Results older than `resultLifetime` are never inserted; they are removed and the pending id is dropped.
     public func takeResult(now: Date = Date()) -> HandoffResult? {
+        guard let result = pendingResult(now: now), markInserted(result) else { return nil }
+        return result
+    }
+
+    public func pendingResult(now: Date = Date()) -> HandoffResult? {
         store.purgeExpiredResult(now: now, lifetime: Self.resultLifetime)
         guard let id = pending.current(now: now, lifetime: Self.resultLifetime),
-              let result = store.read(HandoffResult.self, as: .result),
-              result.id == id
+              let result = store.read(HandoffResult.self, as: .result), result.id == id,
+              !pending.wasConsumed(id)
         else { return nil }
-        pending.clear(ifMatching: id)
-        store.clearResult(id: id)
         return result
+    }
+
+    /// A changed keyboard context leaves the result for an explicit recovery action.
+    public func deferPendingResult(_ result: HandoffResult) {
+        pending.clear(ifMatching: result.id)
     }
 
     /// For the explicit "Laatste dictaat invoegen" tap after the keyboard was away. Call `markInserted` once it is typed.
@@ -203,11 +228,18 @@ public struct HandoffClient: Sendable {
               result.text != nil,
               now.timeIntervalSince(result.at) <= Self.resultLifetime
         else { return nil }
+        if pending.wasConsumed(result.id) {
+            store.clearResult(id: result.id)
+            return nil
+        }
         return result
     }
 
-    public func markInserted(_ result: HandoffResult) {
+    @discardableResult
+    public func markInserted(_ result: HandoffResult) -> Bool {
+        guard pending.consume(result.id) else { return false }
         pending.clear(ifMatching: result.id)
         store.clearResult(id: result.id)
+        return true
     }
 }

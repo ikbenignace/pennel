@@ -53,16 +53,17 @@ private struct SessionStatus: View {
     let state: SessionActivityState
 
     var body: some View {
+        let copy = ActivityCopy.current
         switch state.phase {
         case .ready:
-            Text("\(Copy.Keyboard.micReadyLiveActivity) · \(SessionCountdown.text(until: state.expiresAt))")
+            Text("\(copy.text(.sessionReady)) · \(SessionCountdown.text(until: state.expiresAt))")
                 .monospacedDigit()
         case .listening:
-            Text(Copy.Keyboard.listening)
+            Text(copy.text(.listening))
         case .processing:
-            Text(Copy.Dictation.processing)
+            Text(copy.text(.processing))
         case .off:
-            Text(state.message ?? Copy.Keyboard.sessionOff)
+            Text(copy.sessionMessage(state.message))
         }
     }
 }
@@ -86,7 +87,7 @@ private struct SessionStopButton: View {
     var body: some View {
         if state.phase != .off {
             Button(intent: StopDictationSessionIntent()) {
-                Text(Copy.Session.stop)
+                Text(ActivityCopy.current.text(.stop))
                     .font(.figtree(Brand.FontSize.content, weight: .semibold))
             }
             .tint(Brand.wave.color)
