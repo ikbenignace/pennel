@@ -1,6 +1,6 @@
 # Expo simulator UI verification
 
-Status: scoped Expo Device Hub simulator checks completed; device/Cloud/store acceptance is separate.
+Status: scoped Expo Device Hub simulator checks passed, including the repaired citation flow. Device/Cloud/store acceptance is separate.
 
 ## Candidate and scope
 
@@ -60,7 +60,7 @@ The intermediate installed Release executable SHA-256 is `02a14c2196f44a30a781fc
 
 Saved Hub captures under ignored `build/mobile/qa/device-hub/`: `native-tabs-en-dark.png`, `native-tabs-en-light.png`, `native-tabs-nl-light.png`, `templates-en-fixed.png` and `model-none-rejected-nl.png`.
 
-## Final simulator candidate — 28 October 2026
+## Tab/settings candidate — 28 October 2026, superseded below
 
 - Installed Release executable SHA-256: `2679216fe539e88a22a1f62fe71ae07dab91f32cbee844750e55b7518e340bd4`.
 - Installed simulator bundle: 69,741,669 bytes; verified after installation from the assigned simulator's app container.
@@ -76,7 +76,71 @@ Final captures saved through the documented `npm run device:hub:screenshot -- --
 - `build/mobile/qa/device-hub/final-native-tabs-nl-light.png`
 - `build/mobile/qa/device-hub/final-model-none-nl.png`
 
-The final pass resolves both new intermediate findings above. These checks establish simulator interface behavior; they do not establish real model quality or physical iPhone acceptance.
+The tab/settings pass resolves both new intermediate findings above. These checks establish simulator interface behavior; they do not establish real model quality or physical iPhone acceptance.
+
+## Controlled loopback follow-up — 28 October 2026
+
+The same installed executable was exercised through the Device Hub dashboard using a temporary key-free LM Studio provider, `127.0.0.1:61253/v1`, and scripted model `pennel-qa`. The responder bound loopback only, accepted generated test content, and logged operation counters without request bodies. No Cloud service, real provider credential, microphone or enrollment was used.
+
+| Scenario | Observed result |
+| --- | --- |
+| Provider configuration | Added LM Studio through Providers and saved the loopback URL through its actual field/Save controls |
+| Model catalog | Native model retrieval returned the scripted `pennel-qa` model, which was selected through the model row |
+| Sample verification | `Test text processing` performed native HTTP inference and displayed `Test passed` and the sample-success explanation |
+| Summary regeneration | `Regenerate` saved and rendered the scripted summary; notes and transcript stayed byte-identical |
+| Ask | A generated question returned the scripted answer and a numbered citation to the synthetic meeting's transcript |
+| Citation navigation | Immediately opening that fresh citation displayed `This source has changed or is no longer available` and remained on Notes despite an unchanged transcript; reported to the product owner for repair |
+
+The responder handled exactly four requests: one model catalog GET, one sample POST, one summary POST and one Ask POST. These checks establish local UI/native/HTTP/JSON plumbing, not inference quality.
+
+Recovery was verified: restored Apple Intelligence/system through Models, removed only the temporary LM Studio provider through its UI confirmation, and confirmed settings bytes match the pre-test backup. With the app stopped, restored the original synthetic `meeting.md` byte-for-byte; notes and transcript also match their pre-test bytes. Restarted the preview and stopped the task-owned responder. Recoverable copies remain under ignored `build/mobile/qa/loopback-backup/`.
+
+Evidence captures under ignored `build/mobile/qa/device-hub/`: `loopback-model-tested.png`, `loopback-summary-regenerated.png`, `loopback-ask-answer.png` and `loopback-citation-opened.png`.
+
+The optional direct `/exec-ws` action route was unsuitable in upstream Device Hub 0.18.1: `actions.describe` succeeded, but `tap` dispatched the Hub CLI, which rejected the positional command. Dashboard pointer and explicit Clipboard Send controls worked. No direct-action helper was retained. Browser Meta+A also left the device shortcut routing active, so the native Select All menu and Hub's explicit synthetic-text field were used instead; the app remained alive.
+
+## Final repaired candidate — 28 October 2026
+
+The initial citation failure above is superseded by the repaired candidate. Executable hashes alone cannot identify a JavaScript-only repair, so the final installed application was checked against every file in the built product:
+
+| Receipt | Installed value |
+| --- | --- |
+| Executable SHA-256 | `2679216fe539e88a22a1f62fe71ae07dab91f32cbee844750e55b7518e340bd4` |
+| `main.jsbundle` SHA-256 | `e7d4bd5e46d958e81ab9c98704036223075914a3f0013b438bb6c85513ee020f` |
+| Full file-manifest SHA-256 | `24bf247eba07b00a0afa90d8a806448fba2704c47271109de0f8bcf15cbd6b72` |
+| Bundle measurement | 69,742,620 bytes, 214 files; every installed relative filename and file digest matches the built simulator product |
+
+The manifest hashes sorted UTF-8 relative filenames, each followed by NUL and that file's raw 32-byte SHA-256 digest, without newlines. The installed receipt is retained under ignored `build/mobile/qa/final-citation-installed-receipt.json`.
+
+The first repair was checked through actual Ask results for both summary and transcript sources. The final candidate additionally used a controlled transcript with an `Ik` segment containing 596 `x` characters and an `Anderen 12` segment containing `A fresh second track.`, both at 00:00. The Ask result cited the second transcript passage; opening it selected Transcript, showed the fresh second track under 0:00 / Chris (voice 12), and displayed no changed-source warning. This exercises the same-time track ambiguity through the real Rust index and interface, rather than only a constructed DTO test.
+
+The focused rechecks made three further Ask requests to a separate loopback-only responder, bringing the controlled follow-up total to seven requests across both responder sessions. Neither session logged request bodies. Both task-owned responders were stopped afterwards.
+
+Final recovery was verified after relaunch: original providers/model selections and all other settings were restored, while preserving the native bootstrap's valid `meetings_dir` rebasing to the current preview container. Original summary, notes and transcript bytes match their pre-test backups. The temporary provider is absent, and the preview was left at Settings in English/dark appearance with no active capture. No production container or credential was changed.
+
+Final evidence under ignored `build/mobile/qa/device-hub/`:
+
+- `final-citation-native-tabs-en-dark.png`
+- `final-accepted-settings-native-tabs-en-dark.png`
+- `citation-fixed-summary-opened.png`
+- `citation-fixed-transcript-opened.png`
+- `equal-time-ask-answer.png`
+- `equal-time-citation-opened.png`
+
+## Compatibility rebuild smoke — 28 October 2026
+
+After the native recognition task reference was made explicit for Swift 6.2 compatibility, the rebuilt simulator application was installed and launched on the same assigned iOS 26.5 preview simulator. This is a separate smoke receipt; the full loopback/citation acceptance above remains tied to its original artifact.
+
+| Receipt | Installed value |
+| --- | --- |
+| Executable SHA-256 | `d93567d23051e619d7516b2307573437994f40f7ada0a6ab924cc8942c108b22` |
+| `main.jsbundle` SHA-256 | `e7d4bd5e46d958e81ab9c98704036223075914a3f0013b438bb6c85513ee020f`, byte-identical to the accepted citation candidate |
+| Full file-manifest SHA-256 | `134c0136adbd4a2e4d35c64ae4ede2cbfd0265503bafd42aaffbab4f55f4b79a` |
+| Bundle measurement | 69,742,619 bytes, 214 files; all installed filenames and digests match the built product |
+
+Launch and native Settings/Liquid Glass tabs rendered successfully in English/dark appearance. Before/after comparison confirms all four original providers, model selections and other settings survived; the native `meetings_dir` path resolves to the current preview container. Synthetic summary, notes, transcript and AAC archive hashes all match their pre-install values. No inference, temporary provider, account or microphone operation was added during this smoke.
+
+The canonical Device Hub screenshot helper saved `build/mobile/qa/device-hub/compatibility-native-tabs-en-dark.png`. The installed receipt is under ignored `build/mobile/qa/compatibility-installed-receipt.json`. Local installation and launch do not by themselves establish a successful CI run with its separate Xcode toolchain.
 
 ## Saved initial screenshots
 
@@ -93,5 +157,5 @@ All captures are app-owned simulator views of synthetic/empty content, under ign
 
 ## Remaining verification
 
-- Actual sample inference and controlled local summary/ask/citation paths were not exercised in this final simulator pass.
+- Real provider/model quality and non-loopback inference were not exercised by the scripted responder.
 - Real iPhone keyboard cold start, Full Access transitions, memory/latency/battery, locked recording/interruption, Dutch meeting quality, deployed Cloud behavior, signing and App Review remain unverified. No simulator or scripted-provider outcome completes issues #18, #20, #38 or #39.

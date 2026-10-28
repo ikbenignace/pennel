@@ -109,7 +109,7 @@ make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=<assigned-sim
 
 For development, use `npm start` from `apps/mobile` and an installed development build. `npm run device:hub` also runs without Metro for Release-candidate QA; follow the [assigned-device workflow](mobile-device-hub.md). Default configuration uses preview identifiers and credentials. Production identity requires explicit `PENNEL_VARIANT=production`; its signed in-place upgrade has not been accepted.
 
-Local checks on 27–28 October 2026 include mobile typechecking, 37 UI regressions, six plugin checks, seven widget probes, six real pod ownership checks, 61 Swift helper tests, and **21 hosted native runtime plus two keyboard tests**. The hosted suite now executes assertions: it exposed and verified repairs for early ActivityKit initialization during Objective-C framework loading and exact-EOF archive reads. Runtime startup remains in the app launch callback before scene/JavaScript creation.
+Local checks on 27–28 October 2026 include mobile typechecking, 42 UI regressions, six plugin checks, seven widget probes, six real pod ownership checks, 61 Swift helper tests, and **21 hosted native runtime plus two keyboard tests**. The hosted suite now executes assertions: it exposed and verified repairs for early ActivityKit initialization during Objective-C framework loading and exact-EOF archive reads. Runtime startup remains in the app launch callback before scene/JavaScript creation.
 
 The same integration passed the default and lean Rust suites, format/Clippy checks, desktop frontend/backend checks, native comparison-app tests, and Mac core/tests/app builds. Detailed final receipts and simulator limitations are tracked with the candidate below and in [simulator QA](mobile-simulator-qa.md). Local checks do not establish remote CI or release acceptance.
 
@@ -119,10 +119,24 @@ These unsigned preview products were built from the generated workspace with Xco
 
 | Product | Bundle bytes | Executable SHA-256 |
 | --- | --- | --- |
-| ARM64 Release simulator | 69,741,669 | `2679216fe539e88a22a1f62fe71ae07dab91f32cbee844750e55b7518e340bd4` |
-| ARM64 Release iPhoneOS | 69,380,950 | `20bfd73a3c4188e4428b02002b116a5bce810198d968a3021016ea67b2a112e7` |
+| ARM64 Release simulator | 69,742,619 | `d93567d23051e619d7516b2307573437994f40f7ada0a6ab924cc8942c108b22` |
+| ARM64 Release iPhoneOS | 69,381,901 | `20bfd73a3c4188e4428b02002b116a5bce810198d968a3021016ea67b2a112e7` |
+
+For the final citation repair, also identify the JavaScript and complete product: a native executable hash can remain unchanged after a JavaScript-only fix. The simulator `main.jsbundle` SHA-256 is `e7d4bd5e46d958e81ab9c98704036223075914a3f0013b438bb6c85513ee020f`, and its full file-manifest SHA-256 is `134c0136adbd4a2e4d35c64ae4ede2cbfd0265503bafd42aaffbab4f55f4b79a`. The iPhoneOS JavaScript/full-manifest hashes are `4bd277b8b16c6c321f2b997e24922ff285a6a69fdc478b046b31dc04d1ca7212` / `9285432220deea9e2979391d4e9f0cdb46f5d13236044a997980f30c26d99291`. The manifest hashes sorted relative UTF-8 filenames followed by NUL and each raw 32-byte file SHA-256 digest; file contents and paths both participate.
 
 The simulator product was installed and exercised through Device Hub on iPhone 17 / iOS 26.5. The iPhoneOS product was compiled only. Neither is a signed distribution archive or a TestFlight build.
+
+An actual unsigned iPhoneOS archive also passed with no generated-project repair:
+
+```sh
+xcodebuild archive -workspace apps/mobile/ios/Pennel.xcworkspace -scheme Pennel \
+  -configuration Release -destination 'generic/platform=iOS' \
+  -archivePath apps/mobile/build/Archives/Pennel-preview-1f79730.xcarchive \
+  -derivedDataPath apps/mobile/build/DerivedData \
+  ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO
+```
+
+Use a fresh archive path for a new receipt. The archived app totals 47,621,576 bytes after archive stripping; executable SHA-256 `d57bcec01aed6182afee88fd2994ef2e20174c0c8d4b371fac93c21f204e1464`, JavaScript SHA-256 `c7c17e48c425957fc91ac017083f39c9408457eda104035b710c3e761e52a224`, and full file-manifest SHA-256 `2ece2c9a22ec3a021820d50ddfba6958ccf1ffbbb4236961c2e49af854997345`. This establishes archive buildability, with signing/export/device acceptance still open.
 
 Matched Rust preparation records core commit `41a13dac1683a94386caba1da4f06a3122b06942`, core-source SHA-256 `227677c32f3da66af245858de249228e8f7690860a6013e3a51877a1bec20d54`, and Swift-binding SHA-256 `24eaea2e8a5eb396ae8d43fc59c5fd5b67336bd04b90e23f8e1ca977e7e9475b`. iOS and Mac UniFFI bindings were also compared byte for byte. The generated artifact manifest stays outside version control.
 
@@ -132,14 +146,14 @@ Matched Rust preparation records core commit `41a13dac1683a94386caba1da4f06a3122
 | Desktop | Frontend type/build and 185 tests; backend 197 tests; format/Clippy checks passed |
 | Mac comparison | `make core`, `make test`, `make app`; 53 Swift tests and the default Rust suite passed |
 | Native iPhone comparison | 63 hosted app tests plus 2 keyboard tests passed |
-| Mobile UI/helpers | Typecheck, 37 UI tests, 61 Swift helper tests passed |
+| Mobile UI/helpers | Typecheck, 42 UI tests, 61 Swift helper tests passed |
 | Generation/ownership | Clean → non-clean → non-clean → clean normalized comparison, 6 plugin tests and 6 actual pod/linker/source checks passed |
 | Widgets | 7 actual SDK serialization/render probes and TypeScript checks passed |
 | Generated native runtime | 21 hosted runtime tests plus 2 keyboard tests passed on iPhone 17 / iOS 27.0, including synthetic AAC/M4A bounded seek/EOF, preview credentials, stale model/recovery commands and lifecycle cancellation |
 | Metro | iOS Release bundling and standalone export passed |
-| Device Hub | Native Liquid Glass navigation, light/dark, English/Dutch including live native accessibility labels, unassigned model persistence and synthetic local meeting flows verified; see [QA details](mobile-simulator-qa.md) |
+| Device Hub | Native Liquid Glass navigation, light/dark, English/Dutch including live native accessibility labels, unassigned model persistence, controlled provider sample/summary/Ask and regular/overlapping transcript citations verified; see [QA details](mobile-simulator-qa.md) |
 
-The earlier failing runs are retained locally under ignored `build/mobile`: they led to fixes for CNG source ownership, strict Swift isolation, launch-time ActivityKit deadlock, exact-EOF decoding, stale model selection, note-save/rename recovery and native tab accessibility labels. Final passing commands and products above supersede those intermediate candidates.
+The earlier failing runs are retained locally under ignored `build/mobile`: they led to fixes for CNG source ownership, strict Swift isolation, launch-time ActivityKit deadlock, exact-EOF decoding, stale model selection, note-save/rename recovery and native tab accessibility labels. CI with Xcode 26.6 additionally exposed an ambiguous native upload-task declaration; `1f79730` makes its property reference explicit while preserving strict Swift 6. Local native tests/builds pass again; subsequent remote results remain separately visible in [PR #46](https://github.com/pennel-app/pennel/pull/46). Final passing commands and products above supersede those intermediate candidates.
 
 Signed upgrades, locked-screen controls/JS suspension, actual meeting capture, keyboard cold start and resource measurements, real Dutch/long-recording recognition, deployed Cloud behavior and store acceptance remain open in the linked issues. The native SwiftUI shell remains available; Android remains gated on iPhone acceptance.
 

@@ -55,6 +55,8 @@ Keep execution tokens in memory and out of logs. With the Expo-start plugin, pre
 
 The official action contract uses `{id, action, params}`. Documented input actions include `tap` with `{udid, x, y}` normalized to 0..1, `gesture` with a complete begin/move/end sequence, and `type` with `{udid, text}`. Request `actions.describe` with `{}` parameters to discover current action names and JSON Schemas rather than inventing commands. The dashboard's bundled client already handles the stream and input protocols.
 
+In the installed standalone 0.18.1 package, a direct exec `tap` fallback failed because dispatch selected the Device Hub CLI instead of the simulator CLI. No input was sent by that attempt. Dashboard input and the scoped PNG helper were verified successfully; use those paths for this candidate. Discovery alone does not establish that an exec action works.
+
 References: [Hub client API](https://github.com/expo/expo-device-hub/blob/main/packages/@expo/hub-client/README.md), [serve-sim HTTP/WebSocket specification](https://github.com/expo/expo-device-hub/blob/main/llp/0003-serve-sim-http-api.spec.md), [standalone CLI options](https://github.com/expo/expo-device-hub/blob/main/packages/expo-device-hub/src/server/cli/options.ts).
 
 ## Evidence limits
