@@ -7,27 +7,49 @@ pub(crate) const MAP_REDUCE_ABOVE: usize = 40_000;
 pub(crate) const BLOCK_CHARS: usize = 30_000;
 
 const SYSTEM_PROMPT: &str = "You write meeting notes from a transcript. \"Ik\" is the user; every other label (\"Anderen\", \"Anderen 2\" or a name) is another participant.
-Write in the language the meeting was held in (Dutch or English). Never invent facts that are not in the transcript or notes.";
+Never invent facts that are not in the transcript or notes.";
 
-const ACTION_RULE: &str =
-    "Under Actiepunten use \"- [ ] Person — action\" lines; write \"- Geen\" when there are none.";
-const MAP_PROMPT: &str = "Summarize this part of a meeting transcript as concise bullet points: facts, decisions and action items with who is responsible. Keep the language of the meeting. \"Ik\" is the user.";
+const LANGUAGE_RULE: &str = "Determine the predominant meeting language from the transcript content, ignoring speaker labels, template wording and interface language. If there is no transcript, use the notes. If the language is indeterminate, use English. Write generated prose and empty-section text in that language. Use \"- None\" in English or \"- Geen\" in Dutch for empty generated sections, or the equivalent in the meeting language.";
+const DEFAULT_SECTION_RULE: &str = "Use Markdown with exactly these semantic sections, translating their headings into the meeting language: Summary, Decisions, Action items. English headings: ## Summary, ## Decisions, ## Action items. Dutch headings: ## Samenvatting, ## Beslissingen, ## Actiepunten. These examples do not determine the meeting language.";
+const MAP_PROMPT: &str = "Summarize this part of a meeting transcript as concise bullet points: facts, decisions and action items with who is responsible. Keep the predominant language of the source content, ignoring speaker labels. If the language is indeterminate, use English. \"Ik\" is the user.";
+
+fn section_is(section: &str, english: &str, dutch: &str) -> bool {
+    let section = section.trim();
+    section.eq_ignore_ascii_case(english) || section.eq_ignore_ascii_case(dutch)
+}
 
 fn notes_section(spec: &TemplateSpec) -> &str {
+    if spec.default_sections {
+        return "the summary section in the meeting language";
+    }
     spec.sections
         .iter()
-        .find(|s| s.as_str() == "Samenvatting")
+        .find(|s| section_is(s, "Summary", "Samenvatting"))
         .unwrap_or(&spec.sections[0])
 }
 
 pub fn summary_messages(spec: &TemplateSpec, notes: &str, transcript: &str) -> Vec<ChatMessage> {
     let notes = notes.trim();
-    let sections: String = spec.sections.iter().map(|s| format!("## {s}\n")).collect();
-    let mut system =
-        format!("{SYSTEM_PROMPT}\nUse Markdown with exactly these sections:\n{sections}");
-    if spec.sections.iter().any(|s| s == "Actiepunten") {
-        system.push_str(ACTION_RULE);
+    let mut system = format!("{SYSTEM_PROMPT}\n{LANGUAGE_RULE}\n");
+    if spec.default_sections {
+        system.push_str(DEFAULT_SECTION_RULE);
         system.push('\n');
+    } else {
+        let sections: String = spec.sections.iter().map(|s| format!("## {s}\n")).collect();
+        system.push_str(&format!("Use Markdown with exactly these literal headings; do not translate or rename them:\n{sections}"));
+    }
+    let action_section = if spec.default_sections {
+        Some("the action-items section in the meeting language")
+    } else {
+        spec.sections
+            .iter()
+            .find(|section| section_is(section, "Action items", "Actiepunten"))
+            .map(String::as_str)
+    };
+    if let Some(section) = action_section {
+        system.push_str(&format!(
+            "Under {section}, use \"- [ ] Person — action\" lines.\n"
+        ));
     }
     if !spec.instruction.is_empty() {
         system.push_str(&format!(
@@ -167,7 +189,7 @@ pub(crate) fn apple_summary_messages(
         }
         if reduced.len() >= source.len() {
             return Err(PennelError::InvalidResponse {
-                message: "Apple Intelligence kon deze lange meeting niet voldoende inkorten. Je transcript en notities zijn bewaard. Kies een taalmodel met meer context.".into(),
+                message: "Apple Intelligence could not sufficiently shorten this long meeting. Your transcript and notes are saved. Choose a text model with a larger context window.".into(),
             });
         }
         source = reduced;
@@ -276,6 +298,70 @@ mod tests {
                 .contains("Under Goed, keep every line of the user's notes verbatim")
         );
         assert!(!messages[0].content.contains("- [ ] Person"));
+    }
+
+    #[test]
+    fn defaults_infer_language_from_content_and_keep_mixed_notes_literal() {
+        for transcript in [
+            "[00:00] Ik: The release is approved.",
+            "[00:00] Anderen: De release is goedgekeurd.",
+            "",
+        ] {
+            let notes = "- Mijn exacte notitie\n- Keep this line in English";
+            let messages = summary_messages(&spec("algemeen"), notes, transcript);
+            let prompt = &messages[0].content;
+            assert!(prompt.contains("predominant meeting language from the transcript content"));
+            assert!(
+                prompt.contains("ignoring speaker labels, template wording and interface language")
+            );
+            assert!(prompt.contains("If there is no transcript, use the notes"));
+            assert!(prompt.contains("If the language is indeterminate, use English"));
+            assert!(prompt.contains("translating their headings into the meeting language"));
+            assert!(prompt.contains("- None") && prompt.contains("- Geen"));
+            assert!(
+                prompt
+                    .contains("Under the summary section in the meeting language, keep every line")
+            );
+            assert!(messages[1].content.contains(notes));
+        }
+    }
+
+    #[test]
+    fn explicit_english_and_dutch_semantic_headings_keep_their_text() {
+        for (headings, target) in [
+            ("## Decisions\n## Summary\n## Action items", "Summary"),
+            (
+                "## Beslissingen\n## Samenvatting\n## Actiepunten",
+                "Samenvatting",
+            ),
+        ] {
+            let custom = TemplateSpec::parse("Custom", headings);
+            let messages = summary_messages(&custom, "Exact notes", "[00:00] Ik: Hallo / hello");
+            assert!(
+                messages[0]
+                    .content
+                    .contains("literal headings; do not translate or rename them")
+            );
+            assert!(messages[0].content.contains(headings));
+            assert!(
+                messages[0]
+                    .content
+                    .contains(&format!("Under {target}, keep every line"))
+            );
+            assert!(messages[0].content.contains("- [ ] Person — action"));
+        }
+    }
+
+    #[test]
+    fn custom_heading_aliases_ignore_case_but_preserve_written_headings() {
+        let custom = TemplateSpec::parse("Custom", "## Intro\n## sUmMaRy\n## ACTION ITEMS");
+        let messages = summary_messages(&custom, "Exact", "Spoken content");
+        assert!(
+            messages[0]
+                .content
+                .contains("Under sUmMaRy, keep every line")
+        );
+        assert!(messages[0].content.contains("Under ACTION ITEMS, use"));
     }
 
     #[test]
@@ -425,6 +511,41 @@ mod tests {
     }
 
     #[test]
+    fn apple_long_summaries_keep_the_same_language_and_custom_heading_policy() {
+        for (spec, literal) in [
+            (spec("algemeen"), false),
+            (
+                TemplateSpec::parse("Custom", "## Samenvatting\n## Action items"),
+                true,
+            ),
+        ] {
+            let calls = std::cell::Cell::new(0);
+            let messages = apple_summary_messages(&spec, "- Mijn notitie", &"The release is approved. ".repeat(2_000), |messages| {
+                calls.set(calls.get() + 1);
+                assert!(messages[0].content.contains("Keep the predominant language of the source content, ignoring speaker labels"));
+                Ok("The release is approved.".into())
+            }).unwrap();
+            assert!(calls.get() > 0);
+            assert!(messages[0].content.contains(LANGUAGE_RULE));
+            assert!(messages[1].content.contains("- Mijn notitie"));
+            if literal {
+                assert!(
+                    messages[0]
+                        .content
+                        .contains("literal headings; do not translate or rename them")
+                );
+                assert!(
+                    messages[0]
+                        .content
+                        .contains("## Samenvatting\n## Action items")
+                );
+            } else {
+                assert!(messages[0].content.contains(DEFAULT_SECTION_RULE));
+            }
+        }
+    }
+
+    #[test]
     fn apple_summary_stops_when_the_model_does_not_reduce() {
         let calls = std::cell::Cell::new(0);
         let error =
@@ -433,7 +554,7 @@ mod tests {
                 Ok(transcript_in(messages).to_owned())
             })
             .unwrap_err();
-        assert!(error.to_string().contains("niet voldoende inkorten"));
+        assert!(error.to_string().contains("could not sufficiently shorten"));
         assert!(calls.get() < 10);
     }
 
@@ -444,10 +565,6 @@ mod tests {
             panic!("oversized notes must be rejected before generation")
         })
         .unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("te lang voor Apple Intelligence")
-        );
+        assert_eq!(error, system_llm::length_error());
     }
 }

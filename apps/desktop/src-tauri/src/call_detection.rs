@@ -123,7 +123,7 @@ fn offer(app: &AppHandle, shared: &Arc<Shared>, app_id: String) {
             {
                 let _ = app.emit("meeting-updated", ());
             } else {
-                LOG.error("Automatische opname kon niet starten; open Pennel voor de opnamestatus");
+                LOG.error("Automatic recording could not start; open Pennel to check the recording status");
             }
         }
         RecordAction::Ask => {
@@ -165,7 +165,7 @@ pub fn answer(
     prompt_id: u64,
 ) -> Result<(), String> {
     if !matches!(answer, "yes" | "no" | "never") {
-        return Err("Onbekend antwoord".into());
+        return Err("Unknown answer".into());
     }
     let state = app.state::<DetectionState>();
     let prompt = {
@@ -174,13 +174,13 @@ pub fn answer(
             .as_ref()
             .is_some_and(|prompt| prompt.id == prompt_id && prompt.expires_at_ms > now_ms())
         {
-            return Err("De opnamevraag is verlopen".into());
+            return Err("The recording prompt expired".into());
         }
         pending.take().expect("validated prompt")
     };
     dismiss(app);
     if state.active.lock().unwrap().as_deref() != Some(&prompt.app_id) {
-        return Err("De gedetecteerde meeting is afgelopen".into());
+        return Err("The detected meeting has ended".into());
     }
     match answer {
         "yes" => {
@@ -192,7 +192,7 @@ pub fn answer(
             );
             if started.is_err() {
                 // The prompt is already gone; the recording view shows why it did not start.
-                LOG.error("Opname na opnamevraag kon niet starten");
+                LOG.error("Recording could not start after the recording prompt");
                 crate::show_window(app, "live", None);
             }
             started?;
@@ -222,7 +222,7 @@ pub fn toggle_recording(app: AppHandle, shared: Arc<Shared>) {
     } else {
         crate::show_window(&app, "live", None);
         if crate::meeting_runtime::start(&shared, "Meeting".into(), None, Vec::new()).is_err() {
-            LOG.error("Opname via sneltoets kon niet starten");
+            LOG.error("Recording could not start from the shortcut");
         }
     }
 }

@@ -24,7 +24,7 @@ const JOBS: &str = "speaker-jobs";
 const MANIFEST: &str = "job.json";
 const SPOOL: &str = "upload.wav";
 const STALE: &str =
-    "De opname, tekst of sprekernamen zijn gewijzigd. Start de sprekerherkenning opnieuw.";
+    "The recording, text or speaker names have changed. Start speaker recognition again.";
 static JOB_CLAIM_GATE: Mutex<()> = Mutex::new(());
 
 // Identity changes take this before the engine meeting/sync locks, matching job registration.
@@ -177,7 +177,9 @@ fn invalid_checkpoint(job_id: &str, library: &Path) -> Manifest {
             total_chunks: 0,
             recoverable: false,
             error_code: Some("speaker_checkpoint_invalid".into()),
-            error_message: Some("De opgeslagen sprekerverwerking is beschadigd. Verwijder deze verwerking en start opnieuw.".into()),
+            error_message: Some(
+                "The saved speaker job is damaged. Delete this job and start again.".into(),
+            ),
         },
     }
 }
@@ -214,7 +216,7 @@ fn code(error: &PennelError) -> String {
 fn private_directory(path: &Path) -> Result<(), PennelError> {
     if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
         return Err(PennelError::storage(
-            "De verwerkingsmap is geen geldige lokale map.",
+            "The processing folder is not a valid local folder.",
         ));
     }
     fs::create_dir_all(path).map_err(PennelError::storage)?;
@@ -395,9 +397,9 @@ impl SpeakerRecognitionJob {
         let data_length = u32::try_from(
             length
                 .checked_mul(2)
-                .ok_or_else(|| invalid("De opname is te lang."))?,
+                .ok_or_else(|| invalid("The recording is too long."))?,
         )
-        .map_err(|_| invalid("Het audioblok is te groot."))?;
+        .map_err(|_| invalid("The audio chunk is too large."))?;
         let mut header = crate::wav::encode_wav(&[], SAMPLE_RATE);
         header[4..8].copy_from_slice(&(36 + data_length).to_le_bytes());
         header[40..44].copy_from_slice(&data_length.to_le_bytes());
@@ -412,7 +414,7 @@ impl SpeakerRecognitionJob {
                 || block.samples.iter().any(|sample| !sample.is_finite())
                 || (block.eof && read + (block.samples.len() as u64) < length)
             {
-                return Err(invalid("De opname kon niet volledig worden gelezen."));
+                return Err(invalid("The complete recording could not be read."));
             }
             let mut bytes = Vec::with_capacity(block.samples.len() * 2);
             for sample in &block.samples {
@@ -475,7 +477,10 @@ impl SpeakerRecognitionJob {
                     state.manifest.snapshot.stage = SpeakerRecognitionStage::Failed;
                     state.manifest.snapshot.recoverable = false;
                     state.manifest.snapshot.error_code = Some("speaker_cleanup".into());
-                    state.manifest.snapshot.error_message = Some("De tijdelijke audiobestanden konden niet worden verwijderd. Probeer opnieuw te verwijderen.".into());
+                    state.manifest.snapshot.error_message = Some(
+                        "The temporary audio files could not be deleted. Try deleting them again."
+                            .into(),
+                    );
                 }
                 let _ = self.persist();
             }
@@ -497,7 +502,7 @@ impl SpeakerRecognitionJob {
         let session = if first < ranges.len() {
             if engine.settings().speaker_recognition != SpeakerRecognitionMode::Cloud {
                 return Err(invalid(
-                    "Kies eerst expliciet ‘Via Pennel Cloud’ voor sprekerherkenning.",
+                    "Explicitly choose ‘Through Pennel Cloud’ for speaker recognition first.",
                 ));
             }
             Some(engine.cloud_session()?)
@@ -511,7 +516,7 @@ impl SpeakerRecognitionJob {
         for (index, (offset, length)) in ranges.into_iter().enumerate().skip(first) {
             let session = session.as_ref().expect("pending upload has a session");
             if engine.settings().speaker_recognition != SpeakerRecognitionMode::Cloud {
-                return Err(invalid("Sprekerherkenning via Pennel Cloud is uitgezet."));
+                return Err(invalid("Cloud speaker recognition was turned off."));
             }
             self.validate_source(&engine, reader)?;
             let path = self.spool(reader, offset, length)?;
@@ -652,7 +657,7 @@ impl SpeakerRecognitionJob {
             }
             if state.manifest.snapshot.stage == SpeakerRecognitionStage::Applying {
                 return Err(invalid(
-                    "De sprekernamen worden opgeslagen. Wacht tot dit klaar is.",
+                    "Speaker names are being saved. Wait until this finishes.",
                 ));
             }
             self.interrupted.store(true, Ordering::SeqCst);
@@ -672,7 +677,7 @@ impl SpeakerRecognitionJob {
             let mut state = self.state.lock().unwrap();
             if state.manifest.snapshot.stage == SpeakerRecognitionStage::Applying {
                 return Err(invalid(
-                    "De sprekernamen worden opgeslagen. Wacht tot dit klaar is.",
+                    "Speaker names are being saved. Wait until this finishes.",
                 ));
             }
             if state.manifest.snapshot.stage == SpeakerRecognitionStage::Completed {
@@ -870,7 +875,7 @@ impl PennelEngine {
         self.claim_library()?;
         if self.settings().speaker_recognition != SpeakerRecognitionMode::Cloud {
             return Err(invalid(
-                "Kies eerst expliciet ‘Via Pennel Cloud’ voor sprekerherkenning.",
+                "Explicitly choose ‘Through Pennel Cloud’ for speaker recognition first.",
             ));
         }
         if !self.cloud_signed_in() {
@@ -885,16 +890,16 @@ impl PennelEngine {
             let state = job.state.lock().unwrap();
             state.running && state.manifest.snapshot.meeting_uid == uid
         }) {
-            return Err(invalid("Deze meeting wordt al verwerkt."));
+            return Err(invalid("This meeting is already being processed."));
         }
         if store.unparsed_transcript_lines(&id) > 0 {
             return Err(invalid(
-                "Het transcript bevat regels die Pennel niet herkent.",
+                "The transcript contains lines that Pennel does not recognize.",
             ));
         }
         let info = reader.info()?;
         if info.total_frames == 0 || info.total_frames / (600 * u64::from(SAMPLE_RATE)) > 10_000 {
-            return Err(invalid("De opname heeft geen geldige lengte."));
+            return Err(invalid("The recording does not have a valid duration."));
         }
         let audio_digest = meeting_audio_digest(&store, &id)?;
         if audio_digest != info.audio_digest {
@@ -1030,7 +1035,7 @@ impl PennelEngine {
         };
         if needs_upload && self.settings().speaker_recognition != SpeakerRecognitionMode::Cloud {
             return Err(invalid(
-                "Kies eerst expliciet ‘Via Pennel Cloud’ voor sprekerherkenning.",
+                "Explicitly choose ‘Through Pennel Cloud’ for speaker recognition first.",
             ));
         }
         if needs_upload && !self.cloud_signed_in() {
@@ -1056,20 +1061,20 @@ impl PennelEngine {
                 }
             })
         {
-            return Err(invalid("Deze meeting wordt al verwerkt."));
+            return Err(invalid("This meeting is already being processed."));
         }
         {
             let mut state = job.state.lock().unwrap();
             if state.running {
-                return Err(invalid("Deze verwerking loopt al."));
+                return Err(invalid("This job is already running."));
             }
             if !state.manifest.snapshot.recoverable {
-                return Err(invalid("Start de sprekerherkenning opnieuw."));
+                return Err(invalid("Start speaker recognition again."));
             }
             if state.manifest.snapshot.stage == SpeakerRecognitionStage::ResponseUnknown
                 && !confirm_uncertain_retry
             {
-                return Err(PennelError::Cloud { code: "speaker_retry_confirmation".into(), message: "De server kan dit audioblok al verwerkt hebben. Opnieuw proberen kan dit blok nogmaals van je tegoed aftrekken.".into() });
+                return Err(PennelError::Cloud { code: "speaker_retry_confirmation".into(), message: "The server may already have processed this audio chunk. Retrying may charge your allowance for this chunk again.".into() });
             }
             state.manifest.snapshot.stage = SpeakerRecognitionStage::Preparing;
             state.manifest.snapshot.error_code = None;
@@ -1099,22 +1104,22 @@ impl PennelEngine {
 
     pub fn patch_mobile_settings(&self, json: String) -> Result<String, PennelError> {
         let patch: serde_json::Value =
-            serde_json::from_str(&json).map_err(|_| invalid("De instellingen zijn ongeldig."))?;
+            serde_json::from_str(&json).map_err(|_| invalid("The settings are invalid."))?;
         let object = patch
             .as_object()
-            .ok_or_else(|| invalid("De instellingen moeten een object zijn."))?;
+            .ok_or_else(|| invalid("The settings must be an object."))?;
         self.update_settings_with(|current_settings| {
             let mut current =
                 serde_json::to_value(current_settings).map_err(PennelError::storage)?;
             let current_object = current.as_object_mut().expect("settings object");
             for (key, value) in object {
                 if key == "meetings_dir" || !current_object.contains_key(key) {
-                    return Err(invalid("Deze instelling kan hier niet worden gewijzigd."));
+                    return Err(invalid("This setting cannot be changed here."));
                 }
                 current_object.insert(key.clone(), value.clone());
             }
             let settings: Settings = serde_json::from_value(current)
-                .map_err(|_| invalid("De instellingen zijn ongeldig."))?;
+                .map_err(|_| invalid("The settings are invalid."))?;
             for key in ["dictation_stt", "meeting_stt", "llm"] {
                 if object.contains_key(key) {
                     let choice = match key {
@@ -1127,9 +1132,9 @@ impl PennelEngine {
                     }
                     let (account, _) = settings
                         .resolve(choice)
-                        .ok_or_else(|| invalid("De gekozen provider ontbreekt."))?;
+                        .ok_or_else(|| invalid("The selected provider is missing."))?;
                     if account.kind.is_cli_agent() || account.kind == ProviderKind::Local {
-                        return Err(invalid("Deze provider werkt alleen op een computer."));
+                        return Err(invalid("This provider only works on a computer."));
                     }
                 }
             }
@@ -1160,7 +1165,7 @@ impl PennelEngine {
         if expected.is_some_and(|expected| expected != store.read_notes(&id)) {
             return Err(PennelError::Cloud {
                 code: "stale_notes".into(),
-                message: "De notities zijn ondertussen gewijzigd. Open de nieuwste versie voor je opslaat.".into(),
+                message: "The notes have changed. Open the latest version before saving.".into(),
             });
         }
         store.write_notes(&id, &text)

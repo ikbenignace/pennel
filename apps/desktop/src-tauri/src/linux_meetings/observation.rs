@@ -32,19 +32,19 @@ struct Usage {
 }
 
 pub fn detection_support() -> Result<(), String> {
-    pulse("info").map(|_| ()).map_err(|_| "Meetingdetectie vereist een bereikbare PulseAudio- of PipeWire-server en pactl met JSON-ondersteuning (pakket pulseaudio-utils).".into())
+    pulse("info").map(|_| ()).map_err(|_| "Meeting detection requires a reachable PulseAudio or PipeWire server and pactl with JSON support (pulseaudio-utils package).".into())
 }
 
 pub fn browser_detection_support() -> Result<(), String> {
     if std::env::var("XDG_SESSION_TYPE").is_ok_and(|session| session == "wayland")
         || std::env::var_os("DISPLAY").is_none()
     {
-        return Err("Browsercalls herkennen vereist een X11-sessie. Op Wayland kun je browsermeetings handmatig opnemen; native call-apps blijven herkenbaar via de audioserver.".into());
+        return Err("Detecting browser calls requires an X11 session. On Wayland you can record browser meetings manually; native call apps can still be detected through the audio server.".into());
     }
     output("xprop", &["-root", "_NET_CLIENT_LIST"], TIMEOUT, LIMIT)
         .map(|_| ())
         .map_err(|_| {
-            "Browsercalls herkennen vereist xprop en toegang tot de X11-sessie (pakket x11-utils)."
+            "Detecting browser calls requires xprop and access to the X11 session (package x11-utils)."
                 .into()
         })
 }
@@ -56,7 +56,7 @@ fn pulse(command: &str) -> Result<Value, String> {
         vec!["--format=json", "list", command]
     };
     let bytes = output("pactl", &arguments, TIMEOUT, LIMIT)?;
-    serde_json::from_slice(&bytes).map_err(|_| "De audioserver gaf ongeldige metadata terug".into())
+    serde_json::from_slice(&bytes).map_err(|_| "The audio server returned invalid metadata".into())
 }
 
 pub fn snapshot() -> Result<Vec<pennel_core::CallObservation>, String> {
@@ -93,19 +93,14 @@ fn property<'a>(value: &'a Value, name: &str) -> Option<&'a Value> {
 }
 
 fn usages(clients: &Value, input: &Value, output: &Value) -> Result<Vec<Usage>, String> {
-    let clients = clients
-        .as_array()
-        .ok_or("Ongeldige lijst met audioclients")?;
+    let clients = clients.as_array().ok_or("Invalid audio client list")?;
     let clients: HashMap<_, _> = clients
         .iter()
         .filter_map(|client| Some((number(client.get("index"))?, client)))
         .collect();
     let mut uses = Vec::new();
     for (streams, is_input) in [(input, true), (output, false)] {
-        for stream in streams
-            .as_array()
-            .ok_or("Ongeldige lijst met audiostromen")?
-        {
+        for stream in streams.as_array().ok_or("Invalid audio stream list")? {
             if stream
                 .get("corked")
                 .is_some_and(|value| value.as_bool() == Some(true) || value.as_str() == Some("yes"))
@@ -274,7 +269,7 @@ fn browser_titles(processes: &HashMap<u32, Process>) -> Result<HashSet<String>, 
         Duration::from_millis(250),
         LIMIT,
     )?;
-    let root = String::from_utf8(bytes).map_err(|_| "Ongeldige venstermetadata")?;
+    let root = String::from_utf8(bytes).map_err(|_| "Invalid window metadata")?;
     let deadline = Instant::now() + TIMEOUT;
     let mut calls = HashSet::new();
     for window in root

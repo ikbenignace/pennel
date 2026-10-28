@@ -32,7 +32,7 @@ pub fn echo_cancellation_available() -> Result<bool, String> {
         })
         .map_err(|error| error.to_string())?
         .join()
-        .map_err(|_| "Echo-onderdrukking kon niet worden gecontroleerd".to_owned())?
+        .map_err(|_| "Echo cancellation could not be checked".to_owned())?
 }
 
 pub struct EchoCapture {
@@ -55,7 +55,7 @@ impl EchoCapture {
                 let result = (|| {
                     let _apartment = ComApartment::new()?;
                     let client = configured_client()?.ok_or_else(|| {
-                        "Deze microfoon biedt geen bevestigde echo-onderdrukking".to_owned()
+                        "This microphone does not provide confirmed echo cancellation".to_owned()
                     })?;
                     let capture: IAudioCaptureClient =
                         unsafe { client.GetService() }.map_err(|error| error.to_string())?;
@@ -87,7 +87,7 @@ impl EchoCapture {
                 let _ = worker.join();
                 Err(match result {
                     Ok(Err(error)) => error,
-                    _ => "Microfoon met echo-onderdrukking kon niet starten".into(),
+                    _ => "The microphone with echo cancellation could not start".into(),
                 })
             }
         }
@@ -98,7 +98,7 @@ impl EchoCapture {
             self.worker
                 .as_ref()
                 .is_some_and(|worker| worker.is_finished())
-                .then(|| "Microfoon is onverwacht gestopt".to_owned())
+                .then(|| "Microphone stopped unexpectedly".to_owned())
         })
     }
 
@@ -111,7 +111,7 @@ impl EchoCapture {
         self.worker.take().map_or(Ok(()), |worker| {
             worker
                 .join()
-                .map_err(|_| "Microfoon is onverwacht gestopt".to_owned())?
+                .map_err(|_| "Microphone stopped unexpectedly".to_owned())?
         })
     }
 }
@@ -209,7 +209,7 @@ fn audio_effects(manager: &IAudioEffectsManager) -> Result<Vec<AUDIO_EFFECT>, St
         let result = if count == 0 {
             Ok(Vec::new())
         } else if effects.is_null() || count > 1024 {
-            Err("Windows gaf een ongeldige lijst met audio-effecten terug".into())
+            Err("Windows returned an invalid audio effect list".into())
         } else {
             Ok(std::slice::from_raw_parts(effects, count as usize).to_vec())
         };
@@ -270,7 +270,7 @@ impl StartedClient {
                     vec![0.0; frames as usize]
                 } else {
                     if data.is_null() && frames != 0 {
-                        return Err("Windows gaf een ongeldige microfoonbuffer terug".into());
+                        return Err("Windows returned an invalid microphone buffer".into());
                     }
                     if frames == 0 {
                         Vec::new()
@@ -321,7 +321,7 @@ impl QpcClock {
         unsafe { QueryPerformanceCounter(&mut counter) }.map_err(|error| error.to_string())?;
         let after = Instant::now();
         if frequency <= 0 || counter < 0 {
-            return Err("Ongeldige audioklok".into());
+            return Err("Invalid audio clock".into());
         }
         Ok(Self {
             ticks_100ns: counter as u128 * 10_000_000 / frequency as u128,

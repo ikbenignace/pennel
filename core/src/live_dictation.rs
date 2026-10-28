@@ -364,7 +364,7 @@ impl LiveDictationSession {
     ) -> Result<DictationResult, PennelError> {
         if self.practice {
             return Err(PennelError::InvalidResponse {
-                message: "oefendicteren ondersteunt geen opdrachten".into(),
+                message: "practice dictation does not support commands".into(),
             });
         }
         self.finish_with(request, Some(selection))

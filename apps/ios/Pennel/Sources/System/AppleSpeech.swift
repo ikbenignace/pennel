@@ -1,4 +1,4 @@
-// Port of apps/macos-platform/Sources/PennelMacPlatform/AppleSpeech.swift. Keep behaviour and Dutch errors in step with it.
+// Port of apps/macos-platform/Sources/PennelMacPlatform/AppleSpeech.swift. Keep behavior and canonical English diagnostics in step with it.
 import AVFoundation
 import Foundation
 import Speech
@@ -30,7 +30,7 @@ final class AppleSpeechTranscriber: SystemTranscriber, @unchecked Sendable {
     private static func locale(for language: String?) async throws -> Locale {
         let wanted = Locale(identifier: language ?? Locale.preferredLanguages.first ?? "en")
         guard let supported = await DictationTranscriber.supportedLocale(equivalentTo: wanted) else {
-            throw NativeSpeechError(message: "Apple-dicteren ondersteunt \(wanted.identifier) niet")
+            throw NativeSpeechError(message: "Apple Dictation does not support \(wanted.identifier)")
         }
         return supported
     }

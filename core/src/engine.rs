@@ -153,7 +153,7 @@ impl RecoveryState {
             .sum();
         if self.entries.len() + self.reserved >= RECOVERY_ENTRIES || bytes >= RECOVERY_BYTES {
             return Err(PennelError::Storage {
-                message: "Bewaar of verwijder eerst je tijdelijke dictaten in Geschiedenis.".into(),
+                message: "Save or discard your temporary dictations in History first.".into(),
             });
         }
         Ok(())
@@ -305,10 +305,23 @@ impl PennelEngine {
         device_name: String,
         platform: String,
     ) -> Result<CloudLoginStart, PennelError> {
+        self.cloud_login_start_with_locale(device_name, platform, None)
+    }
+
+    pub fn cloud_login_start_with_locale(
+        &self,
+        device_name: String,
+        platform: String,
+        locale: Option<String>,
+    ) -> Result<CloudLoginStart, PennelError> {
         let _identity = crate::speaker_jobs::speaker_identity_guard();
         let _gate = self.meeting_gate.lock().unwrap();
         self.ensure_cloud_identity_mutable()?;
-        let started = self.cloud_session()?.login_start(&device_name, &platform)?;
+        let started = self.cloud_session()?.login_start_with_locale(
+            &device_name,
+            &platform,
+            locale.as_deref(),
+        )?;
         self.remember_device_name(&device_name);
         Ok(started)
     }
@@ -403,7 +416,7 @@ impl PennelEngine {
         let (Some(wrapped), Some(kdf)) = (vault.wrapped, vault.kdf) else {
             return Err(PennelError::Cloud {
                 code: "vault_missing".into(),
-                message: "Er bestaat nog geen kluis.".into(),
+                message: "No vault exists yet.".into(),
             });
         };
         let key = crypto::unwrap(&wrapped, &kdf, &code)?;
@@ -431,7 +444,7 @@ impl PennelEngine {
         if self.with_sync_state(|state| state.generation())? != Some(vault.generation) {
             return Err(PennelError::Cloud {
                 code: "generation".into(),
-                message: "De kluis is opnieuw begonnen op een ander toestel.".into(),
+                message: "The vault was reset on another device.".into(),
             });
         }
         let code = crypto::new_recovery_code();
@@ -756,7 +769,7 @@ impl PennelEngine {
         }
         if account.kind == ProviderKind::AppleSpeech && self.system_stt.read().unwrap().is_none() {
             return Err(PennelError::InvalidResponse {
-                message: "Apple-dicteren is niet beschikbaar op deze computer".into(),
+                message: "Apple dictation is unavailable on this computer".into(),
             });
         }
         Ok(())
@@ -771,7 +784,7 @@ impl PennelEngine {
         let _gate = self.meeting_gate.lock().unwrap();
         if self.has_active_session() {
             return Err(PennelError::Storage {
-                message: "er wordt al een meeting opgenomen of afgerond".into(),
+                message: "a meeting is already recording or being finalized".into(),
             });
         }
         self.claim_library()?;
@@ -1061,7 +1074,7 @@ impl PennelEngine {
                 }
             })
             .ok_or(PennelError::Storage {
-                message: "zoekindex niet beschikbaar".into(),
+                message: "search index unavailable".into(),
             })?;
         let (messages, sources) = if account.kind == ProviderKind::AppleIntelligence {
             apple_chat_messages(&question, &history, &sources)?
@@ -1086,9 +1099,22 @@ impl PennelEngine {
         id: String,
         include_transcript: bool,
     ) -> Result<MeetingExport, PennelError> {
-        let (title, markdown) =
-            crate::export::export_markdown(&self.meeting_store(), &id, include_transcript)
-                .ok_or(PennelError::NotFound)?;
+        self.export_meeting_localized(id, include_transcript, crate::InterfaceLanguage::English)
+    }
+
+    pub fn export_meeting_localized(
+        &self,
+        id: String,
+        include_transcript: bool,
+        language: crate::InterfaceLanguage,
+    ) -> Result<MeetingExport, PennelError> {
+        let (title, markdown) = crate::export::export_markdown_for_language(
+            &self.meeting_store(),
+            &id,
+            include_transcript,
+            language,
+        )
+        .ok_or(PennelError::NotFound)?;
         Ok(MeetingExport {
             html: crate::export::markdown_to_html(&markdown),
             title,
@@ -1234,7 +1260,7 @@ impl PennelEngine {
         let downloads = self.downloads.lock().unwrap();
         if downloads.contains_key(&id) {
             return Err(PennelError::Storage {
-                message: "Wacht tot de modeldownload is afgerond of geannuleerd.".into(),
+                message: "Wait until the model download has finished or been cancelled.".into(),
             });
         }
         self.models.delete(&id)?;
@@ -1276,7 +1302,7 @@ fn enforce_preview_library(
             .symlink_metadata()
             .is_ok_and(|metadata| metadata.file_type().is_symlink())
     {
-        return Err(PennelError::Storage { message: "de preview gebruikt uitsluitend de eigen Meetings-map; externe meetingmappen zijn niet toegestaan".into() });
+        return Err(PennelError::Storage { message: "the preview uses only its own Meetings folder; external meeting folders are not allowed".into() });
     }
     settings.meetings_dir = expected.to_string_lossy().into_owned();
     Ok(())
@@ -1557,7 +1583,7 @@ impl PennelEngine {
                 || self.active_speaker_jobs())
         {
             return Err(PennelError::Storage {
-                message: "de meetingmap kan pas na het afronden van de opname worden gewijzigd"
+                message: "the meeting folder can only be changed after the recording is finalized"
                     .into(),
             });
         }
@@ -1608,13 +1634,13 @@ impl PennelEngine {
     fn ensure_cloud_identity_mutable(&self) -> Result<(), PennelError> {
         if self.has_active_session() {
             return Err(PennelError::Storage {
-                message: "Rond eerst de opname af voordat je het Pennel Cloud-account wijzigt."
-                    .into(),
+                message: "Finish recording before changing the Pennel Cloud account.".into(),
             });
         }
         if self.active_speaker_jobs() {
             return Err(PennelError::Storage {
-                message: "Rond eerst de sprekerherkenning af voordat je het Pennel Cloud-account wijzigt.".into(),
+                message: "Finish speaker recognition before changing the Pennel Cloud account."
+                    .into(),
             });
         }
         Ok(())
@@ -1649,7 +1675,7 @@ impl PennelEngine {
             if !saved {
                 entry.status = HistoryStatus::Unsaved;
                 entry.error = Some(
-                    "Nog niet bewaard. Deze tekst blijft tijdelijk beschikbaar tot Pennel stopt."
+                    "Not saved yet. This text remains temporarily available until Pennel quits."
                         .into(),
                 );
                 // A provider can return an unexpectedly large result. Retain it intact, then block
@@ -1829,7 +1855,7 @@ impl PennelEngine {
         if let Some(engine) = registry.get(&dir).and_then(Weak::upgrade) {
             if engine.preview != preview {
                 return Err(PennelError::Storage {
-                    message: "deze gegevensmap is al met een ander Pennel-profiel geopend".into(),
+                    message: "this data folder is already open under another Pennel profile".into(),
                 });
             }
             return Ok(engine);
@@ -1905,7 +1931,7 @@ impl PennelEngine {
     pub(crate) fn ensure_meeting_inactive(&self, id: &str) -> Result<(), PennelError> {
         if self.meeting_jobs.lock().unwrap().contains(id) {
             return Err(PennelError::storage(
-                "Deze meeting wordt verwerkt. Wacht tot de verwerking klaar is.",
+                "This meeting is being processed. Wait until processing has finished.",
             ));
         }
         if self
@@ -1917,7 +1943,7 @@ impl PennelEngine {
             .any(|session| session.id() == id && !session.is_finalized())
         {
             return Err(PennelError::Storage {
-                message: "de meeting wordt nog opgenomen of afgerond".into(),
+                message: "the meeting is still recording or being finalized".into(),
             });
         }
         Ok(())
@@ -1940,7 +1966,7 @@ impl PennelEngine {
         let gate = self.meeting_gate.lock().unwrap();
         if !self.meeting_jobs.lock().unwrap().is_empty() {
             return Err(PennelError::storage(
-                "Deze meeting wordt verwerkt. Wacht tot de verwerking klaar is.",
+                "This meeting is being processed. Wait until processing has finished.",
             ));
         }
         Ok(gate)
@@ -2023,7 +2049,7 @@ impl PennelEngine {
     ) -> Result<String, PennelError> {
         if !supports(provider.kind, ProviderTask::Llm) {
             return Err(PennelError::InvalidResponse {
-                message: "Deze provider ondersteunt geen tekstverwerking.".into(),
+                message: "This provider does not support text processing.".into(),
             });
         }
         if provider.kind == ProviderKind::AppleIntelligence {
@@ -3765,7 +3791,7 @@ mod tests {
         let result = engine.dictate(request(speech(), None)).unwrap();
         assert_eq!(result.text, raw.trim());
         assert!(
-            matches!(result.cleanup, CleanupStatus::Failed { message } if message.contains("te lang voor Apple Intelligence"))
+            matches!(result.cleanup, CleanupStatus::Failed { message } if message.contains("too long for Apple Intelligence"))
         );
         assert!(model.calls.lock().unwrap().is_empty());
     }

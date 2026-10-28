@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "Pennel gebruikt je microfoon om wat je dicteert om te zetten naar tekst.";
+"NSAudioCaptureUsageDescription" = "Pennel neemt de audio van je call op om er een transcript van te maken.";
+"NSSpeechRecognitionUsageDescription" = "Pennel gebruikt Apple-dicteren op je Mac om wat je zegt om te zetten naar tekst, als je die provider kiest.";
+"NSCalendarsFullAccessUsageDescription" = "Pennel gebruikt je agenda om meetings een titel en deelnemers te geven.";

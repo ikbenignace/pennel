@@ -26,7 +26,7 @@ function templateEditor(ctx: Context, target: { id: string | null; name: string;
   const titleId = `template-editor-${crypto.randomUUID()}`;
   const dialog = h("dialog", { class: "editor-dialog template-editor", "aria-labelledby": titleId });
   const name = h("input", { type: "text", value: target.name, placeholder: l("common.name"), "aria-label": l("common.name") });
-  const body = h("textarea", { rows: 12, "aria-label": l("settings.template.body_label") });
+  const body = h("textarea", { rows: 12, placeholder: l("settings.template.body_label"), "aria-label": l("settings.template.body_label") });
   body.value = target.body;
   const status = h("p", { class: "error", role: "status" });
   let invalidName = false;
@@ -83,7 +83,7 @@ async function templateSection(ctx: Context, templates: MeetingTemplate[]) {
       !template.builtin || template.customized ? h("span", { class: "badge" }, template.builtin ? l("settings.template.modified") : l("settings.template.custom")) : null,
       h("button", { class: "btn", onclick: () => edit(template) }, l("settings.template.edit")),
       !template.builtin || template.customized ? h("button", { class: "btn", onclick: () => remove(template) }, template.builtin ? l("settings.template.restore") : l("settings.template.delete")) : null)),
-    h("button", { class: "btn", onclick: () => templateEditor(ctx, { id: null, name: "", body: "Beschrijf waar de samenvatting op moet letten.\n\n## Samenvatting\n## Actiepunten\n" }) }, l("settings.template.new")));
+    h("button", { class: "btn", onclick: () => templateEditor(ctx, { id: null, name: "", body: "" }) }, l("settings.template.new")));
 }
 
 async function speakerSections(ctx: Context, setup: SpeakerSetup): Promise<HTMLElement[]> {

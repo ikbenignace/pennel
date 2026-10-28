@@ -187,7 +187,7 @@ public final class KeyboardSessionModel {
         if let text = result.text {
             onResult(text)
         } else {
-            failure = result.error ?? copy.text(.retry)
+            failure = copy.failure(code: result.errorCode, message: result.error)
         }
     }
 

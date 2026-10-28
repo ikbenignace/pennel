@@ -30,7 +30,7 @@ pub fn error_from(status: u16, body: &Value) -> PennelError {
     PennelError::Cloud {
         code: code.unwrap_or("unknown").to_string(),
         message: message.map_or_else(
-            || format!("Pennel Cloud gaf een fout ({status})."),
+            || format!("Pennel Cloud returned an error ({status})."),
             str::to_string,
         ),
     }
@@ -221,7 +221,7 @@ mod tests {
             error_from(status, &body),
             PennelError::Cloud {
                 code: "unknown".into(),
-                message: "Pennel Cloud gaf een fout (502).".into()
+                message: "Pennel Cloud returned an error (502).".into()
             }
         );
         assert!(matches!(
@@ -255,19 +255,24 @@ mod tests {
 
     #[test]
     fn error_from_uses_server_message() {
-        let body = json!({"error": "session_revoked", "message": "Deze sessie is ingetrokken. Log opnieuw in."});
-        assert_eq!(
-            error_from(401, &body),
-            PennelError::Cloud {
-                code: "session_revoked".into(),
-                message: "Deze sessie is ingetrokken. Log opnieuw in.".into()
-            }
-        );
+        for message in [
+            "Deze sessie is ingetrokken. Log opnieuw in.",
+            "This session was revoked. Sign in again.",
+        ] {
+            let body = json!({"error": "session_revoked", "message": message});
+            assert_eq!(
+                error_from(401, &body),
+                PennelError::Cloud {
+                    code: "session_revoked".into(),
+                    message: message.into()
+                }
+            );
+        }
         assert_eq!(
             error_from(502, &json!({"error": "bad_gateway"})),
             PennelError::Cloud {
                 code: "bad_gateway".into(),
-                message: "Pennel Cloud gaf een fout (502).".into()
+                message: "Pennel Cloud returned an error (502).".into()
             }
         );
     }

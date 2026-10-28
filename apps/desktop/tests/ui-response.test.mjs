@@ -55,3 +55,19 @@ test("lightweight recording metadata localizes errors while preserving identity 
   assert.equal(value.transcript_revision, 12);
   assert.equal(Object.hasOwn(value, "transcript"), false);
 });
+
+test("local model metadata localizes owned labels while preserving vendor names and IDs", () => {
+  setInterfaceLanguage("nl");
+  const models = [
+    { id: "diar_streaming_sortformer_4spk-v2.1", name: "Sortformer (speakers)", description: "Recognizes up to 4 speakers in a meeting", languages: ["en", "nl"] },
+    { id: "vendor-model", name: "Sortformer (speakers)", description: "Vendor description", languages: ["en"] },
+  ];
+  const result = localizeUiResponse("local_models", models);
+  assert.equal(result[0].name, "Sortformer (sprekers)");
+  assert.equal(result[0].description, "Herkent tot 4 sprekers in een meeting");
+  assert.equal(result[0].id, models[0].id);
+  assert.deepEqual(result[0].languages, models[0].languages);
+  assert.deepEqual(result[1], models[1]);
+  assert.equal(models[0].name, "Sortformer (speakers)");
+  setInterfaceLanguage("en");
+});

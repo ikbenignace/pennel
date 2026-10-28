@@ -28,12 +28,12 @@ pub fn test_provider_task(
     let (account, model) = settings.resolve(&choice).ok_or(PennelError::NotFound)?;
     if !supports(account.kind, task) {
         return Err(PennelError::InvalidResponse {
-            message: "Deze provider ondersteunt de gekozen taak niet.".into(),
+            message: "This provider does not support the selected task.".into(),
         });
     }
     if model.trim().is_empty() && !account.kind.is_cli_agent() {
         return Err(PennelError::InvalidResponse {
-            message: "Kies eerst een model om te testen.".into(),
+            message: "Choose a model to test first.".into(),
         });
     }
 
@@ -71,15 +71,15 @@ pub fn test_provider_task(
         Ok(text) if !text.trim().is_empty() => ProviderTaskTestResult {
             verified: true,
             message: if task == ProviderTask::Llm {
-                "Het gekozen taalmodel heeft de voorbeeldtekst verwerkt."
+                "The selected language model processed the sample text."
             } else {
-                "Het gekozen spraakmodel heeft het audiovoorbeeld verwerkt."
+                "The selected speech model processed the audio sample."
             }
             .into(),
         },
-        Ok(_) | Err(PennelError::NoSpeech) => failed(
-            "Het gekozen model gaf geen tekst terug. Controleer het model en probeer opnieuw.",
-        ),
+        Ok(_) | Err(PennelError::NoSpeech) => {
+            failed("The selected model returned no text. Check the model and try again.")
+        }
         Err(error) => failed(failure_message(&error)),
     };
     Ok(result)
@@ -95,36 +95,36 @@ fn failed(message: &str) -> ProviderTaskTestResult {
 fn failure_message(error: &PennelError) -> &'static str {
     // Native/provider error details are untrusted and may echo request data or credentials.
     match error {
-        PennelError::MissingApiKey { .. } => "Stel eerst de API-sleutel voor deze provider in.",
+        PennelError::MissingApiKey { .. } => "Configure this provider’s API key first.",
         PennelError::Http {
             status: 401 | 403, ..
-        } => "De provider weigert toegang. Controleer je API-sleutel en toegang tot het model.",
+        } => "The provider denied access. Check your API key and access to the model.",
         PennelError::Http { status: 402, .. } => {
-            "De provider meldt dat er onvoldoende tegoed is. Controleer je account."
+            "The provider reports insufficient credit. Check your account."
         }
         PennelError::Http { status: 429, .. } => {
-            "De provider heeft zijn gebruikslimiet bereikt. Probeer later opnieuw."
+            "The provider has reached its usage limit. Try again later."
         }
         PennelError::Http { .. } | PennelError::Cloud { .. } => {
-            "De provider kon de voorbeeldtest niet uitvoeren. Controleer je provider en model."
+            "The provider could not run the sample test. Check your provider and model."
         }
         PennelError::Network { .. } => {
-            "De provider is niet bereikbaar. Controleer je verbinding en probeer opnieuw."
+            "The provider is unreachable. Check your connection and try again."
         }
         PennelError::InvalidResponse { .. } => {
-            "Het gekozen model gaf geen bruikbaar antwoord op de voorbeeldtest."
+            "The selected model returned no usable answer to the sample test."
         }
-        PennelError::ModelNotDownloaded => "Download eerst het gekozen spraakmodel.",
-        PennelError::NotSignedIn => "Log eerst in bij Pennel Cloud in Instellingen → Account.",
-        PennelError::VaultLocked => "Ontgrendel eerst Pennel Cloud in Instellingen → Account.",
-        PennelError::Cancelled => "De voorbeeldtest is afgebroken. Probeer opnieuw.",
+        PennelError::ModelNotDownloaded => "Download the selected speech model first.",
+        PennelError::NotSignedIn => "Sign in to Pennel Cloud under Settings → Account first.",
+        PennelError::VaultLocked => "Unlock Pennel Cloud under Settings → Account first.",
+        PennelError::Cancelled => "The sample test was cancelled. Try again.",
         PennelError::Storage { .. } => {
-            "Het lokale model kon niet worden gelezen. Controleer het model en probeer opnieuw."
+            "The local model could not be read. Check the model and try again."
         }
         PennelError::NotFound => {
-            "Het gekozen model is niet beschikbaar. Controleer je provider en model."
+            "The selected model is unavailable. Check your provider and model."
         }
-        PennelError::NoSpeech => "Het gekozen spraakmodel gaf geen tekst terug.",
+        PennelError::NoSpeech => "The selected speech model returned no text.",
         PennelError::UnsupportedProcessor => crate::cpu_support::UNSUPPORTED_PROCESSOR,
     }
 }
@@ -275,7 +275,7 @@ mod tests {
             .create();
         let result = test_provider_task(engine, ProviderTask::DictationStt, keys).unwrap();
         assert!(!result.verified);
-        assert!(result.message.contains("geen tekst"));
+        assert!(result.message.contains("returned no text"));
         response.assert();
     }
 
@@ -405,7 +405,7 @@ mod tests {
         )
         .unwrap();
         assert!(!result.verified);
-        assert!(result.message.contains("API-sleutel"));
+        assert!(result.message.contains("API key"));
         remote.assert();
     }
 }

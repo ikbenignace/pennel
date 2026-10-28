@@ -55,6 +55,15 @@ test("fixture app information is synthetic and never returns an API key", async 
   assert.equal(JSON.stringify(await context.__PENNEL_PLATFORM__.invoke("app_info")).includes("synthetic-only"), false);
 });
 
+test("template fixtures use canonical English definitions without translating meeting content", async () => {
+  const api = fixture("meeting-notes").__PENNEL_PLATFORM__;
+  const templates = await api.invoke("meeting_templates");
+  assert.deepEqual(Array.from(templates, value => value.name), ["General", "One-to-one", "Client meeting", "Standup"]);
+  assert.match(await api.invoke("template_source", { id: "algemeen" }), /## Summary\n## Decisions\n## Action items/);
+  const detail = await api.invoke("meeting_detail", { id: "2026-10-24 0900 Projectoverleg" });
+  assert.equal(detail.notes, "- Planning afronden\n- Volgende afspraak bevestigen");
+});
+
 test("first-use fixtures preserve the chosen task without requiring voice enrollment", async () => {
   const meeting = fixture("onboarding-welcome", { goal: "meeting" });
   const api = meeting.__PENNEL_PLATFORM__;

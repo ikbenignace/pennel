@@ -33,10 +33,10 @@ impl LibraryJob {
     pub fn new(shared: &Arc<Shared>) -> Result<Self, String> {
         let _recording = shared.recording.lock().unwrap();
         if shared.quitting.load(Ordering::SeqCst) {
-            return Err("Pennel wordt afgesloten. Open de app opnieuw om verder te gaan.".into());
+            return Err("Pennel is shutting down. Open it again to continue.".into());
         }
         if shared.updating.load(Ordering::SeqCst) {
-            return Err("Pennel wordt bijgewerkt. Wacht tot de app opnieuw is gestart.".into());
+            return Err("Pennel is updating. Wait until the app has restarted.".into());
         }
         shared.library_jobs.fetch_add(1, Ordering::SeqCst);
         Ok(Self(shared.clone()))
@@ -63,26 +63,26 @@ pub fn set_title(shared: &Shared, title: String, session_id: &str) -> Result<(),
     match state.phase {
         RecordingPhase::Recording | RecordingPhase::Stopping | RecordingPhase::Error => {}
         RecordingPhase::Starting => {
-            return Err("Wacht tot de opname is gestart om de titel te wijzigen.".into());
+            return Err("Wait until recording starts before changing its title.".into());
         }
         RecordingPhase::Finalizing => {
             return Err(
-                "De opname wordt al afgerond. Hernoem de meeting daarna vanuit de bibliotheek."
+                "The recording is already being finalized. Rename the meeting in the library afterwards."
                     .into(),
             );
         }
         RecordingPhase::Idle => {
-            return Err("Er is geen actieve opname waarvan je de titel kunt wijzigen.".into());
+            return Err("There is no active recording whose title can be changed.".into());
         }
     }
     if state.session_id.as_deref() != Some(session_id) {
-        return Err("Deze opnamesessie is niet meer actief.".into());
+        return Err("This recording session is no longer active.".into());
     }
     let mut context = shared.meeting_context.lock().unwrap();
     let context = context
         .as_mut()
         .filter(|context| context.token == session_id)
-        .ok_or("Deze opnamesessie is niet meer actief.")?;
+        .ok_or("This recording session is no longer active.")?;
     context.title = title;
     #[cfg(target_os = "macos")]
     crate::macos_tray::changed();
@@ -101,17 +101,18 @@ fn rename_after_recording(
     }
     engine
         .rename_meeting(id, wanted.to_owned())
-        .map_err(|error| format!("De opnametitel kon niet worden opgeslagen: {error}"))
+        .map_err(|error| format!("The recording title could not be saved: {error}"))
 }
 
 fn copy_consent(
     enabled: bool,
+    language: pennel_core::InterfaceLanguage,
     copy: impl FnOnce(&str) -> Result<(), String>,
 ) -> Result<bool, String> {
     if !enabled {
         return Ok(false);
     }
-    copy(&pennel_core::consent_sentence())?;
+    copy(&pennel_core::consent_sentence_for_language(language))?;
     Ok(true)
 }
 
@@ -119,10 +120,10 @@ fn begin_recording(shared: &Shared, detected_app: Option<String>) -> Result<Stri
     let finalized_error = {
         let lifecycle = shared.recording.lock().unwrap();
         if shared.quitting.load(Ordering::SeqCst) {
-            return Err("Pennel wordt afgesloten. Open de app opnieuw om verder te gaan.".into());
+            return Err("Pennel is shutting down. Open it again to continue.".into());
         }
         if shared.updating.load(Ordering::SeqCst) {
-            return Err("Pennel wordt bijgewerkt. Wacht tot de app opnieuw is gestart.".into());
+            return Err("Pennel is updating. Wait until the app has restarted.".into());
         }
         (lifecycle.snapshot().phase == RecordingPhase::Error)
             .then(|| {
@@ -141,17 +142,19 @@ fn begin_recording(shared: &Shared, detected_app: Option<String>) -> Result<Stri
     }
     let mut lifecycle = shared.recording.lock().unwrap();
     if shared.quitting.load(Ordering::SeqCst) {
-        return Err("Pennel wordt afgesloten. Open de app opnieuw om verder te gaan.".into());
+        return Err("Pennel is shutting down. Open it again to continue.".into());
     }
     if shared.updating.load(Ordering::SeqCst) {
-        return Err("Pennel wordt bijgewerkt. Wacht tot de app opnieuw is gestart.".into());
+        return Err("Pennel is updating. Wait until the app has restarted.".into());
     }
     let mut context = shared.meeting_context.lock().unwrap();
     if context
         .as_ref()
         .is_some_and(|context| !context.session.is_finalized())
     {
-        return Err("De vorige opname is nog niet volledig bewaard. Open de opname en probeer opnieuw te bewaren.".into());
+        return Err(
+            "The previous recording has not been fully saved. Open it and try saving again.".into(),
+        );
     }
     let token = lifecycle
         .begin(detected_app)
@@ -194,7 +197,7 @@ pub fn start(
             .and_then(|value| value.as_bool())
             .unwrap_or(false)
     {
-        let error = "Apple-dicteren vereist macOS 26 of nieuwer. Kies een andere spraakprovider.";
+        let error = "Apple dictation requires macOS 26 or later. Choose another speech provider.";
         fail(shared, &token, error);
         return Err(error.into());
     }
@@ -243,15 +246,17 @@ pub fn start(
     };
     #[cfg(any(windows, target_os = "macos"))]
     LOG.info(format!(
-        "echo-onderdrukking actief={}",
+        "echo cancellation active={}",
         recorder.echo_cancellation_active()
     ));
-    let consent_copied = match copy_consent(settings.consent_enabled, |text| {
-        crate::platform_clipboard::copy(text, None)
-    }) {
+    let consent_copied = match copy_consent(
+        settings.consent_enabled,
+        shared.interface_language(),
+        |text| crate::platform_clipboard::copy(text, None),
+    ) {
         Ok(copied) => copied,
         Err(_) => {
-            LOG.error("De opnamemelding kon niet worden gekopieerd. De opname gaat door.");
+            LOG.error("The recording notice could not be copied. Recording will continue.");
             false
         }
     };
@@ -307,14 +312,16 @@ fn take_recorder_matching(
         | RecordingPhase::Finalizing => return Ok(None),
         RecordingPhase::Recording => {}
     }
-    let token = state.session_id.ok_or("De opnamesessie ontbreekt.")?;
+    let token = state
+        .session_id
+        .ok_or("The recording session is missing.")?;
     lifecycle
         .stopping(&token)
         .map_err(|error| error.to_string())?;
     let recorder = match shared.meeting.lock().unwrap().take() {
         Some(recorder) => recorder,
         None => {
-            let error = "De audio-opname is niet beschikbaar.";
+            let error = "The audio recording is unavailable.";
             let _ = lifecycle.fail(&token, error.into());
             return Err(error.into());
         }
@@ -348,7 +355,7 @@ fn monitor_health(shared: Arc<Shared>, token: String) {
                 if let Ok(Some((token, recorder))) =
                     take_recorder_matching(&shared, None, Some(&token))
                 {
-                    LOG.error("De opname wordt gestopt na een audio- of opslagfout.");
+                    LOG.error("Recording is stopping after an audio or storage error.");
                     let _ = finish(&shared, &token, recorder);
                 }
                 return;
@@ -454,16 +461,16 @@ fn retry_saved_session(shared: &Shared, session_id: &str) -> Result<String, Stri
         let mut lifecycle = shared.recording.lock().unwrap();
         let state = lifecycle.snapshot();
         if state.phase != RecordingPhase::Error || state.session_id.as_deref() != Some(session_id) {
-            return Err("Deze opname wacht niet meer op herstel.".into());
+            return Err("This recording is no longer waiting for recovery.".into());
         }
         if shared.meeting.lock().unwrap().is_some() {
-            return Err("Rond eerst de audio-opname af voordat je opnieuw bewaart.".into());
+            return Err("Finish the audio recording before saving again.".into());
         }
         let context = shared.meeting_context.lock().unwrap();
         let context = context
             .as_ref()
             .filter(|context| context.token == session_id)
-            .ok_or("Deze opnamesessie is niet meer beschikbaar.")?;
+            .ok_or("This recording session is no longer available.")?;
         lifecycle
             .retry_finalizing(session_id)
             .map_err(|error| error.to_string())?;
@@ -548,16 +555,14 @@ pub fn stop(
         let library_job = LibraryJob::new(&shared).ok();
         let flush = crate::flush_frontends(&app, "prepare-recording-stop");
         let flush_warning = flush.result.err().map(|_| {
-            "Niet alle conceptwijzigingen konden worden opgeslagen. De opname is afgerond; controleer je bewaarde concept.".to_owned()
+            "Some draft changes could not be saved. Recording has finished; check your saved draft.".to_owned()
         });
         if flush_warning.is_some() {
-            LOG.error(
-                "Conceptwijzigingen konden niet volledig worden opgeslagen voor het stoppen.",
-            );
+            LOG.error("Some draft changes could not be saved before stopping.");
         }
         let result = finish(&shared, &token, recorder);
         if result.is_err() {
-            LOG.error("Meeting afronden mislukt; de opname blijft zichtbaar in Pennel.");
+            LOG.error("Meeting finalization failed; the recording remains visible in Pennel.");
         }
         let finished = MeetingFinished {
             id: result.clone().ok(),
@@ -593,9 +598,9 @@ fn postprocess(app: AppHandle, shared: Arc<Shared>, id: String) {
             Ok(_) => {
                 let _ = app.emit("meeting-updated", &id);
             }
-            Err(_) => LOG.error(
-                "Automatisch sprekers herkennen mislukt; probeer opnieuw vanuit de meeting.",
-            ),
+            Err(_) => {
+                LOG.error("Automatic speaker recognition failed; try again from the meeting.")
+            }
         }
     }
     if shared.quitting.load(Ordering::SeqCst) {
@@ -622,7 +627,7 @@ fn postprocess(app: AppHandle, shared: Arc<Shared>, id: String) {
     )
     .is_err()
     {
-        LOG.error("Automatisch samenvatten mislukt; transcript en notities blijven bewaard.");
+        LOG.error("Automatic summarization failed; transcript and notes remain saved.");
     }
     let _ = app.emit("meeting-updated", id);
     crate::cloud::poke(&app);
@@ -701,7 +706,7 @@ pub fn stop_and_wait(shared: &Arc<Shared>) -> Result<Option<String>, String> {
                     .unwrap()
                     .snapshot()
                     .error
-                    .unwrap_or_else(|| "De opname is niet afgerond.".into());
+                    .unwrap_or_else(|| "The recording has not been finalized.".into());
                 return Err(message);
             }
             RecordingPhase::Idle => return Ok(None),
@@ -1016,25 +1021,41 @@ mod tests {
 
     #[test]
     fn consent_setting_off_never_changes_the_clipboard() {
-        let copied = copy_consent(false, |_| panic!("disabled setting must not copy")).unwrap();
+        let copied = copy_consent(false, pennel_core::InterfaceLanguage::English, |_| {
+            panic!("disabled setting must not copy")
+        })
+        .unwrap();
         assert!(!copied);
     }
 
     #[test]
     fn enabled_consent_reports_success_only_after_copying_the_canonical_sentence() {
-        let mut observed = String::new();
-        let copied = copy_consent(true, |text| {
-            observed = text.to_owned();
-            Ok(())
-        })
-        .unwrap();
-        assert!(copied);
-        assert_eq!(observed, pennel_core::consent_sentence());
+        for language in [
+            pennel_core::InterfaceLanguage::English,
+            pennel_core::InterfaceLanguage::Dutch,
+        ] {
+            let mut observed = String::new();
+            let copied = copy_consent(true, language, |text| {
+                observed = text.to_owned();
+                Ok(())
+            })
+            .unwrap();
+            assert!(copied);
+            assert_eq!(
+                observed,
+                pennel_core::consent_sentence_for_language(language)
+            );
+        }
     }
 
     #[test]
     fn failed_consent_copy_does_not_report_success() {
-        assert!(copy_consent(true, |_| Err("Klembord niet beschikbaar.".into())).is_err());
+        assert!(
+            copy_consent(true, pennel_core::InterfaceLanguage::English, |_| Err(
+                "Clipboard unavailable.".into()
+            ))
+            .is_err()
+        );
     }
 
     #[test]

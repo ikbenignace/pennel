@@ -79,7 +79,7 @@ pub fn window_spec(kind: &str) -> WindowSpec {
         "onboarding" => (
             "onboarding",
             "onboarding",
-            "Welkom bij Pennel",
+            "Welcome to Pennel",
             (640.0, 660.0),
             (520.0, 520.0),
         ),
@@ -837,7 +837,7 @@ mod tests {
             ("settings", "main", "Pennel"),
             ("history", "main", "Pennel"),
             ("dictation", "main", "Pennel"),
-            ("onboarding", "onboarding", "Welkom bij Pennel"),
+            ("onboarding", "onboarding", "Welcome to Pennel"),
             ("library", "main", "Pennel"),
             ("live", "main", "Pennel"),
             ("workspace", "main", "Pennel"),

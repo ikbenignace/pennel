@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "Pennel uses your microphone to turn your dictation into text.";
+"NSAudioCaptureUsageDescription" = "Pennel records your call audio to create a transcript.";
+"NSSpeechRecognitionUsageDescription" = "Pennel uses Apple Dictation on your Mac to turn your speech into text when you choose that provider.";
+"NSCalendarsFullAccessUsageDescription" = "Pennel uses your calendar to add titles and participants to meetings.";

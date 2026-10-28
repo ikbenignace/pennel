@@ -89,10 +89,10 @@ final class TrackWriter: @unchecked Sendable {
                 if let writeOverride { try writeOverride(buffer) }
                 else { try file?.write(from: buffer) }
             } catch {
-                healthLock.withLock { archiveFailure = "De audio-opname kon niet worden bewaard. Controleer de vrije schijfruimte." }
+                healthLock.withLock { archiveFailure = "The audio recording could not be saved. Check your free disk space." }
             }
         } else {
-            healthLock.withLock { archiveFailure = "Een audioblok kon niet voor de opname worden voorbereid." }
+            healthLock.withLock { archiveFailure = "An audio block could not be prepared for recording." }
         }
         if pending.isEmpty { pendingStart = sent }
         pending.append(contentsOf: samples)
@@ -130,7 +130,7 @@ struct MeetingCaptureHealth {
 
     var echoWarning: String? {
         echoRequested && microphoneActive && !echoActive
-            ? "Echo-onderdrukking is niet actief. Gebruik een koptelefoon."
+            ? "Echo cancellation is not active. Use headphones."
             : nil
     }
 
@@ -142,13 +142,13 @@ struct MeetingCaptureHealth {
     }
     mutating func microphoneFailed() {
         microphoneStarting()
-        microphoneError = "De microfoonopname is onderbroken. Controleer je microfoon."
+        microphoneError = "Microphone recording was interrupted. Check your microphone."
     }
     mutating func systemAudioStarting() { systemAudioAvailable = false }
     mutating func systemAudioStarted() { systemAudioAvailable = true; systemAudioError = nil }
     mutating func systemAudioFailed() {
         systemAudioAvailable = false
-        systemAudioError = "Systeemgeluid is niet beschikbaar. Alleen de microfoon wordt opgenomen."
+        systemAudioError = "System audio is unavailable. Only the microphone is being recorded."
     }
 
     func bridgeObject(heardSystemAudio: Bool, archiveError: String?) -> [String: Any] {
@@ -442,7 +442,7 @@ final class NativeMeetingRecorder {
 
     private func systemAudioProblem(reason: String) {
         health.systemAudioFailed()
-        captureWarning = "Het systeemgeluid was onderbroken door een timingprobleem. Controleer de opname."
+        captureWarning = "System audio was interrupted by a timing problem. Check the recording."
         scheduleSystemAudioRebuild(reason: reason, force: true)
     }
 

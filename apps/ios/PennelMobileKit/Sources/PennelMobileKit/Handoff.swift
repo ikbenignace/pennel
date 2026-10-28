@@ -39,12 +39,14 @@ public struct HandoffResult: Codable, Equatable, Sendable {
     public var id: UUID
     public var text: String?
     public var error: String?
+    public var errorCode: String?
     public var at: Date
 
-    public init(id: UUID, text: String?, error: String?, at: Date) {
+    public init(id: UUID, text: String?, error: String?, errorCode: String? = nil, at: Date) {
         self.id = id
         self.text = text
         self.error = error
+        self.errorCode = errorCode
         self.at = at
     }
 }

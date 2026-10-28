@@ -149,5 +149,6 @@
   "meetings.summary_setup_help": "Stel samenvattingen en vragen in voor deze vergadering. Je notities en transcript blijven hier.",
   "meetings.set_up_summaries": "Samenvattingen instellen",
   "meetings.set_up_questions": "Vragen instellen",
-  "meetings.questions_setup_help": "Stel tekstverwerking in om vragen over je vergaderingen te stellen."
+  "meetings.questions_setup_help": "Stel tekstverwerking in om vragen over je vergaderingen te stellen.",
+  "meetings.consent_sentence": "Ik neem notities met transcript via Pennel."
 }

@@ -43,7 +43,7 @@ struct MacCaptureHealth {
 impl MacCaptureHealth {
     fn from_status(status: serde_json::Value) -> Self {
         serde_json::from_value(status).unwrap_or_else(|_| Self {
-            capture_warning: Some("De opnamestatus kon niet worden gecontroleerd.".into()),
+            capture_warning: Some("The recording status could not be checked.".into()),
             ..Self::default()
         })
     }
@@ -100,7 +100,7 @@ impl MacCaptureMonitor {
                 .is_err()
                 {
                     snapshot.capture_warning =
-                        Some("De opnamediagnostiek kon niet worden bewaard.".into());
+                        Some("The recording diagnostics could not be saved.".into());
                 }
                 *next_health.lock().unwrap() = snapshot;
                 match receiver.recv_timeout(Duration::from_secs(1)) {
@@ -140,7 +140,7 @@ impl MacCaptureMonitor {
         self.worker.take().map_or(Ok(()), |worker| {
             worker
                 .join()
-                .unwrap_or_else(|_| Err("De opnamestatus is onverwacht gestopt.".into()))
+                .unwrap_or_else(|_| Err("The recording status stopped unexpectedly.".into()))
         })
     }
 }
@@ -238,7 +238,7 @@ impl TimedTrack {
         if samples.is_empty() {
             return Ok(());
         }
-        let mut start = start_ms.checked_mul(16).ok_or("Ongeldige audiotijd")?;
+        let mut start = start_ms.checked_mul(16).ok_or("Invalid audio timestamp")?;
         // The shared API timestamps have millisecond precision. Avoid accumulating sub-ms
         // clock-bridge rounding into repeated drops/insertions at every device callback.
         if start.abs_diff(self.position) < 16 {
@@ -246,7 +246,7 @@ impl TimedTrack {
         }
         let end = start
             .checked_add(samples.len() as u64)
-            .ok_or("Ongeldige audiolengte")?;
+            .ok_or("Invalid audio length")?;
         if end <= self.position {
             return Ok(());
         }
@@ -294,7 +294,7 @@ impl TimedTrack {
         mut emit: impl FnMut(TrackBlock<'_>),
     ) -> Result<(), String> {
         self.flush(&mut emit);
-        let end = end_ms.checked_mul(16).ok_or("Ongeldige audiotijd")?;
+        let end = end_ms.checked_mul(16).ok_or("Invalid audio timestamp")?;
         if end > self.position {
             let samples = end - self.position;
             self.inserted_silence_samples += samples;
@@ -469,7 +469,7 @@ impl MeetingRecorder {
                 .iter()
                 .find(|track| track.speaker == speaker)
                 .map(|track| directory.join(&track.relative_path))
-                .ok_or_else(|| "De audio-opname is niet beschikbaar.".to_owned())
+                .ok_or_else(|| "The audio recording is unavailable.".to_owned())
         };
         let microphone_path = track_path(Speaker::Me)?;
         let system_path = track_path(Speaker::Others)?;
@@ -498,7 +498,7 @@ impl MeetingRecorder {
                         .push_audio_at(speaker, offset, samples.to_vec())
                         .is_err()
                     {
-                        LOG.error("Audioblok kon niet aan de meeting worden toegevoegd");
+                        LOG.error("An audio block could not be added to the meeting");
                     }
                 },
             )?;
@@ -550,7 +550,7 @@ impl MeetingRecorder {
                 )) {
                     Ok(capture) => (Microphone::Echo(capture), true, None),
                     Err(error) => {
-                        LOG.error(format!("echo-onderdrukking niet actief: {error}"));
+                        LOG.error(format!("echo cancellation inactive: {error}"));
                         let capture = Capture::start_timed(
                             Source::Microphone,
                             batching(
@@ -561,12 +561,12 @@ impl MeetingRecorder {
                                 started,
                             ),
                         )
-                        .map_err(|error| format!("microfoon: {error}"))?;
+                        .map_err(|error| format!("microphone: {error}"))?;
                         (
                             Microphone::Raw(capture),
                             false,
                             Some(format!(
-                                "Echo-onderdrukking is niet actief: {error}. Gebruik een koptelefoon."
+                                "Echo cancellation is not active: {error}. Use headphones."
                             )),
                         )
                     }
@@ -584,7 +584,7 @@ impl MeetingRecorder {
                                 started,
                             ),
                         )
-                        .map_err(|error| format!("microfoon: {error}"))?,
+                        .map_err(|error| format!("microphone: {error}"))?,
                     ),
                     false,
                     None,
@@ -592,9 +592,22 @@ impl MeetingRecorder {
             };
             #[cfg(not(windows))]
             let (mic, mut capture_warning) = (
-                Microphone::Raw(Capture::start_timed(Source::Microphone, batching(session.clone(), Speaker::Me, tracks[0].clone(), None, started))
-                    .map_err(|error| format!("microfoon: {error}"))?),
-                echo.then(|| "Echo-onderdrukking is op dit platform niet beschikbaar. Gebruik een koptelefoon.".to_owned()),
+                Microphone::Raw(
+                    Capture::start_timed(
+                        Source::Microphone,
+                        batching(
+                            session.clone(),
+                            Speaker::Me,
+                            tracks[0].clone(),
+                            None,
+                            started,
+                        ),
+                    )
+                    .map_err(|error| format!("microphone: {error}"))?,
+                ),
+                echo.then(|| {
+                    "Echo cancellation is unavailable on this platform. Use headphones.".to_owned()
+                }),
             );
             let system = match Capture::start_timed(
                 Source::SystemOutput,
@@ -608,9 +621,9 @@ impl MeetingRecorder {
             ) {
                 Ok(capture) => Some(capture),
                 Err(error) => {
-                    LOG.error(format!("systeemgeluid niet beschikbaar: {error}"));
+                    LOG.error(format!("system audio unavailable: {error}"));
                     let warning = format!(
-                        "Systeemgeluid is niet beschikbaar: {error}. Alleen de microfoon wordt opgenomen."
+                        "System audio is unavailable: {error}. Only the microphone is being recorded."
                     );
                     capture_warning = Some(
                         capture_warning
@@ -649,8 +662,8 @@ impl MeetingRecorder {
                     .map_err(|error| error.to_string())?;
             }
             LOG.info(format!(
-                "meeting gestart, systeemgeluid {}",
-                if has_system { "aan" } else { "uit" }
+                "meeting started, system audio {}",
+                if has_system { "on" } else { "off" }
             ));
             Ok(Self {
                 session,
@@ -741,7 +754,7 @@ impl MeetingRecorder {
             }
             for track in &self.tracks {
                 if let Some(error) = &track.lock().unwrap().error {
-                    warnings.push(format!("Audio verwerken mislukt: {error}"));
+                    warnings.push(format!("Audio processing failed: {error}"));
                 }
             }
             if let Some(warning) = &self.capture_warning {
@@ -838,7 +851,7 @@ impl MeetingRecorder {
             failures.push(error.to_string());
         }
         LOG.info(format!(
-            "meeting gestopt na {} s",
+            "meeting stopped after {} s",
             self.started.elapsed().as_secs()
         ));
         let result = if failures.is_empty() {

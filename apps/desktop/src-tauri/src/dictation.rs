@@ -81,20 +81,42 @@ pub enum Failure {
     AppChanged,
 }
 
-pub fn notice_for_cleanup(cleanup: &CleanupStatus) -> Option<String> {
+#[cfg(test)]
+fn notice_for_cleanup(cleanup: &CleanupStatus) -> Option<String> {
+    notice_for_cleanup_destination(cleanup, false)
+}
+
+fn notice_for_cleanup_destination(cleanup: &CleanupStatus, available: bool) -> Option<String> {
     match cleanup {
         CleanupStatus::Failed { message }
             if message.to_lowercase().contains("timed out")
                 || message.to_lowercase().contains("timeout") =>
         {
-            Some("Opkuisen duurde te lang — ruwe tekst geplakt (zie logboek)".into())
+            Some(
+                if available {
+                    "Cleanup timed out — original text available (see log)"
+                } else {
+                    "Cleanup timed out — original text pasted (see log)"
+                }
+                .into(),
+            )
         }
-        CleanupStatus::Failed { .. } => {
-            Some("Opkuisen mislukt — ruwe tekst geplakt (zie logboek)".into())
-        }
-        CleanupStatus::Rejected => {
-            Some("Model antwoordde i.p.v. op te kuisen — ruwe tekst geplakt".into())
-        }
+        CleanupStatus::Failed { .. } => Some(
+            if available {
+                "Cleanup failed — original text available (see log)"
+            } else {
+                "Cleanup failed — original text pasted (see log)"
+            }
+            .into(),
+        ),
+        CleanupStatus::Rejected => Some(
+            if available {
+                "The model answered instead of cleaning up — original text available"
+            } else {
+                "The model answered instead of cleaning up — original text pasted"
+            }
+            .into(),
+        ),
         _ => None,
     }
 }
@@ -103,21 +125,19 @@ pub fn notice_for_error(error: &PennelError) -> Option<String> {
     Some(
         match error {
             PennelError::NoSpeech => return None,
-            PennelError::MissingApiKey { .. } => "Geen API-sleutel ingesteld",
-            PennelError::ModelNotDownloaded => {
-                "Model nog niet gedownload — bewaard in geschiedenis"
-            }
+            PennelError::MissingApiKey { .. } => "No API key configured",
+            PennelError::ModelNotDownloaded => "Model not downloaded — saved in History",
             PennelError::Http { status, .. } if *status == 401 || *status == 403 => {
-                "API-sleutel geweigerd — bewaard in geschiedenis"
+                "API key rejected — saved in History"
             }
-            PennelError::Network { .. } => "Geen verbinding — bewaard in geschiedenis",
+            PennelError::Network { .. } => "No connection — saved in History",
             PennelError::UnsupportedProcessor => {
-                "Processor te oud voor lokale modellen — bewaard in geschiedenis"
+                "Processor too old for local models — saved in History"
             }
             PennelError::Http { .. } | PennelError::InvalidResponse { .. } => {
-                "Mislukt — bewaard in geschiedenis"
+                "Failed — saved in History"
             }
-            _ => "Mislukt",
+            _ => "Failed",
         }
         .into(),
     )
@@ -126,22 +146,22 @@ pub fn notice_for_error(error: &PennelError) -> Option<String> {
 /// Commands are not kept in history when they fail, so these notices don't promise a retry.
 pub fn notice_for_command(failure: &Failure) -> Option<String> {
     let error = match failure {
-        Failure::AppChanged => return Some("Andere app actief — opdracht niet geplakt".into()),
+        Failure::AppChanged => return Some("Another app is active — command not pasted".into()),
         Failure::Core(error) => error,
     };
     Some(
         match error {
             PennelError::NoSpeech => return None,
-            PennelError::MissingApiKey { .. } => "Geen API-sleutel ingesteld",
-            PennelError::NotFound => "Geen taalmodel ingesteld",
+            PennelError::MissingApiKey { .. } => "No API key configured",
+            PennelError::NotFound => "No text model configured",
             PennelError::Http { status, .. } if *status == 401 || *status == 403 => {
-                "API-sleutel geweigerd"
+                "API key rejected"
             }
             PennelError::InvalidResponse { message } if message == "selection too long" => {
-                "Selectie te lang voor een opdracht"
+                "Selection is too long for a command"
             }
-            PennelError::Network { .. } => "Geen verbinding",
-            _ => "Opdracht mislukt",
+            PennelError::Network { .. } => "No connection",
+            _ => "Command failed",
         }
         .into(),
     )
@@ -149,10 +169,10 @@ pub fn notice_for_command(failure: &Failure) -> Option<String> {
 
 fn describe(cleanup: &CleanupStatus) -> String {
     match cleanup {
-        CleanupStatus::Applied => "toegepast".into(),
-        CleanupStatus::Skipped => "overgeslagen (snelle modus)".into(),
-        CleanupStatus::Rejected => "afgewezen (model antwoordde in plaats van op te kuisen)".into(),
-        CleanupStatus::Failed { .. } => "mislukt".into(),
+        CleanupStatus::Applied => "applied".into(),
+        CleanupStatus::Skipped => "skipped (fast mode)".into(),
+        CleanupStatus::Rejected => "rejected (model answered instead of cleaning up)".into(),
+        CleanupStatus::Failed { .. } => "failed".into(),
     }
 }
 
@@ -166,7 +186,7 @@ fn failure_category(failure: &Failure) -> String {
         Failure::Core(PennelError::MissingApiKey { .. }) => "missing_key".into(),
         Failure::Core(PennelError::ModelNotDownloaded) => "model_not_downloaded".into(),
         Failure::Core(PennelError::NotFound) => "not_found".into(),
-        Failure::Core(PennelError::Cancelled) => "cancelled".into(),
+        Failure::Core(PennelError::Cancelled) => "Cancelled".into(),
         Failure::Core(PennelError::NoSpeech) => "no_speech".into(),
         Failure::Core(PennelError::NotSignedIn) => "not_signed_in".into(),
         Failure::Core(PennelError::Cloud { .. }) => "cloud".into(),
@@ -264,7 +284,7 @@ fn prepare_delivery<T>(
             recovery: RecoveryEvent {
                 id: result.history_id,
                 unsaved: true,
-                reason: "Bewaren mislukt. Je tekst staat tijdelijk in Geschiedenis.".into(),
+                reason: "Saving failed. Your text is temporarily available in History.".into(),
             },
         });
     }
@@ -465,10 +485,10 @@ fn copy_only_delivery(requested: bool) -> bool {
 
 fn delivery_notice(result: Result<(), String>) -> String {
     match result {
-        Ok(()) => "Tekst gekopieerd — plak met Ctrl+V".into(),
+        Ok(()) => "Text copied — paste with Ctrl+V".into(),
         Err(_) => {
-            LOG.error("klembord schrijven mislukt");
-            "Kopiëren mislukt — tekst staat in Geschiedenis".into()
+            LOG.error("clipboard write failed");
+            "Copying failed — your text is in History".into()
         }
     }
 }
@@ -484,15 +504,13 @@ enum DeliveryFailure {
 
 fn recovery_for_failure(history_id: &str, failure: DeliveryFailure) -> RecoveryEvent {
     let notice = match failure {
-        DeliveryFailure::Missing => "Geen actief tekstdoel — je tekst staat in Geschiedenis.",
+        DeliveryFailure::Missing => "No active text destination — your text is in History.",
         DeliveryFailure::Changed => {
-            "Niet geplakt — het tekstdoel is gewijzigd. Je tekst staat in Geschiedenis."
+            "Not pasted — the text destination changed. Your text is in History."
         }
-        DeliveryFailure::Permission => {
-            "Geen toegang om te plakken. Je tekst staat in Geschiedenis."
-        }
-        DeliveryFailure::Other => "Niet geplakt. Je tekst staat in Geschiedenis.",
-        DeliveryFailure::Copy => "Kopiëren mislukt. Je tekst staat in Geschiedenis.",
+        DeliveryFailure::Permission => "Permission to paste is missing. Your text is in History.",
+        DeliveryFailure::Other => "Not pasted. Your text is in History.",
+        DeliveryFailure::Copy => "Copying failed. Your text is in History.",
     };
     RecoveryEvent {
         id: history_id.into(),
@@ -513,7 +531,7 @@ fn finish_copy(notices: &Sender<Msg>, history_id: &str, result: Result<(), Strin
     let message = match result {
         Ok(()) => Msg::DeliveryNotice(delivery_notice(Ok(()))),
         Err(_) => {
-            LOG.error("klembord schrijven mislukt");
+            LOG.error("clipboard write failed");
             Msg::DeliveryRecovery(recovery_for_failure(history_id, DeliveryFailure::Copy))
         }
     };
@@ -639,7 +657,7 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                         if external_paste::still_selected(target) {
                             keys::send(Shortcut::Paste)
                         } else {
-                            Err("Het tekstdoel is gewijzigd.".into())
+                            Err("The text destination changed.".into())
                         }
                     },
                     || std::thread::sleep(clipboard::RESTORE_DELAY),
@@ -680,7 +698,7 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                     &mut clipboard,
                     || {
                         if let Err(e) = keys::send(Shortcut::Copy) {
-                            LOG.error(format!("kopiëren mislukt: {e}"));
+                            LOG.error(format!("copy failed: {e}"));
                         }
                     },
                     nonce,
@@ -707,9 +725,7 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                     if !owned_dictation::external_allowed(&shared, &capture)
                         || !crate::external_paste::still_selected(target)
                     {
-                        return Err(
-                            "Extern plakken is geannuleerd. Je tekst staat in Pennel.".into()
-                        );
+                        return Err("External paste was cancelled. Your text is in Pennel.".into());
                     }
                     paste_transaction(
                         &mut clipboard,
@@ -720,7 +736,7 @@ fn paste_worker(jobs: Receiver<PasteJob>, shared: Arc<Shared>) {
                             {
                                 keys::send(Shortcut::Paste)
                             } else {
-                                Err("De doelapp is gewijzigd. Je tekst staat in Pennel.".into())
+                                Err("The destination app changed. Your text is in Pennel.".into())
                             }
                         },
                         || std::thread::sleep(clipboard::RESTORE_DELAY),
@@ -938,7 +954,7 @@ impl Controller {
                         owned_dictation::failed(
                             &self.app,
                             &id,
-                            "Rond eerst je huidige dictaat af".into(),
+                            "Finish your current dictation first".into(),
                         );
                     } else {
                         if self.recorder.is_none() {
@@ -983,7 +999,7 @@ impl Controller {
                         owned_dictation::delivery_error(
                             &self.app,
                             &capture,
-                            "Extern plakken is mislukt. Je tekst staat in Pennel.".into(),
+                            "External paste failed. Your text is in Pennel.".into(),
                         );
                         let recovery = recovery_for_failure(&history_id, DeliveryFailure::Other);
                         let _ = self.app.emit("dictation-recovery", &recovery);
@@ -1124,7 +1140,7 @@ impl Controller {
         if route == owned_dictation::CaptureRoute::Unavailable {
             self.gesture = HotkeyGesture::default();
             self.command.reset();
-            return self.notify("Kies eerst een tekstveld in een andere app");
+            return self.notify("Select a text field in another app first");
         }
         if let owned_dictation::CaptureRoute::Owned(id) = route {
             match owned_dictation::begin_capture(&self.app, &self.shared, &id) {
@@ -1143,7 +1159,7 @@ impl Controller {
                     readiness
                         .reason
                         .as_deref()
-                        .unwrap_or("Stel eerst spraakherkenning in"),
+                        .unwrap_or("Set up speech recognition first"),
                 );
             }
         }
@@ -1153,10 +1169,10 @@ impl Controller {
                 owned_dictation::failed(
                     &self.app,
                     &capture.id,
-                    "Pennel is nog bezig. Probeer daarna opnieuw.".into(),
+                    "Pennel is still working. Try again afterwards.".into(),
                 );
             }
-            return self.notify("Pennel wordt bijgewerkt — probeer daarna opnieuw");
+            return self.notify("Pennel is updating — try again afterwards");
         };
         let session = self.shared.engine.clone().begin_dictation_session(
             Arc::new(PreviewObserver {
@@ -1225,27 +1241,23 @@ impl Controller {
                 self.status.recording_cancelled();
                 self.gesture = HotkeyGesture::default();
                 if let Some(capture) = self.recording_owned.take() {
-                    owned_dictation::failed(
-                        &self.app,
-                        &capture.id,
-                        "Geen microfoon gevonden".into(),
-                    );
+                    owned_dictation::failed(&self.app, &capture.id, "No microphone found".into());
                 }
-                return self.notify("Geen microfoon gevonden");
+                return self.notify("No microphone found");
             }
             Err(e) => {
                 self.discard_recording_preview();
                 self.status.recording_cancelled();
-                LOG.error(format!("opnemen starten mislukt: {e}"));
+                LOG.error(format!("recording start failed: {e}"));
                 self.gesture = HotkeyGesture::default();
                 if let Some(capture) = self.recording_owned.take() {
                     owned_dictation::failed(
                         &self.app,
                         &capture.id,
-                        "Opnemen lukt niet. Controleer de microfoontoegang.".into(),
+                        "Recording failed. Check microphone access.".into(),
                     );
                 }
-                return self.notify("Opnemen lukt niet");
+                return self.notify("Recording failed");
             }
         }
         self.capture_activity = Some(activity);
@@ -1329,7 +1341,7 @@ impl Controller {
                 owned_dictation::failed(
                     &self.app,
                     &capture.id,
-                    "Geen spraak opgenomen. Probeer opnieuw.".into(),
+                    "No speech recorded. Try again.".into(),
                 );
             }
             self.status.recording_cancelled();
@@ -1338,17 +1350,18 @@ impl Controller {
         if audio::is_digital_silence(&samples) {
             cancel_destination(&destination);
             self.discard_recording_preview();
-            LOG.error("microfoon leverde enkel stilte (exacte nullen)");
+            LOG.error("microphone produced only silence (exact zeros)");
             self.command.reset();
             self.status.recording_cancelled();
             if let Some(capture) = &owned {
                 owned_dictation::failed(
                     &self.app,
                     &capture.id,
-                    "Je microfoon geeft geen geluid. Controleer je invoerapparaat.".into(),
+                    "Your microphone is not producing audio. Check your input device.".into(),
                 );
             }
-            return self.notify("Microfoon geeft geen geluid — kies een ander invoerapparaat");
+            return self
+                .notify("Your microphone is not producing audio — choose another input device");
         }
         let session = self
             .recording_session
@@ -1471,12 +1484,12 @@ impl Controller {
         self.pending_owned.complete(&preview_id);
         let copy_only = matches!(destination, ExternalDestination::CopyOnly);
         let _pending = pending;
-        let kind = if is_command { "opdracht" } else { "dictaat" };
+        let kind = if is_command { "command" } else { "dictation" };
         let elapsed = released.elapsed().as_millis();
         let (text, notice) = match outcome {
             Ok(result) => {
                 let line = format!(
-                    "{kind} klaar in {elapsed} ms: {} → {} tekens, opkuis {}",
+                    "{kind} completed in {elapsed} ms: {} → {} characters, cleanup {}",
                     result.raw.chars().count(),
                     result.text.chars().count(),
                     describe(&result.cleanup)
@@ -1486,13 +1499,8 @@ impl Controller {
                 } else {
                     LOG.info(line);
                 }
-                let notice = notice_for_cleanup(&result.cleanup).map(|notice| {
-                    if copy_only || owned.is_some() {
-                        notice.replace("geplakt", "beschikbaar")
-                    } else {
-                        notice
-                    }
-                });
+                let notice =
+                    notice_for_cleanup_destination(&result.cleanup, copy_only || owned.is_some());
                 match prepare_delivery(result, released, destination, cancel_destination) {
                     Ok(result) => (
                         Some(match &owned {
@@ -1532,19 +1540,19 @@ impl Controller {
                 {
                     let message = match &failure {
                         Failure::Core(PennelError::NoSpeech) => {
-                            "Geen spraak herkend. Probeer opnieuw.".into()
+                            "No speech recognized. Try again.".into()
                         }
                         Failure::Core(error) => error.to_string(),
-                        Failure::AppChanged => "De dicteersessie is gewijzigd.".into(),
+                        Failure::AppChanged => "The dictation session changed.".into(),
                     };
                     owned_dictation::failed(&self.app, &capture.id, message);
                 }
                 match &failure {
                     Failure::Core(PennelError::NoSpeech) => {
-                        LOG.info(format!("{kind}: geen spraak herkend ({elapsed} ms)"));
+                        LOG.info(format!("{kind}: no speech detected ({elapsed} ms)"));
                     }
                     other => LOG.error(format!(
-                        "{kind} mislukt na {elapsed} ms: {}",
+                        "{kind} failed after {elapsed} ms: {}",
                         failure_category(other)
                     )),
                 }
@@ -1858,7 +1866,7 @@ mod tests {
             describe(&CleanupStatus::Failed {
                 message: private.into()
             }),
-            "mislukt"
+            "failed"
         );
         assert_eq!(
             failure_category(&Failure::Core(PennelError::Http {
@@ -1894,7 +1902,7 @@ mod tests {
     }
 
     #[test]
-    fn notices_match_the_mac_app() {
+    fn owned_notices_have_english_canonical_text() {
         assert_eq!(notice_for_error(&PennelError::NoSpeech), None);
         assert_eq!(
             notice_for_error(&PennelError::Http {
@@ -1902,42 +1910,79 @@ mod tests {
                 message: String::new()
             })
             .as_deref(),
-            Some("API-sleutel geweigerd — bewaard in geschiedenis")
+            Some("API key rejected — saved in History")
         );
         assert_eq!(
             notice_for_error(&PennelError::UnsupportedProcessor).as_deref(),
-            Some("Processor te oud voor lokale modellen — bewaard in geschiedenis")
+            Some("Processor too old for local models — saved in History")
         );
         assert_eq!(
             notice_for_cleanup(&CleanupStatus::Failed {
                 message: "request Timed Out".into()
             })
             .as_deref(),
-            Some("Opkuisen duurde te lang — ruwe tekst geplakt (zie logboek)")
+            Some("Cleanup timed out — original text pasted (see log)")
         );
         assert_eq!(notice_for_cleanup(&CleanupStatus::Applied), None);
         assert_eq!(
             notice_for_command(&Failure::AppChanged).as_deref(),
-            Some("Andere app actief — opdracht niet geplakt")
+            Some("Another app is active — command not pasted")
         );
         assert_eq!(
             notice_for_command(&Failure::Core(PennelError::InvalidResponse {
                 message: "selection too long".into()
             }))
             .as_deref(),
-            Some("Selectie te lang voor een opdracht")
+            Some("Selection is too long for a command")
+        );
+    }
+
+    #[test]
+    fn cleanup_notices_describe_available_text_without_claiming_it_was_pasted() {
+        for (cleanup, expected) in [
+            (
+                CleanupStatus::Failed {
+                    message: "request timed out".into(),
+                },
+                "Cleanup timed out — original text available (see log)",
+            ),
+            (
+                CleanupStatus::Failed {
+                    message: "provider error".into(),
+                },
+                "Cleanup failed — original text available (see log)",
+            ),
+            (
+                CleanupStatus::Rejected,
+                "The model answered instead of cleaning up — original text available",
+            ),
+        ] {
+            assert_eq!(
+                notice_for_cleanup_destination(&cleanup, true).as_deref(),
+                Some(expected)
+            );
+            assert!(
+                notice_for_cleanup_destination(&cleanup, false)
+                    .unwrap()
+                    .contains("pasted")
+            );
+        }
+        assert_eq!(
+            notice_for_cleanup_destination(&CleanupStatus::Applied, true),
+            None
+        );
+        assert_eq!(
+            notice_for_cleanup_destination(&CleanupStatus::Skipped, true),
+            None
         );
     }
 
     #[test]
     fn copy_confirmation_requires_a_successful_clipboard_write() {
-        assert_eq!(
-            delivery_notice(Ok(())),
-            "Tekst gekopieerd — plak met Ctrl+V"
-        );
+        assert_eq!(delivery_notice(Ok(())), "Text copied — paste with Ctrl+V");
         assert_eq!(
             delivery_notice(Err("unavailable".into())),
-            "Kopiëren mislukt — tekst staat in Geschiedenis"
+            "Copying failed — your text is in History"
         );
     }
 
@@ -2064,7 +2109,7 @@ mod tests {
             let recovery = recovery_for_failure(&result.history_id, DeliveryFailure::Changed);
             assert_eq!(recovery.id, expected_id);
             assert!(!recovery.unsaved);
-            assert!(recovery.reason.contains("tekstdoel is gewijzigd"));
+            assert!(recovery.reason.contains("text destination changed"));
         }
     }
 
@@ -2084,7 +2129,7 @@ mod tests {
             serde_json::json!({
                 "id": "clipboard-result",
                 "unsaved": false,
-                "reason": "Kopiëren mislukt. Je tekst staat in Geschiedenis."
+                "reason": "Copying failed. Your text is in History."
             })
         );
     }

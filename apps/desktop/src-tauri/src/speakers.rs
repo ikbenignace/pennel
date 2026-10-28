@@ -19,7 +19,7 @@ pub const ENROLLMENT_MAX_SECS: u64 = 60;
 const ENROLLMENT_EVENT: &str = "voice-enrollment";
 const LOG: Log = Log::new("speakers");
 
-/// The core's own messages are Dutch, but its error type prefixes some of them in English.
+/// Unwrap owned core error envelopes before localizing their presentation.
 pub fn speaker_error(error: PennelError) -> String {
     crate::commands::localize_error_message(speaker_error_source(error))
 }
@@ -28,13 +28,13 @@ fn speaker_error_source(error: PennelError) -> String {
     match error {
         PennelError::InvalidResponse { message } | PennelError::Cloud { message, .. } => message,
         PennelError::ModelNotDownloaded => {
-            "Download eerst de sprekermodellen bij Instellingen → Meetings.".into()
+            "Download the speaker models in Settings → Meetings first.".into()
         }
-        PennelError::NotFound => "Meeting of stem niet gevonden.".into(),
+        PennelError::NotFound => "Meeting or voice not found.".into(),
         PennelError::Network { .. } => {
-            "Pennel Cloud is niet bereikbaar. Probeer opnieuw als je weer online bent.".into()
+            "Pennel Cloud is unreachable. Try again when you are back online.".into()
         }
-        PennelError::Storage { .. } => "Bewaren is mislukt. Probeer opnieuw.".into(),
+        PennelError::Storage { .. } => "Saving failed. Try again.".into(),
         other => other.to_string(),
     }
 }
@@ -60,7 +60,7 @@ pub fn meeting_tracks(dir: &Path) -> (Option<PathBuf>, Option<PathBuf>) {
 pub fn recognize(shared: &Shared, id: &str, dir: &Path) -> Result<SpeakerRecognition, String> {
     let (microphone, system) = meeting_tracks(dir);
     if microphone.is_none() && system.is_none() {
-        return Err("Deze meeting heeft geen bewaarde audio meer.".into());
+        return Err("This meeting no longer has saved audio.".into());
     }
     let decode = |path: Option<PathBuf>| {
         path.map(|path| crate::platform_audio::decode_audio(&path))
@@ -105,10 +105,10 @@ fn capped(mut samples: Vec<f32>) -> Vec<f32> {
 
 pub fn start_enrollment(app: &AppHandle, shared: &Arc<Shared>) -> Result<(), String> {
     if shared.recording.lock().unwrap().is_busy() {
-        return Err("Wacht tot de opname is afgerond.".into());
+        return Err("Wait until the recording has finished.".into());
     }
     if shared.dictation_active.load(Ordering::SeqCst) {
-        return Err("Wacht tot het dictaat is afgerond.".into());
+        return Err("Wait until the dictation has finished.".into());
     }
     cancel_enrollment();
     let token = TOKEN.fetch_add(1, Ordering::SeqCst) + 1;
@@ -134,8 +134,8 @@ pub fn start_enrollment(app: &AppHandle, shared: &Arc<Shared>) -> Result<(), Str
         |_| {},
     )
     .map_err(|error| match error {
-        CaptureError::NoDevice => "Geen microfoon gevonden.".to_owned(),
-        CaptureError::Failed(message) => format!("De microfoon kon niet starten: {message}"),
+        CaptureError::NoDevice => "No microphone found.".to_owned(),
+        CaptureError::Failed(message) => format!("The microphone could not start: {message}"),
     })?;
     *ENROLLMENT.lock().unwrap() = Some(Enrollment {
         token,
@@ -184,15 +184,15 @@ fn take_samples() -> Option<Vec<f32>> {
 
 pub fn finish_enrollment(shared: &Shared) -> Result<VoiceProfile, String> {
     let started = Instant::now();
-    let samples = take_samples().ok_or("Er loopt geen opname van je stem.")?;
+    let samples = take_samples().ok_or("Your voice is not being recorded.")?;
     let stopped = started.elapsed();
     let seconds = samples.len() / SAMPLE_RATE;
     let result = shared.engine.enroll_voice(samples).map_err(speaker_error);
     LOG.info(format!(
-        "stem: {seconds} s opname, microfoon gestopt in {} ms, verwerkt in {} ms{}",
+        "voice: {seconds} s recorded, microphone stopped in {} ms, processed in {} ms{}",
         stopped.as_millis(),
         (started.elapsed() - stopped).as_millis(),
-        if result.is_ok() { "" } else { ", mislukt" }
+        if result.is_ok() { "" } else { ", failed" }
     ));
     result
 }
@@ -265,9 +265,7 @@ mod tests {
             }),
             "Pennel hoorde te weinig spraak."
         );
-        assert!(
-            speaker_error_source(PennelError::ModelNotDownloaded).starts_with("Download eerst")
-        );
+        assert!(speaker_error_source(PennelError::ModelNotDownloaded).starts_with("Download"));
         assert_eq!(
             speaker_error_source(PennelError::NotSignedIn),
             PennelError::NotSignedIn.to_string()

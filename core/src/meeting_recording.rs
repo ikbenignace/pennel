@@ -232,7 +232,7 @@ pub struct MeetingRecordingMetadata {
 }
 
 fn invalid() -> PennelError {
-    PennelError::storage("De opnamegegevens of het audiopad zijn ongeldig.")
+    PennelError::storage("The recording details or audio path are invalid.")
 }
 
 fn checked_root(store: &MeetingStore, id: &str) -> Result<PathBuf, PennelError> {
@@ -507,7 +507,9 @@ impl MeetingStore {
             .iter()
             .any(|source| root.join(source.path()).exists())
         {
-            return Err(PennelError::storage("Deze meeting bevat al een opname."));
+            return Err(PennelError::storage(
+                "This meeting already contains a recording.",
+            ));
         }
         private_directory(&root, "audio")?;
         private_directory(&root, ".pennel")?;

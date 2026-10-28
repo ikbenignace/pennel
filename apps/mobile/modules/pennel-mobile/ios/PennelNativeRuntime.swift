@@ -90,7 +90,7 @@ public final class PennelNativeRuntime {
     public func startSession() async throws {
         _ = try bootstrap()
         guard await DictationSession.shared.start() else {
-            throw PennelBridgeError("session_unavailable", DictationSession.shared.startError ?? "The dictation session could not start.")
+            throw PennelBridgeError(DictationSession.shared.startErrorCode ?? "session_unavailable", DictationSession.shared.startError ?? "The dictation session could not start.")
         }
         AppRouter.shared.showsSessionReturn = true
         requestNavigation("dictation")
@@ -249,7 +249,8 @@ public final class PennelNativeRuntime {
         case "meetings.read":
             let id = try input.required("id")
             let interruption = interruptionMessage(id: id)
-            return try await background { try Self.meetingJSON($0, id: id, interruption: interruption) }
+            let interruptionCode = interruptionCode(id: id)
+            return try await background { try Self.meetingJSON($0, id: id, interruption: interruption, interruptionCode: interruptionCode) }
         case "meetings.start": try await startMeeting(title: input.text("title")); return try snapshot()
         case "meetings.stop":
             if let id = input.values["id"] as? String {
@@ -295,9 +296,10 @@ public final class PennelNativeRuntime {
             let id = try input.required("id")
             let template = input.text("template", default: model.settings.defaultTemplate)
             let interruption = interruptionMessage(id: id)
+            let interruptionCode = interruptionCode(id: id)
             let result = try await background { engine in
                 _ = try engine.summarizeMeeting(id: id, templateId: template, keys: Keychain.apiKeys())
-                return try Self.meetingJSON(engine, id: id, interruption: interruption)
+                return try Self.meetingJSON(engine, id: id, interruption: interruption, interruptionCode: interruptionCode)
             }
             CloudSyncRunner.shared.poke()
             return result
@@ -316,7 +318,8 @@ public final class PennelNativeRuntime {
         case "meetings.export":
             let id = try input.required("id")
             let include = input.flag("include_transcript", default: input.flag("transcript"))
-            let value = try await Task.detached { try engine.exportMeeting(id: id, includeTranscript: include) }.value
+            let language: InterfaceLanguage = uiLanguage() == "nl" ? .dutch : .english
+            let value = try await Task.detached { try engine.exportMeetingLocalized(id: id, includeTranscript: include, language: language) }.value
             if input.flag("share") { MeetingShare.present(value) }
             if input.flag("copy") { MeetingShare.copy(value, formatted: input.flag("formatted")) }
             return try BridgeJSON.encode(["title": value.title, "markdown": value.markdown, "html": value.html])
@@ -411,7 +414,7 @@ public final class PennelNativeRuntime {
         }.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    private nonisolated static func meetingJSON(_ engine: PennelEngine, id: String, interruption: String? = nil) throws -> String {
+    private nonisolated static func meetingJSON(_ engine: PennelEngine, id: String, interruption: String? = nil, interruptionCode: String? = nil) throws -> String {
         guard let info = engine.meetingInfo(id: id) else { throw PennelBridgeError("not_found", "Meeting not found.") }
         let directory = URL(fileURLWithPath: engine.meetingDir(id: id))
         let speakers = engine.meetingSpeakers(id: id).map { ["voice": $0.voice, "name": $0.name] as [String: Any] }
@@ -427,6 +430,7 @@ public final class PennelNativeRuntime {
             },
             "summary_outdated": engine.mobileMeetingSummaryOutdated(id: id),
             "interruption": BridgeJSON.optional(interruption),
+            "interruption_code": BridgeJSON.optional(interruptionCode),
             "conflicts": conflictURLs(directory).map { ["name": $0.lastPathComponent, "text": (try? String(contentsOf: $0, encoding: .utf8)) ?? ""] },
         ])
     }
@@ -435,7 +439,13 @@ public final class PennelNativeRuntime {
         guard let value = MeetingRuntime.shared.interruption(for: id) else { return nil }
         if let reason = value.stoppedEarly { return reason }
         guard !value.gaps.isEmpty else { return nil }
-        return uiLanguage() == "nl" ? "Deze opname bevat onderbrekingen. De tijdstempels houden rekening met de gaten." : "This recording contains interruptions. Timestamps preserve the gaps."
+        return "This recording contains interruptions. Timestamps preserve the gaps."
+    }
+
+    private func interruptionCode(id: String) -> String? {
+        guard let value = MeetingRuntime.shared.interruption(for: id) else { return nil }
+        if let code = value.stoppedEarlyCode ?? MeetingRuntime.Message.code(for: value.stoppedEarly) { return code }
+        return value.gaps.isEmpty ? nil : "recording_gaps"
     }
 }
 
@@ -456,9 +466,10 @@ extension PennelNativeRuntime {
             loginExpiry = nil
             cachedAccount = nil
             let name = input.text("device_name", default: UserDefaults.standard.string(forKey: "pennel.mobile.deviceName") ?? "iPhone")
+            let locale = uiLanguage()
             engine.cloudLoginCancel()
             let start = try await loginStarts.run(generation: generation, owner: loginGeneration) {
-                try await Task.detached { try engine.cloudLoginStart(deviceName: name, platform: "ios") }.value
+                try await Task.detached { try engine.cloudLoginStartWithLocale(deviceName: name, platform: "ios", locale: locale) }.value
             }
             guard loginGeneration.isCurrent(generation) else { throw PennelError.Cancelled }
             pendingLogin = start
@@ -784,7 +795,7 @@ extension PennelNativeRuntime {
             "syncing": CloudSyncRunner.shared.isRunning, "sync_enabled": model.settings.cloudSync,
             "status": report["status"] ?? "off", "report": report,
             "recovery_confirmed": UserDefaults.standard.object(forKey: CloudAccountModel.confirmedKey) as? Bool != false,
-            "brake": (report["error"] as? String) == CloudAccountModel.massDelete,
+            "brake": CloudAccountModel.isMassDelete(report["error"] as? String),
             "device_name": UserDefaults.standard.string(forKey: "pennel.mobile.deviceName") ?? "iPhone",
             "notice": report["error"] ?? NSNull(),
         ]
@@ -850,8 +861,8 @@ extension PennelNativeRuntime {
 
     private func intelligenceAvailability() -> (status: String, reason: String?) {
         let value = FoundationLanguageModel.availability()
-        if value.status == "available" || uiLanguage() == "nl" { return (value.status, value.reason) }
-        return (value.status, value.status == "unsupported" ? "This iPhone does not support Apple's on-device language model." : "Apple Intelligence is unavailable. Check Settings and allow its model to finish downloading.")
+        if value.status == "available" || uiLanguage() != "nl" { return (value.status, value.reason) }
+        return (value.status, value.status == "unsupported" ? "Apple Intelligence vereist iOS 26 of nieuwer en een geschikte iPhone." : "Apple Intelligence is niet beschikbaar. Controleer Instellingen en wacht tot het model is gedownload.")
     }
 
     private func snapshot() throws -> String {
@@ -863,14 +874,15 @@ extension PennelNativeRuntime {
             "ready": true, "platform": "ios", "settings": try settingsProjection(),
             "capabilities": capabilities(), "kinds": kindCatalog(),
             "keys": Dictionary(uniqueKeysWithValues: model.settings.providers.map { ($0.id, Keychain.hasKey(for: $0.id)) }),
-            "dictation": ["phase": dictation.phase.rawValue, "text": dictation.text, "level": dictation.level, "error": BridgeJSON.optional(dictation.error)] as [String: Any],
+            "dictation": ["phase": dictation.phase.rawValue, "text": dictation.text, "level": dictation.level, "error": BridgeJSON.optional(dictation.error), "error_code": BridgeJSON.optional(dictation.errorCode)] as [String: Any],
             "session": ["phase": session.phase.rawValue, "expires_at_ms": BridgeJSON.optional(session.expiresAt.map { $0.timeIntervalSince1970 * 1_000 }),
-                        "full_access_seen": KeyboardFullAccess.seen(in: KeyboardLayout.groupDefaults), "error": BridgeJSON.optional(session.startError)] as [String: Any],
+                        "full_access_seen": KeyboardFullAccess.seen(in: KeyboardLayout.groupDefaults), "error": BridgeJSON.optional(session.startError), "error_code": BridgeJSON.optional(session.startErrorCode)] as [String: Any],
             "meeting": ["phase": phase(runtime.phase), "id": BridgeJSON.optional(runtime.activeMeetingId), "title": runtime.title,
                         "retained_id": BridgeJSON.optional(runtime.retainedId), "last_finished_id": BridgeJSON.optional(runtime.lastFinish?.id),
                         "elapsed_secs": Double(runtime.elapsedMs) / 1_000, "notes": runtime.notes,
                         "transcript": runtime.transcript.map(BridgeJSON.segment), "pending": runtime.pending,
-                        "error": BridgeJSON.optional(runtime.warning ?? runtime.lastFinish?.error)] as [String: Any],
+                        "error": BridgeJSON.optional(runtime.warning ?? runtime.lastFinish?.error),
+                        "error_code": BridgeJSON.optional(MeetingRuntime.Message.code(for: runtime.warning ?? runtime.lastFinish?.error))] as [String: Any],
             "cloud": cloudState(), "recognition_jobs": model.engine.speakerRecognitionJobs().map(BridgeJSON.recognition),
             "navigation": navigation.map { $0 as Any } ?? NSNull(),
         ]

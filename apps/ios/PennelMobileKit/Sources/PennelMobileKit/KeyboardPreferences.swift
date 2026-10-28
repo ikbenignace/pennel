@@ -69,6 +69,48 @@ public struct KeyboardCopy: Sendable {
 
     public init(language: KeyboardInterfaceLanguage) { self.language = language }
 
+    public func failure(code: String?, message: String?) -> String {
+        let aliases = ["not_signed_in": "auth", "http_401": "provider_auth", "http_403": "provider_auth"]
+        let resolved = code.map { aliases[$0] ?? $0 } ?? Self.legacyFailureCode(message)
+        switch (language, resolved) {
+        case (.english, "no_speech"): return "No speech recognized. Try again."
+        case (.dutch, "no_speech"): return "Geen spraak herkend. Probeer opnieuw."
+        case (.english, "network"): return "No connection. Try again."
+        case (.dutch, "network"): return "Geen verbinding. Probeer opnieuw."
+        case (.english, "missing_api_key"): return "Set the provider API key in Pennel Settings."
+        case (.dutch, "missing_api_key"): return "Stel de API-sleutel van je provider in bij Instellingen in Pennel."
+        case (.english, "provider_auth"): return "Check your provider API key and model access in Pennel Settings."
+        case (.dutch, "provider_auth"): return "Controleer de API-sleutel en modeltoegang van je provider bij Instellingen in Pennel."
+        case (.english, "auth"), (.english, "access"): return "Check your account and provider key in Pennel Settings."
+        case (.dutch, "auth"), (.dutch, "access"): return "Controleer je account en providersleutel bij Instellingen in Pennel."
+        case (.english, "model_not_downloaded"): return "Download the selected model in Pennel."
+        case (.dutch, "model_not_downloaded"): return "Download het gekozen model in Pennel."
+        case (.english, "microphone_denied"): return "Allow microphone access in Settings."
+        case (.dutch, "microphone_denied"): return "Sta de microfoon toe in Instellingen."
+        case (.english, "vault_locked"): return "Unlock sync with your recovery code in Pennel."
+        case (.dutch, "vault_locked"): return "Open sync met je herstelcode in Pennel."
+        case (.english, "storage"): return "The dictation could not be saved. Check device storage in Pennel."
+        case (.dutch, "storage"): return "Het dictaat kon niet worden bewaard. Controleer de opslag in Pennel."
+        case (.english, "cancelled"): return "Dictation cancelled."
+        case (.dutch, "cancelled"): return "Dictaat geannuleerd."
+        case (.english, _): return "Dictation failed. Check your settings in Pennel and try again."
+        case (.dutch, _): return "Dicteren mislukt. Controleer je instellingen in Pennel en probeer opnieuw."
+        }
+    }
+
+    private static func legacyFailureCode(_ message: String?) -> String {
+        switch message {
+        case "Geen spraak herkend. Probeer opnieuw.", "Geen spraak gehoord.", "No speech recognized. Try again.": "no_speech"
+        case "Geen verbinding", "No connection": "network"
+        case "Geen API-sleutel ingesteld", "No API key configured": "missing_api_key"
+        case "API-sleutel geweigerd", "API key rejected": "provider_auth"
+        case "Model nog niet gedownload", "Model not downloaded": "model_not_downloaded"
+        case "Log in bij Pennel Cloud in Instellingen → Account.", "Sign in to Pennel Cloud in Settings → Account.": "auth"
+        case "Voer je herstelcode in om sync aan te zetten.", "Enter your recovery code to enable sync.": "vault_locked"
+        default: "operation_failed"
+        }
+    }
+
     public func text(_ key: Key) -> String {
         switch (language, key) {
         case (.english, .fullAccess): "Enable Full Access to dictate. Typing works without it."
@@ -201,6 +243,13 @@ public struct ActivityCopy: Sendable {
 
     public func resource(_ key: Key) -> LocalizedStringResource {
         LocalizedStringResource(String.LocalizationValue(stringLiteral: text(key)), locale: Locale(identifier: language.rawValue))
+    }
+
+    public func finishing(pending: UInt32) -> String {
+        switch language {
+        case .english: pending == 0 ? "Saving recording…" : "Processing \(pending) remaining audio chunks…"
+        case .dutch: pending == 0 ? "Opname bewaren…" : "Nog \(pending) audiodelen verwerken…"
+        }
     }
 
     // Older native activity states carry text rather than reason codes. Translate only known system copy.

@@ -63,7 +63,7 @@ fn post(session: &Session, wav: &[u8]) -> Result<Diarization, PennelError> {
 pub(crate) fn parse_response(status: u16, body: &[u8]) -> Result<Diarization, PennelError> {
     if body.len() > 8 * 1024 * 1024 {
         return Err(PennelError::InvalidResponse {
-            message: "Pennel Cloud gaf een te groot sprekersresultaat.".into(),
+            message: "Pennel Cloud returned a speaker result that is too large.".into(),
         });
     }
     if !(200..300).contains(&status) {
@@ -72,17 +72,17 @@ pub(crate) fn parse_response(status: u16, body: &[u8]) -> Result<Diarization, Pe
     }
     let parsed: Response =
         serde_json::from_slice(body).map_err(|_| PennelError::InvalidResponse {
-            message: "Pennel Cloud gaf een onleesbaar sprekersresultaat.".into(),
+            message: "Pennel Cloud returned an unreadable speaker result.".into(),
         })?;
     if !consistent(&parsed.diarization) {
         return Err(PennelError::InvalidResponse {
-            message: "Pennel Cloud gaf een onleesbaar sprekersresultaat.".into(),
+            message: "Pennel Cloud returned an unreadable speaker result.".into(),
         });
     }
     if parsed.model != EMBEDDING_ID {
         return Err(PennelError::Cloud {
             code: "speaker_model".into(),
-            message: "Pennel Cloud gebruikt een ander stemmodel dan deze versie van Pennel. Werk Pennel bij.".into(),
+            message: "Pennel Cloud uses a different voice model from this version of Pennel. Update Pennel.".into(),
         });
     }
     Ok(parsed.diarization)
@@ -168,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn server_errors_and_model_mismatch_are_dutch() {
+    fn server_errors_and_model_mismatch_preserve_protocol_and_use_english_context() {
         let mut server = mockito::Server::new();
         let session = signed_in(&mut server);
         let quota = server

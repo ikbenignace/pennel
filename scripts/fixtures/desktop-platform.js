@@ -324,8 +324,8 @@
         retranscription_plan: { recognition: frozenMeetingRecognition(), available: !!options.saved_audio && !retranscriptionStatus?.running && frozenMeetingRecognition().provider_kind === "local", reason: options.saved_audio ? null : "Er is geen bewaarde audio om opnieuw te transcriberen." } };
       case "search_library": return { meetings: options.empty ? [] : clone(library), passages: [] };
       case "ask_meetings": return { text: "De planning wordt maandag afgerond. Jij bevestigt de volgende afspraak.", citations: [{ number: 1, passage: { meeting_id: meetingId, title: "Projectoverleg", start_iso: meeting.start_iso, kind: "transcript", start_ms: 0, text: transcript[0].text, snippet: transcript[0].text } }] };
-      case "meeting_templates": return [["algemeen", "Algemeen"], ["een-op-een", "1-op-1"], ["klantgesprek", "Klantgesprek"], ["standup", "Standup"]].map(([id, name]) => ({ id, name, builtin: true, customized: false }));
-      case "template_source": return "## Samenvatting\n## Beslissingen\n## Actiepunten";
+      case "meeting_templates": return [["algemeen", "General"], ["een-op-een", "One-to-one"], ["klantgesprek", "Client meeting"], ["standup", "Standup"]].map(([id, name]) => ({ id, name, builtin: true, customized: false }));
+      case "template_source": return "Focus on what was discussed and agreed.\n\n## Summary\n## Decisions\n## Action items\n";
       case "mark_lines": return summary.split("\n").filter(Boolean).map(text => ({ text, mine: false }));
       case "calendar_snapshot": return { has_access: false, calendars: [], current_event: null };
       case "record_prompt": return null;

@@ -22,6 +22,18 @@ struct HandoffClientTests {
         HandoffClient(store: store, pending: PendingHandoff())
     }
 
+    @Test func failure_codes_round_trip_and_legacy_results_still_decode() throws {
+        let result = HandoffResult(id: UUID(), text: nil, error: "No connection", errorCode: "network", at: now)
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(result)
+        #expect(try JSONDecoder().decode(HandoffResult.self, from: data) == result)
+        var legacy = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        legacy.removeValue(forKey: "errorCode")
+        let old = try JSONDecoder().decode(HandoffResult.self, from: JSONSerialization.data(withJSONObject: legacy))
+        #expect(old.errorCode == nil)
+        #expect(old.error == result.error)
+    }
+
     @Test func result_is_taken_once_and_only_for_pending_id() throws {
         let client = client()
         let id = try client.send(.start, now: now)

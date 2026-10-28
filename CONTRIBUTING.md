@@ -72,7 +72,7 @@ actionlint -shellcheck=
 ## Code style
 
 - Clear names and small functions over comments; comment only non-obvious intent, constraints or workarounds.
-- UI copy is Dutch-first today; keep strings short and plain.
+- Keep canonical defaults, application-owned diagnostics and tool messages in English. Localize UI copy through the shared English/Dutch catalogs; keep strings short and plain. Follow the [language policy](docs/language-policy.md) for generated content and compatibility aliases.
 
 ## License
 

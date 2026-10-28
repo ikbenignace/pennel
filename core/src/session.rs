@@ -43,7 +43,7 @@ impl MeetingRecognition {
         Self {
             provider_kind: resolved.as_ref().map(|(account, _)| account.kind),
             provider_name: resolved.as_ref().map_or_else(
-                || "Niet ingesteld".into(),
+                || "Not configured".into(),
                 |(account, _)| account.name.clone(),
             ),
             model: resolved.map_or_else(|| settings.meeting_stt.model.clone(), |(_, model)| model),
@@ -149,9 +149,9 @@ fn retry_storage<T>(mut work: impl FnMut() -> Result<T, PennelError>) -> Result<
 fn storage_failure(progress: &Mutex<Progress>, terminal: &AtomicBool, error: &PennelError) {
     terminal.store(true, Ordering::SeqCst);
     let mut progress = progress.lock().unwrap();
-    progress.persistence_error = Some(format!("Bewaren mislukt: {error}"));
+    progress.persistence_error = Some(format!("Saving failed: {error}"));
     progress.terminal_error.get_or_insert_with(|| {
-        "De opname is gestopt omdat audio of tekst niet kon worden bewaard. Probeer opnieuw te bewaren.".into()
+        "Recording stopped because audio or text could not be saved. Try saving again.".into()
     });
 }
 
@@ -186,7 +186,7 @@ fn commit_progress(
     retry_storage(|| store.write_transcript(id, &segments))?;
     if let Err(error) = retry_storage(|| store.cleanup_committed_audio(id)) {
         progress.lock().unwrap().persistence_error = Some(format!(
-            "De tekst is bewaard, maar de herstelaudio kon niet worden opgeruimd: {error}"
+            "The text is saved, but recovery audio could not be cleaned up: {error}"
         ));
     }
     let removed: Vec<_> = cleanup
@@ -258,7 +258,7 @@ impl MeetingSession {
                     Ok(stored) => {
                         if stored_sender.send(stored).is_err() {
                             let error = PennelError::Storage {
-                                message: "de transcriptiewerker is gestopt; audio blijft lokaal beschikbaar".into(),
+                                message: "the transcription worker stopped; audio remains available locally".into(),
                             };
                             storage_failure(&spool_progress, &spool_terminal, &error);
                             failed = true;
@@ -292,7 +292,7 @@ impl MeetingSession {
                             if failed_chunks >= 2 {
                                 paused = true;
                                 worker_progress.lock().unwrap().transcription_warning = Some(
-                                    "Transcriptie is gepauzeerd. Je audio wordt bewaard; probeer na de opname opnieuw.".into()
+                                    "Transcription is paused. Your audio is being saved; try again after recording.".into()
                                 );
                             }
                         }
@@ -359,7 +359,7 @@ impl MeetingSession {
                 let mut progress = self.progress.lock().unwrap();
                 progress.unpersisted.push(job);
                 progress.terminal_error.get_or_insert_with(|| {
-                    "De opname is gestopt omdat de opslag niet kon volgen. Bewaar de resterende audio opnieuw.".into()
+                    "Recording stopped because storage could not keep up. Save the remaining audio again.".into()
                 });
                 self.terminal.store(true, Ordering::SeqCst);
                 failure = true;
@@ -367,7 +367,7 @@ impl MeetingSession {
         }
         if failure {
             Err(PennelError::Storage {
-                message: "de audio-opslag kon niet volgen".into(),
+                message: "audio storage could not keep up".into(),
             })
         } else {
             Ok(())
@@ -386,7 +386,7 @@ impl MeetingSession {
         }
         if self.terminal.load(Ordering::SeqCst) {
             return Err(PennelError::Storage {
-                message: "de opname wacht op herstel van de opslag".into(),
+                message: "the recording is waiting for storage recovery".into(),
             });
         }
         if samples.is_empty() {
@@ -394,7 +394,7 @@ impl MeetingSession {
         }
         if samples.len() > MAX_PACKET_SAMPLES {
             let error = PennelError::Storage {
-                message: "het audioblok is te groot om veilig te verwerken".into(),
+                message: "the audio chunk is too large to process safely".into(),
             };
             storage_failure(&self.progress, &self.terminal, &error);
             return Err(error);
@@ -405,7 +405,7 @@ impl MeetingSession {
             Some(ms) => {
                 ms.checked_mul(u64::from(SAMPLE_RATE)).ok_or_else(|| {
                     PennelError::InvalidResponse {
-                        message: "ongeldige audiotijd".into(),
+                        message: "invalid audio timestamp".into(),
                     }
                 })? / 1000
             }
@@ -418,7 +418,7 @@ impl MeetingSession {
         }
         let end = start.checked_add(samples.len() as u64).ok_or_else(|| {
             PennelError::InvalidResponse {
-                message: "ongeldige audiolengte".into(),
+                message: "invalid audio length".into(),
             }
         })?;
         if end <= *count {
@@ -444,8 +444,7 @@ impl MeetingSession {
         commit_progress(&self.store, &self.id, &self.progress)?;
         if !self.progress.lock().unwrap().unpersisted.is_empty() {
             return Err(PennelError::Storage {
-                message: "een deel van de audio is nog niet bewaard; probeer opnieuw te bewaren"
-                    .into(),
+                message: "some audio has not been saved yet; try saving again".into(),
             });
         }
         let longest = *self
@@ -592,7 +591,7 @@ impl MeetingSession {
             if handle.join().is_err() {
                 worker_error = Some(PennelError::Storage {
                     message:
-                        "een opnamewerker is onverwacht gestopt; bewaarde audio blijft beschikbaar"
+                        "a recording worker stopped unexpectedly; saved audio remains available"
                             .into(),
                 });
             }
@@ -623,7 +622,7 @@ impl MeetingSession {
         let _stop = self.stop_lock.lock().unwrap();
         if !self.stopping.load(Ordering::SeqCst) {
             return Err(PennelError::Storage {
-                message: "rond eerst de opname af".into(),
+                message: "finish recording first".into(),
             });
         }
         let retained = std::mem::take(&mut self.progress.lock().unwrap().unpersisted);
@@ -1328,7 +1327,7 @@ mod tests {
             store,
             recognition: MeetingRecognition {
                 provider_kind: None,
-                provider_name: "Niet ingesteld".into(),
+                provider_name: "Not configured".into(),
                 model: String::new(),
                 language: None,
             },

@@ -163,7 +163,7 @@ public func externalTargetIsCurrent(_ rawToken: UnsafePointer<CChar>?) -> Bool {
 @_cdecl("pennel_mac_external_target_paste")
 func externalTargetPaste(_ rawText: UnsafePointer<CChar>?, _ rawToken: UnsafePointer<CChar>?, _ sink: @escaping TextSink, _ context: UnsafeMutableRawPointer?) {
     guard let text = decodeString(rawText), let token = decodeString(rawToken) else {
-        completion(sink, context, value: nil, error: "Ongeldige plakbestemming")
+        completion(sink, context, value: nil, error: "Invalid paste destination")
         return
     }
     Task { @MainActor in
@@ -193,7 +193,7 @@ public func otherInstancesJSON() -> UnsafeMutablePointer<CChar>? {
 @_cdecl("pennel_mac_read_selection")
 func readSelection(_ sink: @escaping TextSink, _ context: UnsafeMutableRawPointer?) {
     Task { @MainActor in
-        guard AXIsProcessTrusted() else { completion(sink, context, value: nil, error: "Geef Pennel toegang tot Toegankelijkheid"); return }
+        guard AXIsProcessTrusted() else { completion(sink, context, value: nil, error: "Give Pennel Accessibility access"); return }
         let text = await SelectionReader.read()
         completion(sink, context, value: text)
     }
@@ -203,7 +203,7 @@ func readSelection(_ sink: @escaping TextSink, _ context: UnsafeMutableRawPointe
 func paste(_ rawText: UnsafePointer<CChar>?, _ sink: @escaping TextSink, _ context: UnsafeMutableRawPointer?) {
     let text = decodeString(rawText) ?? ""
     Task { @MainActor in
-        guard AXIsProcessTrusted() else { completion(sink, context, value: nil, error: "Geef Pennel toegang tot Toegankelijkheid"); return }
+        guard AXIsProcessTrusted() else { completion(sink, context, value: nil, error: "Give Pennel Accessibility access"); return }
         await TextInserter.insert(text)
         completion(sink, context, value: "")
     }
@@ -351,7 +351,7 @@ public func calendarSnapshot() -> UnsafeMutablePointer<CChar>? {
 @_cdecl("pennel_mac_capture_start")
 func captureStart(_ source: UInt32, _ sink: @escaping AudioSink, _ context: UnsafeMutableRawPointer?, _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutableRawPointer? {
     onMain {
-        guard source <= 1 else { errorOut?.pointee = bridgeString("Onbekende audiobron"); return nil }
+        guard source <= 1 else { errorOut?.pointee = bridgeString("Unknown audio source"); return nil }
         let capture = NativeCapture()
         do {
             try capture.start(source: source, sink: sink, context: context)
@@ -368,7 +368,7 @@ public func captureStop(_ handle: UnsafeMutableRawPointer?) {
 
 @_cdecl("pennel_mac_meeting_start")
 func meetingStart(_ rawDirectory: UnsafePointer<CChar>?, _ rawApp: UnsafePointer<CChar>?, _ echo: Bool, _ sink: @escaping AudioSink, _ context: UnsafeMutableRawPointer?, _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutableRawPointer? {
-    guard let directory = decodeString(rawDirectory) else { errorOut?.pointee = bridgeString("Geen meetingmap opgegeven"); return nil }
+    guard let directory = decodeString(rawDirectory) else { errorOut?.pointee = bridgeString("No meeting folder specified"); return nil }
     let app = decodeString(rawApp)
     return onMain {
         let capture = NativeMeetingRecorder()
@@ -392,7 +392,7 @@ public func meetingStatus(_ handle: UnsafeMutableRawPointer?) -> UnsafeMutablePo
 @_cdecl("pennel_mac_meeting_start_paths")
 func meetingStartPaths(_ rawDirectory: UnsafePointer<CChar>?, _ rawApp: UnsafePointer<CChar>?, _ rawMicrophone: UnsafePointer<CChar>?, _ rawSystem: UnsafePointer<CChar>?, _ echo: Bool, _ sink: @escaping AudioSink, _ context: UnsafeMutableRawPointer?, _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutableRawPointer? {
     guard let directory = decodeString(rawDirectory), let microphone = decodeString(rawMicrophone), let system = decodeString(rawSystem) else {
-        errorOut?.pointee = bridgeString("Geen opnamepaden opgegeven")
+        errorOut?.pointee = bridgeString("No recording paths provided")
         return nil
     }
     let app = decodeString(rawApp)
@@ -428,11 +428,11 @@ public func meetingStop(_ handle: UnsafeMutableRawPointer?) -> UnsafeMutablePoin
 
 @_cdecl("pennel_mac_transcribe")
 func transcribe(_ samples: UnsafePointer<Float>?, _ count: Int, _ rate: UInt32, _ rawLanguage: UnsafePointer<CChar>?, _ sink: @escaping TextSink, _ context: UnsafeMutableRawPointer?) {
-    guard let samples, count > 0, rate > 0 else { completion(sink, context, value: nil, error: "Geen bruikbare audio"); return }
+    guard let samples, count > 0, rate > 0 else { completion(sink, context, value: nil, error: "No usable audio"); return }
     let owned = Array(UnsafeBufferPointer(start: samples, count: count))
     let language = decodeString(rawLanguage)
     Task.detached {
-        guard #available(macOS 26, *) else { completion(sink, context, value: nil, error: "Apple-dicteren vereist macOS 26 of nieuwer"); return }
+        guard #available(macOS 26, *) else { completion(sink, context, value: nil, error: "Apple Dictation requires macOS 26 or later"); return }
         do {
             let text = try AppleSpeechTranscriber().transcribe(samples: owned, sampleRate: rate, language: language)
             completion(sink, context, value: text)
@@ -527,9 +527,9 @@ public func floatFree(_ pointer: UnsafeMutablePointer<Float>?, _ count: Int) {
 
 @_cdecl("pennel_mac_play_audio")
 public func playAudio(_ rawPath: UnsafePointer<CChar>?, _ offset: UInt64) -> UnsafeMutablePointer<CChar>? {
-    guard let path = decodeString(rawPath) else { return bridgeString("Geen audiobestand opgegeven") }
+    guard let path = decodeString(rawPath) else { return bridgeString("No audio file specified") }
     return onMain {
-        guard FileManager.default.fileExists(atPath: path) else { return bridgeString("Audiobestand niet gevonden") }
+        guard FileManager.default.fileExists(atPath: path) else { return bridgeString("Audio file not found") }
         AudioScrubber.shared.play(URL(fileURLWithPath: path), fromMs: offset)
         return nil
     }

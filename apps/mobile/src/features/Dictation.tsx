@@ -6,6 +6,7 @@ import { useQuery, useRuntime } from '../runtime';
 import { clock, dateLabel } from '../format';
 import { Actions, Body, Button, Empty, Loading, Notice, Page, Row, Section, confirm } from '../components/ui';
 import { Wave } from '../components/Wave';
+import { ownedFailureText } from '../errors';
 
 export default function Dictation() {
   const { snapshot, busy, run, t, theme, language } = useRuntime();
@@ -32,7 +33,7 @@ export default function Dictation() {
   const refreshHistory = async (method: 'dictation.retry' | 'dictation.deleteHistory', payload: Record<string, unknown>) => { await run(`history-${String(payload.id ?? '')}`, method, payload); await history.refresh(); };
   return <Page title={t('navigation.dictation')}>
     <Section title={t('mobile.session')} description={t('mobile.session.help')}>
-      <Row title={sessionTitle} subtitle={session?.error ?? undefined} />
+      <Row title={sessionTitle} subtitle={session?.error ? ownedFailureText(language, session.error, session.error_code) : undefined} />
       <Button title={t(session && session.phase !== 'off' ? 'mobile.session.stop' : 'mobile.session.start')} subtle busy={busy.has('session')} disabled={!snapshot?.ready} onPress={() => void run('session', session && session.phase !== 'off' ? 'session.stop' : 'session.start')} />
       <Notice>{t('mobile.keyboard.goal')}</Notice>
     </Section>
@@ -42,7 +43,7 @@ export default function Dictation() {
         <Text style={{ fontFamily: theme.font.medium, fontSize: theme.size.section, color: theme.colors['pill-text'] }}>{t(phase === 'listening' ? 'dictation.pad.listening' : phase === 'processing' ? 'dictation.pad.processing' : 'mobile.dictate')}</Text>
       </Pressable>
       {(phase === 'listening' || phase === 'processing') && <Button title={t('common.cancel')} subtle onPress={() => void run('dictation-cancel', 'dictation.cancel')} />}
-      {snapshot?.dictation.error && <Notice error>{snapshot.dictation.error}</Notice>}
+      {snapshot?.dictation.error && <Notice error>{ownedFailureText(language, snapshot.dictation.error, snapshot.dictation.error_code)}</Notice>}
       {snapshot?.dictation.text ? <><Body selectable>{snapshot.dictation.text}</Body><Button title={t('common.copy')} icon="copy-outline" subtle onPress={() => void run('copy', 'dictation.copy', { text: snapshot.dictation.text })} /></> : null}
     </Section>
     <Section title={t('dictation.history.title')}>
@@ -52,7 +53,7 @@ export default function Dictation() {
       {(history.value ?? []).map((entry) => <View key={entry.id} style={{ paddingVertical: theme.space[3], gap: theme.space[2] }}>
         <Body muted style={{ fontSize: theme.size.label }}>{dateLabel(new Date(entry.created_at_ms).toISOString(), language)}</Body>
         <Body selectable>{entry.text || entry.raw}</Body>
-        {entry.error && <Notice error>{entry.error}</Notice>}
+        {entry.error && <Notice error>{ownedFailureText(language, entry.error)}</Notice>}
         {entry.status === 'unsaved' && <Notice>{t('dictation.history.temporary')}</Notice>}
         <Actions><Button title={t('common.copy')} subtle onPress={() => void run('copy', 'dictation.copy', { text: entry.text || entry.raw })} /><Button title={t(entry.status === 'unsaved' ? 'dictation.history.save_again' : 'common.retry')} subtle disabled={!entry.has_audio && entry.status !== 'unsaved'} busy={busy.has(`history-${entry.id}`)} onPress={() => void refreshHistory('dictation.retry', { id: entry.id })} /><Button title={t('common.delete')} subtle destructive onPress={() => confirm(t('dictation.history.discard_title'), t('dictation.history.discard_help'), t('common.delete'), t('common.cancel'), () => void refreshHistory('dictation.deleteHistory', { id: entry.id }), true)} /></Actions>
       </View>)}

@@ -195,7 +195,7 @@ impl Listener {
         #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
         {
             let _ = (trigger, sender);
-            Err("sneltoets wordt op dit platform niet ondersteund".into())
+            Err("shortcuts are not supported on this platform".into())
         }
     }
 

@@ -1,4 +1,4 @@
-//! Claude-toegang: answers the read-only meeting tools Claude calls through Pennel Cloud's relay,
+//! Claude access: answers the read-only meeting tools Claude calls through Pennel Cloud's relay,
 //! from this device's own meetings. Arguments and answers are never logged.
 
 use serde_json::Value;
@@ -51,7 +51,7 @@ fn invalid(message: &str) -> RelayAnswer {
 fn not_found() -> RelayAnswer {
     RelayAnswer::Failed {
         code: "not_found".into(),
-        message: "Deze meeting bestaat niet (meer) op deze computer.".into(),
+        message: "This meeting no longer exists on this computer.".into(),
     }
 }
 
@@ -80,23 +80,23 @@ fn limit_arg(args: &Value, max: u64, default: usize) -> Result<usize, RelayAnswe
         None | Some(Value::Null) => Ok(default),
         Some(value) => match value.as_u64() {
             Some(limit) if (1..=max).contains(&limit) => Ok(limit as usize),
-            _ => Err(invalid(&format!("`limit` moet tussen 1 en {max} liggen."))),
+            _ => Err(invalid(&format!("`limit` must be between 1 and {max}."))),
         },
     }
 }
 
 fn meeting_id_arg(args: &Value, required: bool) -> Result<Option<String>, RelayAnswer> {
-    let id = text_arg(args, "meeting_id", 200, "`meeting_id` is ongeldig.")?;
+    let id = text_arg(args, "meeting_id", 200, "`meeting_id` is invalid.")?;
     match id {
         Some(id) if id.contains(['/', '\\']) || id.contains("..") => Err(not_found()),
-        None if required => Err(invalid("`meeting_id` ontbreekt.")),
+        None if required => Err(invalid("`meeting_id` is required.")),
         other => Ok(other),
     }
 }
 
 fn parse_call(tool: &str, args: &Value) -> Result<ToolCall, RelayAnswer> {
     if !args.is_object() {
-        return Err(invalid("De argumenten moeten een object zijn."));
+        return Err(invalid("The arguments must be an object."));
     }
     match tool {
         "search_meetings" => Ok(ToolCall::Search {
@@ -104,9 +104,9 @@ fn parse_call(tool: &str, args: &Value) -> Result<ToolCall, RelayAnswer> {
                 args,
                 "query",
                 200,
-                "`query` moet 1 tot 200 tekens lang zijn.",
+                "`query` must be between 1 and 200 characters long.",
             )?
-            .ok_or_else(|| invalid("`query` ontbreekt."))?,
+            .ok_or_else(|| invalid("`query` is required."))?,
             limit: limit_arg(args, 20, 10)?,
         }),
         "list_recent_meetings" => Ok(ToolCall::Recent {
@@ -121,9 +121,7 @@ fn parse_call(tool: &str, args: &Value) -> Result<ToolCall, RelayAnswer> {
                 Some("notes") => Part::Notes,
                 Some("transcript") => Part::Transcript,
                 _ => {
-                    return Err(invalid(
-                        "`part` moet summary, notes, transcript of all zijn.",
-                    ));
+                    return Err(invalid("`part` must be summary, notes, transcript or all."));
                 }
             };
             Ok(ToolCall::Get { meeting_id, part })
@@ -133,12 +131,12 @@ fn parse_call(tool: &str, args: &Value) -> Result<ToolCall, RelayAnswer> {
                 args,
                 "question",
                 1000,
-                "`question` moet 1 tot 1000 tekens lang zijn.",
+                "`question` must be between 1 and 1000 characters long.",
             )?
-            .ok_or_else(|| invalid("`question` ontbreekt."))?,
+            .ok_or_else(|| invalid("`question` is required."))?,
             meeting_id: meeting_id_arg(args, false)?,
         }),
-        _ => Err(invalid("Deze opdracht kent Pennel niet.")),
+        _ => Err(invalid("Pennel does not recognize this tool.")),
     }
 }
 
@@ -152,7 +150,7 @@ fn when(start_iso: &str) -> String {
 
 fn meeting_line(info: &MeetingInfo) -> String {
     let summary = if info.has_summary {
-        ", met samenvatting"
+        ", with summary"
     } else {
         ""
     };
@@ -176,7 +174,7 @@ fn clip(text: &str, max_chars: usize) -> String {
 pub fn truncate_answer(text: String) -> String {
     match text.char_indices().nth(MAX_ANSWER_CHARS) {
         Some((cut, _)) => format!(
-            "{}\n\n[Ingekort: dit antwoord was langer dan {MAX_ANSWER_CHARS} tekens. Vraag een kleiner deel op.]",
+            "{}\n\n[Truncated: this answer exceeded {MAX_ANSWER_CHARS} characters. Request a smaller part.]",
             &text[..cut]
         ),
         None => text,
@@ -201,9 +199,9 @@ impl PennelEngine {
     fn answer_search(&self, query: &str, limit: usize) -> String {
         let found = self.search_library(query.to_owned());
         if found.meetings.is_empty() {
-            return format!("Geen meetings gevonden voor «{query}».");
+            return format!("No meetings found for «{query}».");
         }
-        let mut out = format!("Meetings voor «{query}»:\n");
+        let mut out = format!("Meetings for «{query}»:\n");
         for info in found.meetings.iter().take(limit) {
             out.push('\n');
             out.push_str(&meeting_line(info));
@@ -222,10 +220,10 @@ impl PennelEngine {
     fn answer_recent(&self, limit: usize) -> String {
         let meetings = self.meetings();
         if meetings.is_empty() {
-            return "Er staan nog geen meetings op deze computer.".into();
+            return "There are no meetings on this computer yet.".into();
         }
         let lines: Vec<String> = meetings.iter().take(limit).map(meeting_line).collect();
-        format!("Recentste meetings:\n\n{}", lines.join("\n"))
+        format!("Most recent meetings:\n\n{}", lines.join("\n"))
     }
 
     fn transcript_text(&self, id: &str) -> String {
@@ -256,10 +254,9 @@ impl PennelEngine {
                 if body.is_empty() { empty } else { body }
             )
         };
-        let summary_part = || section("Samenvatting", &summary, "Nog geen samenvatting.");
-        let notes_part = || section("Notities", &notes, "Geen notities.");
-        let transcript_part =
-            || section("Transcript", &self.transcript_text(id), "Geen transcript.");
+        let summary_part = || section("Summary", &summary, "No summary yet.");
+        let notes_part = || section("Notes", &notes, "No notes.");
+        let transcript_part = || section("Transcript", &self.transcript_text(id), "No transcript.");
         let body = match part {
             Part::Summary => summary_part(),
             Part::Notes => notes_part(),
@@ -307,7 +304,7 @@ impl PennelEngine {
             Ok(answer) => {
                 let mut out = answer.text.trim().to_owned();
                 if !answer.citations.is_empty() {
-                    out.push_str("\n\nBronnen:");
+                    out.push_str("\n\nSources:");
                     for citation in &answer.citations {
                         let p = &citation.passage;
                         out.push_str(&format!(
@@ -325,7 +322,7 @@ impl PennelEngine {
             Err(_) => {
                 let passages = self.relevant_passages(question, meeting_id);
                 if passages.is_empty() {
-                    return Ok("Er staan geen meetings op deze computer die hierover gaan.".into());
+                    return Ok("There are no meetings about this on this computer.".into());
                 }
                 let blocks: Vec<String> = passages
                     .iter()
@@ -333,7 +330,7 @@ impl PennelEngine {
                     .map(|(index, passage)| passage_block(index + 1, passage))
                     .collect();
                 Ok(format!(
-                    "Pennel kon op deze computer zelf geen antwoord maken (geen taalmodel beschikbaar). Dit zijn de meest relevante fragmenten uit de meetings; beantwoord de vraag daarmee:\n\n{}",
+                    "Pennel could not generate an answer on this computer (no language model available). These are the most relevant meeting passages; use them to answer the question:\n\n{}",
                     blocks.join("\n\n")
                 ))
             }
@@ -352,7 +349,7 @@ impl PennelEngine {
     ) -> RelayAnswer {
         let args: Value = match serde_json::from_str(&arguments_json) {
             Ok(args) => args,
-            Err(_) => return invalid("De argumenten zijn geen geldige JSON."),
+            Err(_) => return invalid("The arguments are not valid JSON."),
         };
         let call = match parse_call(&tool, &args) {
             Ok(call) => call,
@@ -508,6 +505,35 @@ mod tests {
     }
 
     #[test]
+    fn tool_validation_uses_english_without_changing_error_codes() {
+        for (tool, args, message) in [
+            (
+                "search_meetings",
+                serde_json::json!({}),
+                "`query` is required.",
+            ),
+            (
+                "get_meeting",
+                serde_json::json!({}),
+                "`meeting_id` is required.",
+            ),
+            (
+                "list_recent_meetings",
+                serde_json::json!({"limit": 0}),
+                "`limit` must be between 1 and 50.",
+            ),
+        ] {
+            assert_eq!(
+                parse_call(tool, &args),
+                Err(RelayAnswer::Failed {
+                    code: "invalid_arguments".into(),
+                    message: message.into(),
+                })
+            );
+        }
+    }
+
+    #[test]
     fn search_lists_matching_meetings_with_snippets() {
         let dir = tempfile::tempdir().unwrap();
         let engine = engine(&dir, "http://127.0.0.1:9");
@@ -530,7 +556,7 @@ mod tests {
             "search_meetings",
             serde_json::json!({"query": "kiwi"}),
         ));
-        assert_eq!(none, "Geen meetings gevonden voor «kiwi».");
+        assert_eq!(none, "No meetings found for «kiwi».");
     }
 
     #[test]
@@ -539,7 +565,7 @@ mod tests {
         let engine = engine(&dir, "http://127.0.0.1:9");
         assert_eq!(
             text(call(&engine, "list_recent_meetings", serde_json::json!({}))),
-            "Er staan nog geen meetings op deze computer."
+            "There are no meetings on this computer yet."
         );
         add(&engine, "Oud", 8, "a");
         add(&engine, "Nieuw", 11, "b");
@@ -574,8 +600,9 @@ mod tests {
             summary.starts_with("# Sync\n\n2026-10-20 09:00, 30 min"),
             "{summary}"
         );
+        assert!(summary.contains("## Summary\n"), "{summary}");
         assert!(summary.contains("## Besluiten\n- Gent") && !summary.contains("bel Jan"));
-        assert!(get("notes").contains("bel Jan"));
+        assert!(get("notes").contains("## Notes\n\nbel Jan"));
         assert!(get("transcript").contains("[01:01] Anderen: we verhuizen naar Gent"));
         let all = text(call(
             &engine,
@@ -623,7 +650,7 @@ mod tests {
         ));
         assert!(answer.starts_with("Naar Gent [1]."), "{answer}");
         assert!(
-            answer.contains("Bronnen:\n[1] Sync (2026-10-20 09:00"),
+            answer.contains("Sources:\n[1] Sync (2026-10-20 09:00"),
             "{answer}"
         );
     }
@@ -640,7 +667,7 @@ mod tests {
             serde_json::json!({"question": "Waar verhuizen we naartoe?"}),
         ));
         assert!(
-            answer.starts_with("Pennel kon op deze computer zelf geen antwoord maken"),
+            answer.starts_with("Pennel could not generate an answer on this computer"),
             "{answer}"
         );
         assert!(
@@ -655,7 +682,7 @@ mod tests {
         let long = "é".repeat(MAX_ANSWER_CHARS + 10);
         let cut = truncate_answer(long);
         assert!(cut.starts_with(&"é".repeat(MAX_ANSWER_CHARS)));
-        assert!(cut.ends_with("Vraag een kleiner deel op.]"));
+        assert!(cut.ends_with("Request a smaller part.]"));
         assert_eq!(truncate_answer("kort".into()), "kort");
     }
 

@@ -30,13 +30,13 @@ pub(crate) fn input_bytes(messages: &[ChatMessage]) -> usize {
 
 pub(crate) fn length_error() -> PennelError {
     PennelError::InvalidResponse {
-        message: "Deze tekst is te lang voor Apple Intelligence. Gebruik een kortere tekst of kies een taalmodel met meer context.".into(),
+        message: "This text is too long for Apple Intelligence. Shorten it or choose a text model with a larger context window.".into(),
     }
 }
 
 pub(crate) fn missing_model() -> PennelError {
     PennelError::InvalidResponse {
-        message: "Apple Intelligence is op deze computer niet beschikbaar. Kies een ander taalmodel of controleer Apple Intelligence in Systeeminstellingen.".into(),
+        message: "Apple Intelligence is unavailable on this computer. Choose another text model or check Apple Intelligence in System Settings.".into(),
     }
 }
 
@@ -62,7 +62,7 @@ pub(crate) fn complete(
     let text = text.trim();
     if text.is_empty() {
         return Err(PennelError::InvalidResponse {
-            message: "Apple Intelligence gaf geen tekst terug. Probeer opnieuw.".into(),
+            message: "Apple Intelligence returned no text. Try again.".into(),
         });
     }
     Ok(text.to_owned())

@@ -7,11 +7,11 @@ enum ProviderKinds {
         (.openRouter, "OpenRouter"),
         (.groq, "Groq"),
         (.mistral, "Mistral"),
-        (.ollama, "Ollama (lokaal)"),
-        (.lmStudio, "LM Studio (lokaal)"),
-        (.custom, "Eigen server"),
-        (.local, "Lokaal op deze computer"),
-        (.appleSpeech, "Apple-dicteren"),
+        (.ollama, "Ollama (local)"),
+        (.lmStudio, "LM Studio (local)"),
+        (.custom, "Custom server"),
+        (.local, "Local on this computer"),
+        (.appleSpeech, "Apple Dictation"),
         (.appleIntelligence, "Apple Intelligence"),
         (.claudeCode, "Claude Code"),
         (.codex, "Codex"),
@@ -28,8 +28,8 @@ enum ProviderKinds {
 
     /// Why a kind cannot run on iPhone; nil when it can.
     static func unavailableReason(_ kind: ProviderKind) -> String? {
-        if isCliAgent(kind: kind) { return Copy.Settings.cliAgentsDisabled }
-        if kind == .local { return Copy.Settings.localModelsDisabled }
+        if isCliAgent(kind: kind) { return "CLI agents are unavailable on iPhone." }
+        if kind == .local { return "Local model downloads are unavailable on iPhone." }
         return nil
     }
 

@@ -15,7 +15,7 @@ private var mailService: NSSharingService?
 
 @_cdecl("pennel_mac_share")
 public func shareNative(_ rawText: UnsafePointer<CChar>?, _ rawTitle: UnsafePointer<CChar>?, _ rawAction: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
-    guard let action = SharingAction(rawValue: decodeString(rawAction) ?? "") else { return bridgeString("Onbekende deelactie") }
+    guard let action = SharingAction(rawValue: decodeString(rawAction) ?? "") else { return bridgeString("Unknown share action") }
     let text = decodeString(rawText) ?? ""
     let title = decodeString(rawTitle) ?? "Meeting"
     return onMain {
@@ -28,12 +28,12 @@ public func shareNative(_ rawText: UnsafePointer<CChar>?, _ rawTitle: UnsafePoin
                 return nil
             }
             guard let url = composeMailURL(text: text, title: title), NSWorkspace.shared.open(url) else {
-                return bridgeString("Geen mailapp beschikbaar om een concept te openen")
+                return bridgeString("No mail app is available to open a draft")
             }
             return nil
         case .share:
             guard let window = NSApplication.shared.keyWindow, let view = window.contentView else {
-                return bridgeString("Open de meeting in Pennel om het deelmenu te gebruiken")
+                return bridgeString("Open the meeting in Pennel to use the share menu")
             }
             let point = view.convert(window.mouseLocationOutsideOfEventStream, from: nil)
             let picker = NSSharingServicePicker(items: [text])

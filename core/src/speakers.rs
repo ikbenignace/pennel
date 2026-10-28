@@ -1,6 +1,6 @@
 //! Speaker recognition: who spoke in a meeting, including the user's own trained voice and the
 //! voices they chose to remember. The exported surface is the same with and without the `speakers`
-//! feature; without it, local recognition answers with a Dutch error and Pennel Cloud still works.
+//! feature; without it, local recognition answers with an English diagnostic and Pennel Cloud still works.
 
 use std::path::Path;
 
@@ -16,14 +16,14 @@ use crate::models::{DIARIZER_ID, EMBEDDING_ID, SEGMENTATION_ID};
 use crate::settings::SpeakerRecognitionMode;
 use crate::voices::{KnownVoice, MeetingVoiceprint, VoiceProfile, VoiceStore};
 
-pub(crate) const UNAVAILABLE: &str = "Sprekers herkennen op dit toestel zit niet in deze versie van Pennel. Kies ‘Via Pennel Cloud’ in Instellingen → Meetings.";
+pub(crate) const UNAVAILABLE: &str = "Speaker recognition on this device is unavailable in this version of Pennel. Choose Pennel Cloud.";
 
-/// About 25 seconds of calm reading, with the sounds of everyday Dutch.
-pub const ENROLLMENT_TEXT: &str = "Ik lees deze tekst voor zodat Pennel mijn stem leert kennen. Zo weet Pennel in elke meeting wanneer ik aan het woord ben, ook als we samen rond één microfoon zitten. Vandaag is een rustige dag: de koffie is nog warm, de zon schijnt door het raam en op mijn bureau ligt een schrift vol ideeën. Straks overlopen we de planning, verdelen we de taken en spreken we af wie welke vragen beantwoordt.";
+/// About 25 seconds of calm reading; the interface translates this enrollment text.
+pub const ENROLLMENT_TEXT: &str = "I am reading this text so Pennel can learn my voice. This helps Pennel recognize when I am speaking in each meeting, even when we are sharing one microphone. Today is a quiet day: the coffee is still warm, sunlight is coming through the window, and a notebook full of ideas is on my desk. Later we will review the schedule, divide the work, and agree on who will answer each question.";
 
-const TOO_LITTLE_SPEECH: &str = "Pennel hoorde te weinig spraak. Lees de tekst rustig en volledig voor, liefst in een stille ruimte.";
+const TOO_LITTLE_SPEECH: &str = "Pennel heard too little speech. Read the whole text at a steady pace, preferably in a quiet room.";
 const NO_VOICEPRINT: &str =
-    "Pennel heeft van deze stem geen stemafdruk. Herken de sprekers van deze meeting opnieuw.";
+    "Pennel has no voiceprint for this voice. Run speaker recognition for this meeting again.";
 
 pub(crate) fn unavailable() -> PennelError {
     PennelError::InvalidResponse {
@@ -47,11 +47,11 @@ pub struct MeetingVoice {
     pub name: Option<String>,
     /// Linked to a voice the user chose to remember.
     pub remembered: bool,
-    /// This device holds the voiceprint, so "Onthoud deze stem" can work.
+    /// This device holds the voiceprint, so "Remember this voice" can work.
     pub can_remember: bool,
 }
 
-/// One recognition or "Onthoud deze stem" at a time: each reads, relabels and writes the transcript,
+/// One recognition or "Remember this voice" at a time: each reads, relabels and writes the transcript,
 /// its names and the meeting's voiceprints, which must not interleave.
 pub(crate) static RECOGNITION: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -251,7 +251,7 @@ impl PennelEngine {
         store.info(&id).ok_or(PennelError::NotFound)?;
         if store.unparsed_transcript_lines(&id) > 0 {
             return Err(PennelError::InvalidResponse {
-                message: "transcript bevat regels die Pennel niet herkent".into(),
+                message: "the transcript contains lines that Pennel does not recognize".into(),
             });
         }
         let voices = self.voice_store();
@@ -275,7 +275,7 @@ impl PennelEngine {
             || crate::speaker_jobs::speaker_names_digest(&store.speaker_names(&id))? != revision.1
         {
             return Err(PennelError::storage(
-                "De meeting is ondertussen gewijzigd. De sprekernamen zijn niet vervangen.",
+                "The meeting has changed. The speaker names were not replaced.",
             ));
         }
         self.apply_recognized_speakers(&id, diarization, track, my_voice.as_deref())
@@ -393,7 +393,7 @@ impl PennelEngine {
         let _gate = RECOGNITION.lock().unwrap_or_else(|e| e.into_inner());
         if store.unparsed_transcript_lines(id) > 0 {
             return Err(PennelError::InvalidResponse {
-                message: "transcript bevat regels die Pennel niet herkent".into(),
+                message: "the transcript contains lines that Pennel does not recognize".into(),
             });
         }
         store.ensure_uid(id)?;
@@ -488,7 +488,7 @@ mod tests {
 
     #[cfg(not(feature = "speakers"))]
     #[test]
-    fn local_diarization_without_feature_is_the_dutch_error() {
+    fn local_diarization_without_feature_returns_an_english_error() {
         let missing = Path::new("/nonexistent/pennel/model.onnx");
         assert_eq!(
             diarize_local(missing, missing, &[0.0; 32_000]),

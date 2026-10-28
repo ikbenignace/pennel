@@ -225,13 +225,30 @@ impl Session {
         device_name: &str,
         platform: &str,
     ) -> Result<CloudLoginStart, PennelError> {
+        self.login_start_with_locale(device_name, platform, None)
+    }
+
+    pub fn login_start_with_locale(
+        &self,
+        device_name: &str,
+        platform: &str,
+        locale: Option<&str>,
+    ) -> Result<CloudLoginStart, PennelError> {
         let generation = self.login.lock().unwrap().invalidate();
+        let mut request = json!({ "device_name": device_name, "platform": platform });
+        if let Some(locale) = locale {
+            let locale = match locale {
+                "en" | "nl" | "fr" => locale,
+                _ => "en",
+            };
+            request["locale"] = json!(locale);
+        }
         let (status, body) = send_json(
             &self.http,
             "POST",
             &self.url("/v1/auth/device"),
             None,
-            Some(&json!({ "device_name": device_name, "platform": platform })),
+            Some(&request),
         )?;
         if status != 200 {
             return Err(error_from(status, &body));
@@ -411,6 +428,34 @@ mod tests {
     }
 
     const ACCOUNT: &str = r#"{"email":"a@b.nl","created_at":"2026-01-01T00:00:00Z","usage":{"audio_seconds":5,"tokens":6,"storage_bytes":7},"limits":{"storage_bytes":70,"object_bytes":1,"devices":3,"audio_seconds_per_month":50,"tokens_per_month":60}}"#;
+
+    #[test]
+    fn localized_login_sends_only_supported_interface_locales() {
+        let mut server = mockito::Server::new();
+        let (_, session) = fixture(&server);
+        for (requested, expected) in [
+            ("en", "en"),
+            ("nl", "nl"),
+            ("fr", "fr"),
+            ("de", "en"),
+            ("", "en"),
+        ] {
+            let start = server
+                .mock("POST", "/v1/auth/device")
+                .match_body(Matcher::Json(json!({ "device_name": "Mac", "platform": "macos", "locale": expected })))
+                .with_body(format!(r#"{{"device_code":"dc","user_code":"ABCD-1234","verification_uri":"https://x/{expected}/device?code=ABCD-1234","interval":5}}"#))
+                .create();
+            let started = session
+                .login_start_with_locale("Mac", "macos", Some(requested))
+                .unwrap();
+            assert_eq!(
+                started.verification_uri,
+                format!("https://x/{expected}/device?code=ABCD-1234")
+            );
+            start.assert();
+            start.remove();
+        }
+    }
 
     #[test]
     fn login_poll_pending_then_done_stores_refresh_token() {

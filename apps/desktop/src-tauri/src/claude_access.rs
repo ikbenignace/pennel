@@ -199,7 +199,7 @@ fn run(
             }
             Err(error) => {
                 failures += 1;
-                LOG.error(format!("relay niet bereikbaar (poging {failures})"));
+                LOG.error(format!("relay unreachable (attempt {failures})"));
                 set_status(
                     &inner,
                     on_status.as_ref(),
@@ -220,7 +220,7 @@ fn dispatch(inner: &Arc<Inner>, relay: &Arc<dyn Relay>, request: RelayRequest) {
         inner.workers.fetch_sub(1, Ordering::SeqCst);
         let busy = RelayAnswer::Failed {
             code: "unavailable".into(),
-            message: "Deze computer is nog bezig met andere vragen. Probeer het zo opnieuw.".into(),
+            message: "This computer is still processing other questions. Try again shortly.".into(),
         };
         let _ = relay.respond(&request.id, &busy);
         return;
@@ -235,13 +235,13 @@ fn dispatch(inner: &Arc<Inner>, relay: &Arc<dyn Relay>, request: RelayRequest) {
             } else {
                 RelayAnswer::Failed {
                     code: "unavailable".into(),
-                    message: "Claude-toegang staat uit op deze computer.".into(),
+                    message: "Claude access is disabled on this computer.".into(),
                 }
             }
         }))
         .unwrap_or_else(|_| RelayAnswer::Failed {
             code: "failed".into(),
-            message: "Pennel kon deze vraag niet beantwoorden.".into(),
+            message: "Pennel could not answer this question.".into(),
         });
         let outcome = match &answer {
             RelayAnswer::Text { .. } => "ok",
@@ -252,11 +252,7 @@ fn dispatch(inner: &Arc<Inner>, relay: &Arc<dyn Relay>, request: RelayRequest) {
             "{} {outcome} in {} ms{}",
             request.tool,
             started.elapsed().as_millis(),
-            if sent {
-                ""
-            } else {
-                ", antwoord niet afgeleverd"
-            }
+            if sent { "" } else { ", response not delivered" }
         ));
         inner.workers.fetch_sub(1, Ordering::SeqCst);
     });

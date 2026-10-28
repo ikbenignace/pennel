@@ -12,7 +12,7 @@ pub fn decode_audio(path: &Path) -> Result<Vec<f32>, String> {
     #[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]
     {
         let _ = path;
-        Err("M4A-audio lezen is op dit platform nog niet beschikbaar".into())
+        Err("Reading M4A audio is not available on this platform yet".into())
     }
 }
 
@@ -95,7 +95,7 @@ mod playback {
     fn open(samples: Vec<f32>, start_ms: u64) -> Result<cpal::Stream, String> {
         let device = cpal::default_host()
             .default_output_device()
-            .ok_or("Geen audio-uitvoer gevonden")?;
+            .ok_or("No audio output found")?;
         let supported = device.default_output_config().map_err(|e| e.to_string())?;
         let config = supported.config();
         let stream = match supported.sample_format() {
@@ -103,9 +103,7 @@ mod playback {
             cpal::SampleFormat::I16 => build::<i16>(&device, config, samples, start_ms),
             cpal::SampleFormat::U16 => build::<u16>(&device, config, samples, start_ms),
             other => {
-                return Err(format!(
-                    "Audio-uitvoerformaat {other:?} wordt niet ondersteund"
-                ));
+                return Err(format!("Audio output format {other:?} is unsupported"));
             }
         }
         .map_err(|e| e.to_string())?;
@@ -135,7 +133,7 @@ mod playback {
                 }
             },
             |error| {
-                crate::diagnostics::Log::new("playback").error(format!("audio-uitvoer: {error}"))
+                crate::diagnostics::Log::new("playback").error(format!("audio output: {error}"))
             },
             None,
         )

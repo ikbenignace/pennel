@@ -83,7 +83,7 @@ impl Secrets {
 
     pub fn set(&self, account: &str, value: &str) -> Result<(), String> {
         if account.is_empty() {
-            return Err("geen account".into());
+            return Err("no account".into());
         }
         let value = value.trim();
         #[cfg(test)]
@@ -131,7 +131,7 @@ impl Secrets {
     #[cfg(any(target_os = "macos", test))]
     pub fn migrate_legacy(&self, providers: &[ProviderAccount]) -> Result<(), String> {
         if self.service.ends_with(".preview") {
-            return Err("De testversie neemt geen opgeslagen API-sleutels over.".into());
+            return Err("The preview does not import saved API keys.".into());
         }
         #[cfg(target_os = "macos")]
         for provider in providers {
@@ -151,7 +151,7 @@ impl SecretStore for Secrets {
 
     fn set(&self, account: String, value: Option<String>) {
         if Secrets::set(self, &account, value.as_deref().unwrap_or("")).is_err() {
-            LOG.error("opslaan in de sleutelhanger mislukt");
+            LOG.error("credential store write failed");
         }
     }
 }

@@ -46,7 +46,7 @@ impl RecordingLifecycle {
     pub fn begin(&mut self, detected_app: Option<String>) -> Result<String, PennelError> {
         if self.is_busy() {
             return Err(PennelError::Storage {
-                message: "er wordt al een meeting opgenomen of afgerond".into(),
+                message: "a meeting is already recording or being finalized".into(),
             });
         }
         let id = uuid::Uuid::now_v7().to_string();

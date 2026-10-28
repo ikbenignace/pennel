@@ -71,7 +71,11 @@ final class CloudAccountModel {
     static let defaultDeviceName = "iPhone"
     static let confirmedKey = "pennel.recoveryCodeConfirmed"
     /// Same text as the core's mass-delete brake, which the report only carries as an error message.
-    static let massDelete = "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was."
+    static let massDelete = "Many meetings disappeared from your folder. Sync has deleted nothing; confirm under Settings → Account if this was intentional."
+
+    static func isMassDelete(_ message: String?) -> Bool {
+        message == massDelete || message == "Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was."
+    }
 
     private(set) var login = Login.idle
     private(set) var account: CloudAccount?
@@ -146,7 +150,7 @@ final class CloudAccountModel {
     }
 
     var braked: Bool {
-        if case .error(let message) = report.status { return message == Self.massDelete }
+        if case .error(let message) = report.status { return Self.isMassDelete(message) }
         return false
     }
 

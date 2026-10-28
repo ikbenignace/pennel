@@ -45,6 +45,6 @@ final class PlatformActionTests: XCTestCase {
         }
         let pointer = try XCTUnwrap(error)
         defer { stringFree(pointer) }
-        XCTAssertEqual(String(cString: pointer), "Onbekende deelactie")
+        XCTAssertEqual(String(cString: pointer), "Unknown share action")
     }
 }

@@ -44,13 +44,10 @@ pub async fn test_apple_intelligence() -> Result<(), String> {
             .map(|_| ())
         })
         .await
-        .map_err(|_| "De modeltest is onderbroken.".to_owned())?
+        .map_err(|_| "The model test was interrupted.".to_owned())?
     }
     #[cfg(not(target_os = "macos"))]
-    Err(
-        "Apple Intelligence is alleen beschikbaar op een geschikte Mac met macOS 26 of nieuwer."
-            .into(),
-    )
+    Err("Apple Intelligence is only available on a supported Mac running macOS 26 or later.".into())
 }
 
 #[tauri::command]
@@ -73,7 +70,7 @@ pub async fn request_permission(
         {
             let _ = shared;
             if kind != PermissionKind::Microphone {
-                return Err("Deze toestemming wordt op Windows niet door Pennel gevraagd".into());
+                return Err("Pennel does not request this permission on Windows".into());
             }
             app.opener()
                 .open_url("ms-settings:privacy-microphone", None::<&str>)
@@ -83,7 +80,7 @@ pub async fn request_permission(
         #[cfg(not(any(target_os = "macos", windows)))]
         {
             let _ = (kind, app, shared);
-            Err("Beheer microfoontoegang in de instellingen van je desktopomgeving".into())
+            Err("Manage microphone access in your desktop environment settings".into())
         }
     })
     .await
@@ -111,20 +108,20 @@ pub async fn play_meeting_audio(
         let speaker = match speaker.as_str() {
             "me" => pennel_core::Speaker::Me,
             "others" => pennel_core::Speaker::Others,
-            _ => return Err("Onbekend audiospoor".into()),
+            _ => return Err("Unknown audio track".into()),
         };
         let track = shared
             .engine
             .meeting_audio_tracks(id)
             .into_iter()
             .find(|track| track.speaker == speaker && track.available)
-            .ok_or("Deze meeting heeft geen bewaarde audio meer.")?;
+            .ok_or("This meeting no longer has saved audio.")?;
         let path = dir
             .join(track.relative_path)
             .canonicalize()
             .map_err(|error| error.to_string())?;
         if !path.starts_with(&dir) {
-            return Err("Audiospoor valt buiten de meetingmap".into());
+            return Err("Audio track is outside the meeting folder".into());
         }
         crate::platform_audio::play(&path, start_ms)
     })
@@ -170,7 +167,7 @@ pub fn show_window(kind: String, tab: Option<String>, app: AppHandle) -> Result<
             | "recording"
             | "onboarding"
     ) {
-        return Err("Onbekend venster".into());
+        return Err("Unknown window".into());
     }
     crate::show_window(&app, &kind, tab.as_deref());
     Ok(())
@@ -188,7 +185,7 @@ pub fn show_workspace(
             .as_deref()
             .is_some_and(|id| !crate::workspace::valid_meeting_id(id))
     {
-        return Err("Ongeldige meeting".into());
+        return Err("Invalid meeting".into());
     }
     let kind = route.window_kind();
     crate::workspace::request(&app, crate::workspace::window_spec(kind).label, Some(route));
@@ -247,15 +244,15 @@ pub async fn choose_meetings_dir(
     shared: State<'_, Arc<Shared>>,
 ) -> Result<Option<String>, String> {
     if shared.preview {
-        return Err("De preview gebruikt uitsluitend zijn eigen meetingmap".into());
+        return Err("The preview only uses its own meeting folder".into());
     }
     if shared.recording.lock().unwrap().is_busy() {
-        return Err("Rond eerst de opname af voordat je een andere map kiest".into());
+        return Err("Finish recording before choosing another folder".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
-            .set_title(crate::ui::message("Kies de meetingmap"))
+            .set_title(crate::ui::message("Choose the meeting folder"))
             .blocking_pick_folder()
             .map(|file| {
                 file.into_path()
@@ -273,7 +270,7 @@ pub fn toggle_dictation(copy_only: bool, shared: State<'_, Arc<Shared>>) -> Resu
     shared
         .dictation
         .send(crate::dictation::Msg::ManualToggle { copy_only })
-        .map_err(|_| "Dicteren is niet beschikbaar".into())
+        .map_err(|_| "Dictation is unavailable".into())
 }
 
 #[tauri::command]
@@ -285,7 +282,7 @@ pub async fn share_meeting(
     shared: State<'_, Arc<Shared>>,
 ) -> Result<(), String> {
     if !matches!(action.as_str(), "mail" | "share") {
-        return Err("Onbekende deelactie".into());
+        return Err("Unknown share action".into());
     }
     let shared = shared.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -304,7 +301,7 @@ pub async fn share_meeting(
         {
             if action == "share" {
                 return Err(
-                    "Kopieer de opgemaakte notities of open de meetingmap om deze te delen".into(),
+                    "Copy the formatted notes or open the meeting folder to share them".into(),
                 );
             }
             let mut url = tauri::Url::parse("mailto:").map_err(|error| error.to_string())?;
@@ -386,10 +383,10 @@ pub fn spawn_update_checks(app: &AppHandle) {
 pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
     #[cfg(target_os = "linux")]
     if std::env::var_os("APPIMAGE").is_none() {
-        return Err("Werk dit pakket bij via je pakketbeheerder. Automatische updates zijn beschikbaar in de AppImage-versie.".into());
+        return Err("Update this package through your package manager. Automatic updates are available in the AppImage version.".into());
     }
     if !updates_enabled(&app) {
-        return Err("Updates zijn beschikbaar in de ondertekende release. Deze preview wordt niet automatisch bijgewerkt.".into());
+        return Err("Updates are available in the signed release. This preview does not update automatically.".into());
     }
     let update = app
         .updater_builder()
@@ -436,7 +433,7 @@ pub async fn install_update(app: AppHandle, shared: State<'_, Arc<Shared>>) -> R
     let mut guard = {
         let recording = shared.recording.lock().unwrap();
         if shared.updating.swap(true, Ordering::SeqCst) {
-            return Err("Pennel wordt al bijgewerkt".into());
+            return Err("Pennel is already updating".into());
         }
         let guard = UpdateGuard {
             shared: shared.clone(),
@@ -451,7 +448,7 @@ pub async fn install_update(app: AppHandle, shared: State<'_, Arc<Shared>>) -> R
             || shared.library_jobs.load(Ordering::SeqCst) != 0
         {
             return Err(
-                "Wacht tot opnemen, verwerken en plakken klaar zijn voordat je Pennel bijwerkt"
+                "Wait until recording, processing and pasting have finished before updating Pennel"
                     .into(),
             );
         }
@@ -463,7 +460,7 @@ pub async fn install_update(app: AppHandle, shared: State<'_, Arc<Shared>>) -> R
         .lock()
         .unwrap()
         .take()
-        .ok_or("Zoek eerst naar updates")?;
+        .ok_or("Check for updates first")?;
     let flush_app = app.clone();
     let flush = tauri::async_runtime::spawn_blocking(move || {
         crate::flush_frontends(&flush_app, "prepare-update")
@@ -483,7 +480,7 @@ pub async fn install_update(app: AppHandle, shared: State<'_, Arc<Shared>>) -> R
             .load(Ordering::SeqCst)
             != quit_attempt
     {
-        return Err("Pennel wordt afgesloten".into());
+        return Err("Pennel is quitting".into());
     }
     let flush_app = app.clone();
     let flush = tauri::async_runtime::spawn_blocking(move || {
@@ -499,7 +496,7 @@ pub async fn install_update(app: AppHandle, shared: State<'_, Arc<Shared>>) -> R
         if shared.quitting.load(Ordering::SeqCst)
             || exit.quit_attempts.load(Ordering::SeqCst) != quit_attempt
         {
-            return Err("Bijwerken is geannuleerd omdat Pennel wordt afgesloten".into());
+            return Err("Update cancelled because Pennel is quitting".into());
         }
         app.state::<UpdateState>()
             .installing

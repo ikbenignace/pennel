@@ -65,8 +65,8 @@ fn source_label(passage: &Passage) -> String {
     let place = match (passage.kind, passage.start_ms) {
         (PassageKind::Transcript, Some(ms)) => format!("transcript {}", timestamp(ms)),
         (PassageKind::Transcript, None) => "transcript".to_owned(),
-        (PassageKind::Notes, _) => "notities".to_owned(),
-        (PassageKind::Summary, _) => "samenvatting".to_owned(),
+        (PassageKind::Notes, _) => "notes".to_owned(),
+        (PassageKind::Summary, _) => "summary".to_owned(),
     };
     format!("{} ({date}, {place})", passage.title)
 }
@@ -83,7 +83,7 @@ pub fn chat_messages(
         .collect::<Vec<_>>()
         .join("\n");
     let context = if numbered.is_empty() {
-        "(geen bronnen gevonden)".to_owned()
+        "(no sources found)".to_owned()
     } else {
         numbered
     };
@@ -230,11 +230,7 @@ mod tests {
                 .content
                 .contains("[1] Sync (2026-10-20, transcript 12:34)\nAnderen: budget is rond")
         );
-        assert!(
-            messages[1]
-                .content
-                .contains("[2] Plan (2026-10-20, notities)")
-        );
+        assert!(messages[1].content.contains("[2] Plan (2026-10-20, notes)"));
         assert!(
             messages[1]
                 .content

@@ -191,9 +191,7 @@ impl PennelEngine {
                 serde_json::from_slice(&fs::read(entry.path()).map_err(PennelError::storage)?)
                     .map_err(PennelError::storage)?;
             if pending.version != 1 || !crate::meetings::valid_uid(&pending.meeting_uid) {
-                return Err(PennelError::storage(
-                    "De opgeslagen sprekerverwerking is ongeldig.",
-                ));
+                return Err(PennelError::storage("The saved speaker job is invalid."));
             }
             let Some(meeting) = store.list().into_iter().find(|meeting| {
                 store.uid_of(&meeting.id).as_deref() == Some(pending.meeting_uid.as_str())

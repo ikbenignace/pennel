@@ -15,6 +15,9 @@ struct ActivityCopyTests {
         #expect(english.language == .english)
         #expect(english.text(.stopRecording) == "Stop recording")
         #expect(english.text(.dictationSession) == "Dictation session")
+        #expect(english.finishing(pending: 0) == "Saving recording…")
+        #expect(english.finishing(pending: 3) == "Processing 3 remaining audio chunks…")
+        #expect(dutch.finishing(pending: 3) == "Nog 3 audiodelen verwerken…")
     }
 
     @Test func first_supported_system_language_and_english_fallback_are_shared() {

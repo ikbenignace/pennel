@@ -29,7 +29,7 @@ impl PendingReplacement {
             || Path::new(&self.backup).components().count() != 1
         {
             return Err(PennelError::storage(
-                "De herstelmap is geen geldige lokale map.",
+                "The recovery folder is not a valid local folder.",
             ));
         }
         let backups = root.join(TRANSCRIPT_BACKUPS);
@@ -38,7 +38,7 @@ impl PendingReplacement {
             let entry = fs::symlink_metadata(path).map_err(PennelError::storage)?;
             if !entry.is_dir() || entry.file_type().is_symlink() {
                 return Err(PennelError::storage(
-                    "De herstelmap is geen geldige lokale map.",
+                    "The recovery folder is not a valid local folder.",
                 ));
             }
         }
@@ -79,7 +79,7 @@ fn rollback_replacement(root: &Path, pending: &PendingReplacement) -> Result<(),
             sync_directory(root)?;
         } else if !live.is_dir() {
             return Err(PennelError::storage(
-                "Herstellen kon niet worden afgerond. De vorige transcriptie staat in de lokale herstelmap.",
+                "Recovery could not be completed. The previous transcript is in the local recovery folder.",
             ));
         }
     }
@@ -177,7 +177,7 @@ pub struct MeetingStore {
 
 pub(crate) fn durable_write(path: &Path, bytes: &[u8]) -> Result<(), PennelError> {
     let parent = path.parent().ok_or_else(|| PennelError::Storage {
-        message: "de opslagmap ontbreekt".into(),
+        message: "the storage folder is missing".into(),
     })?;
     let temporary = parent.join(format!(".pennel-{}.tmp", uuid::Uuid::now_v7()));
     let result = (|| {
@@ -486,7 +486,7 @@ impl MeetingStore {
         let meeting = self.dir_of(id);
         if !meeting.is_dir() {
             return Err(PennelError::Storage {
-                message: "de meetingmap is niet beschikbaar".into(),
+                message: "the meeting folder is unavailable".into(),
             });
         }
         let path = crate::session::failed_path(&meeting, speaker, start_ms);
@@ -548,7 +548,7 @@ impl MeetingStore {
                 "microphone" => Ok(Speaker::Me),
                 "system" => Ok(Speaker::Others),
                 _ => Err(PennelError::storage(
-                    "De oorspronkelijke opnamesporen konden niet worden vastgesteld. Voor oudere transcripties met sprekerlabels zijn beide sporen nodig.",
+                    "The original recording tracks could not be determined. Both tracks are required for older speaker-labeled transcripts.",
                 )),
             })
             .collect::<Result<Vec<_>, _>>()
@@ -603,13 +603,11 @@ impl MeetingStore {
         match fs::read(self.dir_of(id).join(".pennel-dictation-intervals.json")) {
             Ok(bytes) => {
                 let intervals: Vec<(u64, u64)> = serde_json::from_slice(&bytes).map_err(|_| {
-                    PennelError::storage(
-                        "De opgeslagen dicteerintervallen konden niet worden gelezen.",
-                    )
+                    PennelError::storage("The saved dictation intervals could not be read.")
                 })?;
                 if intervals.iter().any(|(start, end)| end < start) {
                     return Err(PennelError::storage(
-                        "De opgeslagen dicteerintervallen zijn ongeldig.",
+                        "The saved dictation intervals are invalid.",
                     ));
                 }
                 Ok(intervals)
@@ -653,7 +651,7 @@ impl MeetingStore {
         let root = self.dir_of(id);
         if root.join(REPLACEMENT_JOURNAL).exists() {
             return Err(PennelError::storage(
-                "Herstellen kon niet worden afgerond. De vorige transcriptie staat in de lokale herstelmap.",
+                "Recovery could not be completed. The previous transcript is in the local recovery folder.",
             ));
         }
         let original = fs::read(root.join("transcript.md"))
@@ -683,7 +681,7 @@ impl MeetingStore {
         let backups = root.join(TRANSCRIPT_BACKUPS);
         if fs::symlink_metadata(&backups).is_ok_and(|entry| entry.file_type().is_symlink()) {
             return Err(PennelError::storage(
-                "De herstelmap is geen geldige lokale map.",
+                "The recovery folder is not a valid local folder.",
             ));
         }
         let pending = PendingReplacement {
@@ -726,7 +724,7 @@ impl MeetingStore {
         if let Err(error) = result {
             if rollback_replacement(&root, &pending).is_err() {
                 return Err(PennelError::storage(
-                    "Herstellen kon niet worden afgerond. De vorige transcriptie staat in de lokale herstelmap.",
+                    "Recovery could not be completed. The previous transcript is in the local recovery folder.",
                 ));
             }
             return Err(error);
@@ -748,7 +746,7 @@ impl MeetingStore {
             serde_json::from_slice(&journal).map_err(PennelError::storage)?;
         if pending.backup_path(&root)? != backup {
             return Err(PennelError::storage(
-                "De herstelmap is geen geldige lokale map.",
+                "The recovery folder is not a valid local folder.",
             ));
         }
         durable_write(&root.join(REPLACEMENT_JOURNAL), &journal)?;

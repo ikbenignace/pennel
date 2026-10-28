@@ -82,7 +82,7 @@ mod portable {
             use arboard::SetExtApple;
             #[cfg(target_os = "linux")]
             use arboard::SetExtLinux;
-            let clipboard = self.inner().ok_or("klembord niet beschikbaar")?;
+            let clipboard = self.inner().ok_or("clipboard unavailable")?;
             clipboard
                 .set()
                 .exclude_from_history()
@@ -233,7 +233,7 @@ mod win {
             require_exclusion: bool,
         ) -> Result<(), String> {
             let Some(_open) = Open::new() else {
-                return Err("klembord is in gebruik".into());
+                return Err("clipboard is busy".into());
             };
             let _ = unsafe { EmptyClipboard() };
             let wide: Vec<u8> = text
@@ -243,7 +243,7 @@ mod win {
                 .collect();
             if !unsafe { write_global(CF_UNICODETEXT, &wide) } {
                 let _ = unsafe { EmptyClipboard() };
-                return Err("klembord schrijven mislukt".into());
+                return Err("clipboard write failed".into());
             }
             let excluded = unsafe {
                 let exclude =
@@ -263,7 +263,7 @@ mod win {
                 Ok(())
             } else {
                 let _ = unsafe { EmptyClipboard() };
-                Err("klembord schrijven mislukt".into())
+                Err("clipboard write failed".into())
             }
         }
 

@@ -171,7 +171,7 @@ fn utf8_entries(dir: &Path) -> Vec<(String, PathBuf)> {
     names
 }
 
-pub const UNREADABLE_LIBRARY: &str = "De meetingmap kon niet worden gelezen.";
+pub const UNREADABLE_LIBRARY: &str = "The meeting folder could not be read.";
 
 fn unreadable() -> PennelError {
     PennelError::Cloud {

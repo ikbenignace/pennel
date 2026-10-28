@@ -19,7 +19,7 @@ impl PcmFormat {
             || bits != 32
             || block_alignment != channels * 4
         {
-            return Err("Ongeldig audioformaat".into());
+            return Err("Invalid audio format".into());
         }
         Ok(Self {
             rate,
@@ -43,7 +43,7 @@ pub(crate) fn update_format(
         return Ok(false);
     }
     if received_audio {
-        return Err("Het audioformaat verandert tijdens het bestand".into());
+        return Err("The audio format changes within the file".into());
     }
     *current = next;
     Ok(true)

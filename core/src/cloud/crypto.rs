@@ -366,21 +366,21 @@ fn decode_b64(encoded: &str) -> Option<Vec<u8>> {
 fn wrong_recovery_code() -> PennelError {
     PennelError::Cloud {
         code: "recovery_code".into(),
-        message: "Deze herstelcode klopt niet.".into(),
+        message: "This recovery code is incorrect.".into(),
     }
 }
 
 pub(crate) fn vault_invalid() -> PennelError {
     PennelError::Cloud {
         code: "vault_invalid".into(),
-        message: "De kluis op Pennel Cloud is onleesbaar.".into(),
+        message: "The Pennel Cloud vault cannot be read.".into(),
     }
 }
 
 pub(crate) fn object_unreadable() -> PennelError {
     PennelError::Cloud {
         code: "object_unreadable".into(),
-        message: "Een bestand uit Pennel Cloud kon niet worden ontsleuteld.".into(),
+        message: "A file from Pennel Cloud could not be decrypted.".into(),
     }
 }
 
@@ -406,7 +406,7 @@ mod tests {
                 error,
                 PennelError::Cloud {
                     code: "recovery_code".into(),
-                    message: "Deze herstelcode klopt niet.".into(),
+                    message: "This recovery code is incorrect.".into(),
                 }
             ),
             Ok(_) => panic!("expected recovery_code error"),

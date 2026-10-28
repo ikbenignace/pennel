@@ -54,6 +54,25 @@ private final class PreflightGate {
 
 @Suite("Expo native runtime", .serialized)
 struct PennelRuntimeTests {
+    @MainActor @Test func nativeFailuresUseEnglishDiagnosticsAndStableCodes() throws {
+        #expect(ErrorText.message(PennelError.NoSpeech) == "No speech recognized. Try again.")
+        #expect(ErrorText.failureCode(PennelError.NoSpeech) == "no_speech")
+        #expect(ErrorText.failureCode(PennelError.Http(status: 401, message: "Private provider details")) == "provider_auth")
+        #expect(ErrorText.failureCode(PennelError.Http(status: 403, message: "Private provider details")) == "provider_auth")
+        #expect(ErrorText.failureCode(PennelError.NotSignedIn) == "not_signed_in")
+        #expect(ErrorText.code(PennelError.Cloud(code: "private provider code", message: "private provider details")) == "cloud")
+        #expect(NativeLanguageModelError.invalidRequest.errorDescription == "Invalid request for the built-in Apple text model.")
+        #expect(NativeLanguageModelAvailability.unavailable(.notReady).reason?.contains("Wait until iOS") == true)
+        #expect(MeetingRuntime.Message.code(for: "De opname is gestopt omdat iOS Pennel heeft afgesloten.") == "recording_terminated")
+        #expect(MeetingRuntime.Message.code(for: MeetingRuntime.Message.terminated) == "recording_terminated")
+        #expect(CloudAccountModel.isMassDelete(CloudAccountModel.massDelete))
+        #expect(CloudAccountModel.isMassDelete("Veel meetings zijn verdwenen uit je map. Sync heeft niets verwijderd; bevestig in Instellingen → Account als dat de bedoeling was."))
+        let legacy = Data("{\"gaps\":[],\"stoppedEarly\":\"De opname is gestopt omdat iOS Pennel heeft afgesloten.\"}".utf8)
+        let saved = try JSONDecoder().decode(MeetingInterruptionLog.Record.self, from: legacy)
+        #expect(saved.stoppedEarlyCode == nil)
+        #expect(saved.stoppedEarly == "De opname is gestopt omdat iOS Pennel heeft afgesloten.")
+    }
+
     @Test func roomAndLegacyArchivesUseTheSharedResolver() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

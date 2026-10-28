@@ -29,26 +29,35 @@ fn err(e: impl std::fmt::Display) -> String {
 }
 
 pub(crate) fn localize_error_message(source: impl AsRef<str>) -> String {
-    let mut remaining = source.as_ref();
+    localize_error_message_for_language(source.as_ref(), crate::ui::language())
+}
+
+fn localize_error_message_for_language(
+    source: &str,
+    language: pennel_core::InterfaceLanguage,
+) -> String {
+    let mut remaining = source;
     let mut wrappers = Vec::new();
     // These are Pennel's own error envelopes. Captured values in a catalog message remain data.
     for _ in 0..3 {
-        let Some(prefix) = [
-            "storage error: ",
-            "network error: ",
-            "invalid response: ",
-            "Bewaren mislukt: ",
+        let Some((prefix, canonical)) = [
+            ("storage error: ", "storage error: "),
+            ("network error: ", "network error: "),
+            ("invalid response: ", "invalid response: "),
+            ("Saving failed: ", "Saving failed: "),
+            ("Save failed: ", "Saving failed: "),
+            ("Bewaren mislukt: ", "Saving failed: "),
         ]
         .into_iter()
-        .find(|prefix| remaining.starts_with(prefix)) else {
+        .find(|(prefix, _)| remaining.starts_with(prefix)) else {
             break;
         };
-        wrappers.push(prefix);
+        wrappers.push(canonical);
         remaining = &remaining[prefix.len()..];
     }
-    let mut result = crate::ui::message(remaining);
+    let mut result = pennel_core::localize_ui_text(language, remaining);
     for prefix in wrappers.into_iter().rev() {
-        result = crate::ui::message(format!("{prefix}{result}"));
+        result = pennel_core::localize_ui_text(language, &format!("{prefix}{result}"));
     }
     result
 }
@@ -75,7 +84,7 @@ async fn off_main<T: Send + 'static>(
         let result = work();
         let elapsed = started.elapsed();
         if elapsed >= SLOW {
-            LOG.info(format!("{name} duurde {} ms", elapsed.as_millis()));
+            LOG.info(format!("{name} took {} ms", elapsed.as_millis()));
         }
         result
     })
@@ -101,11 +110,11 @@ const KINDS: [(ProviderKind, &str); 17] = [
     (ProviderKind::OpenRouter, "OpenRouter"),
     (ProviderKind::Groq, "Groq"),
     (ProviderKind::Mistral, "Mistral"),
-    (ProviderKind::Ollama, "Ollama (lokaal)"),
-    (ProviderKind::LmStudio, "LM Studio (lokaal)"),
-    (ProviderKind::Custom, "Eigen server"),
-    (ProviderKind::Local, "Lokaal op deze computer"),
-    (ProviderKind::AppleSpeech, "Apple-dicteren"),
+    (ProviderKind::Ollama, "Ollama (local)"),
+    (ProviderKind::LmStudio, "LM Studio (local)"),
+    (ProviderKind::Custom, "Custom server"),
+    (ProviderKind::Local, "Local on this computer"),
+    (ProviderKind::AppleSpeech, "Apple dictation"),
     (ProviderKind::AppleIntelligence, "Apple Intelligence"),
     (ProviderKind::ClaudeCode, "Claude Code"),
     (ProviderKind::Codex, "Codex"),
@@ -233,8 +242,7 @@ fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> R
     crate::cloud::keep_stored_cloud_sync(&mut settings, &old_settings);
     if shared.preview && old_settings.meetings_dir != settings.meetings_dir {
         return Err(
-            "Deze testversie gebruikt een eigen meetingmap om je bestaande gegevens te beschermen."
-                .into(),
+            "This preview uses its own meeting folder to protect your existing data.".into(),
         );
     }
     let recording = shared.recording.lock().unwrap();
@@ -246,7 +254,7 @@ fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> R
                 > 0)
     {
         return Err(
-            "De meetingmap kan pas worden gewijzigd nadat de opname en verwerking zijn afgerond."
+            "The meeting folder can only be changed after recording and processing have finished."
                 .into(),
         );
     }
@@ -263,7 +271,7 @@ fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> R
         if let Some(hint) = app.try_state::<crate::TrayHint>() {
             let _ = hint.0.set_text(crate::hotkey_hint(shared));
         }
-        LOG.info(format!("sneltoets gewijzigd naar {hotkey:?}"));
+        LOG.info(format!("shortcut changed to {hotkey:?}"));
     }
     crate::record_shortcut::refresh(app, shared);
     crate::apply_appearance(app);
@@ -340,7 +348,7 @@ pub async fn provider_models(
             .providers
             .iter()
             .find(|p| p.id == id)
-            .ok_or("onbekende provider")?;
+            .ok_or("unknown provider")?;
         if account.kind.is_cli_agent()
             || matches!(
                 account.kind,
@@ -444,7 +452,7 @@ pub fn download_model(id: String, app: AppHandle, shared: State<'_, Arc<Shared>>
         if let Err(e) = &result {
             LOG.error(format!("download {id}: {e}"));
         } else {
-            LOG.info(format!("download {id} klaar"));
+            LOG.info(format!("download {id} complete"));
             let _ = shared.engine.update_settings(shared.settings());
         }
         let _ = app.emit(
@@ -534,7 +542,7 @@ pub async fn save_history(
 pub fn copy_history(id: String, shared: State<'_, Arc<Shared>>) -> Result<()> {
     let entry = shared.engine.history_entry(id).map_err(err)?;
     if entry.text.is_empty() {
-        return Err("Dit dictaat heeft nog geen tekst om te kopiëren.".into());
+        return Err("This dictation has no text to copy yet.".into());
     }
     crate::platform_clipboard::copy(&entry.text, None)
 }
@@ -548,7 +556,7 @@ pub async fn test_provider_task(
         "dictation_stt" => ProviderTask::DictationStt,
         "meeting_stt" => ProviderTask::MeetingStt,
         "llm" => ProviderTask::Llm,
-        _ => return Err("Onbekende modeltaak.".into()),
+        _ => return Err("Unknown model task.".into()),
     };
     let shared = shared.inner().clone();
     blocking(move || {
@@ -593,9 +601,9 @@ pub fn open_log(app: AppHandle) -> Result<()> {
 }
 
 pub fn open_log_file(app: &AppHandle) -> Result<()> {
-    let path = diagnostics::file_path().ok_or("geen logboek")?;
+    let path = diagnostics::file_path().ok_or("no log file")?;
     if !path.exists() {
-        Log::new("app").info("logboek aangemaakt");
+        Log::new("app").info("log file created");
     }
     app.opener()
         .open_path(path.to_string_lossy(), None::<&str>)
@@ -609,10 +617,10 @@ pub fn open_path(path: String, app: AppHandle, shared: State<'_, Arc<Shared>>) -
         .canonicalize()
         .map_err(err)?;
     if path != root && path.parent() != Some(root.as_path()) {
-        return Err("Alleen de ingestelde meetingmap kan worden geopend.".into());
+        return Err("Only the configured meeting folder can be opened.".into());
     }
     if !path.is_dir() {
-        return Err("Geen meetingmap gevonden.".into());
+        return Err("No meeting folder found.".into());
     }
     app.opener()
         .open_path(path.to_string_lossy(), None::<&str>)
@@ -628,7 +636,7 @@ fn validate_meeting_id(id: &str) -> Result<()> {
         || !matches!(components.next(), Some(Component::Normal(_)))
         || components.next().is_some()
     {
-        return Err("Ongeldig meetingnummer.".into());
+        return Err("Invalid meeting identifier.".into());
     }
     Ok(())
 }
@@ -640,10 +648,10 @@ pub(crate) fn checked_meeting_dir(engine: &pennel_core::PennelEngine, id: &str) 
         .map_err(err)?;
     let directory = root.join(id).canonicalize().map_err(err)?;
     if directory.parent() != Some(root.as_path()) || !directory.is_dir() {
-        return Err("Meeting niet gevonden in de ingestelde meetingmap.".into());
+        return Err("Meeting not found in the configured meeting folder.".into());
     }
     if engine.meeting_info(id.to_owned()).is_none() {
-        return Err("Meeting niet gevonden.".into());
+        return Err("Meeting not found.".into());
     }
     Ok(directory)
 }
@@ -657,7 +665,7 @@ fn require_inactive_meeting(shared: &Shared, id: &str) -> Result<()> {
         .as_ref()
         .map(|context| context.session.id());
     if lifecycle.is_busy() && active_id.as_deref() == Some(id) {
-        return Err("Wacht tot de opname is afgerond.".into());
+        return Err("Wait until the recording has finished.".into());
     }
     Ok(())
 }
@@ -833,7 +841,8 @@ fn runtime_status(
             result.terminal_error = terminal;
             result.echo_cancellation_active = echo;
             if recording && !echo && shared.settings().echo_cancellation {
-                let explanation = "Echo-onderdrukking is niet actief. Gebruik een koptelefoon om dubbel geluid te vermijden.";
+                let explanation =
+                    "Echo cancellation is not active. Use headphones to avoid duplicate audio.";
                 let explanation = crate::ui::message(explanation);
                 result.audio_warning = Some(match result.audio_warning {
                     Some(warning) => format!("{warning} {explanation}"),
@@ -915,7 +924,7 @@ fn save_live_notes(shared: &Shared, text: String, session_id: &str) -> Result<()
             | pennel_core::RecordingPhase::Error
     ) || state.session_id.as_deref() != Some(session_id)
     {
-        return Err("Deze opnamesessie is niet meer beschikbaar om notities te wijzigen.".into());
+        return Err("This recording session is no longer available for editing notes.".into());
     }
     let session = shared
         .meeting_context
@@ -924,7 +933,7 @@ fn save_live_notes(shared: &Shared, text: String, session_id: &str) -> Result<()
         .as_ref()
         .filter(|context| context.token == session_id)
         .map(|context| context.session.clone())
-        .ok_or("geen meeting bezig")?;
+        .ok_or("no meeting in progress")?;
     session.set_notes(text).map_err(err)
 }
 
@@ -1165,12 +1174,12 @@ fn list_conflict_copies(directory: &Path) -> std::io::Result<Vec<String>> {
 
 fn remove_conflict_copy(directory: &Path, name: &str) -> std::result::Result<(), String> {
     if !is_conflict_copy_name(name) {
-        return Err("Alleen een conflictversie kan hier worden verwijderd.".into());
+        return Err("Only a conflict copy can be deleted here.".into());
     }
     let file = directory.join(name);
     let regular = std::fs::symlink_metadata(&file).is_ok_and(|meta| meta.file_type().is_file());
     if !regular {
-        return Err("Conflictversie niet gevonden.".into());
+        return Err("Conflict copy not found.".into());
     }
     std::fs::remove_file(file).map_err(|error| error.to_string())
 }
@@ -1232,7 +1241,7 @@ pub async fn ask_meetings(
     blocking(move || {
         let _library_job = meeting_runtime::LibraryJob::new(&shared)?;
         if question.trim().is_empty() {
-            return Err("Typ eerst een vraag.".into());
+            return Err("Type a question first.".into());
         }
         if let Some(id) = &meeting_id {
             checked_meeting_dir(&shared.engine, id)?;
@@ -1263,7 +1272,7 @@ pub async fn save_template(
     shared: State<'_, Arc<Shared>>,
 ) -> Result<String> {
     if name.trim().is_empty() {
-        return Err("Geef het sjabloon een naam.".into());
+        return Err("Give the template a name.".into());
     }
     let shared = shared.inner().clone();
     let saved = off_main("save_template", move || {
@@ -1408,7 +1417,7 @@ pub async fn rename_known_voice(
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
     if name.trim().is_empty() {
-        return Err("Geef de stem een naam.".into());
+        return Err("Give the voice a name.".into());
     }
     let shared = shared.inner().clone();
     off_main("rename_known_voice", move || {
@@ -1466,7 +1475,7 @@ pub async fn remember_speaker(
     shared: State<'_, Arc<Shared>>,
 ) -> Result<()> {
     if name.trim().is_empty() {
-        return Err("Geef de stem een naam om ze te onthouden.".into());
+        return Err("Give the voice a name to remember it.".into());
     }
     let shared = shared.inner().clone();
     off_main("remember_speaker", move || {
@@ -1496,7 +1505,7 @@ pub async fn export_meeting(
         checked_meeting_dir(&shared.engine, &id)?;
         shared
             .engine
-            .export_meeting(id, include_transcript)
+            .export_meeting_localized(id, include_transcript, shared.interface_language())
             .map_err(err)
     })
     .await
@@ -1560,18 +1569,16 @@ pub async fn check_cli_agent(
             .providers
             .into_iter()
             .find(|provider| provider.id == id)
-            .ok_or("Onbekende provider.")?;
+            .ok_or("Unknown provider.")?;
         if !account.kind.is_cli_agent() {
-            return Err("Deze provider is geen CLI-agent.".into());
+            return Err("This provider is not a CLI agent.".into());
         }
         let path = if account.base_url.is_empty() {
             pennel_core::detect_cli_agents()
                 .into_iter()
                 .find(|agent| agent.kind == account.kind)
                 .map(|agent| agent.path)
-                .ok_or(
-                    "Deze CLI-agent is niet geïnstalleerd. Installeer de agent en meld je aan.",
-                )?
+                .ok_or("This CLI agent is not installed. Install it and sign in.")?
         } else {
             account.base_url
         };
@@ -1604,6 +1611,29 @@ pub fn hide_window(window: tauri::Window) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nested_saving_failures_localize_each_owned_envelope_and_preserve_legacy_aliases() {
+        for prefix in ["Saving failed: ", "Save failed: ", "Bewaren mislukt: "] {
+            let source = format!("{prefix}storage error: the storage folder is missing");
+            assert_eq!(
+                localize_error_message_for_language(&source, pennel_core::InterfaceLanguage::Dutch),
+                "Bewaren mislukt: Opslagfout: de opslagmap ontbreekt"
+            );
+            assert_eq!(
+                localize_error_message_for_language(
+                    &source,
+                    pennel_core::InterfaceLanguage::English
+                ),
+                "Saving failed: Storage error: the storage folder is missing"
+            );
+        }
+        let untrusted = "Mijn eigen notitie: Bewaren mislukt: {error}";
+        assert_eq!(
+            localize_error_message_for_language(untrusted, pennel_core::InterfaceLanguage::English),
+            untrusted
+        );
+    }
 
     #[test]
     fn live_note_saves_keep_the_owned_session_and_surface_storage_failures() {

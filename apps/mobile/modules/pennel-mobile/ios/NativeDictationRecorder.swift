@@ -9,6 +9,7 @@ final class NativeDictationRecorder {
     private(set) var phase = Phase.idle
     private(set) var text = ""
     private(set) var error: String?
+    private(set) var errorCode: String?
     var level: Float { buffer.level }
     var changed: (() -> Void)?
 
@@ -63,6 +64,7 @@ final class NativeDictationRecorder {
         guard pendingStart == token, phase == .idle else { throw PennelError.Cancelled }
         generation += 1
         error = nil
+        errorCode = nil
         text = ""
         buffer.reset()
         let previewGeneration = generation
@@ -121,7 +123,9 @@ final class NativeDictationRecorder {
         case .success(let value):
             text = value.text
             UIPasteboard.general.setItems([["public.utf8-plain-text": value.text]], options: [.localOnly: true])
-        case .failure(let value): error = ErrorText.message(value)
+        case .failure(let value):
+            error = ErrorText.message(value)
+            errorCode = ErrorText.failureCode(value)
         }
         changed?()
     }
@@ -139,6 +143,7 @@ final class NativeDictationRecorder {
         phase = .idle
         text = ""
         error = nil
+        errorCode = nil
         changed?()
     }
 

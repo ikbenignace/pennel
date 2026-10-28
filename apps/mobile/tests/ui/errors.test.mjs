@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { localizedFailure, nativeFailure } from '../../src/errors.ts';
+import { localizedFailure, nativeFailure, ownedFailureText } from '../../src/errors.ts';
 import { recognitionActions } from '../../src/format.ts';
 
 test('native NSError envelopes retain diagnostic codes while English UI replaces Dutch backend literals', () => {
@@ -51,4 +51,38 @@ test('saved interrupted work can be discarded and cleanup failures offer removal
   assert.equal(recognitionActions({ stage: 'interrupted', recoverable: true, error: null }).cancel, true);
   assert.equal(recognitionActions({ stage: 'failed', recoverable: false, error: { code: 'speaker_cleanup' } }).cancel, true);
   assert.equal(recognitionActions({ stage: 'applying', recoverable: false, error: null }).cancel, false);
+});
+
+test('saved dictation and recording diagnostics relabel without changing the saved message', () => {
+  for (const message of ['Geen spraak herkend. Probeer opnieuw.', 'No speech recognized. Try again.']) {
+    assert.match(ownedFailureText('en', message), /No speech/);
+    assert.match(ownedFailureText('nl', message), /Geen spraak/);
+  }
+  const saved = 'De opname is gestopt omdat iOS Pennel heeft afgesloten.';
+  assert.match(ownedFailureText('en', saved), /iOS closed Pennel/);
+  assert.match(ownedFailureText('nl', saved), /iOS Pennel heeft afgesloten/);
+  assert.equal(saved, 'De opname is gestopt omdat iOS Pennel heeft afgesloten.');
+});
+
+test('stable failure codes select presentation independently of raw native diagnostics', () => {
+  assert.match(ownedFailureText('en', 'Geen toegang tot de microfoon.', 'microphone_denied'), /Allow microphone/);
+  assert.match(ownedFailureText('nl', 'Diagnostic in English', 'network'), /verbinding/);
+  assert.match(ownedFailureText('en', 'Recording stopped.', 'recording_gaps'), /Timestamps preserve the gaps/);
+  const content = 'Mijn notitie bevat privétekst.';
+  assert.equal(ownedFailureText('en', content).includes(content), false);
+  assert.equal(content, 'Mijn notitie bevat privétekst.');
+});
+
+test('provider key failures stay separate from Pennel Cloud sign-in failures', () => {
+  for (const code of ['provider_auth', 'http_401', 'http_403']) {
+    const english = localizedFailure('en', { code, message: 'Private provider details' });
+    const dutch = localizedFailure('nl', { code, message: 'Private provider details' });
+    assert.match(english, /provider.*API key/i);
+    assert.match(dutch, /API-sleutel/);
+    assert.equal(english.includes('Pennel Cloud'), false);
+    assert.equal(dutch.includes('Pennel Cloud'), false);
+  }
+  assert.match(localizedFailure('en', { code: 'not_signed_in', message: '' }), /Sign in to Pennel Cloud/);
+  assert.match(localizedFailure('en', { code: 'auth', message: '' }), /Sign in to Pennel Cloud/);
+  assert.match(ownedFailureText('en', 'API-sleutel geweigerd'), /API key/);
 });

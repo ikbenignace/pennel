@@ -47,7 +47,7 @@ impl HistoryStore {
             .map_err(PennelError::storage)?;
         if version > 1 {
             return Err(PennelError::Storage {
-                message: "de dicteergeschiedenis is gemaakt met een nieuwere Pennel-versie".into(),
+                message: "the dictation history was created with a newer version of Pennel".into(),
             });
         }
         conn.execute_batch(

@@ -28,7 +28,7 @@ export interface Settings {
 export interface Segment { start_ms: number; end_ms: number; speaker: 'me' | 'others'; text: string; failed: boolean; voice: number | null }
 export interface MeetingInfo { id: string; title: string; start_iso: string; duration_min: number; has_summary: boolean; sync_state?: 'synced' | 'pending' | 'conflict' }
 export interface MeetingVoice { voice: number; name: string | null; remembered: boolean; can_remember: boolean }
-export interface MeetingDetail { info: MeetingInfo; notes: string; summary: string | null; transcript: Segment[]; speakers: { voice: number; name: string }[]; voices?: MeetingVoice[]; attendees: string[]; audio_tracks: { speaker: 'me' | 'others'; available: boolean }[]; summary_outdated?: boolean; conflicts?: ConflictFile[]; interruption?: string | null }
+export interface MeetingDetail { info: MeetingInfo; notes: string; summary: string | null; transcript: Segment[]; speakers: { voice: number; name: string }[]; voices?: MeetingVoice[]; attendees: string[]; audio_tracks: { speaker: 'me' | 'others'; available: boolean }[]; summary_outdated?: boolean; conflicts?: ConflictFile[]; interruption?: string | null; interruption_code?: string | null }
 export interface ConflictFile { name: string; text?: string }
 export interface MeetingTemplate { id: string; name: string; builtin: boolean; customized: boolean }
 export interface HistoryEntry { id: string; created_at_ms: number; raw: string; text: string; status: 'done' | 'failed' | 'unsaved'; error: string | null; has_audio: boolean }
@@ -49,9 +49,9 @@ export interface RuntimeSnapshot {
   capabilities: Record<string, Capability>;
   kinds: ProviderKindInfo[];
   keys: Record<string, boolean>;
-  dictation: { phase: 'idle' | 'listening' | 'processing'; text: string | null; level: number; error: string | null };
-  session: { phase: 'off' | 'ready' | 'listening' | 'processing'; expires_at_ms: number | null; full_access_seen: boolean; keyboard_enabled?: boolean; error: string | null };
-  meeting: { phase: 'idle' | 'starting' | 'recording' | 'interrupted' | 'finishing' | 'error'; id: string | null; retained_id?: string | null; last_finished_id?: string | null; title: string; elapsed_secs: number; notes: string; transcript: Segment[]; pending: number; error: string | null };
+  dictation: { phase: 'idle' | 'listening' | 'processing'; text: string | null; level: number; error: string | null; error_code?: string | null };
+  session: { phase: 'off' | 'ready' | 'listening' | 'processing'; expires_at_ms: number | null; full_access_seen: boolean; keyboard_enabled?: boolean; error: string | null; error_code?: string | null };
+  meeting: { phase: 'idle' | 'starting' | 'recording' | 'interrupted' | 'finishing' | 'error'; id: string | null; retained_id?: string | null; last_finished_id?: string | null; title: string; elapsed_secs: number; notes: string; transcript: Segment[]; pending: number; error: string | null; error_code?: string | null };
   cloud: CloudState;
   recognition_jobs: SpeakerJob[];
   navigation?: { sequence: number; route: 'dictation' | 'meeting'; meeting_id?: string } | null;

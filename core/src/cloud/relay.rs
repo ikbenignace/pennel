@@ -1,4 +1,4 @@
-//! Claude-toegang relay: a long-poll channel through which Pennel Cloud hands this device the
+//! Claude access relay: a long-poll channel through which Pennel Cloud hands this device the
 //! questions Claude asks about the user's meetings. See `docs/claude-access.md`.
 
 use std::sync::Arc;

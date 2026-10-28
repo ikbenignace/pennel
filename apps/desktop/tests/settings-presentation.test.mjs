@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setInterfaceLanguage } from "../src/i18n.ts";
-import { localModelLanguageName, recordActionOptions, templateDisplayName } from "../src/settings-presentation.ts";
+import { localModelDisplayName, localModelLanguageName, recordActionOptions, templateDisplayName } from "../src/settings-presentation.ts";
 
 test("builtin template labels follow the interface while customized names stay literal", () => {
   const template = { id: "algemeen", name: "Algemeen", builtin: true, customized: false };
@@ -12,6 +12,16 @@ test("builtin template labels follow the interface while customized names stay l
   assert.equal(String(label), "General");
   assert.equal(templateDisplayName({ ...template, customized: true, name: "Mijn eigen inhoud {name}" }), "Mijn eigen inhoud {name}");
   assert.deepEqual(template, { id: "algemeen", name: "Algemeen", builtin: true, customized: false });
+});
+
+test("owned model names relabel live while vendor names stay literal", () => {
+  const source = { id: "pyannote-segmentation-3.0", name: "pyannote segmentation 3.0" };
+  setInterfaceLanguage("nl");
+  const name = localModelDisplayName(source);
+  assert.equal(String(name), "pyannote segmentatie 3.0");
+  setInterfaceLanguage("en");
+  assert.equal(String(name), source.name);
+  assert.equal(localModelDisplayName({ ...source, id: "vendor-model" }), source.name);
 });
 
 test("recording options retain stable values and language names follow the interface", () => {

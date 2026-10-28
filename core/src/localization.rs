@@ -95,9 +95,19 @@ const DUTCH: &[&str] = &[
 fn catalogs() -> &'static Catalogs {
     static CATALOGS: OnceLock<Catalogs> = OnceLock::new();
     CATALOGS.get_or_init(|| {
+        let english = merge(ENGLISH);
+        let dutch = merge(DUTCH);
         let mut sources: Vec<_> =
             parse_strings(include_str!("../../assets/locales/backend.sources.json"))
                 .into_iter()
+                .flat_map(|(key, legacy)| {
+                    let mut aliases = vec![legacy];
+                    aliases.extend(english.get(&key).cloned());
+                    aliases.extend(dutch.get(&key).cloned());
+                    aliases.sort();
+                    aliases.dedup();
+                    aliases.into_iter().map(move |alias| (key.clone(), alias))
+                })
                 .collect();
         // More specific messages win over a generic error-prefix template.
         sources.sort_by(|(a_key, a), (b_key, b)| {
@@ -106,8 +116,8 @@ fn catalogs() -> &'static Catalogs {
                 .then_with(|| a_key.cmp(b_key))
         });
         Catalogs {
-            english: merge(ENGLISH),
-            dutch: merge(DUTCH),
+            english,
+            dutch,
             backend_sources: sources,
         }
     })
@@ -479,6 +489,38 @@ mod tests {
     }
 
     #[test]
+    fn canonical_english_and_legacy_dutch_messages_follow_the_interface_language() {
+        for source in ["Not configured", "Niet ingesteld"] {
+            assert_eq!(
+                localize_ui_text(InterfaceLanguage::English, source),
+                "Not configured"
+            );
+            assert_eq!(
+                localize_ui_text(InterfaceLanguage::Dutch, source),
+                "Niet ingesteld"
+            );
+        }
+        let detail = "Mijn eigen notitie: {count}";
+        for source in [
+            format!("Saving failed: {detail}"),
+            format!("Bewaren mislukt: {detail}"),
+        ] {
+            assert_eq!(
+                localize_ui_text(InterfaceLanguage::English, &source),
+                format!("Saving failed: {detail}")
+            );
+            assert_eq!(
+                localize_ui_text(InterfaceLanguage::Dutch, &source),
+                format!("Bewaren mislukt: {detail}")
+            );
+        }
+        assert_eq!(
+            localize_ui_text(InterfaceLanguage::Dutch, "My note says: Not configured"),
+            "My note says: Not configured"
+        );
+    }
+
+    #[test]
     fn both_catalogs_cover_the_same_keys_and_placeholders() {
         let catalog = catalogs();
         assert_eq!(
@@ -530,6 +572,23 @@ mod tests {
                 placeholders(source).is_empty() || has_fixed_word(source),
                 "backend message needs a fixed word: {key}"
             );
+        }
+    }
+
+    #[test]
+    fn canonical_recording_and_transcript_guards_have_exact_dutch_aliases() {
+        for (source, dutch) in [
+            (
+                "the transcript contains lines that Pennel does not recognize",
+                "het transcript bevat regels die Pennel niet herkent",
+            ),
+            (
+                "the meeting is still recording or being finalized",
+                "de meeting wordt nog opgenomen of afgerond",
+            ),
+        ] {
+            assert_eq!(localize_ui_text(InterfaceLanguage::Dutch, source), dutch);
+            assert_eq!(localize_ui_text(InterfaceLanguage::Dutch, dutch), dutch);
         }
     }
 
