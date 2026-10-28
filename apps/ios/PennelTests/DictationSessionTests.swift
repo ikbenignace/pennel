@@ -95,12 +95,12 @@ private final class Harness {
         set { clock.now = newValue }
     }
 
-    init(meeting: FakeMeeting? = nil) {
+    init(meeting: FakeMeeting? = nil, activityLanguage: KeyboardInterfaceLanguage = .english) {
         let clock = TestClock()
         self.clock = clock
         session = DictationSession(
             capture: capture, audioSession: audio, runner: { [runner] in runner }, store: store,
-            activity: activity, notifications: center, duration: 300,
+            activity: activity, activityCopy: { ActivityCopy(language: activityLanguage) }, notifications: center, duration: 300,
             now: { clock.now }, timers: { _, _ in {} }, meeting: { meeting },
             observeCommands: false, requestPermission: { true })
     }
@@ -214,8 +214,9 @@ struct DictationSessionTests {
         #expect(h.client.session(now: h.now) == .off)
     }
 
-    @Test func interruption_stops_session() async throws {
-        let h = Harness()
+    @Test(arguments: [KeyboardInterfaceLanguage.english, .dutch])
+    func interruption_stops_session_in_the_selected_language(_ language: KeyboardInterfaceLanguage) async throws {
+        let h = Harness(activityLanguage: language)
         #expect(await h.session.start())
         try await h.send(.start, with: h.client)
         h.capture.feed([0.3])
@@ -228,7 +229,8 @@ struct DictationSessionTests {
         #expect(h.state?.phase == .off)
         #expect(h.capture.running == false)
         #expect(h.audio.active == false)
-        #expect(h.activity.ended == ["Sessie gestopt door een oproep."])
+        let expected = language == .english ? "Session stopped by a call." : "Sessie gestopt door een oproep."
+        #expect(h.activity.ended == [expected])
         #expect(h.runner.calls.isEmpty)
         #expect(h.result == nil)
 

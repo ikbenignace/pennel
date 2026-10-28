@@ -113,7 +113,7 @@ impl AudioArchive {
             return Err(error.clone());
         }
         let Some(sender) = self.sender.as_ref() else {
-            return Err("Audio-opslag is gesloten".into());
+            return Err("Audio storage is closed".into());
         };
         sender.try_send(command).map_err(|error| {
             let message = match error {

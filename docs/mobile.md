@@ -12,6 +12,7 @@ Tracking: [Expo migration #42](https://github.com/pennel-app/pennel/issues/42), 
 - One native-owned Rust engine. Recording, keyboard handoff, processing and synchronization do not depend on JavaScript remaining active.
 - iOS 26 minimum. No bundled local speech or speaker models. Private Apple providers and account-free ordinary use remain supported; Cloud is optional.
 - English and Dutch, system-first supported language with English fallback, independent of speech language and user content. Use canonical brand assets. Follow the shared [language policy](language-policy.md): English canonical diagnostics, localized owned failure messages, and literal user content. Older string-only keyboard/session failures remain readable alongside optional failure codes.
+
 - iOS uses Expo Router's native system tabs with Liquid Glass on iOS 26+, localized accessibility labels and system appearance. Keep native materials and system tab behavior.
 - Use [Expo Device Hub](mobile-device-hub.md) for simulator interaction, accessibility inspection and app-owned screenshots. It is a pinned development dependency, separate from the application runtime.
 - Desktop remains Tauri. Preserve the native SwiftUI iPhone shell until Expo parity and signed upgrade acceptance are established.
@@ -196,3 +197,22 @@ PENNEL_IOS_DESTINATION='generic/platform=iOS' npm run build:ios
 ```
 
 The first uses the script's iOS Simulator destination; the second produces `build/DerivedData/Build/Products/Release-iphoneos/Pennel.app`. The retained native app also passed an unsigned ARM64 Release device build. Matching Rust artifacts remain outside generated projects. Logs are retained locally under `build/verification/recording-2026-10-28`, with retained-app results under `apps/ios/build/BluetoothTestsRetry.xcresult`. See [recording format and Mac acceptance](recording-format.md); Windows/Linux CI and the affected-Mac Bluetooth call are still pending.
+
+## English defaults validation — 28 October 2026
+
+Tracked in [#51](https://github.com/pennel-app/pennel/issues/51), implemented in [PR #52](https://github.com/pennel-app/pennel/pull/52). Native error producers use English, while optional snapshot/handoff codes localize dictation, history, interruption and keyboard failures. HTTP provider-authentication failures retain provider-key guidance; Cloud sign-in remains separate. Session interruption and background-recording presentation use preference-aware activity copy. Custom content and stored transcript/citation markers remain unchanged.
+
+Validation commands from the repository root:
+
+```sh
+make mobile-prebuild
+make mobile-test
+npm --prefix apps/mobile run build:ios
+PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios
+make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0-F1F19690D2E4'
+make ios-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0-F1F19690D2E4'
+```
+
+Clean/repeated non-clean generation and actual pod/source ownership checks passed. Mobile typechecking, 46 UI tests, 64 Swift helper tests, 23 generated runtime tests and two keyboard tests passed. The retained native comparison passed 66 app tests and two keyboard tests, including deterministic English/Dutch interruption coverage. Simulator and unsigned iPhoneOS Release builds passed with isolated preview identities.
+
+These are local build/simulator results. Signed upgrades, physical recording/keyboard behavior, deployed localized email delivery and App Review remain separate acceptance gates. No production data, real mail or purchases were used.

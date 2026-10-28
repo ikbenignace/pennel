@@ -24,3 +24,11 @@ Core localized login initiation adds an optional request locale while retaining 
 Run `python3 -B -m unittest discover -s scripts/tests -p 'test_language_policy.py'` alongside core, desktop and native checks. It guards diagnostic producer literals; it deliberately excludes locale catalogs, test fixtures and frozen UI shells. Compatibility literals are narrowly listed in the test.
 
 Regression coverage must distinguish UI language from meeting language, preserve custom content and legacy errors, and keep citations/indexing intact. Mail and billing checks use fake transports. Build/simulator evidence does not establish signed-device, deployment or store acceptance.
+
+Local validation on 28 October 2026: 621 default and 610 lean core tests passed (existing ignored tests retained), along with 207 frontend, 209 desktop backend, 93 Mac platform and 56 script tests. The retained Mac core/tests/app and shared desktop preview app/DMG built; strict signature and disk-image integrity checks passed. Packaged permission text has an English base and both EN/NL native resources. Twenty owned EN/NL light/dark captures passed, including custom-draft preservation, live model labels and error presentation. Reproduce the focused browser checks with:
+
+```sh
+node scripts/capture-desktop-reference.mjs --case english-template-editor --case english-model-metadata --case english-recording-errors --case meeting-transcript --case settings-enrollment-dialog --locale both --appearance both --output build/english-defaults-qa
+```
+
+See [mobile validation](mobile.md#english-defaults-validation--28-october-2026) for native generation/build commands and the outstanding device gates. The English-source policy does not establish any particular provider/model's generated-language quality; prompt and synthetic fixture checks verify the requested policy and preservation rules.

@@ -629,5 +629,9 @@
   "backend.unrecognized_transcript_lines": "the transcript contains lines that Pennel does not recognize",
   "backend.meeting_recording_or_finalizing": "the meeting is still recording or being finalized",
   "backend.apple_dictation_unsupported_language": "Apple Dictation does not support {language}",
-  "backend.process_output_too_large": "Process output is too large"
+  "backend.process_output_too_large": "Process output is too large",
+  "backend.audio_storage_closed": "Audio storage is closed",
+  "backend.invalid_audio_timestamp_core": "invalid audio timestamp",
+  "backend.invalid_audio_length_core": "invalid audio length",
+  "backend.cloud_speaker_recognition_disabled": "Cloud speaker recognition was turned off."
 }

@@ -36,6 +36,7 @@ final class DictationSession {
     @ObservationIgnored private let runner: @MainActor () -> DictationRunning
     @ObservationIgnored private let server: HandoffServer
     @ObservationIgnored private let activity: SessionActivityControlling
+    @ObservationIgnored private let activityCopy: @MainActor () -> ActivityCopy
     @ObservationIgnored private let duration: @MainActor () -> TimeInterval
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private let timers: Timers
@@ -60,6 +61,7 @@ final class DictationSession {
         runner: @escaping @MainActor () -> DictationRunning,
         store: HandoffStore,
         activity: SessionActivityControlling,
+        activityCopy: @escaping @MainActor () -> ActivityCopy = { .current },
         notifications: NotificationCenter = .default,
         duration: TimeInterval = SessionClock.Duration.fiveMinutes.rawValue,
         durationSource: (@MainActor () -> TimeInterval)? = nil,
@@ -74,6 +76,7 @@ final class DictationSession {
         self.runner = runner
         server = HandoffServer(store: store, observesSignals: observeCommands)
         self.activity = activity
+        self.activityCopy = activityCopy
         self.duration = durationSource ?? { duration }
         self.now = now
         self.timers = timers
@@ -175,7 +178,7 @@ final class DictationSession {
         generation += 1
         server.publish(SessionState(phase: .off, expiresAt: nil, heartbeatAt: now(), level: 0))
         server.purgeExpiredResult(now: now())
-        activity.end(message: reason == .interrupted ? "Session stopped by a call." : nil)
+        activity.end(message: reason == .interrupted ? activityCopy().text(.sessionStoppedByCall) : nil)
         Self.log.info("session off: \(reason.rawValue, privacy: .public)")
     }
 

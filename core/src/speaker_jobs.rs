@@ -516,7 +516,7 @@ impl SpeakerRecognitionJob {
         for (index, (offset, length)) in ranges.into_iter().enumerate().skip(first) {
             let session = session.as_ref().expect("pending upload has a session");
             if engine.settings().speaker_recognition != SpeakerRecognitionMode::Cloud {
-                return Err(invalid("Sprekerherkenning via Pennel Cloud is uitgezet."));
+                return Err(invalid("Cloud speaker recognition was turned off."));
             }
             self.validate_source(&engine, reader)?;
             let path = self.spool(reader, offset, length)?;

@@ -629,5 +629,9 @@
   "backend.unrecognized_transcript_lines": "het transcript bevat regels die Pennel niet herkent",
   "backend.meeting_recording_or_finalizing": "de meeting wordt nog opgenomen of afgerond",
   "backend.apple_dictation_unsupported_language": "Apple-dicteren ondersteunt {language} niet",
-  "backend.process_output_too_large": "Procesuitvoer is te groot"
+  "backend.process_output_too_large": "Procesuitvoer is te groot",
+  "backend.audio_storage_closed": "Audio-opslag is gesloten",
+  "backend.invalid_audio_timestamp_core": "ongeldige audiotijd",
+  "backend.invalid_audio_length_core": "ongeldige audiolengte",
+  "backend.cloud_speaker_recognition_disabled": "Sprekerherkenning via Pennel Cloud is uitgezet."
 }

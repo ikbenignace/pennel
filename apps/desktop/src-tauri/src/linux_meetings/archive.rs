@@ -224,7 +224,7 @@ impl AudioArchive {
             return Err(error.clone());
         }
         let Some(sender) = &self.sender else {
-            return Err("Audio-opslag is gesloten".into());
+            return Err("Audio storage is closed".into());
         };
         sender.try_send(block).map_err(|error| {
             let message = match error {

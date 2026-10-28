@@ -8,7 +8,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LITERAL = re.compile(r'"(?:\\.|[^"\\])*"')
 DUTCH_DIAGNOSTIC = re.compile(
-    r"\b(?:mislukt|geweigerd|opkuis|sleutelhanger|toestemming|"
+    r"\b(?:mislukt|geweigerd|gesloten|ongeldig|ongeldige|sprekerherkenning|opkuis|sleutelhanger|toestemming|"
     r"niet beschikbaar|niet ondersteund|kan niet|kon niet|niet worden|"
     r"wordt al|wordt nog|wordt afgesloten)\b",
     re.IGNORECASE,

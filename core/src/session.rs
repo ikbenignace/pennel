@@ -405,7 +405,7 @@ impl MeetingSession {
             Some(ms) => {
                 ms.checked_mul(u64::from(SAMPLE_RATE)).ok_or_else(|| {
                     PennelError::InvalidResponse {
-                        message: "ongeldige audiotijd".into(),
+                        message: "invalid audio timestamp".into(),
                     }
                 })? / 1000
             }
@@ -418,7 +418,7 @@ impl MeetingSession {
         }
         let end = start.checked_add(samples.len() as u64).ok_or_else(|| {
             PennelError::InvalidResponse {
-                message: "ongeldige audiolengte".into(),
+                message: "invalid audio length".into(),
             }
         })?;
         if end <= *count {
