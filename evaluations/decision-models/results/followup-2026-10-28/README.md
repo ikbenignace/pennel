@@ -12,7 +12,7 @@ This follow-up completes the original Mercury timing panel, measures current-cor
 | Answerability / support | Original bounded typed classifiers pass point gates. Actual generated Q&A adds unsupported Wi-Fi/access-code equivalence and gender attributes; all three languages miss the 98% grounding requirement. | Retain explicit sources/user review; defer automated verifier rollout until generated-claim transfer and product contracts are validated. |
 | Actions / decisions / questions | Diverse-owner component quality varies by model/language. Current-core summary checkboxes promote tentative or unassigned work into actions. | Defer automatic structured extraction; use the qualified components for bounded prototypes, not independent claim of end-to-end reliability. |
 | Templates | Calibrated passes: EN Jev; NL Decider; mixed Jev/Decider/Flash. No provider passes all languages. | Retain manual selection; defer rollout. Do not replace frozen calibrated gates with favorable raw scores. |
-| Speaker names | All five pass EN/mixed point gates; only Clef passes NL. Raw models sometimes force ambiguous names; calibration abstains. | Retain explicit names; defer bounded candidate-list suggestions pending broader calibration and product acceptance. |
+| Speaker names | All five pass EN/mixed point gates; only Clef passes NL among hosted providers. Local GLiClass also passes NL/mixed fixed-name point gates in the separate cached comparison. Raw models sometimes force ambiguous names; calibration abstains. | Retain explicit names; defer bounded candidate-list suggestions pending broader calibration and product acceptance. |
 | Cleanup | Current-core EN/NL generated examples preserve fidelity; mixed examples translate the English date phrase. The existing guard accepts both language failures. Original calibrated Decider/Flash/Mercury verifier results remain separate. | Retain raw fallback and explicit user control; defer model changes until end-to-end language-preservation validation. |
 
 ## Protocol and provenance
@@ -98,7 +98,7 @@ The false-action examples include turning “might book; have not committed” i
 
 Each cell has 12 meeting groups, with authored/reversed labels kept together. Both orders are evaluated; no favorable order is selected. Brier/ECE use probability-bearing cases independently of selection, while missing outputs remain in the full quality/coverage denominator. Class and decline-label precision/recall/F1, selective curves and owner error counts are in the replayable JSON.
 
-The preregistered calibrated macro-F1 counts threshold abstentions as false negatives. For example, standard Decider has perfect raw EN template classification, but calibrated macro-F1 is 0.6000 at 50% positive coverage. That is a frozen-policy failure, not a reclassification error; switching to the raw score after testing would change the experiment. Raw Flash template F1 is 0.8993, below the 0.90 requirement. Raw forced ambiguous names occur for Jev and Clef; calibrated forced-name count is zero in every cell. Dutch name coverage is 0.2500 Jev, 0.3750 Decider/Flash and 0.4583 Mercury; only Clef reaches the frozen coverage gate.
+The preregistered calibrated macro-F1 counts threshold abstentions as false negatives. For example, standard Decider has perfect raw EN template classification, but calibrated macro-F1 is 0.6000 at 50% positive coverage. That is a frozen-policy failure, not a reclassification error; switching to the raw score after testing would change the experiment. Raw Flash template F1 is 0.8993, below the 0.90 requirement. Raw forced ambiguous names occur for Jev and Clef; calibrated forced-name count is zero in every cell. Dutch name coverage is 0.2500 Jev, 0.3750 Decider/Flash and 0.4583 Mercury; only Clef reaches the frozen coverage gate among hosted providers.
 
 Raw label-order disagreement occurs only in Flash templates: EN 1/12, NL 3/12 and mixed 1/12. The Clef EN template pair containing the gateway error is incomplete and is not reported as an agreeing pair. All other evaluable pairs agree. These are small-sample point results, not calibrated reliability guarantees.
 
@@ -217,3 +217,17 @@ python3 evaluations/decision-models/generate.py \
 These commands require no key, paid request, model download or optional model dependency. Temperature normalization uses explicit compensated math.fsum to preserve the original Python3.14 selections on Python3.11; no fit, cutoff or label changed. Reports otherwise differ only by floating-point roundoff; counts and gates stay fixed. The [guide](../../../../docs/decision-model-evaluation.md), frozen manifests and archived continuation scripts document explicit live commands. Future source/hardware/route changes need a new declared experiment, not relabelling these predictions or resetting the shared ledger.
 
 [Issue #53](https://github.com/pennel-app/pennel/issues/53) · [PR #64](https://github.com/pennel-app/pennel/pull/64) · [Retrieval coordination #43](https://github.com/pennel-app/pennel/issues/43) · [Provider contracts #54](https://github.com/pennel-app/pennel/issues/54). Keep the issue open for review/merge and any explicitly unavailable evidence; no production feature is enabled.
+
+## Cached local classifiers on the repaired corpus
+
+The same v2 cases were also run through the already-downloaded GLiClass multilingual and GLiNER classifiers, frozen in `fbad0ff` before calibration and testing. Both runs contain 432 successful cases; offline replay needs no worker/model installation. There were no hosted calls, new model downloads or additional charges.
+
+Owner and template quality fails in every language for both models. GLiClass fixed-candidate names pass Dutch (precision 1.0 / coverage 58.3%) and mixed (1.0/66.7%) point gates with no forced ambiguous names; English coverage 33.3% fails. GLiNER returns actual labels without complete distributions, so its calibrated path explicitly abstains and Brier/ECE are unavailable. This improves the evidence for a bounded local name-verification prototype; retain explicit names pending broader calibration and product/native-runtime acceptance. It does not establish open-vocabulary or acoustic speaker identification.
+
+Peak owned RSS is 1,651,933,184 bytes for GLiClass and about 3.58 GB for GLiNER, below 24 GiB. Load times and one-pass case latency are in the [local comparison](supplement-local/README.md); original fixed repeat panels remain separate. GTE is ranking-only; Q8 reference parity and larger artifacts remain deferred.
+
+```sh
+python3 evaluations/decision-models/followup.py --offline \
+  --replay evaluations/decision-models/results/followup-2026-10-28/supplement-local \
+  --output build/decision-model-evaluation/replay-local-suggestions
+```

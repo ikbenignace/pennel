@@ -15,5 +15,12 @@
   "model_downloads_this_followup": 0,
   "production_settings_credentials_defaults_changed": false,
   "replay_math": "Explicit compensated temperature normalization preserves every recorded Python3.14 selection onPython3.11; fits and cutoffs unchanged.",
-  "remaining": "Clef updated-prompt timing235warm slots unavailable after repeatedHTTP429; original Clef panel remains preserved. Server/Q8/nativepackage/device gates remain explicitlydeferred."
+  "remaining": "Clef updated-prompt timing235warm slots unavailable after repeatedHTTP429; original Clef panel remains preserved. Server/Q8/nativepackage/device gates remain explicitlydeferred.",
+  "local_supplement": {
+    "calibration_successful": 432,
+    "heldout_successful": 432,
+    "hosted_requests": 0,
+    "new_download_bytes": 0,
+    "freeze_commit": "fbad0ff"
+  }
 }

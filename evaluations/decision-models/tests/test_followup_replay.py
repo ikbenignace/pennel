@@ -57,6 +57,12 @@ class FollowupReplayTests(unittest.TestCase):
                 self.assert_portable(original[key], replayed[key])
             self.assertEqual(replayed['calibrated']['heldout_rows'], 1080)
             self.assertEqual(replayed['status_counts'], {'error': 1, 'ok': 1079})
+            original = read_gzip(self.directory / 'supplement-local/report.json.gz')
+            local = followup.replay(self.directory / 'supplement-local')
+            for key in ('live', 'calibrated', 'feasibility', 'calibration_sha256'):
+                self.assert_portable(original[key], local[key])
+            self.assertEqual(local['calibrated']['heldout_rows'], 432)
+            self.assertEqual(local['status_counts'], {'ok': 432})
             original = read_gzip(self.directory / 'generative/report.json.gz')
             replayed = generate.report(self.directory / 'generative')
             self.assert_portable(original['languages'], replayed['languages'])

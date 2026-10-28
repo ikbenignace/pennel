@@ -1,8 +1,8 @@
 {
   "files": {
     "README.md": {
-      "bytes": 22272,
-      "sha256": "aca65d9625953d24c65d273fd6a11d2ce7ccfd363e01dfbe8b7afc8d2e97ebcd"
+      "bytes": 23944,
+      "sha256": "6dadea8f249b29b2f3efd7013fc829d88aee13ee75161e92f5af90fc288aac0e"
     },
     "audit/commands/complete-supplement-calibration.py.txt": {
       "bytes": 2515,
@@ -221,8 +221,48 @@
       "sha256": "8546bd2bd25e0d2860ed9d4e3bf6183610fe4320946449807dbda320dbef3036"
     },
     "summary.json": {
-      "bytes": 32949,
-      "sha256": "2e9f3a9cb1bb8f564eeaed73bfbba4713815d7d061fc39196e779175a695b65f"
+      "bytes": 33294,
+      "sha256": "ebefe78ca2efc4cec8a2777a217f14a83e7d14534fcd74f07aa83bd055527486"
+    },
+    "supplement-local/README.md": {
+      "bytes": 3229,
+      "sha256": "29acaf124cf924a872fdff8927801373e0ad83b4e4629084db7db835ffde5bf9"
+    },
+    "supplement-local/availability.json": {
+      "bytes": 3742,
+      "sha256": "cf51135761bc71ee70cd2e2d8d33abf359cef35af017b5d3c574db5b920a2a06"
+    },
+    "supplement-local/calibration-execution.json": {
+      "bytes": 328,
+      "sha256": "825d058ceeb4482271f1803c076edc15d48e19ae705595f98e77400b444d8f01"
+    },
+    "supplement-local/calibration-predictions.jsonl.gz": {
+      "bytes": 54474,
+      "sha256": "e6609965b53f148a79564c965275024f74da571f3c9aef120bf180d63aa97e2b"
+    },
+    "supplement-local/calibration.json": {
+      "bytes": 167229,
+      "sha256": "98daf4a28287ef8f8884a73c9310a34dbbbd26e68b1cf999cd97ab9cd366b693"
+    },
+    "supplement-local/execution.json": {
+      "bytes": 324,
+      "sha256": "e45a8982a120f8d2fce9ad6db25a622d115e481f177ee518babd1fef7ef327e2"
+    },
+    "supplement-local/manifest.json": {
+      "bytes": 86255,
+      "sha256": "15749841f5e6f3281e433a83ad5e44358e4f8cfc824a326bd6ce6ae9b9c51774"
+    },
+    "supplement-local/predictions.jsonl.gz": {
+      "bytes": 54837,
+      "sha256": "80a4253f1f122615ecc18cd32d4d128e5cba9cd95e736e99d33a5646a4235f01"
+    },
+    "supplement-local/report.json.gz": {
+      "bytes": 27667,
+      "sha256": "3e989ac231056797288e843d4e998ce17efbba9ef8b0a200d1b2035f4a811e72"
+    },
+    "supplement-local/summary.json": {
+      "bytes": 14005,
+      "sha256": "ec9cffcbe47f26ccb4ab5f33a314f2170e81f2480f54d7b34eebcd4d6495976a"
     },
     "supplement/availability.json": {
       "bytes": 33004,
@@ -281,8 +321,8 @@
       "sha256": "3c5bcdce0129f719e4737cf41643a0522d6dba4022164dc5b07a85716f413727"
     },
     "verification.json": {
-      "bytes": 825,
-      "sha256": "7b76c9e63605cd5dc2462e50a17af0cb28964ac14286f8ea0a3a569483c01c2a"
+      "bytes": 1006,
+      "sha256": "837af67d1c1ed2173e612fb872485b8fbe53f230f74e201606a47282cfaf8527"
     }
   },
   "financial_policy": "One cumulative ledger is archived once; nested resource summaries reference it. No ledger balance or credential is reset.",

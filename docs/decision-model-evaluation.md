@@ -315,3 +315,15 @@ temperature-scaling cutoff. Normalization now uses explicit compensated `math.fs
 Replay preserves every recorded Python 3.14 selection and gate on Python 3.11 without
 changing fits, cutoffs or labels. Residual display-level roundoff is compared with the
 same numerical tolerance as the original replay tests.
+
+Cached GLiClass multilingual and GLiNER classifiers also ran on the same repaired corpus:
+432 successful calibration cases and 432 successful held-out cases, with no new downloads
+or hosted calls. Their owner/template gates fail; GLiClass candidate-name suggestions meet
+Dutch/mixed point gates but English coverage fails. GLiNER has no complete distribution for
+the calibrated path. These remain bounded research results with native packaging deferred.
+
+```sh
+python3 evaluations/decision-models/followup.py --offline \
+  --replay evaluations/decision-models/results/followup-2026-10-28/supplement-local \
+  --output build/decision-model-evaluation/replay-local-suggestions
+```
