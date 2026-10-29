@@ -24,7 +24,10 @@ export function cleanupVerificationDestination(status?: CleanupVerificationAvail
     const url = new URL(status.endpoint);
     if (!["https:", "http:"].includes(url.protocol)) return t("dictation.verification.none");
     const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    if (host === "localhost" || host === "::1" || /^127\./.test(host)) return t("dictation.verification.current_device", { host: url.host });
+    const octets = host.split(".");
+    const loopbackIpv4 = octets.length === 4 && octets[0] === "127"
+      && octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255);
+    if (host === "localhost" || host === "::1" || loopbackIpv4) return t("dictation.verification.current_device", { host: url.host });
     return url.host;
   } catch {
     return t("dictation.verification.none");

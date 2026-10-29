@@ -38,6 +38,22 @@ test("destinations hide URL secrets and explain device-local processing in Engli
   }
 });
 
+test("a remote domain beginning with 127 is never described as processing on this computer", () => {
+  for (const language of ["en", "nl"]) {
+    setInterfaceLanguage(language);
+    for (const endpoint of ["https://127.evil.invalid/v1", "https://128.0.0.1/v1"]) {
+      const destination = cleanupVerificationDestination({ ...status, endpoint });
+      assert.equal(destination, new URL(endpoint).host);
+      assert.doesNotMatch(destination, /this computer|deze computer/);
+    }
+    for (const endpoint of ["http://127.40.50.60:8080/v1", "http://[::1]:8080/v1", "http://localhost:8080/v1"]) {
+      const destination = cleanupVerificationDestination({ ...status, endpoint });
+      assert.match(destination, language === "en" ? /this computer/ : /deze computer/);
+      assert.match(destination, /8080/);
+    }
+  }
+});
+
 test("current session copy explains invalidation and Fast bypass without exposing template placeholders", () => {
   for (const language of ["en", "nl"]) {
     setInterfaceLanguage(language);
