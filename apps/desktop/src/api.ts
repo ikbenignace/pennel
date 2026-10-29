@@ -101,6 +101,7 @@ export interface DictationSessionSnapshot {
   target_name: string | null;
   external_paste_available: boolean;
   external_paste_reason: string | null;
+  cleanup_verification?: CleanupVerificationAvailability | null;
 }
 
 export interface Capability {
@@ -184,6 +185,14 @@ export interface InferenceIdentity {
   actual_revision: string | null;
   request_id: string | null;
 }
+export interface CleanupVerificationAvailability {
+  enabled: boolean;
+  available: boolean;
+  reason_code: string;
+  provider_id: string | null;
+  model: string | null;
+  endpoint: string | null;
+}
 export interface InferenceUsage { input_tokens: number | null; output_tokens: number | null; billed_cost_usd: number | null }
 export type DecisionQuestionKind = "binary" | "choice" | "ordinal" | "extract";
 export interface DecisionQuestion { id: string; kind: DecisionQuestionKind; instructions: string; options: { id: string; description: string }[] }
@@ -217,6 +226,7 @@ export interface Settings {
   llm: ModelChoice;
   decision?: InferenceConfig | null;
   reranking?: InferenceConfig | null;
+  cleanup_verification_enabled?: boolean;
   mode: "fast" | "clean";
   language: string | null;
   dictionary: string[];
@@ -260,6 +270,7 @@ export interface AppInfo {
   settings: Settings;
   keys: Record<string, boolean>;
   provider_revisions?: Record<string, number>;
+  cleanup_verification?: CleanupVerificationAvailability;
   active_model_downloads?: string[];
   unsaved_history_count?: number;
   kinds: KindInfo[];
@@ -464,7 +475,7 @@ export interface PillPreview {
 export type PillState = (
   | { state: "hidden" | "listening" | "hands_free" | "command" | "working" }
   | { state: "error"; message: string }
-) & { preview?: PillPreview | null };
+) & { preview?: PillPreview | null; cleanup_verification?: CleanupVerificationAvailability | null };
 
 export interface UpdateInfo {
   available: boolean;
@@ -622,6 +633,7 @@ export const api = {
     invoke<{ verified: boolean; message: string }>("test_provider_task", { slot }),
   inferenceProtocols: () => invoke<InferenceProtocolInfo[]>("inference_protocols"),
   inferenceAvailability: (capability: InferenceCapability) => invoke<InferenceAvailability>("inference_availability", { capability }),
+  cleanupVerificationAvailability: () => invoke<CleanupVerificationAvailability>("cleanup_verification_availability"),
   decide: (request: DecisionRequest, requestId: string) => invoke<DecisionResult>("inference_decide", { request, requestId }),
   rerank: (request: RerankRequest, requestId: string) => invoke<RerankResult>("inference_rerank", { request, requestId }),
   verifyInference: (capability: InferenceCapability, requestId: string) => invoke<InferenceVerification>("verify_inference", { capability, requestId }),

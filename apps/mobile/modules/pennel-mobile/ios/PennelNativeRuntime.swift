@@ -32,7 +32,7 @@ public final class PennelNativeRuntime {
     private var recognitionWatches: [String: Task<Void, Never>] = [:]
     private var finishBudgetGeneration: UInt64 = 0
     private var settingsTail: Task<Void, Never>?
-    private let inferenceRequests = NativeInferenceRequests()
+    private lazy var inferenceRequests = NativeInferenceRequests(engine: model.engine)
     private var inferenceKeyRevisions: [String: UInt64] = [:]
     private var lastPublishedLanguage: String?
     private static let automaticConsent = "pennel.mobile.cloudSpeakerAutomaticConsent"
@@ -139,6 +139,7 @@ public final class PennelNativeRuntime {
         case "dictation.start": try await startDictation(); return try snapshot()
         case "dictation.stop": await dictation.stop(); return try snapshot()
         case "dictation.cancel": dictation.cancel(); return try snapshot()
+        case "dictation.verificationAvailability": return try BridgeJSON.encode(BridgeJSON.cleanupVerification(engine.cleanupVerificationAvailability()))
         case "dictation.copy":
             guard let text = input.values["text"] as? String else { throw PennelBridgeError("invalid_request", "Missing text.") }
             copy(text, html: input.values["html"] as? String)
@@ -807,7 +808,7 @@ extension PennelNativeRuntime {
             self.publishKeyboardPreferences()
             return try BridgeJSON.encode(self.settingsProjection())
         }
-        if changed["decision"] != nil || changed["reranking"] != nil || changed["providers"] != nil {
+        if ["decision", "reranking", "providers", "cleanup_verification_enabled", "mode", "language", "dictionary", "style_rules", "llm"].contains(where: { changed[$0] != nil }) {
             return try await inferenceRequests.changingConfiguration(apply)
         }
         return try await apply()
@@ -930,11 +931,12 @@ extension PennelNativeRuntime {
         let session = DictationSession.shared
         var value: [String: Any] = [
             "ready": true, "platform": "ios", "settings": try settingsProjection(), "inference_key_revisions": inferenceKeyRevisions,
+            "cleanup_verification": BridgeJSON.cleanupVerification(model.engine.cleanupVerificationAvailability()),
             "capabilities": capabilities(), "kinds": kindCatalog(),
             "keys": Dictionary(uniqueKeysWithValues: model.settings.providers.map { ($0.id, Keychain.hasKey(for: $0.id)) }),
-            "dictation": ["phase": dictation.phase.rawValue, "text": dictation.text, "level": dictation.level, "error": BridgeJSON.optional(dictation.error), "error_code": BridgeJSON.optional(dictation.errorCode)] as [String: Any],
+            "dictation": ["phase": dictation.phase.rawValue, "text": dictation.text, "level": dictation.level, "error": BridgeJSON.optional(dictation.error), "error_code": BridgeJSON.optional(dictation.errorCode), "cleanup_verification": BridgeJSON.optional(dictation.cleanupVerification.map(BridgeJSON.cleanupVerification))] as [String: Any],
             "session": ["phase": session.phase.rawValue, "expires_at_ms": BridgeJSON.optional(session.expiresAt.map { $0.timeIntervalSince1970 * 1_000 }),
-                        "full_access_seen": KeyboardFullAccess.seen(in: KeyboardLayout.groupDefaults), "error": BridgeJSON.optional(session.startError), "error_code": BridgeJSON.optional(session.startErrorCode)] as [String: Any],
+                        "full_access_seen": KeyboardFullAccess.seen(in: KeyboardLayout.groupDefaults), "error": BridgeJSON.optional(session.startError), "error_code": BridgeJSON.optional(session.startErrorCode), "cleanup_verification": BridgeJSON.optional(session.cleanupVerificationAvailability.map(BridgeJSON.cleanupVerification))] as [String: Any],
             "meeting": ["phase": phase(runtime.phase), "id": BridgeJSON.optional(runtime.activeMeetingId), "title": runtime.title,
                         "retained_id": BridgeJSON.optional(runtime.retainedId), "last_finished_id": BridgeJSON.optional(runtime.lastFinish?.id),
                         "elapsed_secs": Double(runtime.elapsedMs) / 1_000, "notes": runtime.notes,

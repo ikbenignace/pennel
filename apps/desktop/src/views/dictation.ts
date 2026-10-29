@@ -1,10 +1,11 @@
-import { bindLocalization, l, localizeBackendText, type UiText } from "../i18n.ts";
+import { bindLocalization, l, liveText, localizeBackendText, t, type UiText } from "../i18n.ts";
 import { api, type HotkeyTrigger, type Style } from "../api";
 import { errorText, h, section, select, toggle } from "../dom";
 import type { Context } from "../main";
 import { icon } from "../icons";
 import { appBadge } from "../app-icon";
 import { applicationLabel } from "../presentation";
+import { cleanupVerificationControl, cleanupVerificationDestination, cleanupVerificationReason } from "../cleanup-verification-state.ts";
 
 function hotkeys(platform: string): [HotkeyTrigger, UiText][] {
   return platform === "macos"
@@ -37,6 +38,21 @@ function radio(name: string, value: string, current: string, label: UiText, onPi
 export function dictationView(ctx: Context): HTMLElement {
   const s = ctx.info.settings;
   const linux = ctx.info.platform === "linux";
+  const verification = ctx.info.cleanup_verification;
+  const control = cleanupVerificationControl(s, verification);
+  const verificationSettings = section(l("dictation.verification.title"), l("dictation.verification.help"),
+    toggle(l("dictation.verification.title"), control.enabled, (enabled) => {
+      void ctx.save((settings) => { settings.cleanup_verification_enabled = enabled; }).catch((error) => {
+        ctx.report(error);
+        ctx.rerender();
+      });
+    }, { status: control.disabled ? "unavailable" : "available", reason: null }),
+    h("p", { class: "help" }, l(control.enabled ? "dictation.verification.saved_enabled" : "dictation.verification.saved_disabled")),
+    h("p", { class: "help", role: "status" }, liveText(() => control.enabled && verification?.available && s.mode === "clean"
+      ? t("dictation.verification.active") : cleanupVerificationReason(verification))),
+    h("p", { class: "help" }, liveText(() => t("dictation.verification.destination", { destination: cleanupVerificationDestination(verification) }))),
+    h("button", { class: "text-button", onclick: () => ctx.navigate("models") }, l("navigation.models")));
+  verificationSettings.dataset.cleanupVerification = "true";
   return h(
     "div",
     { class: "dictation-settings" },
@@ -48,6 +64,7 @@ export function dictationView(ctx: Context): HTMLElement {
       ),
       radio("mode", "fast", s.mode, l("dictation.mode.fast"), () => ctx.save((n) => (n.mode = "fast"))),
     ),
+    verificationSettings,
     section(
       l("dictation.shortcut.title"),
       l("dictation.shortcut.help"),

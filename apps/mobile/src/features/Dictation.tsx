@@ -7,6 +7,7 @@ import { clock, dateLabel } from '../format';
 import { Actions, Body, Button, Empty, Loading, Notice, Page, Row, Section, confirm } from '../components/ui';
 import { Wave } from '../components/Wave';
 import { ownedFailureText } from '../errors';
+import { ActiveCleanupVerification } from './CleanupVerification';
 
 export default function Dictation() {
   const { snapshot, busy, run, t, theme, language } = useRuntime();
@@ -36,6 +37,7 @@ export default function Dictation() {
       <Row title={sessionTitle} subtitle={session?.error ? ownedFailureText(language, session.error, session.error_code) : undefined} />
       <Button title={t(session && session.phase !== 'off' ? 'mobile.session.stop' : 'mobile.session.start')} subtle busy={busy.has('session')} disabled={!snapshot?.ready} onPress={() => void run('session', session && session.phase !== 'off' ? 'session.stop' : 'session.start')} />
       <Notice>{t('mobile.keyboard.goal')}</Notice>
+      {(session?.phase === 'listening' || session?.phase === 'processing') && phase === 'idle' && <ActiveCleanupVerification />}
     </Section>
     <Section description={t('mobile.dictation.help')}>
       <Pressable accessibilityRole="button" accessibilityLabel={t(phase === 'listening' ? 'dictation.pad.stop' : phase === 'processing' ? 'dictation.pad.processing' : 'mobile.dictate')} accessibilityHint={t('mobile.dictation.help')} accessibilityState={{ disabled: !snapshot?.ready || phase === 'processing', busy: phase === 'processing' }} disabled={!snapshot?.ready || phase === 'processing'} delayLongPress={220} onPressIn={() => { held.current = false; released.current = false; }} onLongPress={() => { if (phase !== 'idle') return; held.current = true; heldStart.current = start(); }} onPressOut={finishHold} onPress={() => { if (held.current) return; void (phase === 'listening' ? stop() : start()); }} style={({ pressed }) => ({ borderRadius: theme.radius.panel, backgroundColor: theme.colors['pill-background'], padding: theme.space[6], alignItems: 'center', gap: theme.space[3], opacity: pressed ? 0.85 : 1 })}>
@@ -43,6 +45,7 @@ export default function Dictation() {
         <Text style={{ fontFamily: theme.font.medium, fontSize: theme.size.section, color: theme.colors['pill-text'] }}>{t(phase === 'listening' ? 'dictation.pad.listening' : phase === 'processing' ? 'dictation.pad.processing' : 'mobile.dictate')}</Text>
       </Pressable>
       {(phase === 'listening' || phase === 'processing') && <Button title={t('common.cancel')} subtle onPress={() => void run('dictation-cancel', 'dictation.cancel')} />}
+      {(phase === 'listening' || phase === 'processing') && <ActiveCleanupVerification />}
       {snapshot?.dictation.error && <Notice error>{ownedFailureText(language, snapshot.dictation.error, snapshot.dictation.error_code)}</Notice>}
       {snapshot?.dictation.text ? <><Body selectable>{snapshot.dictation.text}</Body><Button title={t('common.copy')} icon="copy-outline" subtle onPress={() => void run('copy', 'dictation.copy', { text: snapshot.dictation.text })} /></> : null}
     </Section>

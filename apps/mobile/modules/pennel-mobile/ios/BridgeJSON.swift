@@ -80,6 +80,10 @@ enum BridgeJSON {
     static func inferenceVerification(_ value: InferenceVerification) -> [String: Any] {
         ["verified": value.verified, "message": value.message, "identity": optional(value.identity.map(inferenceIdentity))]
     }
+    static func cleanupVerification(_ value: CleanupVerificationAvailability) -> [String: Any] {
+        ["enabled": value.enabled, "available": value.available, "reason_code": value.reasonCode,
+         "provider_id": optional(value.providerId), "model": optional(value.model), "endpoint": optional(value.endpoint)]
+    }
     static func account(_ value: CloudAccount) -> [String: Any] {
         ["email": value.email, "audio_seconds": value.audioSeconds, "tokens": value.tokens,
          "storage_bytes": value.storageBytes, "limit_audio_seconds": value.limitAudioSeconds,

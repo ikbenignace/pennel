@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, Weak};
 
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +28,60 @@ pub struct InferenceVerification {
     pub verified: bool,
     pub message: String,
     pub identity: Option<InferenceIdentity>,
+}
+
+#[derive(Default)]
+pub(crate) struct InferenceState {
+    pub(crate) requests: Vec<Weak<InferenceCancellation>>,
+    pub(crate) mutation_depth: usize,
+}
+
+/// Keeps inference admission closed throughout a native configuration or credential write.
+#[derive(uniffi::Object)]
+pub struct InferenceMutation {
+    state: Arc<Mutex<InferenceState>>,
+    released: AtomicBool,
+}
+
+#[uniffi::export]
+impl InferenceMutation {
+    pub fn release(&self) {
+        if !self.released.swap(true, Ordering::AcqRel) {
+            self.state.lock().unwrap().mutation_depth -= 1;
+        }
+    }
+}
+
+impl Drop for InferenceMutation {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
+impl PennelEngine {
+    pub(crate) fn inference_state(&self) -> Arc<Mutex<InferenceState>> {
+        self.inference_requests.clone()
+    }
+}
+
+#[uniffi::export]
+impl PennelEngine {
+    pub fn begin_inference_mutation(&self) -> Arc<InferenceMutation> {
+        let state = self.inference_state();
+        {
+            let mut active = state.lock().unwrap();
+            active.mutation_depth += 1;
+            for request in &active.requests {
+                if let Some(cancellation) = request.upgrade() {
+                    cancellation.cancel();
+                }
+            }
+        }
+        Arc::new(InferenceMutation {
+            state,
+            released: AtomicBool::new(false),
+        })
+    }
 }
 
 fn invalid(message: &str) -> PennelError {

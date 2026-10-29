@@ -173,7 +173,7 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
   draw();
   bindLocalization(readiness, draw);
   const flow = () => key === "llm" ? t("providers.text_destination", { destination: providerDestination(account) })
-    : processingSummary(settings, key === "meeting_stt" ? "meeting" : "dictation").map((stage) => `${stage.label} → ${stage.destination}.`).join(" ");
+    : processingSummary(settings, key === "meeting_stt" ? "meeting" : "dictation", ctx.info.cleanup_verification).map((stage) => `${stage.label} → ${stage.destination}.`).join(" ");
   const repairText = h("span", {}, repair());
   bindLocalization(repairText, () => { repairText.textContent = repair(); });
   const flowText = h("p", { class: "help" }, flow());

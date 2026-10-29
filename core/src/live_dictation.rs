@@ -205,6 +205,7 @@ fn local_worker(
 pub struct LiveDictationSession {
     engine: Arc<PennelEngine>,
     settings: Settings,
+    cleanup_verification: crate::cleanup_verification::FrozenCleanupVerification,
     practice: bool,
     mode: DictationPreviewMode,
     state: Arc<PreviewState>,
@@ -251,9 +252,12 @@ impl LiveDictationSession {
                 })
             })
         });
+        let cleanup_verification =
+            crate::cleanup_verification::FrozenCleanupVerification::capture(&engine, &settings);
         Arc::new(Self {
             engine,
             settings,
+            cleanup_verification,
             practice,
             mode,
             state,
@@ -262,6 +266,12 @@ impl LiveDictationSession {
             finishing: Mutex::new(()),
             outcome: Mutex::new(None),
         })
+    }
+
+    pub(crate) fn cleanup_verification(
+        &self,
+    ) -> &crate::cleanup_verification::FrozenCleanupVerification {
+        &self.cleanup_verification
     }
 
     pub(crate) fn ensure_active(&self) -> Result<(), PennelError> {
@@ -320,6 +330,15 @@ impl LiveDictationSession {
     pub fn mode(&self) -> DictationPreviewMode {
         self.mode
     }
+    pub fn cleanup_verification_availability(&self) -> crate::CleanupVerificationAvailability {
+        let mut status = self.cleanup_verification.status();
+        if self.settings.mode == DictationMode::Fast {
+            status.enabled = false;
+            status.reason_code = "disabled".into();
+        }
+        status
+    }
+
     pub fn language(&self) -> Option<String> {
         self.settings.language.clone()
     }
@@ -347,6 +366,7 @@ impl LiveDictationSession {
     }
 
     pub fn cancel(&self) {
+        self.cleanup_verification.cancel();
         self.state.stop(true);
         if let Some(local) = &self.local {
             local.stop();

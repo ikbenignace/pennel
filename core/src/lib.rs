@@ -5,6 +5,9 @@ mod catalog;
 mod chunker;
 mod claude_access;
 mod cleanup;
+#[cfg(test)]
+mod cleanup_fidelity_tests;
+mod cleanup_verification;
 mod cli_agent;
 mod cloud;
 mod command;
@@ -54,6 +57,7 @@ mod voices;
 mod wav;
 
 pub use call_detector::{CallDetector, CallEvent, CallObservation};
+pub use cleanup_verification::CleanupVerificationAvailability;
 pub use cli_agent::{DetectedAgent, check_cli_agent, detect_cli_agents};
 pub use cloud::SecretStore;
 pub use cloud::account::{CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart};
@@ -74,7 +78,7 @@ pub use inference::{
     RerankPassage, RerankRequest, RerankResult, RerankScore, inference_protocols,
     new_inference_config,
 };
-pub use inference_engine::{InferenceAvailability, InferenceVerification};
+pub use inference_engine::{InferenceAvailability, InferenceMutation, InferenceVerification};
 pub use live_dictation::{
     DictationPreviewMode, DictationPreviewObserver, DictationPreviewUpdate, LiveDictationSession,
 };
