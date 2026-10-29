@@ -252,3 +252,35 @@ cancellation and stale results. Matching Rust artifacts remain outside generated
 These are local build/simulator and synthetic/mock results. No live hosted/provider request,
 model download, physical-device acceptance or deployment is claimed. See the desktop
 [connection contract](desktop.md#optional-decision-and-passage-ranking-connections).
+
+## Cleanup fidelity — 29 October 2026
+
+Issue [#60](https://github.com/pennel-app/pennel/issues/60), prepared in [stacked PR #70](https://github.com/pennel-app/pennel/pull/70), adds **Verify cleanup meaning** to the active Expo application's Dictation settings. Saved enablement, qualification and processing destination have separate English/Dutch explanations. The new preference defaults off; no production model or content-language policy is qualified. Merely configuring a decision connection does not enable this feature. See [the offline evidence and normalization limits](cleanup-fidelity.md).
+
+The native facade exposes `dictation.verificationAvailability` and frozen recorder/keyboard-session status. Shared core mutation guards invalidate verification across settings and credential writes, including suspended saves. Keyboard dictation captures its core session at recording start. Verification failure retains raw text; owner cancellation retains the existing no-History/no-delivery behavior.
+
+Core/native source candidate: `b4347e4479dd5944591962aebef2eeb62ef5f6ad`, including the final decimal/unit safeguards. The Expo JavaScript and public Swift bindings remain byte-identical to `5fb3746`, where clean/repeated generation and EN/NL UI captures were recorded. Matched core-source SHA-256 is `9cbde627fbfca589412875bbff5c8bf5569fcb4d4c2650ec5033f3b09e9eaf07`; Swift bindings SHA-256 is `810dce899a507c46d9a2e333a1fdf1e743c8b57780779dadc960d8cdf2256576`, identical across Mac, mobile artifacts and retained iOS bindings.
+
+Verified with Xcode 27.0 (27A266a), iOS SDK 27.0 and the assigned iPhone 17 / iOS 26.5 simulator. Clean/repeated generation verified the unchanged native graph; after the Rust-only numeric refinement, `make mobile-core` refreshed matched artifacts and both Release builds plus both hosted suites passed again, sequentially:
+
+```sh
+npm --prefix apps/mobile ci
+make mobile-test
+make mobile-prebuild
+make mobile-core
+npm --prefix apps/mobile run build:ios
+PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios
+make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0-F1F19690D2E4'
+make ios-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0-F1F19690D2E4'
+```
+
+Typechecking, 65 UI/controller tests, 64 Swift helper tests, clean/repeated generation and six actual pod/source/linker ownership checks pass. Generated native tests pass: 33 runtime and two keyboard tests, including the four new facade/mutation/recorder/keyboard-freeze scenarios. Retained native compatibility tests pass: 67 app and two keyboard tests. Both Release products build without source repairs. Rust artifacts remain outside generated projects; Android implementation remains gated.
+
+| Preview product | Bundle bytes | JavaScript SHA-256 | Full file-manifest SHA-256 |
+| --- | --- | --- | --- |
+| ARM64 simulator | 71,487,762 | `ec1fceab2c6bff4245b08e4a0edea37bccdf36c3332792f73b02cef0c4ec3492` | `a37bd796a23ac6f4d64301f3d97913ccf57a644ff8fae1747cda61ae8d4415c4` |
+| ARM64 iPhoneOS | 71,115,186 | `1b9155abc8d2d93c33e6e9b6252947feeb374b8844eb33b39f988959a8980e46` | `b2bbef17b2ae59fe4d79fa05671340943f32858f7a697e8ae4858ad0c266b7e2` |
+
+The refreshed Expo preview (`app.pennel.ios.preview`) was installed on the assigned simulator and its installed executable/JavaScript hashes checked against the final product. The EN/NL captures cover the unchanged JavaScript UI; the refined Rust core has separate native test evidence. Device Hub captures in English and Dutch verify the disabled control, saved preference, availability reason, configured destination and raw fallback text. Tapping the unqualified switch leaves the saved setting off. The original English/dark/Clean/off preferences were restored and checked. These captures establish Expo UI behavior; retained SwiftUI visuals are not mobile product acceptance. The [compact receipt](evidence/cleanup-fidelity-2026-10-29.json) records product and capture hashes; local screenshots are `build/mobile/qa/device-hub/cleanup-verification-expo-en.png` and `cleanup-verification-expo-nl.png`.
+
+Synthetic/mock quality and timing do not establish semantic model qualification or live stop-to-result latency. Physical iPhone behavior, signed upgrades, keyboard cold start, installed Windows/Linux workflows, Cloud deployment and App Review remain separate gates. No paid inference, model download, real dictation or production credential change was performed.

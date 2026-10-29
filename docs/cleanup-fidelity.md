@@ -40,3 +40,43 @@ A separate mock overhead panel pairs generation-only cleanup with generation plu
 [The #53 evaluation](https://github.com/pennel-app/pennel/issues/53) found bounded research candidates and an actual mixed-language generation that translated `on Thursday` into Dutch. Its calibrated acceptance depended on the exact model, returned identity, route, prompt, ordered labels, envelope and language. This implementation changes that pipeline and copies no fitted cutoff.
 
 Future semantic activation needs a separately reviewed qualification for the exact production pipeline and a trustworthy content-language policy. Recognition currently returns text without detected-language evidence; the interface language and recognition hint cannot supply that evidence. English, Dutch and mixed-language qualifications remain distinct, and no production default is selected here.
+
+## Candidate evidence — 29 October 2026
+
+Measured from code commit `b4347e4479dd5944591962aebef2eeb62ef5f6ad`. The [compact receipt](evidence/cleanup-fidelity-2026-10-29.json) records source/fixture identity, environment, counts, mock controls and complete local artifact hashes. The ordinary test profile is unoptimized; concurrent native builds contributed uncontrolled machine load. These numbers describe this synthetic panel.
+
+| Language | Historical harmful acceptance | New harmful acceptance | Benign rejection | Deterministic abstention | Added CPU p50 / p95 | Added mock verifier p50 / p95 |
+| --- | --- | --- | --- | --- | --- | --- |
+| English | 48/48 | 0/48 | 0/36 | 0/84 | 0.128 / 0.211 ms | 1.674 / 1.871 ms |
+| Dutch | 42/48 | 0/48 | 0/36 | 0/84 | 0.117 / 0.228 ms | 1.660 / 3.525 ms |
+| Mixed | 42/48 | 0/48 | 0/36 | 0/84 | 0.111 / 0.184 ms | 1.646 / 2.990 ms |
+
+CPU timing has 360 paired samples per language; mock verification has 30 paired samples per language. The mock timing panel dispatched 180 generation and 90 verification calls, plus six generation and three verification calls for excluded warmups. The 27 control scenarios dispatched 24 generation and 15 verification calls. Each language has five abstentions out of nine deliberately scheduled controls (unqualified, explicit abstention, timeout and two mutation cases); this is control-flow coverage rather than a field abstention estimate.
+
+Qualified mock acceptance uses one generation and one verifier call; deterministic rejection uses one and zero. Unavailable qualification uses zero and zero. Dispatched rejection/abstention/timeout uses one and one and retains raw text. Mutation preserves raw text and never contacts the replacement server. The three-second timeout controls returned raw at approximately the shared deadline. Additional unit tests cover pre-dispatch cancellation, owner cancellation without History, service errors, malformed/oversized responses and Fast/practice zero-call behavior.
+
+The test-only qualification cutoff is an arbitrary mock predicate. It is neither a transferred #53 threshold nor approval of any model. Live semantic latency and quality remain unmeasured, and all production qualification entries remain absent.
+
+### Repository and packaged verification
+
+The source candidate passes 681 default and 670 lean core tests (seven/five ignored, including two explicit report targets), formatting and Clippy with warnings denied. Desktop passes 217 frontend and 216 backend tests, type/build checks and backend formatting/Clippy. `make core && make test && make app` passes, including 53 Mac Swift tests. Shared theme checks, 39 packaging-script tests, two language-policy checks and 23 visual-fixture checks pass.
+
+```sh
+make core && make test && make app
+npm --prefix apps/desktop ci
+npm --prefix apps/desktop run build
+npm --prefix apps/desktop test
+scripts/with-toolchain.sh cargo test --manifest-path core/Cargo.toml --lib
+scripts/with-toolchain.sh cargo test --manifest-path core/Cargo.toml --lib --no-default-features
+scripts/with-toolchain.sh cargo fmt --manifest-path core/Cargo.toml -- --check
+scripts/with-toolchain.sh cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
+scripts/with-toolchain.sh cargo clippy --manifest-path core/Cargo.toml --lib --tests --no-default-features -- -D warnings
+scripts/with-toolchain.sh cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+scripts/with-toolchain.sh cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+scripts/with-toolchain.sh cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+scripts/build-desktop-preview.sh
+```
+
+The actual shared Tauri preview also builds. Its isolated preview identity, arm64 architecture, bundle metadata, strict development signature and disk-image integrity pass inspection. The DMG contains 14,908,235 bytes, SHA-256 `36b9a2f7616f5035b86b913a9f63898e3f4825ee9faec18fb4c80fcf3a1297b2`; this is local preview packaging, not production signing or installed-device acceptance.
+
+Eight owned desktop captures cover English/Dutch and light/dark, with interaction checks for disabled qualification, disabling a saved preference, save-failure recovery and zero inference actions. Active Expo English/Dutch controls were also visually checked with the matching JavaScript bundle. The [mobile ledger](mobile.md#cleanup-fidelity--29-october-2026) records matched native builds, tests and product hashes. Real provider qualification, live latency, physical devices and installed Windows/Linux acceptance remain open. The fixture corpus was unchanged while additional numeric, dictionary-boundary and Literal regressions were repaired; earlier local reports remain in `build/cleanup-fidelity/5fb3746-published`.
