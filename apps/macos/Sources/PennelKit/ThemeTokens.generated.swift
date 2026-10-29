@@ -19,6 +19,8 @@ public enum ThemeTokens {
     public static let surface = ColorPair(light: 0xFCFBF8, dark: 0x1E1C1A)
     public static let chrome = ColorPair(light: 0xFCFBF8, dark: 0x1E1C1A)
     public static let sidebar = ColorPair(light: 0xF7F4EE, dark: 0x252320)
+    public static let navigationBacking = ColorPair(light: 0xF7F4EE, dark: 0x252320, lightAlpha: 0.80000000, darkAlpha: 0.80000000)
+    public static let navigationMuted = ColorPair(light: 0x534E48, dark: 0xCCC4B9)
     public static let foreground = ColorPair(light: 0x2A2723, dark: 0xF3F0EA)
     public static let muted = ColorPair(light: 0x6F675D, dark: 0xABA398)
     public static let border = ColorPair(light: 0xECE7DE, dark: 0x3A3632)
@@ -98,6 +100,13 @@ public enum ThemePill {
     public static let previewLineHeight: CGFloat = 18
     public static let shadowY: CGFloat = 6
     public static let shadowBlur: CGFloat = 18
+}
+
+public enum ThemeDesktop {
+    public static let sidebarWidth: CGFloat = 230
+    public static let sidebarMinWidth: CGFloat = 200
+    public static let sidebarMaxWidth: CGFloat = 320
+    public static let toolbarHeight: CGFloat = 32
 }
 
 public enum ThemeTypography {

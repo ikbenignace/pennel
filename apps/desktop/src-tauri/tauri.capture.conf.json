@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Pennel Capture Preview",
+  "identifier": "dev.pennel.Pennel.capture.preview",
+  "bundle": {
+    "createUpdaterArtifacts": false
+  }
+}

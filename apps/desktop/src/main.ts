@@ -24,6 +24,7 @@ import type { SetupTask } from "./task-setup-state";
 import { appInfoContentEqual } from "./presentation";
 import { VisibilityPoll } from "./window-lifecycle";
 import { bindLocalization, l, liveText, localizeBackendText, refreshLocalization, setInterfaceLanguage, t, type InterfaceLanguagePreference, type TranslationKey } from "./i18n.ts";
+import { desktopCommand, desktopEnvironment, desktopShortcut, nativeChromeIsTransparent, resizedSidebarWidth, sidebarPresentation, sidebarWidth, SIDEBAR, type DesktopCommand, type DesktopCommandState, type DesktopEnvironment, type SidebarPresentation } from "./desktop-chrome-state.ts";
 
 export interface Context {
   info: AppInfo;
@@ -105,6 +106,147 @@ let currentMeetingStatus: MeetingRuntimeStatus | null = null;
 const navigationStatus = h("p", { class: "navigation-progress settings-loading help", role: "status", hidden: true }, l("common.loading"));
 const contentPositions = new Map<string, number>();
 const settingsPositions = new Map<string, number>();
+const presentationKey = "pennel.workspace.presentation.v1";
+const chromeCleanup: (() => void)[] = [];
+const commandQueue = new SerialQueue();
+let sidebar = readSidebarPresentation();
+let sidebarToggle: HTMLButtonElement | null = null;
+let toolbarCaption: HTMLElement | null = null;
+let toolbarFind: HTMLButtonElement | null = null;
+let toolbarRecording: HTMLButtonElement | null = null;
+let publishedCommands = "";
+
+function readSidebarPresentation(): SidebarPresentation {
+  try { return sidebarPresentation(JSON.parse(localStorage.getItem(presentationKey) ?? "null")); }
+  catch { return sidebarPresentation(null); }
+}
+
+function saveSidebarPresentation() {
+  try { localStorage.setItem(presentationKey, JSON.stringify(sidebar)); } catch { /* Layout stays usable when storage is unavailable. */ }
+}
+
+function syncSidebarPresentation() {
+  document.documentElement.dataset.sidebarVisible = String(sidebar.visible);
+  document.documentElement.style.setProperty("--sidebar-width", `${sidebar.width}px`);
+  sidebarToggle?.setAttribute("aria-expanded", String(sidebar.visible));
+  sidebarToggle?.setAttribute("aria-controls", navigation.current.section === "settings" ? "settings-navigation" : "workspace-navigation");
+  if (sidebarToggle) {
+    const label = t(sidebar.visible ? "chrome.hide_sidebar" : "chrome.show_sidebar");
+    sidebarToggle.setAttribute("aria-label", label);
+    sidebarToggle.title = label;
+  }
+  if (toolbarCaption) {
+    const captions: Record<WorkspaceRoute["section"], TranslationKey> = { dictation: "window.dictation", meetings: "navigation.meetings", history: "window.history", settings: "window.settings", recording: "navigation.recording" };
+    toolbarCaption.textContent = t(captions[navigation.current.section]);
+  }
+  for (const separator of app.querySelectorAll<HTMLElement>(".sidebar-resize")) separator.setAttribute("aria-valuenow", String(sidebar.width));
+  publishDesktopCommands();
+}
+
+function setSidebarVisible(visible: boolean) {
+  if (!visible && document.activeElement?.closest(".library-sidebar,.settings-categories,.sidebar-resize")) sidebarToggle?.focus();
+  sidebar.visible = visible;
+  syncSidebarPresentation();
+  saveSidebarPresentation();
+}
+
+function sidebarSeparator(): HTMLElement {
+  const separator = h("div", { class: "sidebar-resize", role: "separator", tabindex: 0, "aria-orientation": "vertical", "aria-label": l("chrome.resize_sidebar"),
+    "aria-description": l("chrome.resize_help"), "aria-valuemin": SIDEBAR.min, "aria-valuemax": SIDEBAR.max, "aria-valuenow": sidebar.width });
+  let drag: { pointer: number; x: number; width: number } | null = null;
+  separator.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || barrier.locked) return;
+    event.preventDefault();
+    separator.focus();
+    drag = { pointer: event.pointerId, x: event.clientX, width: sidebar.width };
+    separator.setPointerCapture(event.pointerId);
+  });
+  separator.addEventListener("pointermove", (event) => {
+    if (!drag || drag.pointer !== event.pointerId) return;
+    sidebar.width = sidebarWidth(drag.width + event.clientX - drag.x);
+    syncSidebarPresentation();
+  });
+  const finish = () => { if (drag) { drag = null; saveSidebarPresentation(); } };
+  separator.addEventListener("pointerup", finish);
+  separator.addEventListener("pointercancel", finish);
+  separator.addEventListener("lostpointercapture", finish);
+  separator.addEventListener("keydown", (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+    const width = resizedSidebarWidth(sidebar.width, event.key);
+    if (width === null) return;
+    event.preventDefault();
+    sidebar.width = width;
+    syncSidebarPresentation();
+    saveSidebarPresentation();
+  });
+  return separator;
+}
+
+function desktopCommands(): DesktopCommandState {
+  const ready = booted && mode === "workspace" && !barrier.locked && !pendingRoute && !taskSetup && !setupOpening && !document.querySelector("dialog[open]");
+  return { ready, settings: ready, new_recording: ready && !!toolbarRecording && !toolbarRecording.disabled,
+    find: ready && !!library && navigation.current.section !== "settings", toggle_sidebar: ready,
+    dictation: ready, meetings: ready, history: ready, sidebar_visible: sidebar.visible,
+    recording_active: !!currentMeetingStatus && recordingEntry(currentMeetingStatus).kind !== "new" };
+}
+
+function publishDesktopCommands() {
+  if (!info || mode !== "workspace") return;
+  const state = desktopCommands();
+  if (toolbarFind) { toolbarFind.disabled = !state.find; toolbarFind.title = t(state.find ? "common.search" : "chrome.search_unavailable"); }
+  const buttons = [sidebarToggle, toolbarRecording, toolbarFind].filter((button): button is HTMLButtonElement => !!button);
+  const tabStop = buttons.find((button) => !button.disabled && button.tabIndex === 0) ?? buttons.find((button) => !button.disabled);
+  for (const button of buttons) button.tabIndex = button === tabStop ? 0 : -1;
+  const key = JSON.stringify(state);
+  if (publishedCommands === key) return;
+  publishedCommands = key;
+  void commandQueue.run(() => api.setDesktopCommandState(state)).catch(() => { publishedCommands = ""; });
+}
+
+async function runDesktopCommand(command: DesktopCommand) {
+  if (!desktopCommands()[command]) return;
+  if (command === "toggle_sidebar") { setSidebarVisible(!sidebar.visible); return; }
+  if (command === "new_recording") { toolbarRecording?.click(); return; }
+  if (command === "find") {
+    setSidebarVisible(true);
+    const search = library?.element.querySelector<HTMLInputElement>('.library-search input');
+    search?.focus(); search?.select(); return;
+  }
+  await go(navigation.select(command));
+}
+
+function applyDesktopEnvironment(value: unknown) {
+  const environment = desktopEnvironment(value);
+  if (!environment) { document.documentElement.dataset.nativeMaterial = "unavailable"; return; }
+  const root = document.documentElement;
+  root.dataset.nativeMaterial = nativeChromeIsTransparent(environment) ? environment.material : "opaque";
+  root.dataset.nativeAppearance = environment.appearance;
+  root.dataset.reduceTransparency = String(environment.reduce_transparency);
+  root.dataset.reduceMotion = String(environment.reduce_motion);
+  root.dataset.increaseContrast = String(environment.increase_contrast);
+  root.dataset.windowFocused = String(environment.focused);
+  root.style.setProperty("--native-titlebar-height", `${environment.titlebar_height}px`);
+  root.style.setProperty("--native-titlebar-controls-width", `${environment.titlebar_controls_width ?? 96}px`);
+  if (info) applyAppearance();
+}
+
+async function initializeDesktopChrome() {
+  if (info.platform === "macos") {
+    try {
+      chromeCleanup.push(await listenToWindow<DesktopEnvironment>("desktop-environment-changed", (event) => applyDesktopEnvironment(event.payload)));
+      applyDesktopEnvironment(await api.desktopEnvironment());
+    } catch { document.documentElement.dataset.nativeMaterial = "unavailable"; }
+  }
+  if (mode !== "workspace") return;
+  chromeCleanup.push(await listenToWindow<unknown>("desktop-command", (event) => {
+    const command = desktopCommand(event.payload);
+    if (command) void runDesktopCommand(command).catch(report);
+  }));
+  const refreshCommands = () => publishDesktopCommands();
+  document.addEventListener("focusin", refreshCommands);
+  document.addEventListener("close", refreshCommands, true);
+  chromeCleanup.push(() => { document.removeEventListener("focusin", refreshCommands); document.removeEventListener("close", refreshCommands, true); });
+}
 
 function scrollKey(route: WorkspaceRoute): string {
   return JSON.stringify([route.section, route.section === "history" ? null : route.tab, route.meeting_id]);
@@ -145,7 +287,9 @@ function visibleInfo(): AppInfo {
 }
 
 function applyAppearance() {
-  document.documentElement.dataset.appearance = visibleInfo().settings.appearance ?? "system";
+  const preference = visibleInfo().settings.appearance ?? "system";
+  const root = document.documentElement;
+  root.dataset.appearance = preference === "system" ? root.dataset.nativeAppearance ?? "system" : preference;
 }
 
 function notifyInfo() {
@@ -238,6 +382,7 @@ function showPendingNavigation(route: WorkspaceRoute | null) {
   library?.setPendingRoute(route);
   navigationStatus.hidden = !route;
   if (route) content.setAttribute("aria-busy", "true"); else content.removeAttribute("aria-busy");
+  publishDesktopCommands();
 }
 
 function restoreSettingsFocus() {
@@ -286,6 +431,7 @@ async function openSetup(task: SetupTask, origin: Mounted) {
   if (taskSetup) { taskSetup.focus(); return; }
   if (setupOpening || mounted !== origin) return;
   setupOpening = true;
+  publishDesktopCommands();
   try {
     await flushAll();
     if (mounted !== origin) return;
@@ -293,17 +439,18 @@ async function openSetup(task: SetupTask, origin: Mounted) {
     // The setup owns error presentation; a repaired task must not leave an error behind its dialog.
     taskSetup = openTaskSetupDialog(contextFor(scope, () => undefined), task, flushAll, () => {
       taskSetup = null;
+      publishDesktopCommands();
       const refreshNeeded = deferredRender || needsRefresh;
       deferredRender = false; needsRefresh = false;
       if (refreshNeeded && (!mounted?.info.length || mounted.key !== routeKey(navigation.current))) void render().catch(report);
     });
-  } finally { setupOpening = false; }
+  } finally { setupOpening = false; publishDesktopCommands(); }
 }
 
 async function settingsView(ctx: Context): Promise<HTMLElement> {
   const current = navigation.current.tab === "local" ? "providers" : navigation.current.tab ?? "overview";
   const tabButton = ([id, label]: [string, TranslationKey, View]) => h("button", {
-    "aria-current": id === current ? "page" : null, "data-settings-category": id, onclick: (event: Event) => {
+    "aria-current": id === current ? "page" : null, tabindex: id === current ? 0 : -1, "data-settings-category": id, onclick: (event: Event) => {
       settingsFocusRequest = id;
       nav.querySelectorAll("button").forEach((button) => button.removeAttribute("aria-current"));
       (event.currentTarget as HTMLElement).setAttribute("aria-current", "page");
@@ -311,7 +458,7 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
     },
   }, l(label));
   const group = (label: TranslationKey, ids: string[]) => [h("p", { class: "settings-nav-group" }, l(label)), ...ids.map((id) => tabButton(tabs.find((tab) => tab[0] === id)!))];
-  const nav = h("nav", { class: "settings-categories", "aria-label": l("navigation.settings_categories") },
+  const nav = h("nav", { id: "settings-navigation", class: "settings-categories", "aria-label": l("navigation.settings_categories") },
     h("button", { class: "settings-back", "data-action": "back-to-work", onclick: () => navigate("settings-back") }, icon("arrowLeft"), l("navigation.back_to_work")),
     h("button", { class: "settings-recording", hidden: true, onclick: async () => {
       try { const status = await api.meetingRuntimeStatus(); currentMeetingStatus = status; const entry = recordingEntry(status); await go(entry.kind === "new" ? navigation.settingsBack() : workspaceRoute("recording", null, entry.meetingId)); }
@@ -321,6 +468,18 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
     ...group("navigation.your_work", ["dictation", "meeting-settings", "recording", "dictionary", "styles"]),
     ...group("navigation.app", ["appearance", "account"]),
     ...group("navigation.advanced", ["providers", "models"]));
+  nav.addEventListener("keydown", (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+    const target = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-settings-category]");
+    if (!target) return;
+    const buttons = [...nav.querySelectorAll<HTMLButtonElement>("[data-settings-category]")];
+    const index = buttons.indexOf(target);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+      : event.key === "ArrowDown" ? Math.min(index + 1, buttons.length - 1) : event.key === "ArrowUp" ? Math.max(index - 1, 0) : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    buttons[next].click(); buttons[next].focus();
+  });
   const selected = tabs.find(([id]) => id === current) ?? tabs[0];
   const pane = h("section", { class: "settings-pane" });
   const positionKey = scrollKey(navigation.current);
@@ -337,7 +496,7 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
       report(error);
     });
   }
-  return h("div", { class: "settings-workspace" }, h("h1", { class: "visually-hidden" }, l("window.settings")), h("div", { class: "settings-layout" }, nav, pane));
+  return h("div", { class: "settings-workspace" }, h("h1", { class: "visually-hidden" }, l("window.settings")), h("div", { class: "settings-layout" }, nav, sidebarSeparator(), pane));
 }
 
 function appearanceView(ctx: Context): HTMLElement {
@@ -416,12 +575,15 @@ async function render(allowed: () => boolean = () => true, request?: number) {
 
 function updateNavigation() {
   if (library) library.element.hidden = navigation.current.section === "settings";
+  const separator = app.querySelector<HTMLElement>(".workspace-separator");
+  if (separator) separator.hidden = navigation.current.section === "settings";
   const visible = presentationVisible() && navigation.current.section !== "settings";
   library?.setVisible(visible);
   sidebarPoll?.setVisible(visible);
   library?.highlight();
   updateSettingsRecording();
   if (navigation.current.section === "settings" && !currentMeetingStatus) void library?.refreshLive().catch(report);
+  syncSidebarPresentation();
 }
 
 function updateSettingsRecording() {
@@ -441,8 +603,42 @@ function titlebarDragRegion(): HTMLElement {
 function workspaceShell() {
   library = new LibrarySidebar({ info: visibleInfo, current: () => navigation.current, go: (route) => { void go(route); }, report,
     select: (section) => { void go(navigation.select(section)); },
-    statusChanged: (status) => { currentMeetingStatus = status; updateSettingsRecording(); } });
-  app.replaceChildren(titlebarDragRegion(), h("div", { class: "workspace-shell" }, library.element, h("div", { class: "workspace-body" }, recoveryBanner, banner, content)));
+    statusChanged: (status) => { currentMeetingStatus = status; updateSettingsRecording(); publishDesktopCommands(); } });
+  library.element.id = "workspace-navigation";
+  toolbarRecording = library.element.querySelector<HTMLButtonElement>(".library-record")!;
+  const actions = toolbarRecording.parentElement!;
+  toolbarRecording.classList.add("btn", "toolbar-recording");
+  sidebarToggle = controlButton({ class: "toolbar-sidebar toolbar-icon", "data-command": "toggle_sidebar", onclick: () => { void runDesktopCommand("toggle_sidebar"); } }, icon("sidebar"));
+  toolbarFind = controlButton({ class: "toolbar-find toolbar-icon", "data-command": "find", "aria-label": l("common.search"), onclick: () => { void runDesktopCommand("find"); } }, icon("search"));
+  toolbarCaption = h("span", { class: "toolbar-section", "data-tauri-drag-region": true, "aria-hidden": "true" });
+  const toolbar = h("div", { class: "workspace-toolbar", role: "toolbar", "aria-label": l("chrome.toolbar") },
+    h("div", { class: "toolbar-leading", "data-tauri-drag-region": true }, sidebarToggle, toolbarCaption),
+    h("div", { class: "toolbar-drag grow", "data-tauri-drag-region": true, "aria-hidden": "true" }),
+    h("div", { class: "toolbar-actions" }, toolbarRecording, toolbarFind));
+  const toolbarButtons = () => [...toolbar.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+  toolbarRecording.tabIndex = -1; toolbarFind.tabIndex = -1;
+  toolbar.addEventListener("focusin", (event) => {
+    const button = (event.target as HTMLElement).closest("button");
+    if (button) for (const item of toolbar.querySelectorAll<HTMLButtonElement>("button")) item.tabIndex = item === button ? 0 : -1;
+  });
+  toolbar.addEventListener("keydown", (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+    const buttons = toolbarButtons();
+    const index = buttons.indexOf((event.target as HTMLElement).closest<HTMLButtonElement>("button")!);
+    if (index < 0) return;
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+      : event.key === "ArrowRight" ? (index + 1) % buttons.length : event.key === "ArrowLeft" ? (index - 1 + buttons.length) % buttons.length : -1;
+    if (next < 0) return;
+    event.preventDefault(); buttons[next].focus();
+  });
+  actions.remove();
+  bindLocalization(sidebarToggle, syncSidebarPresentation);
+  const observer = new MutationObserver(publishDesktopCommands);
+  observer.observe(toolbarRecording, { attributes: true, attributeFilter: ["disabled", "data-phase"] });
+  chromeCleanup.push(() => observer.disconnect());
+  const separator = sidebarSeparator(); separator.classList.add("workspace-separator");
+  app.replaceChildren(toolbar, h("div", { class: "workspace-shell" }, library.element, separator, h("div", { class: "workspace-body" }, recoveryBanner, banner, content)));
+  syncSidebarPresentation();
 }
 
 async function refreshSidebar() {
@@ -453,6 +649,7 @@ async function refreshSidebar() {
 function lockInterface() {
   app.inert = barrier.locked;
   if (barrier.locked) app.setAttribute("aria-busy", "true"); else app.removeAttribute("aria-busy");
+  publishDesktopCommands();
 }
 
 function prepareFlush(requestId: number, kind: FrontendBarrierKind) {
@@ -530,9 +727,12 @@ function focusChanged(focused: boolean) {
 
 function windowShortcuts() {
   window.addEventListener("keydown", (event) => {
+    if (fixtureClient() || info.platform !== "macos") {
+      const command = desktopShortcut(event, info.platform);
+      if (command) { event.preventDefault(); void runDesktopCommand(command).catch(report); return; }
+    }
     if (!(info.platform === "macos" ? event.metaKey : event.ctrlKey) || event.altKey || event.shiftKey) return;
     const key = event.key.toLowerCase();
-    if (key === ",") { event.preventDefault(); navigate("settings"); }
     if (key === "w" && !fixtureClient()) {
       event.preventDefault();
       try { void getCurrentWindow().close().catch(report); } catch { /* Window APIs are unavailable in a browser-only preview. */ }
@@ -569,6 +769,7 @@ async function boot() {
   bindLocalization(document.documentElement, updateTitle);
   bindLocalization(banner, () => { if (banner.textContent) banner.textContent = localizeBackendText(banner.textContent); });
   document.documentElement.dataset.platform = info.platform;
+  await initializeDesktopChrome();
   windowVisible = !!fixtureClient() || info.platform !== "macos" || mode === "prompt";
   if (mode === "workspace") workspaceShell(); else app.replaceChildren(...(mode === "prompt" ? [] : [titlebarDragRegion(), recoveryBanner]), banner, content);
   if (mode !== "prompt") app.append(navigationStatus);
@@ -621,6 +822,7 @@ async function boot() {
   await render();
   if (mode !== "prompt") await api.frontendReady();
   booted = true;
+  publishDesktopCommands();
   if (fixtureClient()) {
     window.addEventListener("focus", () => focusChanged(true)); window.addEventListener("blur", () => focusChanged(false));
   } else {
@@ -645,7 +847,7 @@ async function boot() {
 
 content.addEventListener("focusout", () => { window.setTimeout(() => { if (needsRefresh && !editing() && !mounted?.info.length) void render(); }, 0); });
 window.addEventListener("unhandledrejection", (event) => { event.preventDefault(); report(event.reason); });
-window.addEventListener("beforeunload", () => { sidebarPoll?.dispose(); runtimePoll?.dispose(); library?.dispose(); mounted?.cleanup.forEach((cleanup) => cleanup()); });
+window.addEventListener("beforeunload", () => { chromeCleanup.forEach((cleanup) => cleanup()); sidebarPoll?.dispose(); runtimePoll?.dispose(); library?.dispose(); mounted?.cleanup.forEach((cleanup) => cleanup()); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (info) applyAppearance(); });
 void boot().catch((error: unknown) => {
   if (mode === "prompt") { report(error); return; }

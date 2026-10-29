@@ -111,15 +111,23 @@ public func foregroundJSON() -> UnsafeMutablePointer<CChar>? {
 }
 
 @_cdecl("pennel_mac_pick_style_application")
-public func pickStyleApplicationJSON(_ rawTitle: UnsafePointer<CChar>?, _ rawPrompt: UnsafePointer<CChar>?, _ error: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> UnsafeMutablePointer<CChar>? {
-    guard let title = decodeString(rawTitle), let prompt = decodeString(rawPrompt) else { return nil }
-    do {
-        let selection = try onMain { try MainActor.assumeIsolated { try pickStyleApplication(title: title, prompt: prompt) } }
-        guard let selection else { return bridgeString("null") }
-        return bridgeJSON(["id": selection.id, "name": selection.name])
-    } catch let failure {
-        writeError(error, failure)
-        return nil
+func pickStyleApplicationJSON(_ rawOwner: UnsafeMutableRawPointer?, _ rawTitle: UnsafePointer<CChar>?, _ rawPrompt: UnsafePointer<CChar>?, _ sink: @escaping TextSink, _ context: UnsafeMutableRawPointer?) {
+    guard let rawOwner, let title = decodeString(rawTitle), let prompt = decodeString(rawPrompt) else {
+        completion(sink, context, value: nil, error: "The app picker has no owning window.")
+        return
+    }
+    let owner = onMain { Unmanaged<NSWindow>.fromOpaque(rawOwner).takeUnretainedValue() }
+    Task { @MainActor in
+        do {
+            guard let selection = try await pickStyleApplication(title: title, prompt: prompt, owner: owner) else {
+                completion(sink, context, value: "null")
+                return
+            }
+            let data = try JSONSerialization.data(withJSONObject: ["id": selection.id, "name": selection.name])
+            completion(sink, context, value: String(decoding: data, as: UTF8.self))
+        } catch {
+            completion(sink, context, value: nil, error: error.localizedDescription)
+        }
     }
 }
 

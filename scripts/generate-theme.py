@@ -58,12 +58,19 @@ def contrast(foreground: str, background: str) -> float:
     return (first + 0.05) / (second + 0.05)
 
 
+def composite(foreground: str, background: str) -> str:
+    alpha = int(foreground[7:9], 16) / 255 if len(foreground) == 9 else 1
+    blended = [round((front * alpha + back * (1 - alpha)) * 255)
+               for front, back in zip(channels(foreground), channels(background))]
+    return "#" + "".join(f"{channel:02X}" for channel in blended)
+
+
 def validate(tokens: dict) -> None:
     if tokens.get("schema") != 1:
         raise ValueError("unsupported theme token schema")
     colors = tokens.get("colors", {})
     required = {name for pair in CONTRAST_PAIRS for name in pair}
-    required.update(("control-edge", "chrome", "border", "hover", "focus-ring", "shadow", "key-shadow", "brand-paper", "brand-ink", "wave"))
+    required.update(("control-edge", "chrome", "navigation-backing", "navigation-muted", "border", "hover", "focus-ring", "shadow", "key-shadow", "brand-paper", "brand-ink", "wave"))
     if missing := required - colors.keys():
         raise ValueError(f"missing semantic colors: {', '.join(sorted(missing))}")
     for name, pair in colors.items():
@@ -83,7 +90,12 @@ def validate(tokens: dict) -> None:
     for name in ("pill-background", "pill-text", "pill-accent"):
         if colors[name]["light"].lower() != colors[name]["dark"].lower():
             raise ValueError(f"{name} must remain stable across appearances")
-    for section in ("spacing", "radii"):
+    for appearance in ("light", "dark"):
+        for backdrop in ("#000000", "#FFFFFF"):
+            backing = composite(colors["navigation-backing"][appearance], backdrop)
+            if any(contrast(colors[role][appearance], backing) < 4.5 for role in ("foreground", "navigation-muted")):
+                raise ValueError(f"{appearance}: navigation text must retain 4.5:1 contrast over either backdrop extreme")
+    for section in ("spacing", "radii", "desktop"):
         for name, value in tokens[section].items():
             if not (str(name).isdigit() or TOKEN_NAME.fullmatch(name)):
                 raise ValueError(f"invalid {section} token name: {name}")
@@ -99,6 +111,10 @@ def validate(tokens: dict) -> None:
         raise ValueError("the bundled Pennel font families must be retained")
     if typography.get("interface", "brand") not in ("brand", "system"):
         raise ValueError("typography interface must be brand or system")
+    if typography.get("macos-chrome", "brand") not in ("brand", "system"):
+        raise ValueError("macOS chrome typography must be brand or system")
+    if not tokens["desktop"]["sidebar-min-width"] <= tokens["desktop"]["sidebar-width"] <= tokens["desktop"]["sidebar-max-width"]:
+        raise ValueError("desktop sidebar width must be within its bounds")
     for name, value in typography["sizes"].items():
         if not TOKEN_NAME.fullmatch(name) or not isinstance(value, (int, float)) or not 11 <= value <= 48:
             raise ValueError(f"invalid typography size: {name}")
@@ -123,6 +139,8 @@ def render_css(tokens: dict) -> str:
         lines.append(f"  --space-{name}: {scalar(value)}px;")
     for name, value in tokens["radii"].items():
         lines.append(f"  --radius-{name}: {scalar(value)}px;")
+    for name, value in tokens["desktop"].items():
+        lines.append(f"  --desktop-{name}: {scalar(value)}px;")
     for name, value in tokens["pill"].items():
         unit = "" if name in PILL_COUNTS else "px"
         lines.append(f"  --pill-{name}: {scalar(value)}{unit};")
@@ -132,6 +150,7 @@ def render_css(tokens: dict) -> str:
     interface = system_ui if tokens["typography"].get("interface") == "system" else brand_ui
     lines.extend((
         f"  --ui: {interface};",
+        "  --chrome-ui: var(--ui);",
         f"  --brand-ui: {brand_ui};",
         f"  --serif: \"{tokens['typography']['display']}\", Georgia, serif;",
     ))
@@ -146,6 +165,8 @@ def render_css(tokens: dict) -> str:
         for name, pair in tokens["colors"].items():
             lines.append(f"  --{name}: {pair[appearance].lower()};")
         lines.extend(("}", ""))
+    if tokens["typography"].get("macos-chrome") == "system":
+        lines.extend((':root[data-platform="macos"] {', f"  --chrome-ui: {system_ui};", "}", ""))
     return "\n".join(lines)
 
 
@@ -186,6 +207,9 @@ def render_swift(tokens: dict) -> str:
     for name, value in tokens["pill"].items():
         kind = "Int" if name in PILL_COUNTS else "CGFloat"
         lines.append(f"    public static let {swift_name(name)}: {kind} = {scalar(value)}")
+    lines.extend(("}", "", "public enum ThemeDesktop {"))
+    for name, value in tokens["desktop"].items():
+        lines.append(f"    public static let {swift_name(name)}: CGFloat = {scalar(value)}")
     lines.extend(("}", "", "public enum ThemeTypography {"))
     lines.append(f"    public static let ui = \"{tokens['typography']['ui']}\"")
     lines.append(f"    public static let display = \"{tokens['typography']['display']}\"")
@@ -261,6 +285,17 @@ class GeneratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "contrast"):
             validate(invalid)
 
+    def test_translucent_navigation_remains_readable_on_extreme_backdrops(self) -> None:
+        for appearance in ("light", "dark"):
+            for backdrop in ("#000000", "#FFFFFF"):
+                backing = composite(self.tokens["colors"]["navigation-backing"][appearance], backdrop)
+                self.assertGreaterEqual(contrast(self.tokens["colors"]["foreground"][appearance], backing), 4.5)
+                self.assertGreaterEqual(contrast(self.tokens["colors"]["navigation-muted"][appearance], backing), 4.5)
+        invalid = copy.deepcopy(self.tokens)
+        invalid["colors"]["navigation-backing"]["light"] = "#F7F4EE00"
+        with self.assertRaisesRegex(ValueError, "navigation text"):
+            validate(invalid)
+
     def test_invalid_colors_and_aliases_are_rejected(self) -> None:
         invalid = copy.deepcopy(self.tokens)
         invalid["colors"]["surface"]["light"] = "white"
@@ -307,6 +342,18 @@ class GeneratorTests(unittest.TestCase):
             self.assertIn(f"--pill-{name}: {scalar(value)}{unit};", css)
             self.assertIn(f"{swift_name(name)}: {kind} = {scalar(value)}", swift)
             self.assertIn(f"{swift_name(name)}: {scalar(value)},", javascript)
+
+    def test_desktop_chrome_keeps_reading_fonts_and_shared_sidebar_bounds(self) -> None:
+        css, swift = render_css(self.tokens), render_swift(self.tokens)
+        self.assertIn('--ui: "Figtree"', css)
+        self.assertIn(':root[data-platform="macos"] {\n  --chrome-ui: -apple-system', css)
+        for name, value in self.tokens["desktop"].items():
+            self.assertIn(f"--desktop-{name}: {scalar(value)}px", css)
+            self.assertIn(f"{swift_name(name)}: CGFloat = {scalar(value)}", swift)
+        invalid = copy.deepcopy(self.tokens)
+        invalid["desktop"]["sidebar-width"] = invalid["desktop"]["sidebar-max-width"] + 1
+        with self.assertRaisesRegex(ValueError, "within its bounds"):
+            validate(invalid)
         invalid = copy.deepcopy(self.tokens)
         invalid["pill"]["preview-lines"] = 1.5
         with self.assertRaisesRegex(ValueError, "pill count"):

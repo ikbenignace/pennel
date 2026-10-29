@@ -1,6 +1,6 @@
 import { bindLocalization, l, t, localizeBackendText, formatDateTime } from "../i18n.ts";
 import { api, type HistoryEntry } from "../api";
-import { controlButton, confirmDialog, errorText, h } from "../dom";
+import { controlButton, confirmDialog, errorText, h, showPopupMenu, type PopupMenuHandle, type PopupMenuItem } from "../dom";
 import type { Context } from "../main";
 import { applicationLabel } from "../presentation";
 import { icon } from "../icons";
@@ -24,6 +24,8 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
   const previousEntry = previousFocus?.closest<HTMLElement>("[data-history-id]")?.dataset.historyId;
   const previousAction = previousFocus?.dataset.historyAction;
   const entries = await api.history(200);
+  let menu: PopupMenuHandle | null = null;
+  ctx.onDispose(() => menu?.close());
   const available = new Set(entries.map((entry) => entry.id));
   const rows = new Map<string, { element: HTMLElement; actions: Map<string, HTMLElement> }>();
   const requested = ctx.param;
@@ -55,7 +57,7 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
     const element = h(
       "div",
       { class: `history-entry${requested === entry.id ? " history-target source-highlight" : ""}${selected?.id === entry.id ? " history-selected" : ""}`, "data-history-id": entry.id,
-        role: "group", tabindex: -1, "aria-label": l("dictation.history.entry_label", () => ({ time: when(entry.created_at_ms) })),
+        role: "listitem", tabindex: selected?.id === entry.id || !selected && entries[0]?.id === entry.id ? 0 : -1, "aria-label": l("dictation.history.entry_label", () => ({ time: when(entry.created_at_ms) })),
         "aria-current": selected?.id === entry.id ? "true" : null,
         "aria-describedby": requested === entry.id ? "history-target-notice" : null },
       h("span", { class: "history-destination" }, source?.icon ?? h("span", { class: "app-icon", "aria-hidden": "true" }, icon("laptop"))),
@@ -77,7 +79,7 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
           : null,
         failed
           ? null
-          : action("copy", controlButton({ class: "btn", "aria-label": l("dictation.history.copy"), onclick: () => api.copyText(entry.text) }, l("common.copy"))),
+          : action("copy", controlButton({ class: "btn", "aria-label": l("dictation.history.copy"), onclick: () => api.copyText(entry.text).catch(ctx.report) }, l("common.copy"))),
         action("delete", h(
           "button",
           {
@@ -93,6 +95,36 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
         )),
       ),
     );
+    for (const control of actions.values()) control.tabIndex = element.tabIndex;
+    const openMenu = (anchor: HTMLElement, position?: { x: number; y: number }) => {
+      focusMemory.remember(entry.id);
+      showSelection(focusMemory.selection(available));
+      const items: PopupMenuItem[] = [];
+      const append = (name: string, label: PopupMenuItem["label"], separatorBefore = false) => {
+        const button = actions.get(name);
+        if (!(button instanceof HTMLButtonElement)) return;
+        items.push({ value: name, label, separatorBefore, disabled: button.disabled, run: () => { if (!button.disabled) button.click(); } });
+      };
+      append("copy", l("common.copy"));
+      append("save", l("dictation.history.save_again"));
+      append("retry", l("common.retry"));
+      append("delete", l("common.delete"), true);
+      menu?.close();
+      menu = showPopupMenu(anchor, items, { position, report: ctx.report });
+    };
+    element.addEventListener("contextmenu", (event) => {
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && element.contains(selection.anchorNode) && element.contains(selection.focusNode)) return;
+      event.preventDefault();
+      element.focus({ preventScroll: true });
+      openMenu(element, { x: event.clientX, y: event.clientY });
+    });
+    element.addEventListener("keydown", (event) => {
+      if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
+      if (event.target instanceof HTMLElement && event.target.closest("input,textarea,[contenteditable=true]")) return;
+      event.preventDefault(); event.stopPropagation();
+      openMenu(event.target instanceof HTMLElement ? event.target : element);
+    });
     rows.set(entry.id, { element, actions });
     return element;
   };
@@ -104,10 +136,13 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
     { class: "history-view" },
     heading, targetNotice,
     message ? h("p", { class: messageFailed ? "error" : "help", role: "status" }, l(message.key, () => ({ error: message?.error ? localizeBackendText(message.error) : "" }))) : null,
-    entries.length ? h("div", { class: "history-list" }, entries.map(row)) : h("div", { class: "empty-state muted" }, l("dictation.history.empty")),
+    entries.length ? h("div", { class: "history-list", role: "list" }, entries.map(row)) : h("div", { class: "empty-state muted" }, l("dictation.history.empty")),
   );
   const showSelection = (selection: HistoryFocusTarget | null) => {
     for (const [id, row] of rows) {
+      const active = selection?.id === id || !selection && entries[0]?.id === id;
+      row.element.tabIndex = active ? 0 : -1;
+      for (const control of row.actions.values()) control.tabIndex = active ? 0 : -1;
       row.element.classList.toggle("history-selected", selection?.id === id);
       if (selection?.id === id) row.element.setAttribute("aria-current", "true");
       else row.element.removeAttribute("aria-current");
@@ -128,6 +163,17 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
   };
   result.addEventListener("focusin", rememberIntent);
   result.addEventListener("pointerdown", rememberIntent);
+  result.addEventListener("keydown", (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+    if (!(event.target instanceof HTMLElement) || !event.target.matches("[data-history-id]")) return;
+    const selection = focusMemory.move(entries.map((entry) => entry.id), event.target.dataset.historyId ?? null, event.key);
+    if (!selection) return;
+    event.preventDefault();
+    showSelection(selection);
+    const next = rows.get(selection.id)?.element;
+    next?.focus({ preventScroll: true });
+    next?.scrollIntoView({ block: "nearest" });
+  });
   requestAnimationFrame(() => {
     if (!result.isConnected) return;
     const plan = focusMemory.plan({ requested, previous: previousEntry ? { id: previousEntry, action: previousAction } : null, available,

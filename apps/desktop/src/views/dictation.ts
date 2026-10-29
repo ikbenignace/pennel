@@ -162,7 +162,10 @@ export function stylesView(ctx: Context): HTMLElement {
         await ctx.save((settings) => { settings.style_rules.push({ bundle_id: application.id, style: "neutral" }); });
       }
     } catch (error) { pickerStatus.textContent = errorText(error); }
-    finally { pick.disabled = unavailable; }
+    finally {
+      pick.disabled = unavailable;
+      if (pick.isConnected && !pick.disabled) pick.focus({ preventScroll: true });
+    }
   } }, l("dictation.style.add_app"));
   return h(
     "div",
