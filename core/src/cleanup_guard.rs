@@ -94,6 +94,49 @@ fn numeric_joiner(c: char) -> bool {
     matches!(c, '.' | ',' | ':' | '/' | '-' | '–' | '—')
 }
 
+fn numeric_prefix(text: &str) -> bool {
+    let unsigned = text
+        .strip_prefix('-')
+        .or_else(|| text.strip_prefix('+'))
+        .or_else(|| text.strip_prefix('−'))
+        .unwrap_or(text)
+        .trim_start();
+    unsigned.chars().next().is_some_and(|c| c.is_ascii_digit())
+        || unsigned.starts_with(['.', ','])
+            && unsigned[1..]
+                .trim_start()
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_digit())
+        || unsigned.split_whitespace().next().is_some_and(|word| {
+            let word = word
+                .trim_end_matches(|c| prose_punctuation(c) || c == '?')
+                .to_lowercase();
+            cardinal_en(&word.split('-').collect::<Vec<_>>()).is_some()
+                || cardinal_nl(&[word.as_str()]).is_some()
+        })
+}
+
+fn numeric_suffix(tokens: &[Token]) -> bool {
+    tokens.last().is_some_and(|token| {
+        token.kind == Kind::Number
+            || token.kind == Kind::Word
+                && (token.text == "hundred" || cardinal(std::slice::from_ref(token)).is_some())
+    })
+}
+
+fn measurement_code(word: &str) -> bool {
+    [
+        "b", "KB", "MB", "GB", "TB", "PB", "KiB", "MiB", "GiB", "TiB", "m", "mm", "cm", "dm", "km",
+        "um", "µm", "μm", "nm", "pm", "g", "mg", "kg", "ug", "µg", "μg", "L", "mL", "cL", "dL",
+        "kL", "s", "ms", "us", "µs", "μs", "ns", "h", "Hz", "kHz", "MHz", "GHz", "W", "mW", "kW",
+        "GW", "V", "mV", "kV", "A", "mA", "kA", "J", "kJ", "MJ", "N", "kN", "Pa", "kPa", "MPa",
+        "bar", "mbar", "C", "F", "K",
+    ]
+    .iter()
+    .any(|code| code.eq_ignore_ascii_case(word))
+}
+
 fn code_operator(c: char) -> bool {
     matches!(
         c,
@@ -138,15 +181,7 @@ fn tokenize(text: &str, style: Style) -> Vec<Token> {
         let at_line_start = line_start;
         line_start = false;
         let after_marker = text[start + c.len_utf8()..].trim_start();
-        let numeric_item = after_marker
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_digit())
-            || after_marker.split_whitespace().next().is_some_and(|word| {
-                let word = word.to_lowercase();
-                cardinal_en(&word.split('-').collect::<Vec<_>>()).is_some()
-                    || cardinal_nl(&[word.as_str()]).is_some()
-            });
+        let numeric_item = numeric_prefix(after_marker);
         if style != Style::Literal
             && matches!(c, '-' | '*' | '•')
             && at_line_start
@@ -156,7 +191,15 @@ fn tokenize(text: &str, style: Style) -> Vec<Token> {
             i += 1;
             continue;
         }
+        let leading_decimal = matches!(c, '.' | ',') && next.is_some_and(|c| c.is_ascii_digit());
+        let signed_decimal = matches!(c, '-' | '+' | '−')
+            && next.is_some_and(|c| matches!(c, '.' | ','))
+            && chars.get(i + 2).is_some_and(|(_, c)| c.is_ascii_digit());
+        let numeric_separator =
+            matches!(c, '.' | ',' | ':') && numeric_suffix(&tokens) && numeric_item;
         let numeric = c.is_ascii_digit()
+            || leading_decimal
+            || signed_decimal
             || matches!(c, '-' | '+' | '−') && next.is_some_and(|c| c.is_ascii_digit());
         let kind = if numeric {
             i += 1;
@@ -171,7 +214,31 @@ fn tokenize(text: &str, style: Style) -> Vec<Token> {
                     break;
                 }
             }
-            Kind::Number
+            if chars
+                .get(i)
+                .is_some_and(|(_, c)| c.is_alphabetic() || *c == '_')
+            {
+                while i < chars.len() {
+                    let current = chars[i].1;
+                    let next_alphanumeric =
+                        chars.get(i + 1).is_some_and(|(_, c)| c.is_alphanumeric());
+                    if current.is_alphanumeric()
+                        || is_combining_mark(current)
+                        || word_joiner(current) && next_alphanumeric
+                        || current == '+'
+                            && i > 0
+                            && matches!(chars[i - 1].1, 'e' | 'E')
+                            && next_alphanumeric
+                    {
+                        i += 1;
+                    } else {
+                        break;
+                    }
+                }
+                Kind::Protected
+            } else {
+                Kind::Number
+            }
         } else if c.is_alphabetic() || is_combining_mark(c) {
             let leading_identifier_mark =
                 i > 0 && matches!(chars[i - 1].1, '_' | '/' | '\\' | '.' | '@');
@@ -221,6 +288,7 @@ fn tokenize(text: &str, style: Style) -> Vec<Token> {
             let identifier = word
                 .chars()
                 .any(|c| matches!(c, '_' | '/' | '\\' | '.' | '@'))
+                || measurement_code(word) && numeric_suffix(&tokens)
                 || style == Style::Literal
                     && (word.chars().skip(1).any(char::is_uppercase)
                         || leading_identifier_mark
@@ -236,7 +304,8 @@ fn tokenize(text: &str, style: Style) -> Vec<Token> {
             i += 1;
             if c == '?' {
                 Kind::Question
-            } else if c == ':' && next == Some('/')
+            } else if numeric_separator
+                || c == ':' && next == Some('/')
                 || style == Style::Literal && matches!(c, ';' | ':' | ',')
             {
                 Kind::Protected
@@ -1309,5 +1378,82 @@ mod tests {
             .map(|(raw, _, _, _)| raw)
             .collect();
         assert!(accepted.is_empty(), "accepted corruptions for {accepted:?}");
+    }
+
+    #[test]
+    fn protects_leading_decimals_and_spaced_numeric_separators() {
+        let corruptions = [
+            ("pay .5 euro", "Pay 5 euro."),
+            ("pay ,5 euro", "Pay 5 euro."),
+            ("pay -.5 euro", "Pay - 5 euro."),
+            ("pay +,5 euro", "Pay + 5 euro."),
+            ("meet at 5 : 30", "Meet at 5 30."),
+            ("pay 5 . 30 euro", "Pay 5 30 euro."),
+            ("pay 5 , 30 euro", "Pay 5 30 euro."),
+            ("pay one . five euro", "Pay 1 5 euro."),
+            ("meet at five : thirty", "Meet at 5 30."),
+            ("pay 5 : -.5 euro", "Pay 5 -.5 euro."),
+            ("- .5 euro", ".5 euro."),
+        ];
+        let accepted_corruptions: Vec<_> = corruptions
+            .into_iter()
+            .filter(|(raw, candidate)| accepted(raw, candidate))
+            .map(|(raw, _)| raw)
+            .collect();
+        assert!(
+            accepted_corruptions.is_empty(),
+            "accepted numeric corruptions for {accepted_corruptions:?}"
+        );
+        for (raw, candidate) in [
+            ("pay .5 euro", "Pay .5 euro."),
+            ("pay ,5 euro", "Pay ,5 euro."),
+            ("pay -.5 euro", "Pay -.5 euro."),
+            ("pay +,5 euro", "Pay +,5 euro."),
+            ("meet at 5 : 30", "Meet at 5 : 30."),
+            ("pay 5 . 30 euro", "Pay 5 . 30 euro."),
+            ("pay 5 , 30 euro", "Pay 5 , 30 euro."),
+        ] {
+            assert!(
+                accepted(raw, candidate),
+                "rejected unchanged numeric form {raw:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn protects_case_sensitive_units_and_numeric_identifiers() {
+        let corruptions = [
+            ("ship 5 MB", "Ship 5 Mb."),
+            ("ship five mL", "Ship 5 ml."),
+            ("ship 5 m", "Ship 5 M."),
+            ("wait 5 s", "Wait 5 S."),
+            ("send to 3M", "Send to 3 m."),
+            ("use 1e3", "Use 1 e3."),
+            ("ship 5MB", "Ship 5mb."),
+        ];
+        let accepted_corruptions: Vec<_> = corruptions
+            .into_iter()
+            .filter(|(raw, candidate)| accepted(raw, candidate))
+            .map(|(raw, _)| raw)
+            .collect();
+        assert!(
+            accepted_corruptions.is_empty(),
+            "accepted unit/identifier corruptions for {accepted_corruptions:?}"
+        );
+        for (raw, candidate) in [
+            ("ship 5 MB", "Ship 5 MB."),
+            ("ship five mL", "Ship 5 mL."),
+            ("send to 3M", "Send to 3M."),
+            ("use 1e3", "Use 1e3."),
+            ("ship 5MB", "Ship 5MB."),
+            ("pay fifty euro", "Pay 50 Euro."),
+            ("a simple sentence", "A simple sentence."),
+            ("um send the draft", "Send the draft."),
+        ] {
+            assert!(
+                accepted(raw, candidate),
+                "rejected unchanged unit/identifier form {raw:?}"
+            );
+        }
     }
 }
