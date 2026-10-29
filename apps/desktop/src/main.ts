@@ -357,8 +357,7 @@ function appearanceView(ctx: Context): HTMLElement {
   bindLocalization(interfacePicker, updateLabels);
   ctx.onInfoChange((next) => { picker.value = next.settings.appearance; interfacePicker.value = next.settings.ui_language ?? "system"; });
   return h("div", {}, section(l("interface.language"), l("interface.language_help"), interfacePicker),
-    section(l("appearance.title"), l("appearance.help"), h("div", { class: "preference-row" }, h("span", {}, l("appearance.title")), picker),
-      h("p", { class: "help" }, l("appearance.zoom_help", () => ({ modifier: ctx.info.platform === "macos" ? "⌘" : "Ctrl" })))),
+    section(l("appearance.title"), l("appearance.help"), h("div", { class: "preference-row" }, h("span", {}, l("appearance.title")), picker)),
     section(l("intro.title"), l("intro.help"),
       h("button", { class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "language") }, l("intro.open"))));
 }
