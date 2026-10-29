@@ -154,8 +154,12 @@ details > summary { cursor: default; }
 .workspace-body { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
 .library-sidebar { display: flex; flex: 0 0 230px; flex-direction: column; width: 230px; min-height: 0; padding-top: 14px; background: var(--sidebar); }
 :root[data-platform="macos"] .library-sidebar { padding-top: 46px; }
-.library-search { padding: var(--space-3) var(--space-3) var(--space-2); }
-.library-search input { width: 100%; border-radius: 99px; background: var(--subtle); box-shadow: inset 0 0 0 .5px var(--control-edge); }
+.library-search { position: relative; padding: var(--space-3) var(--space-3) var(--space-2); }
+.library-search::before { content: ""; position: absolute; left: calc(var(--space-3) + 9px); top: calc(var(--space-3) + 6px); width: 10px; height: 10px; border: 1.5px solid var(--muted); border-radius: 50%; pointer-events: none; }
+.library-search::after { content: ""; position: absolute; left: calc(var(--space-3) + 19px); top: calc(var(--space-3) + 17px); width: 5px; height: 1.5px; border-radius: 1px; background: var(--muted); transform: rotate(45deg); transform-origin: left center; pointer-events: none; }
+.library-search input { width: 100%; padding-left: 30px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--field) 60%, var(--selection)); box-shadow: inset 0 0 0 .5px var(--control-edge); }
+.library-search input:focus { background: color-mix(in srgb, var(--field) 80%, var(--selection)); box-shadow: inset 0 0 0 1px var(--control-edge), 0 1px 2px var(--shadow); }
+.library-search input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .library-actions { display: flex; flex-shrink: 0; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
 .library-record.library-live { flex-wrap: wrap; min-height: var(--space-8); margin: 0 var(--space-3); padding: var(--space-2) var(--space-3); background: var(--button); color: var(--button-text); border-radius: var(--radius-control); }
 .library-record.library-live:hover { opacity: .9; }
