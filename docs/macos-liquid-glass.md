@@ -30,11 +30,13 @@ Local verification on macOS 27.0.1 / Xcode 27:
 
 Native captures use a separate app identity and only owned window IDs. Browser fixtures establish frontend layout and event handling; they do not establish native material rendering. The capture bundle is development/ad-hoc signed. Older macOS 26/14.4/15 visual acceptance, Windows/Linux execution, human VoiceOver/enlarged-text acceptance, hosted CI and merge remain open. Capture-control launches can affect focus, so active/inactive observations require independent focus transitions rather than merely naming a snapshot inactive.
 
-### Earlier desktop checkpoint
+### Reviewed desktop candidate
 
-Desktop code revision: `22ca99fcc63d56605572da33fccfed2cb222ba6b`. The later mobile palette/evidence commit does not change desktop code. The development capture executable's SHA-256 is `54b0459b43da4f976f4145c267acde5888629cade13cf97d3a554ad39e0c57fd`; the bundle passed `codesign --verify --deep --strict` after ad-hoc signing.
+Desktop code revision: `3b4fc0b47ec2e093cb86df59bfb2fee9ffb8dc06`. The development capture executable's SHA-256 is `7ab0bea411b99282a2867061b54ead02aa5a32846c57744f2c5c53dc55c7a542`; its ad-hoc bundle passed `codesign --verify --deep --strict`. Later evidence-only commits do not change desktop code.
 
-The [machine-readable receipt](evidence/macos-liquid-glass-2026-10-29/receipt.json) distinguishes the final EN/NL light/dark candidate captures from live accessibility checks made during implementation. Final native checks also verified picker cancellation returning focus to Add app, closing the workspace returning to accessory policy, and native/frontend focus becoming false after hiding. Visible inactive-window visual review remains open.
+The [machine-readable receipt](evidence/macos-liquid-glass-2026-10-29/receipt.json) records eight final native EN/NL light/dark captures and separates historical checks from the final padding candidate. This candidate also exercised circular sidebar/search activation, fullscreen, the maximum sidebar at minimum window size, and real transparency/contrast preferences. Native and frontend states matched; the controls stayed visible with opaque fallbacks. Original settings and the original System Settings page were restored.
+
+The requested minimum fixture size is 760×520. Native toolbar/layout adjustment can raise the measured viewport height; receipts retain the actual dimensions instead of assuming a fixed OS result. Footer actions remain contained and reachable.
 
 ![Revised native macOS light appearance](evidence/macos-liquid-glass-2026-10-29/meeting-light.png)
 
