@@ -2,7 +2,7 @@ import "./styles.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, fixtureClient, listen, listenToWindow, type AppInfo, type MeetingFinished, type MeetingRuntimeStatus, type Settings, type UpdateInfo } from "./api";
 import { LatestRequest, SerialQueue, afterPaint, fillWhenReady, persistAll } from "./async";
-import { errorText, h, section, select } from "./dom";
+import { controlButton, errorText, h, section, select } from "./dom";
 import { dictationView, dictionaryView, stylesView } from "./views/dictation";
 import { historyView } from "./views/history";
 import { displayedMeetingSession, finishMeetingDrafts, flushMeetingDrafts, meetingView, meetingsView } from "./views/meetings";
@@ -359,7 +359,7 @@ function appearanceView(ctx: Context): HTMLElement {
   return h("div", {}, section(l("interface.language"), l("interface.language_help"), interfacePicker),
     section(l("appearance.title"), l("appearance.help"), h("div", { class: "preference-row" }, h("span", {}, l("appearance.title")), picker)),
     section(l("intro.title"), l("intro.help"),
-      h("button", { class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "language") }, l("intro.open"))));
+      controlButton({ class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "language") }, l("intro.open"))));
 }
 
 /** As in the original library, the main window opens on the newest meeting when none is chosen. */
@@ -494,13 +494,13 @@ function settingsFooter(ctx: Context) {
   const status = h("span", { class: "help", role: "status" }, liveText(() => message()));
   const showStatus = (next: () => string) => { message = next; status.textContent = message(); };
   bindLocalization(status, () => { status.textContent = message(); });
-  const install = h("button", { class: "btn", hidden: true, disabled: info.preview }, l("updates.install"));
+  const install = controlButton({ class: "btn", hidden: true, disabled: info.preview }, l("updates.install"));
   install.addEventListener("click", async () => {
     install.disabled = true; showStatus(() => t("updates.downloading"));
     try { await api.installUpdate(); showStatus(() => t("updates.installed")); }
     catch (error) { showStatus(() => errorText(error)); install.disabled = false; }
   });
-  const check = h("button", { class: "btn", disabled: info.preview, title: info.preview ? l("updates.preview_disabled") : null, onclick: async () => {
+  const check = controlButton({ class: "btn", disabled: info.preview, title: info.preview ? l("updates.preview_disabled") : null, onclick: async () => {
     check.disabled = true; showStatus(() => t("updates.checking"));
     try { const update: UpdateInfo = await api.checkForUpdates(); showStatus(() => update.available ? t("updates.available", { version: update.version ?? "" }) : t("updates.current")); install.hidden = !update.available; }
     catch (error) { showStatus(() => errorText(error)); }

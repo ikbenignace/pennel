@@ -1,6 +1,6 @@
 import { l } from "../i18n.ts";
 import { api, listen, type RecordPrompt } from "../api";
-import { errorText, h } from "../dom";
+import { controlButton, errorText, h } from "../dom";
 import type { Context } from "../main";
 
 export async function promptView(ctx: Context): Promise<HTMLElement> {
@@ -24,8 +24,8 @@ export async function promptView(ctx: Context): Promise<HTMLElement> {
     node.replaceChildren(
       h("div", { class: "row" }, h("span", { class: "status-dot" }), h("strong", {}, l("dictation.prompt.title"))),
       h("p", { class: "help prompt-description" }, [prompt.app_name, prompt.title].filter(Boolean).join(" · ")),
-      h("div", { class: "row" }, h("button", { class: "btn", onclick: () => respond("yes") }, l("common.yes")),
-        h("button", { class: "btn", onclick: () => respond("no") }, l("common.no")), h("span", { class: "grow" }),
+      h("div", { class: "row" }, controlButton({ class: "btn", onclick: () => respond("yes") }, l("common.yes")),
+        controlButton({ class: "btn", onclick: () => respond("no") }, l("common.no")), h("span", { class: "grow" }),
         h("button", { class: "text-button", onclick: () => respond("never") }, l("dictation.prompt.never", { app: prompt.app_name }))), status);
   };
   let eventReceived = false;

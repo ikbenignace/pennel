@@ -1,5 +1,5 @@
 import { api, type AppInfo, type PermissionInfo, type SetupReadiness } from "../api";
-import { errorText, h, menuButton } from "../dom";
+import { controlButton, errorText, h, menuButton } from "../dom";
 import { bindLocalization, l, localizeBackendText, refreshLocalization, t, type TranslationKey } from "../i18n.ts";
 import type { Context } from "../main";
 import { providerDestination } from "../processing-state";
@@ -37,7 +37,7 @@ export function settingsOverview(ctx: Context): HTMLElement {
     h("h2", {}, l("settings.setup.overview_title")), h("p", { class: "help" }, l("settings.setup.overview_help")),
     ...tasks.map((task) => {
       const status = h("p", { class: "settings-task-status help", role: "status" }, l("common.loading"));
-      const action = h("button", { class: "btn", "data-setup-task": task, onclick: () => ctx.openSetup(task) }, l("settings.setup.finish"));
+      const action = controlButton({ class: "btn", "data-setup-task": task, onclick: () => ctx.openSetup(task) }, l("settings.setup.finish"));
       rows.set(task, { status, action });
       return h("section", { class: "settings-task-row" },
         h("div", { class: "settings-task-copy" }, h("h3", {}, l(titleKeys[task])), h("p", { class: "help" }, l(helpKeys[task])), status), action);
@@ -94,8 +94,8 @@ export function openTaskSetupDialog(base: Context, task: SetupTask, beforeClose:
   const body = h("div", { class: "task-setup-body" });
   const message = h("p", { class: "task-setup-message help", role: "status", "aria-live": "polite" });
   const status = h("p", { class: "settings-task-status help", role: "status" });
-  const back = h("button", { class: "btn", onclick: () => { void close(false); } }, l("common.back"));
-  const done = h("button", { class: "btn primary", onclick: () => { void close(true); } }, l("common.done"));
+  const back = controlButton({ class: "btn", onclick: () => { void close(false); } }, l("common.back"));
+  const done = controlButton({ class: "btn primary", onclick: () => { void close(true); } }, l("common.done"));
   let closed = false;
   let closing = false;
   let accountPage = false;
@@ -197,7 +197,7 @@ export function openTaskSetupDialog(base: Context, task: SetupTask, beforeClose:
         })), "task-setup-add");
         node = h("div", {}, await taskModelView(ctx, task), details, h("div", { class: "row" }, add));
         if (speech && configuration.state === "ready" && !speech.can_record) {
-          node.append(h("button", { class: "btn", onclick: async () => {
+          node.append(controlButton({ class: "btn", onclick: async () => {
             try {
               const permissions = await api.permissions();
               const required = permissions.find((permission: PermissionInfo) => ["microphone", ...(account?.kind === "apple_speech" ? ["speech"] : [])].includes(permission.kind)

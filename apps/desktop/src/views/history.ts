@@ -1,6 +1,6 @@
 import { bindLocalization, l, t, localizeBackendText, formatDateTime } from "../i18n.ts";
 import { api, type HistoryEntry } from "../api";
-import { confirmDialog, errorText, h } from "../dom";
+import { controlButton, confirmDialog, errorText, h } from "../dom";
 import type { Context } from "../main";
 import { applicationLabel } from "../presentation";
 import { icon } from "../icons";
@@ -63,7 +63,7 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
         unsaved ? h("p", { class: "error", role: "status" }, l("dictation.history.unsaved")) : null,
         h("p", { class: failed ? "error" : "" }, failed ? l("dictation.history.failed", () => ({ error: entry.error ? localizeBackendText(entry.error) : t("dictation.history.unknown_error") })) : entry.text),
         unsaved ? h("p", { class: "help" }, l("dictation.history.temporary")) : null,
-        unsaved ? action("save", h("button", { class: "btn", disabled: retrying.has(entry.id), onclick: () => retry(entry) }, retrying.has(entry.id) ? l("dictation.working") : l("dictation.history.save_again"))) : null,
+        unsaved ? action("save", controlButton({ class: "btn", disabled: retrying.has(entry.id), onclick: () => retry(entry) }, retrying.has(entry.id) ? l("dictation.working") : l("dictation.history.save_again"))) : null,
         h("div", { class: "history-metadata" }, timestamp, entry.app_bundle_id ? h("span", { class: "visually-hidden" }, ` · ${applicationLabel(entry.app_bundle_id)}`) : "")),
       h(
         "div",
@@ -77,7 +77,7 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
           : null,
         failed
           ? null
-          : action("copy", h("button", { class: "btn", "aria-label": l("dictation.history.copy"), onclick: () => api.copyText(entry.text) }, l("common.copy"))),
+          : action("copy", controlButton({ class: "btn", "aria-label": l("dictation.history.copy"), onclick: () => api.copyText(entry.text) }, l("common.copy"))),
         action("delete", h(
           "button",
           {
