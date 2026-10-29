@@ -58,7 +58,7 @@ export async function historyView(ctx: Context): Promise<HTMLElement> {
         role: "group", tabindex: -1, "aria-label": l("dictation.history.entry_label", () => ({ time: when(entry.created_at_ms) })),
         "aria-current": selected?.id === entry.id ? "true" : null,
         "aria-describedby": requested === entry.id ? "history-target-notice" : null },
-      h("span", { class: "history-destination" }, source?.icon ?? h("span", { class: "app-icon", "aria-hidden": "true" })),
+      h("span", { class: "history-destination" }, source?.icon ?? h("span", { class: "app-icon", "aria-hidden": "true" }, icon("laptop"))),
       h("div", { class: "history-content" },
         unsaved ? h("p", { class: "error", role: "status" }, l("dictation.history.unsaved")) : null,
         h("p", { class: failed ? "error" : "" }, failed ? l("dictation.history.failed", () => ({ error: entry.error ? localizeBackendText(entry.error) : t("dictation.history.unknown_error") })) : entry.text),

@@ -324,7 +324,7 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
   const selected = tabs.find(([id]) => id === current) ?? tabs[0];
   const pane = h("section", { class: "settings-pane" });
   const positionKey = scrollKey(navigation.current);
-  const content = async () => [await selected[2](ctx), settingsFooter(ctx)];
+  const content = async () => [...(current === "overview" ? [] : [h("h2", { class: "settings-title" }, l(selected[1]))]), await selected[2](ctx), settingsFooter(ctx)];
   // A re-render of the same category keeps its old content until the new one is ready, so the
   // scroll position survives; a new category appears at once and fills in as its data arrives.
   if (rerendering) pane.append(...await content());
