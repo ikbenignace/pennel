@@ -81,6 +81,28 @@ impl Secrets {
         value
     }
 
+    /// Check whether a credential exists without reading its secret during UI startup.
+    pub fn has(&self, account: &str) -> Result<bool, String> {
+        if account.is_empty() {
+            return Ok(false);
+        }
+        if let Some(cached) = self.cache.lock().unwrap().get(account) {
+            return Ok(cached.is_some());
+        }
+        #[cfg(test)]
+        if self.in_memory {
+            return Ok(false);
+        }
+        #[cfg(target_os = "macos")]
+        {
+            crate::macos::credential_presence(self.service, account)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Ok(self.get(account).is_some())
+        }
+    }
+
     pub fn set(&self, account: &str, value: &str) -> Result<(), String> {
         if account.is_empty() {
             return Err("no account".into());
@@ -176,6 +198,16 @@ mod tests {
         secrets.fail_writes.store(true, Ordering::SeqCst);
         assert!(secrets.set("provider", "rejected synthetic key").is_err());
         assert_eq!(secrets.revision(), replacement);
+    }
+
+    #[test]
+    fn presence_reports_saved_and_removed_keys_without_exposing_values() {
+        let secrets = Secrets::in_memory();
+        assert_eq!(secrets.has("synthetic").unwrap(), false);
+        secrets.set("synthetic", "synthetic-secret").unwrap();
+        assert_eq!(secrets.has("synthetic").unwrap(), true);
+        secrets.set("synthetic", "").unwrap();
+        assert_eq!(secrets.has("synthetic").unwrap(), false);
     }
 
     #[test]

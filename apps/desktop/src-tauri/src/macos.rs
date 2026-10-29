@@ -42,6 +42,7 @@ unsafe extern "C" {
     );
     fn pennel_mac_other_instances() -> *mut c_char;
     fn pennel_mac_migrate_legacy_key(account: *const c_char, error: *mut *mut c_char) -> bool;
+    fn pennel_mac_credential_presence(service: *const c_char, account: *const c_char) -> i32;
     fn pennel_mac_read_selection(sink: TextSink, context: *mut c_void);
     fn pennel_mac_copy_text(text: *const c_char, html: *const c_char) -> bool;
     fn pennel_mac_copy_secret(text: *const c_char) -> bool;
@@ -264,6 +265,17 @@ pub fn paste_external_target(text: &str, token: &str) -> Result<(), String> {
 /// Running canonical Pennel/Musli apps that predate the shared core's storage locks.
 pub fn other_instances() -> Vec<ForegroundApp> {
     serde_json::from_value(unsafe { take_json(pennel_mac_other_instances()) }).unwrap_or_default()
+}
+
+/// Checks Keychain metadata without reading the secret or requesting authentication.
+pub fn credential_presence(service: &str, account: &str) -> Result<bool, String> {
+    let service = CString::new(service).map_err(|_| "Invalid credential service")?;
+    let account = CString::new(account).map_err(|_| "Invalid credential account")?;
+    match unsafe { pennel_mac_credential_presence(service.as_ptr(), account.as_ptr()) } {
+        0 => Ok(false),
+        1 => Ok(true),
+        status => Err(format!("Credential store is unavailable ({status})")),
+    }
 }
 
 /// Imports an absent legacy credential with SecItemAdd; current/racing canonical entries win.
