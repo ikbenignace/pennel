@@ -139,6 +139,10 @@ pub struct Settings {
     pub dictation_stt: ModelChoice,
     pub meeting_stt: ModelChoice,
     pub llm: ModelChoice,
+    #[serde(default)]
+    pub decision: Option<crate::InferenceConfig>,
+    #[serde(default)]
+    pub reranking: Option<crate::InferenceConfig>,
     pub mode: DictationMode,
     pub language: Option<String>,
     #[serde(default)]
@@ -229,6 +233,8 @@ pub fn default_settings() -> Settings {
         dictation_stt: choice(&local, ProviderTask::DictationStt),
         meeting_stt: choice(&local, ProviderTask::MeetingStt),
         llm: choice(&groq, ProviderTask::Llm),
+        decision: None,
+        reranking: None,
         providers: vec![groq, local],
         mode: DictationMode::Fast,
         language: None,
@@ -336,6 +342,17 @@ impl Settings {
 
     /// Keeps explicitly unassigned tasks, repairs deleted providers, and selects downloaded local models.
     pub fn normalized_with(mut self, downloaded_local: &[String]) -> Settings {
+        // Optional analysis must never select another destination after account removal.
+        for slot in [&mut self.decision, &mut self.reranking] {
+            if slot.as_ref().is_some_and(|choice| {
+                !self
+                    .providers
+                    .iter()
+                    .any(|provider| provider.id == choice.provider_id)
+            }) {
+                *slot = None;
+            }
+        }
         for (task, slot) in [
             (ProviderTask::DictationStt, &mut self.dictation_stt),
             (ProviderTask::MeetingStt, &mut self.meeting_stt),

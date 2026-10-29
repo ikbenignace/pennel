@@ -136,7 +136,7 @@ async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask):
     const baseUrl = h("input", { type: "text", value: account.base_url, placeholder: kind.default_base_url || "https://…/v1", "aria-label": l("providers.base_url") });
     baseUrl.addEventListener("change", () => { void saveAccount("base_url", baseUrl.value.trim()).catch(ctx.report); });
     body.append(field(l("providers.base_url"), baseUrl));
-    if (kind.requires_key) {
+    if (kind.requires_key || account.kind === "custom") {
       const key = h("input", { type: "password", placeholder: ctx.info.keys[account.id] ? l("providers.saved_key") : l("providers.paste_key"), autocomplete: "off", class: "grow", "aria-label": l("providers.api_key") });
       if (!task) key.addEventListener("change", () => { void saveKey(key.value).catch(ctx.report); });
       const save = task ? h("button", { class: "btn", "data-setup-save": "key", disabled: true, onclick: async () => {

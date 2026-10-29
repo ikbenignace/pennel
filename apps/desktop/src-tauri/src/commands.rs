@@ -238,6 +238,7 @@ pub async fn save_settings(
 }
 
 fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> Result<AppInfo> {
+    let _inference_mutation = crate::inference::mutation();
     let old_settings = shared.settings();
     crate::cloud::keep_stored_cloud_sync(&mut settings, &old_settings);
     if shared.preview && old_settings.meetings_dir != settings.meetings_dir {
@@ -295,6 +296,7 @@ pub async fn add_provider(kind: ProviderKind, shared: State<'_, Arc<Shared>>) ->
         } else {
             None
         };
+        let _inference_mutation = crate::inference::mutation();
         let mut settings = shared.settings();
         let mut account = pennel_core::new_account(kind, settings.providers.clone());
         if let Some(path) = executable {
@@ -311,6 +313,7 @@ pub async fn add_provider(kind: ProviderKind, shared: State<'_, Arc<Shared>>) ->
 pub async fn remove_provider(id: String, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
     let shared = shared.inner().clone();
     off_main("remove_provider", move || {
+        let _inference_mutation = crate::inference::mutation();
         let mut settings = shared.settings();
         settings.providers.retain(|p| p.id != id);
         shared.engine.update_settings(settings).map_err(err)?;
@@ -329,6 +332,7 @@ pub async fn set_key(
 ) -> Result<AppInfo> {
     let shared = shared.inner().clone();
     off_main("set_key", move || {
+        let _inference_mutation = crate::inference::mutation();
         shared.secrets.set(&account, &key)?;
         let _ = app.emit("settings-changed", ());
         Ok(info(&shared))

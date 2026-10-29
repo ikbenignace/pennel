@@ -83,6 +83,7 @@ pub struct DictationResult {
 pub struct PennelEngine {
     settings_path: PathBuf,
     settings: RwLock<Settings>,
+    inference_requests: Mutex<Vec<Weak<crate::InferenceCancellation>>>,
     history: Mutex<HistoryStore>,
     unsaved_history: Mutex<RecoveryState>,
     dictation_pad: Mutex<DictationPad>,
@@ -1569,6 +1570,25 @@ impl PennelEngine {
 }
 
 impl PennelEngine {
+    pub(crate) fn register_inference(&self, cancellation: &Arc<crate::InferenceCancellation>) {
+        let _gate = self.meeting_gate.lock().unwrap();
+        let mut requests = self.inference_requests.lock().unwrap();
+        requests.retain(|request| request.strong_count() > 0);
+        requests.push(Arc::downgrade(cancellation));
+    }
+
+    pub(crate) fn finish_inference(&self, cancellation: &Arc<crate::InferenceCancellation>) {
+        let reference = Arc::downgrade(cancellation);
+        let mut requests = self.inference_requests.lock().unwrap();
+        requests.retain(|request| request.strong_count() > 0);
+        if let Some(index) = requests
+            .iter()
+            .position(|request| request.ptr_eq(&reference))
+        {
+            requests.swap_remove(index);
+        }
+    }
+
     pub(crate) fn update_settings_locked(&self, mut settings: Settings) -> Result<(), PennelError> {
         if self.preview {
             enforce_preview_library(
@@ -1607,6 +1627,18 @@ impl PennelEngine {
             None
         };
         let settings = settings.normalized_with(&self.models.downloaded());
+        let current = self.settings();
+        if current.decision != settings.decision
+            || current.reranking != settings.reranking
+            || current.providers != settings.providers
+        {
+            // Invalidate queued requests before their captured destination can be used.
+            for request in self.inference_requests.lock().unwrap().iter() {
+                if let Some(cancellation) = request.upgrade() {
+                    cancellation.cancel();
+                }
+            }
+        }
         settings.save(&self.settings_path)?;
         *self.settings.write().unwrap() = settings;
         if let Some(lease) = next_lease {
@@ -1885,6 +1917,7 @@ impl PennelEngine {
         let engine = Arc::new(Self {
             settings_path,
             settings: RwLock::new(settings),
+            inference_requests: Mutex::new(Vec::new()),
             history: Mutex::new(history),
             unsaved_history: Mutex::new(RecoveryState::default()),
             dictation_pad: Mutex::new(dictation_pad),

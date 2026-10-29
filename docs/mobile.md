@@ -216,3 +216,39 @@ make ios-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0
 Clean/repeated non-clean generation and actual pod/source ownership checks passed. Mobile typechecking, 46 UI tests, 64 Swift helper tests, 23 generated runtime tests and two keyboard tests passed. The retained native comparison passed 66 app tests and two keyboard tests, including deterministic English/Dutch interruption coverage. Simulator and unsigned iPhoneOS Release builds passed with isolated preview identities.
 
 These are local build/simulator results. Signed upgrades, physical recording/keyboard behavior, deployed localized email delivery and App Review remain separate acceptance gates. No production data, real mail or purchases were used.
+
+## Optional decision/reranking connections — 29 October 2026
+
+Issue [#54](https://github.com/pennel-app/pennel/issues/54) adds optional Models settings for
+decision processing and passage ranking through the same typed Rust contracts as desktop.
+Existing profiles keep both connections disabled. Native commands expose protocol metadata,
+availability, typed decision/reranking requests, synthetic verification and cancellation;
+credentials remain in Keychain. Custom accounts support an optional key through the existing
+credential flow. On iPhone, a loopback endpoint refers to a service on the phone itself.
+
+Only explicit sample verification sends text. Changing settings, provider accounts or keys
+cancels existing work and blocks new inference admission through the full asynchronous save
+and settings reload. The native facade also rejects duplicate IDs, bounds concurrency, and
+discards stale results. No automatic dictation/meeting feature or bundled model is enabled.
+Android implementation remains gated on iPhone acceptance.
+
+Verified from the repository root:
+
+```sh
+make mobile-prebuild
+make mobile-test
+make mobile-ios
+make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0-F1F19690D2E4'
+PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios
+```
+
+Clean/repeated non-clean generation and pod ownership checks passed. Mobile typechecking,
+57 UI/controller tests, 64 Swift helper tests, 29 native runtime tests and two keyboard
+tests passed on the owned iPhone 17 / iOS 26.5 simulator. Release simulator and unsigned
+iPhoneOS builds passed. The new native coverage includes protocol metadata, unconfigured
+sample verification without network, mutation admission, nested/error release, key-change
+cancellation and stale results. Matching Rust artifacts remain outside generated projects.
+
+These are local build/simulator and synthetic/mock results. No live hosted/provider request,
+model download, physical-device acceptance or deployment is claimed. See the desktop
+[connection contract](desktop.md#optional-decision-and-passage-ranking-connections).

@@ -45,6 +45,41 @@ enum BridgeJSON {
     static func template(_ value: MeetingTemplate) -> [String: Any] {
         ["id": value.id, "name": value.name, "builtin": value.builtin, "customized": value.customized]
     }
+    static func inferenceProtocol(_ value: InferenceProtocol) -> String {
+        switch value {
+        case .openRouterDecisions: "open_router_decisions"
+        case .openRouterSystemOne: "open_router_system_one"
+        case .typeSafe: "type_safe"
+        case .perplexity: "perplexity"
+        case .mercury: "mercury"
+        case .localDecider: "local_decider"
+        case .tei: "tei"
+        }
+    }
+    static func inferenceCapability(_ value: String) throws -> InferenceCapability {
+        switch value {
+        case "decision": .decision
+        case "reranking": .reranking
+        default: throw PennelBridgeError("invalid_request", "Unknown inference capability.")
+        }
+    }
+    static func inferenceProtocol(_ value: InferenceProtocolInfo) -> [String: Any] {
+        ["protocol": inferenceProtocol(value.protocol), "name": value.name, "default_base_url": value.defaultBaseUrl,
+         "decision": value.decision, "reranking": value.reranking, "extraction": value.extraction, "requires_key": value.requiresKey]
+    }
+    static func inferenceIdentity(_ value: InferenceIdentity) -> [String: Any] {
+        ["protocol": inferenceProtocol(value.protocol), "endpoint": value.endpoint,
+         "requested_model": value.requestedModel, "requested_upstream": optional(value.requestedUpstream),
+         "actual_model": optional(value.actualModel), "actual_revision": optional(value.actualRevision), "actual_provider": optional(value.actualProvider), "request_id": optional(value.requestId)]
+    }
+    static func inferenceAvailability(_ value: InferenceAvailability) -> [String: Any] {
+        ["capability": value.capability == .decision ? "decision" : "reranking", "configured": value.configured,
+         "available": value.available, "reason": optional(value.reason), "provider_id": optional(value.providerId),
+         "model": optional(value.model), "protocol": optional(value.protocol.map(inferenceProtocol)), "endpoint": optional(value.endpoint)]
+    }
+    static func inferenceVerification(_ value: InferenceVerification) -> [String: Any] {
+        ["verified": value.verified, "message": value.message, "identity": optional(value.identity.map(inferenceIdentity))]
+    }
     static func account(_ value: CloudAccount) -> [String: Any] {
         ["email": value.email, "audio_seconds": value.audioSeconds, "tokens": value.tokens,
          "storage_bytes": value.storageBytes, "limit_audio_seconds": value.limitAudioSeconds,
