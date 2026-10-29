@@ -18,6 +18,7 @@
   {"name":"meetings-sync","window":"workspace","section":"meetings","cloud":"conflict"},
   {"name":"meeting-notes","window":"workspace","section":"meetings","meeting_tab":"notes"},
   {"name":"desktop-chrome-interaction","window":"workspace","section":"meetings","meeting_tab":"notes","steps":[{"eval":"import('/tests/desktop-chrome.interactions.mjs').then(module => module.checkDesktopChrome())"}]},
+  {"name":"desktop-chrome-minimum","window":"workspace","section":"meetings","meeting_tab":"notes","size":[760,520],"steps":[{"eval":"import('/tests/desktop-chrome.interactions.mjs').then(module => module.checkDesktopChrome())"},{"eval":"(()=>{const key='pennel.workspace.presentation.v1',previous=localStorage.getItem(key),separator=document.querySelector('.workspace-separator');separator.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}));if(previous===null)localStorage.removeItem(key);else localStorage.setItem(key,previous);})()"}]},
   {"name":"desktop-material-readiness","window":"workspace","section":"meetings","meeting_tab":"notes","native_material":"liquid_glass"},
   {"name":"desktop-reduce-transparency","window":"workspace","section":"meetings","meeting_tab":"notes","native_material":"liquid_glass","reduce_transparency":true},
   {"name":"desktop-increase-contrast","window":"workspace","section":"meetings","meeting_tab":"notes","native_material":"liquid_glass","increase_contrast":true},

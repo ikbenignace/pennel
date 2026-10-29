@@ -70,7 +70,7 @@ def validate(tokens: dict) -> None:
         raise ValueError("unsupported theme token schema")
     colors = tokens.get("colors", {})
     required = {name for pair in CONTRAST_PAIRS for name in pair}
-    required.update(("control-edge", "chrome", "navigation-backing", "navigation-muted", "border", "hover", "focus-ring", "shadow", "key-shadow", "brand-paper", "brand-ink", "wave"))
+    required.update(("control-edge", "chrome", "navigation-backing", "navigation-muted", "toolbar-control", "toolbar-control-hover", "toolbar-control-highlight", "border", "hover", "focus-ring", "shadow", "key-shadow", "brand-paper", "brand-ink", "wave"))
     if missing := required - colors.keys():
         raise ValueError(f"missing semantic colors: {', '.join(sorted(missing))}")
     for name, pair in colors.items():
@@ -95,6 +95,10 @@ def validate(tokens: dict) -> None:
             backing = composite(colors["navigation-backing"][appearance], backdrop)
             if any(contrast(colors[role][appearance], backing) < 4.5 for role in ("foreground", "navigation-muted")):
                 raise ValueError(f"{appearance}: navigation text must retain 4.5:1 contrast over either backdrop extreme")
+            for role in ("toolbar-control", "toolbar-control-hover"):
+                control = composite(colors[role][appearance], backing)
+                if contrast(colors["foreground"][appearance], control) < 4.5:
+                    raise ValueError(f"{appearance}: toolbar control labels must retain 4.5:1 contrast over either backdrop extreme")
     for section in ("spacing", "radii", "desktop"):
         for name, value in tokens[section].items():
             if not (str(name).isdigit() or TOKEN_NAME.fullmatch(name)):
@@ -294,6 +298,18 @@ class GeneratorTests(unittest.TestCase):
         invalid = copy.deepcopy(self.tokens)
         invalid["colors"]["navigation-backing"]["light"] = "#F7F4EE00"
         with self.assertRaisesRegex(ValueError, "navigation text"):
+            validate(invalid)
+
+    def test_toolbar_labels_stay_readable_through_control_and_material_layers(self) -> None:
+        for appearance in ("light", "dark"):
+            for backdrop in ("#000000", "#FFFFFF"):
+                backing = composite(self.tokens["colors"]["navigation-backing"][appearance], backdrop)
+                for role in ("toolbar-control", "toolbar-control-hover"):
+                    control = composite(self.tokens["colors"][role][appearance], backing)
+                    self.assertGreaterEqual(contrast(self.tokens["colors"]["foreground"][appearance], control), 4.5)
+        invalid = copy.deepcopy(self.tokens)
+        invalid["colors"]["toolbar-control-hover"]["dark"] = "#FFFFFFFF"
+        with self.assertRaisesRegex(ValueError, "toolbar control labels"):
             validate(invalid)
 
     def test_invalid_colors_and_aliases_are_rejected(self) -> None:

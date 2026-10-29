@@ -100,6 +100,40 @@ private final class DesktopMaterialRoot: NSView {
 private var desktopMaterialHostKey: UInt8 = 0
 
 @MainActor
+private final class DesktopMainWindowChrome {
+    private weak var window: NSWindow?
+    private let previousToolbar: NSToolbar?
+    private let previousToolbarVisible: Bool
+    private let previousStyle: NSWindow.ToolbarStyle
+    private let toolbar: NSToolbar
+
+    init(window: NSWindow) {
+        self.window = window
+        previousToolbar = window.toolbar
+        previousToolbarVisible = window.toolbar?.isVisible ?? false
+        previousStyle = window.toolbarStyle
+        toolbar = NSToolbar(identifier: "PennelMainWindowGeometry")
+        toolbar.displayMode = .iconOnly
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        if #available(macOS 15, *) { toolbar.allowsDisplayModeCustomization = false }
+        // AppKit supplies titlebar geometry and traffic-light placement; the controls remain in the webview.
+        window.toolbarStyle = .unified
+        window.toolbar = toolbar
+        toolbar.isVisible = true
+        window.contentView?.layoutSubtreeIfNeeded()
+    }
+
+    func restore() {
+        guard let window, window.toolbar === toolbar else { return }
+        let restoreStyle = window.toolbarStyle == .unified
+        window.toolbar = previousToolbar
+        previousToolbar?.isVisible = previousToolbarVisible
+        if restoreStyle { window.toolbarStyle = previousStyle }
+    }
+}
+
+@MainActor
 final class DesktopMaterialHost: NSObject {
     let root: NSView
     let materialView: NSView
@@ -109,6 +143,7 @@ final class DesktopMaterialHost: NSObject {
     private let originalAutoresizing: NSView.AutoresizingMask
     private let originalTranslatesConstraints: Bool
     private let originalConstraints: [NSLayoutConstraint]
+    private let mainWindowChrome: DesktopMainWindowChrome?
     private var replacementConstraints: [NSLayoutConstraint] = []
     private let baseMaterial: DesktopMaterial
     private let preferences: () -> DesktopDisplayPreferences
@@ -150,6 +185,8 @@ final class DesktopMaterialHost: NSObject {
         self.label = label
         self.sink = sink
         self.preferences = preferences
+        mainWindowChrome = label == "main" && !floating && window.styleMask.contains(.titled) && !(window is NSPanel)
+            ? DesktopMainWindowChrome(window: window) : nil
         originalAutoresizing = content.autoresizingMask
         originalTranslatesConstraints = content.translatesAutoresizingMaskIntoConstraints
         originalConstraints = parent.constraints.filter { ($0.firstItem as? NSView) === content || ($0.secondItem as? NSView) === content }
@@ -249,6 +286,7 @@ final class DesktopMaterialHost: NSObject {
         if let parent = originalParent { parent.addSubview(content, positioned: .below, relativeTo: root.superview === parent ? root : nil) }
         root.removeFromSuperview()
         NSLayoutConstraint.activate(originalConstraints)
+        mainWindowChrome?.restore()
         if let window, objc_getAssociatedObject(window, &desktopMaterialHostKey) as? DesktopMaterialHost === self {
             objc_setAssociatedObject(window, &desktopMaterialHostKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         }

@@ -6,7 +6,7 @@ This follow-up to [#65](https://github.com/pennel-app/pennel/issues/65) retains 
 
 | Layer | Responsibility |
 | --- | --- |
-| Swift macOS integration | Material host, public AppKit availability guards, actual window appearance, live accessibility/focus notifications, owner-attached application picker |
+| Swift macOS integration | Material host, empty unified toolbar for system geometry, public AppKit availability guards, actual window appearance, live accessibility/focus notifications, owner-attached application picker |
 | Rust/Tauri | Host lifecycle and typed environment events, native menu commands and availability, owner-attached folder picker, isolated capture profile |
 | Tauri macOS configuration | Transparent webview, native decorated overlay titlebar and hidden visual title; macOS 14.4 remains the minimum |
 | Frontend and shared tokens | Toolbar, adjustable/collapsible sidebar, system-font chrome, opaque reading content, accessible states and keyboard navigation |
@@ -22,15 +22,15 @@ The capture identity `dev.pennel.Pennel.capture.preview` uses a separate fixture
 Local verification on macOS 27.0.1 / Xcode 27:
 
 - `make core && make test && make app`: passed, including 622 Rust core tests (five existing ignored) and 53 legacy Swift/smoke tests.
-- Desktop frontend build and 212 tests; desktop backend 217 tests; Rust formatting/Clippy; 108 Swift platform tests; 50 packaging/capture tests; 11 theme-generator checks: passed.
-- Owned EN/NL light/dark fixtures cover native environment changes, preserved drafts/focus, toolbar/sidebar keyboard behavior, History, menus and picker cancellation. Revised native captures show actual Liquid Glass, matched frontend/native environment snapshots, a 32 point titlebar and 69 point native-control extent.
+- Desktop frontend build and 212 tests; desktop backend 217 tests; Rust formatting/Clippy; 112 Swift platform tests; 50 packaging/capture tests; 12 theme-generator checks: passed.
+- Owned EN/NL light/dark fixtures cover native environment changes, preserved drafts/focus, toolbar/sidebar keyboard behavior, History, menus and picker cancellation. Revised native captures show actual Liquid Glass, matched frontend/native environment snapshots, a 52 point titlebar and 79 point native-control extent after the padding refinement.
 - Actual application-menu shortcuts, sidebar/Find, native History context menus, owner-attached application-picker sheets/cancellation, fullscreen and the minimum 760×520 window were exercised. No microphone capture, provider calls or key changes were needed.
 - Actual Reduce Transparency, Increase Contrast and Reduce Motion preferences changed the running app's native and frontend states together. Original preferences and the original System Settings page were restored.
 - The existing mobile token-parity test caught the two additional color roles missing from native iPhone metadata. Its unused color map now matches the canonical palette; 64 MobileKit tests, 46 mobile UI tests and the mobile typecheck pass.
 
 Native captures use a separate app identity and only owned window IDs. Browser fixtures establish frontend layout and event handling; they do not establish native material rendering. The capture bundle is development/ad-hoc signed. Older macOS 26/14.4/15 visual acceptance, Windows/Linux execution, human VoiceOver/enlarged-text acceptance, hosted CI and merge remain open. Capture-control launches can affect focus, so active/inactive observations require independent focus transitions rather than merely naming a snapshot inactive.
 
-### Reviewed desktop candidate
+### Earlier desktop checkpoint
 
 Desktop code revision: `22ca99fcc63d56605572da33fccfed2cb222ba6b`. The later mobile palette/evidence commit does not change desktop code. The development capture executable's SHA-256 is `54b0459b43da4f976f4145c267acde5888629cade13cf97d3a554ad39e0c57fd`; the bundle passed `codesign --verify --deep --strict` after ad-hoc signing.
 
@@ -57,3 +57,11 @@ The revised reference is Apple's own Notes and Finder interface, inspected in li
 [Apple's macOS 27 design update](https://developer.apple.com/videos/play/wwdc2026/102/) uses edge-to-edge sidebars, more uniform toolbars and colored sidebar icons. This is the current host's reference; macOS 26 and earlier retain the supported material fallbacks. A native host remains necessary for real Liquid Glass, but material availability alone is not proof of good visual composition.
 
 Navigation text contrast is checked over black and white backdrop extremes. Both primary and secondary labels must remain at least 4.5:1 after compositing the semantic backing. The toolbar continues using frontend controls; no independent native glass shape or interactivity is claimed for individual HTML buttons.
+
+### Padding and button surfaces
+
+The later Notes reference clarified that a compressed 32 point row and bare icon glyphs were still too dense. The refinement uses the canonical 52 point toolbar, 36 point circular sidebar/search controls, a 36 point recording capsule, 18 point glyphs and 12 point group gaps. Source navigation uses 13 point labels in 32 point rows; ordinary controls and fields have at least 28 point height and wider insets. Content headings retain 32 point horizontal alignment. Footer controls wrap at the minimum width instead of becoming clipped.
+
+An empty public `NSToolbar` with `.unified` style provides native titlebar geometry and traffic-light placement without moving any action into native UI. AppKit reports a 52 point band with a 79 point control exclusion on the current Mac. The retained WKWebView still receives header hits. The material host owns and restores this toolbar, preserving later replacements by another owner; prompts, the pill and other windows are unaffected.
+
+Button shapes use translucent semantic fills, a hairline edge and a restrained highlight above the existing native material. Their appearance is frontend styling; each button does not acquire an independent native refraction effect. Foreground contrast is checked through both the control fill and navigation backing over black and white extremes. The supplied reference image and its contents are not part of the repository or review artifacts.

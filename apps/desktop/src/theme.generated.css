@@ -6,6 +6,9 @@
   --sidebar: #f7f4ee;
   --navigation-backing: #f7f4eecc;
   --navigation-muted: #534e48;
+  --toolbar-control: #ffffff99;
+  --toolbar-control-hover: #ffffffd9;
+  --toolbar-control-highlight: #ffffffd9;
   --foreground: #2a2723;
   --muted: #6f675d;
   --border: #ece7de;
@@ -64,7 +67,12 @@
   --desktop-sidebar-width: 230px;
   --desktop-sidebar-min-width: 200px;
   --desktop-sidebar-max-width: 320px;
-  --desktop-toolbar-height: 32px;
+  --desktop-toolbar-height: 52px;
+  --desktop-toolbar-button-size: 36px;
+  --desktop-toolbar-glyph-size: 18px;
+  --desktop-toolbar-group-gap: 12px;
+  --desktop-control-height: 28px;
+  --desktop-sidebar-row-height: 32px;
   --pill-window-width: 420px;
   --pill-window-height: 120px;
   --pill-outer-inset: 16px;
@@ -99,6 +107,9 @@
     --sidebar: #252320;
     --navigation-backing: #252320cc;
     --navigation-muted: #ccc4b9;
+    --toolbar-control: #ffffff24;
+    --toolbar-control-hover: #ffffff29;
+    --toolbar-control-highlight: #ffffff1f;
     --foreground: #f3f0ea;
     --muted: #aba398;
     --border: #3a3632;
@@ -137,6 +148,9 @@
   --sidebar: #f7f4ee;
   --navigation-backing: #f7f4eecc;
   --navigation-muted: #534e48;
+  --toolbar-control: #ffffff99;
+  --toolbar-control-hover: #ffffffd9;
+  --toolbar-control-highlight: #ffffffd9;
   --foreground: #2a2723;
   --muted: #6f675d;
   --border: #ece7de;
@@ -174,6 +188,9 @@
   --sidebar: #252320;
   --navigation-backing: #252320cc;
   --navigation-muted: #ccc4b9;
+  --toolbar-control: #ffffff24;
+  --toolbar-control-hover: #ffffff29;
+  --toolbar-control-highlight: #ffffff1f;
   --foreground: #f3f0ea;
   --muted: #aba398;
   --border: #3a3632;

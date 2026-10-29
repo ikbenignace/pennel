@@ -39,6 +39,9 @@ public enum Brand {
     public static let sidebar = Token(light: 0xF7F4EE, dark: 0x252320)
     public static let navigationBacking = Token(light: 0xF7F4EE, dark: 0x252320, lightAlpha: 0.8, darkAlpha: 0.8)
     public static let navigationMuted = Token(light: 0x534E48, dark: 0xCCC4B9)
+    public static let toolbarControl = Token(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.6, darkAlpha: 36.0 / 255)
+    public static let toolbarControlHover = Token(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 217.0 / 255, darkAlpha: 41.0 / 255)
+    public static let toolbarControlHighlight = Token(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 217.0 / 255, darkAlpha: 31.0 / 255)
     public static let foreground = Token(light: 0x2A2723, dark: 0xF3F0EA)
     public static let muted = Token(light: 0x6F675D, dark: 0xABA398)
     public static let border = Token(light: 0xECE7DE, dark: 0x3A3632)
@@ -75,6 +78,9 @@ public enum Brand {
         "sidebar": sidebar,
         "navigation-backing": navigationBacking,
         "navigation-muted": navigationMuted,
+        "toolbar-control": toolbarControl,
+        "toolbar-control-hover": toolbarControlHover,
+        "toolbar-control-highlight": toolbarControlHighlight,
         "foreground": foreground,
         "muted": muted,
         "border": border,

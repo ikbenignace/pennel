@@ -612,7 +612,7 @@ function workspaceShell() {
   toolbarFind = controlButton({ class: "toolbar-find toolbar-icon", "data-command": "find", "aria-label": l("common.search"), onclick: () => { void runDesktopCommand("find"); } }, icon("search"));
   toolbarCaption = h("span", { class: "toolbar-section", "data-tauri-drag-region": true, "aria-hidden": "true" });
   const toolbar = h("div", { class: "workspace-toolbar", role: "toolbar", "aria-label": l("chrome.toolbar") },
-    h("div", { class: "toolbar-leading", "data-tauri-drag-region": true }, sidebarToggle, toolbarCaption),
+    h("div", { class: "toolbar-leading", "data-tauri-drag-region": true }, sidebarToggle), toolbarCaption,
     h("div", { class: "toolbar-drag grow", "data-tauri-drag-region": true, "aria-hidden": "true" }),
     h("div", { class: "toolbar-actions" }, toolbarRecording, toolbarFind));
   const toolbarButtons = () => [...toolbar.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];

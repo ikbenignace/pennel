@@ -21,6 +21,9 @@ public enum ThemeTokens {
     public static let sidebar = ColorPair(light: 0xF7F4EE, dark: 0x252320)
     public static let navigationBacking = ColorPair(light: 0xF7F4EE, dark: 0x252320, lightAlpha: 0.80000000, darkAlpha: 0.80000000)
     public static let navigationMuted = ColorPair(light: 0x534E48, dark: 0xCCC4B9)
+    public static let toolbarControl = ColorPair(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.60000000, darkAlpha: 0.14117647)
+    public static let toolbarControlHover = ColorPair(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.85098039, darkAlpha: 0.16078431)
+    public static let toolbarControlHighlight = ColorPair(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.85098039, darkAlpha: 0.12156863)
     public static let foreground = ColorPair(light: 0x2A2723, dark: 0xF3F0EA)
     public static let muted = ColorPair(light: 0x6F675D, dark: 0xABA398)
     public static let border = ColorPair(light: 0xECE7DE, dark: 0x3A3632)
@@ -106,7 +109,12 @@ public enum ThemeDesktop {
     public static let sidebarWidth: CGFloat = 230
     public static let sidebarMinWidth: CGFloat = 200
     public static let sidebarMaxWidth: CGFloat = 320
-    public static let toolbarHeight: CGFloat = 32
+    public static let toolbarHeight: CGFloat = 52
+    public static let toolbarButtonSize: CGFloat = 36
+    public static let toolbarGlyphSize: CGFloat = 18
+    public static let toolbarGroupGap: CGFloat = 12
+    public static let controlHeight: CGFloat = 28
+    public static let sidebarRowHeight: CGFloat = 32
 }
 
 public enum ThemeTypography {

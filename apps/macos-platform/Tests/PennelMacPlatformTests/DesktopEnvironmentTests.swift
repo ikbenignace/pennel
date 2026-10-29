@@ -209,6 +209,87 @@ final class DesktopEnvironmentTests: XCTestCase {
     }
 
     @MainActor
+    func testMainHostUsesAnEmptySystemToolbarAndReportsItsNativeGeometry() throws {
+        try withWindow { window, parent, webview in
+            window.titlebarAppearsTransparent = true
+            let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "main"))
+            defer { host.detach() }
+            let toolbar = try XCTUnwrap(window.toolbar)
+            XCTAssertEqual(window.toolbarStyle, .unified)
+            XCTAssertEqual(toolbar.displayMode, .iconOnly)
+            XCTAssertTrue(toolbar.isVisible)
+            XCTAssertFalse(toolbar.allowsUserCustomization)
+            XCTAssertFalse(toolbar.autosavesConfiguration)
+            if #available(macOS 15, *) { XCTAssertFalse(toolbar.allowsDisplayModeCustomization) }
+            XCTAssertTrue(toolbar.items.isEmpty)
+            XCTAssertTrue(window.titlebarAppearsTransparent)
+            XCTAssertTrue(window.styleMask.contains(.fullSizeContentView))
+            XCTAssertTrue(window.contentView === parent)
+            XCTAssertTrue(webview.window === window)
+            let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
+                .compactMap { window.standardWindowButton($0) }
+            let frames = buttons.map { parent.convert($0.bounds, from: $0) }
+            XCTAssertEqual(frames.count, 3)
+            XCTAssertGreaterThan(host.snapshot.titlebarHeight, 40)
+            for frame in frames {
+                XCTAssertEqual(Double(parent.bounds.height - frame.midY), host.snapshot.titlebarHeight / 2, accuracy: 1)
+            }
+            XCTAssertEqual(host.snapshot.titlebarControlsWidth, Double(try XCTUnwrap(frames.map(\.maxX).max())), accuracy: 1)
+            XCTAssertTrue(DesktopMaterialHost.attach(to: webview, floating: false, label: "main") === host)
+            XCTAssertTrue(window.toolbar === toolbar)
+            XCTAssertEqual(buttons.map { parent.convert($0.bounds, from: $0) }, frames)
+        }
+    }
+
+    @MainActor
+    func testMainChromeRestoresThePreviousToolbarAndStyleAtTeardown() throws {
+        try withWindow { window, parent, webview in
+            let previous = NSToolbar(identifier: "PreviousToolbar")
+            previous.autosavesConfiguration = false
+            previous.displayMode = .labelOnly
+            window.toolbarStyle = .expanded
+            window.toolbar = previous
+            previous.isVisible = false
+            let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "main", allowLiquidGlass: false))
+            XCTAssertFalse(window.toolbar === previous)
+            XCTAssertEqual(window.toolbarStyle, .unified)
+            XCTAssertTrue(host.materialView is NSVisualEffectView)
+            host.detach()
+            XCTAssertTrue(window.toolbar === previous)
+            XCTAssertEqual(window.toolbarStyle, .expanded)
+            XCTAssertEqual(previous.displayMode, .labelOnly)
+            XCTAssertFalse(previous.isVisible)
+            XCTAssertTrue(webview.superview === parent)
+        }
+    }
+
+    @MainActor
+    func testChromeTeardownPreservesAToolbarInstalledByAnotherOwner() throws {
+        try withWindow { window, _, webview in
+            let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "main"))
+            let replacement = NSToolbar(identifier: "ReplacementToolbar")
+            window.toolbar = replacement
+            window.toolbarStyle = .expanded
+            host.detach()
+            XCTAssertTrue(window.toolbar === replacement)
+            XCTAssertEqual(window.toolbarStyle, .expanded)
+        }
+    }
+
+    @MainActor
+    func testOtherWindowLabelsAndFloatingHostsKeepTheirOriginalChrome() throws {
+        for (label, floating) in [("onboarding", false), ("", false), ("main", true)] {
+            try withWindow { window, _, webview in
+                let style = window.toolbarStyle
+                let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: floating, label: label))
+                defer { host.detach() }
+                XCTAssertNil(window.toolbar)
+                XCTAssertEqual(window.toolbarStyle, style)
+            }
+        }
+    }
+
+    @MainActor
     private func withWindow(_ work: (NSWindow, NSView, WKWebView) throws -> Void) throws {
         _ = NSApplication.shared
         let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: 600, height: 440), styleMask: [.titled, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
