@@ -1,0 +1,426 @@
+{
+  "schema": 1,
+  "desktop_candidate_revision": "22ca99fcc63d56605572da33fccfed2cb222ba6b",
+  "binary_sha256": "54b0459b43da4f976f4145c267acde5888629cade13cf97d3a554ad39e0c57fd",
+  "identity": "dev.pennel.Pennel.capture.preview",
+  "signing": "ad-hoc development bundle; codesign --verify --deep --strict passed",
+  "host": {
+    "os": "27.0.1",
+    "xcode": "27.0 (27A266a)",
+    "architecture": "arm64",
+    "model": "Mac16,8"
+  },
+  "capture_method": "Owned native macOS application windows; synthetic data, dedicated capture identity, and owned synthetic native backdrop",
+  "capture_clock": "2026-10-25T09:00:00Z",
+  "native_captures": [
+    {
+      "case": "meeting-notes",
+      "locale": "en",
+      "appearance": "light",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "settings-overview",
+      "locale": "en",
+      "appearance": "light",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "meeting-notes",
+      "locale": "en",
+      "appearance": "dark",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "settings-overview",
+      "locale": "en",
+      "appearance": "dark",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "meeting-notes",
+      "locale": "nl",
+      "appearance": "light",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "settings-overview",
+      "locale": "nl",
+      "appearance": "light",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "meeting-notes",
+      "locale": "nl",
+      "appearance": "dark",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "settings-overview",
+      "locale": "nl",
+      "appearance": "dark",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    }
+  ],
+  "live_preferences_initial_candidate": [
+    {
+      "name": "reduce-transparency",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": true,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": true,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      }
+    },
+    {
+      "name": "increase-contrast",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": true,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": true,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      }
+    },
+    {
+      "name": "reduce-motion",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": true,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": true,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      }
+    },
+    {
+      "name": "fullscreen",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 0.0,
+        "titlebar_controls_width": 0.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 0.0,
+        "titlebar_controls_width": 0.0,
+        "focused": true
+      }
+    },
+    {
+      "name": "minimum-window",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      }
+    }
+  ],
+  "live_preferences_note": "Observed before the final picker-cancellation focus fix; native material/preference code was unchanged in the final desktop candidate. Original OS preferences and original System Settings view were restored.",
+  "final_candidate_smoke": {
+    "native_app_picker_sheet": "attached sheet observed in native AX tree",
+    "picker_escape_focus": "returned to Add app button in native AX tree",
+    "hidden_focus": {
+      "material": "liquid_glass",
+      "appearance": "light",
+      "reduce_transparency": false,
+      "reduce_motion": false,
+      "increase_contrast": false,
+      "titlebar_height": 32.0,
+      "titlebar_controls_width": 69.0,
+      "focused": false
+    },
+    "after_close_activation_policy": 1
+  },
+  "local_checks": {
+    "core_tests": {
+      "passed": 622,
+      "ignored": 5
+    },
+    "legacy_swift_tests": 53,
+    "desktop_frontend_tests": 212,
+    "desktop_backend_tests": 217,
+    "macos_platform_tests": 108,
+    "packaging_tests": 50,
+    "theme_tests": 11,
+    "mobilekit_tests": 64,
+    "mobile_ui_tests": 46,
+    "mobile_typecheck": "passed"
+  },
+  "remaining": [
+    "older-macOS visual acceptance",
+    "visible inactive-window visual acceptance",
+    "Windows/Linux device execution",
+    "human VoiceOver and OS enlarged-text acceptance",
+    "generated/native iPhone CI after palette compatibility fix",
+    "final hosted CI and review/merge"
+  ]
+}

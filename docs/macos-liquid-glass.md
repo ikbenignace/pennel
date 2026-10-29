@@ -26,8 +26,19 @@ Local verification on macOS 27.0.1 / Xcode 27:
 - Owned EN/NL light/dark fixtures cover native environment changes, preserved drafts/focus, toolbar/sidebar keyboard behavior, History, menus and picker cancellation. Revised native captures show actual Liquid Glass, matched frontend/native environment snapshots, a 32 point titlebar and 69 point native-control extent.
 - Actual application-menu shortcuts, sidebar/Find, native History context menus, owner-attached application-picker sheets/cancellation, fullscreen and the minimum 760×520 window were exercised. No microphone capture, provider calls or key changes were needed.
 - Actual Reduce Transparency, Increase Contrast and Reduce Motion preferences changed the running app's native and frontend states together. Original preferences and the original System Settings page were restored.
+- The existing mobile token-parity test caught the two additional color roles missing from native iPhone metadata. Its unused color map now matches the canonical palette; 64 MobileKit tests, 46 mobile UI tests and the mobile typecheck pass.
 
 Native captures use a separate app identity and only owned window IDs. Browser fixtures establish frontend layout and event handling; they do not establish native material rendering. The capture bundle is development/ad-hoc signed. Older macOS 26/14.4/15 visual acceptance, Windows/Linux execution, human VoiceOver/enlarged-text acceptance, hosted CI and merge remain open. Capture-control launches can affect focus, so active/inactive observations require independent focus transitions rather than merely naming a snapshot inactive.
+
+### Reviewed desktop candidate
+
+Desktop code revision: `22ca99fcc63d56605572da33fccfed2cb222ba6b`. The later mobile palette/evidence commit does not change desktop code. The development capture executable's SHA-256 is `54b0459b43da4f976f4145c267acde5888629cade13cf97d3a554ad39e0c57fd`; the bundle passed `codesign --verify --deep --strict` after ad-hoc signing.
+
+The [machine-readable receipt](evidence/macos-liquid-glass-2026-10-29/receipt.json) distinguishes the final EN/NL light/dark candidate captures from live accessibility checks made during implementation. Final native checks also verified picker cancellation returning focus to Add app, closing the workspace returning to accessory policy, and native/frontend focus becoming false after hiding. Visible inactive-window visual review remains open.
+
+![Revised native macOS light appearance](evidence/macos-liquid-glass-2026-10-29/meeting-light.png)
+
+![Revised native macOS dark appearance](evidence/macos-liquid-glass-2026-10-29/meeting-dark.png)
 
 ## Visual research and revision
 

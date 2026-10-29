@@ -37,6 +37,8 @@ public enum Brand {
     public static let surface = Token(light: 0xFCFBF8, dark: 0x1E1C1A)
     public static let chrome = Token(light: 0xFCFBF8, dark: 0x1E1C1A)
     public static let sidebar = Token(light: 0xF7F4EE, dark: 0x252320)
+    public static let navigationBacking = Token(light: 0xF7F4EE, dark: 0x252320, lightAlpha: 0.8, darkAlpha: 0.8)
+    public static let navigationMuted = Token(light: 0x534E48, dark: 0xCCC4B9)
     public static let foreground = Token(light: 0x2A2723, dark: 0xF3F0EA)
     public static let muted = Token(light: 0x6F675D, dark: 0xABA398)
     public static let border = Token(light: 0xECE7DE, dark: 0x3A3632)
@@ -71,6 +73,8 @@ public enum Brand {
         "surface": surface,
         "chrome": chrome,
         "sidebar": sidebar,
+        "navigation-backing": navigationBacking,
+        "navigation-muted": navigationMuted,
         "foreground": foreground,
         "muted": muted,
         "border": border,
