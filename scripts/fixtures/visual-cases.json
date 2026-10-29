@@ -46,6 +46,8 @@
   {"name":"provider-local-selection-interaction","window":"settings","section":"settings","tab":"local","steps":[{"eval":"import('/tests/provider-selection.interactions.mjs').then(module => module.checkProviderSelection())"}]},
   {"name":"provider-selection-interaction","window":"settings","section":"settings","tab":"providers","steps":[{"eval":"import('/tests/provider-selection.interactions.mjs').then(module => module.checkProviderSelection())"}]},
   {"name":"q5-visibility-interaction","window":"settings","section":"settings","tab":"providers","steps":[{"eval":"import('/tests/q5-visibility.interactions.mjs').then(module => module.checkQ5Visibility())"}]},
+  {"name":"startup-error-interaction","window":"workspace","section":"meetings","app_info_fail":true,"steps":[{"eval":"import('/tests/startup-loading.interactions.mjs').then(module => module.checkStartupError())"}]},
+  {"name":"startup-slow-interaction","window":"workspace","section":"meetings","app_info_delay_ms":5000,"steps":[{"eval":"import('/tests/startup-loading.interactions.mjs').then(module => module.checkStartupLoading())"}]},
   {"name":"settings-providers","window":"settings","section":"settings","tab":"providers"},
   {"name":"settings-overview","window":"settings","section":"settings","tab":"overview"},
   {"name":"settings-main","window":"workspace","section":"settings","tab":"overview"},

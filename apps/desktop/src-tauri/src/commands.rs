@@ -175,14 +175,28 @@ pub struct AppInfo {
 }
 
 pub(crate) fn info(shared: &Shared) -> AppInfo {
+    static FIRST_INFO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+    let trace = FIRST_INFO.swap(false, std::sync::atomic::Ordering::Relaxed);
+    if trace {
+        LOG.info("initial app information: reading settings");
+    }
     let settings = shared.settings();
+    if trace {
+        LOG.info("initial app information: checking credential store");
+    }
     let keys = settings
         .providers
         .iter()
         .map(|p| (p.id.clone(), shared.secrets.get(&p.id).is_some()))
         .collect();
+    if trace {
+        LOG.info("initial app information: checking capabilities");
+    }
     let hotkey_error = shared.hotkey_error.lock().unwrap().clone();
     let capabilities = capabilities::snapshot(hotkey_error.as_deref()).localized();
+    if trace {
+        LOG.info("initial app information: assembling state");
+    }
     AppInfo {
         interface_language: settings
             .ui_language

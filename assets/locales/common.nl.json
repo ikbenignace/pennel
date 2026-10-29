@@ -5,6 +5,7 @@
   "common.retry": "Opnieuw proberen",
   "common.save": "Bewaar",
   "common.done": "Klaar",
+  "common.startup_error": "Pennel kon niet starten.",
   "common.loading": "Laden…",
   "common.back": "Terug",
   "navigation.back_to_work": "Terug naar je werk",

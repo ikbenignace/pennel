@@ -556,6 +556,12 @@ function notifyVisibility() {
 
 async function boot() {
   document.body.dataset.window = mode;
+  if (mode !== "prompt") {
+    const languages = fixtureClient() && query.has("locale") ? [query.get("locale")!] : navigator.languages?.length ? navigator.languages : [navigator.language];
+    const supported = languages.map((value) => value?.split(/[-_]/)[0].toLowerCase()).find((value) => value === "en" || value === "nl");
+    setInterfaceLanguage(supported);
+    app.replaceChildren(h("div", { class: "startup-loading", role: "status" }, l("common.loading")));
+  }
   info = await api.info(); applyAppearance();
   setInterfaceLanguage(info.interface_language ?? "en");
   const updateTitle = () => { document.title = mode === "onboarding" ? t("window.onboarding") : mode === "prompt" ? "Pennel" : windowTitles[mode]; };
@@ -641,4 +647,10 @@ content.addEventListener("focusout", () => { window.setTimeout(() => { if (needs
 window.addEventListener("unhandledrejection", (event) => { event.preventDefault(); report(event.reason); });
 window.addEventListener("beforeunload", () => { sidebarPoll?.dispose(); runtimePoll?.dispose(); library?.dispose(); mounted?.cleanup.forEach((cleanup) => cleanup()); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (info) applyAppearance(); });
-void boot().catch(report);
+void boot().catch((error: unknown) => {
+  if (mode === "prompt") { report(error); return; }
+  app.replaceChildren(h("div", { class: "startup-error", role: "alert" },
+    h("p", {}, l("common.startup_error")),
+    h("p", { class: "help" }, errorText(error)),
+    controlButton({ onclick: () => location.reload() }, l("common.retry"))));
+});
