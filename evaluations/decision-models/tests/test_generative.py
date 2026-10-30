@@ -141,6 +141,32 @@ class GenerativeTests(unittest.TestCase):
         self.assertEqual(rows[0]["status"], "error")
         self.assertEqual(rows[0]["error"], "summary_map_failed")
 
+    def test_cleanup_guard_receives_sample_style_and_dictionary(self):
+        class Runner:
+            config = {"tasks": ["cleanup"]}
+            def preflight(self):
+                return {"status": "ok"}
+            def complete(self, messages, reasoning):
+                return {"status": "ok", "text": "Cleaned synthetic."}
+        for settings, expected_style, expected_dictionary in (
+                ({}, "neutral", []),
+                ({"style": "literal", "dictionary": ["Café"]}, "literal", ["Café"])):
+            with self.subTest(settings=settings):
+                calls = []
+                def core_bridge(request):
+                    calls.append(request)
+                    return {"accepted": False, "text": request["raw"]}
+                pair = {"id": "p", "meeting_id": "m", "split": "development",
+                        "raw": "raw synthetic", **settings}
+                corpus = {"meetings": [{"id": "m", "split": "development", "language": "nl"}],
+                          "cleanup_pairs": [pair]}
+                bridge = {"cleanup": [{"id": "p", "messages": [{"role": "user", "content": "core prompt"}]}]}
+                rows = generative.run_baselines(corpus, bridge, Runner(), "development", core_bridge)
+                self.assertEqual(calls, [{"op": "cleanup_guard", "raw": pair["raw"],
+                                         "cleaned": "Cleaned synthetic.", "style": expected_style,
+                                         "dictionary": expected_dictionary}])
+                self.assertEqual(rows[0]["guard"], {"accepted": False, "text": pair["raw"]})
+
 
 class HostedGenerativeTests(unittest.TestCase):
     def config(self, **changes):

@@ -420,7 +420,10 @@ def run_baselines(corpus, bridge, runner, split, bridge_call, checkpoint=None):
             seen.add(key)
             prediction = runner.complete(source["messages"], reasoning="off")
             if prediction["status"] == "ok":
-                prediction["guard"] = bridge_call({"op": "cleanup_guard", "raw": case["raw"], "cleaned": prediction["text"]})
+                prediction["guard"] = bridge_call({
+                    "op": "cleanup_guard", "raw": case["raw"], "cleaned": prediction["text"],
+                    "style": case.get("style", "neutral"), "dictionary": case.get("dictionary", []),
+                })
                 prediction["adjudication"] = _adjudication("cleanup-fidelity", case, prediction["text"])
                 prediction["adjudication"]["raw"] = case["raw"]
             append("cleanup", case["id"], meetings[case["meeting_id"]], prediction)

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::cleanup::{accept_cleanup, cleanup_messages, cleanup_timeout_secs, strip_wrapping};
+use crate::cleanup::{assess_cleanup, cleanup_messages, cleanup_timeout_secs, strip_wrapping};
 use crate::llm::{ChatMessage, Reasoning};
 use crate::meeting_chat::{chat_messages_with_tag, cited, select_sources};
 use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
@@ -296,15 +296,16 @@ fn evaluate_suite(input: Value) -> Result<Value, &'static str> {
     }
     let mut cleanup = Vec::new();
     for pair in suite.cleanup_pairs {
+        let style = style(pair.style.as_deref())?;
         let started = Instant::now();
         let cleaned = strip_wrapping(&pair.cleaned);
-        let accepted = accept_cleanup(&pair.raw, &cleaned);
+        let accepted = assess_cleanup(&pair.raw, &cleaned, style, &pair.dictionary).accepted;
         let elapsed = started.elapsed().as_nanos() as u64;
         let mut result = json!({
             "id": pair.id,
             "accepted": accepted,
             "text": if accepted { &cleaned } else { &pair.raw },
-            "messages": cleanup_messages(&pair.raw, style(pair.style.as_deref())?, &pair.dictionary),
+            "messages": cleanup_messages(&pair.raw, style, &pair.dictionary),
             "timeout_secs": cleanup_timeout_secs(&pair.raw),
         });
         if suite.include_timings {
@@ -443,7 +444,14 @@ pub fn evaluate(input: Value) -> Result<Value, &'static str> {
         "cleanup_guard" => {
             let raw = text(&input, "raw")?;
             let cleaned = strip_wrapping(text(&input, "cleaned")?);
-            let accepted = accept_cleanup(raw, &cleaned);
+            let dictionary = if input["dictionary"].is_null() {
+                Vec::<String>::new()
+            } else {
+                serde_json::from_value(input["dictionary"].clone())
+                    .map_err(|_| "invalid_request")?
+            };
+            let style = style(input["style"].as_str())?;
+            let accepted = assess_cleanup(raw, &cleaned, style, &dictionary).accepted;
             Ok(json!({"accepted":accepted,"text":if accepted { &cleaned } else { raw }}))
         }
         "summary_prompt" => {
@@ -506,8 +514,68 @@ mod tests {
         assert!(first["passages"].as_array().unwrap().iter().all(|p| {
             p["meeting_id"] == "fixture_en" && p["id"].as_str().unwrap().starts_with("fixture_en:")
         }));
-        assert!(first["cleanup"][0]["accepted"].as_bool().unwrap());
+        assert_eq!(first["cleanup"][0]["accepted"], false);
+        assert_eq!(first["cleanup"][0]["text"], "Stuur niet naar Jan");
         assert_eq!(first["templates"].as_array().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn cleanup_bridge_uses_saved_style_and_dictionary() {
+        for (raw, cleaned, settings, accepted) in [
+            (
+                "um send the checklist",
+                "Send the checklist.",
+                json!({}),
+                true,
+            ),
+            (
+                "open ai bouwt dit",
+                "OpenAI bouwt dit.",
+                json!({}),
+                false,
+            ),
+            (
+                "open ai bouwt dit",
+                "OpenAI bouwt dit.",
+                json!({"style":"neutral","dictionary":["OpenAI"]}),
+                true,
+            ),
+            (
+                "open ai bouwt dit",
+                "OpenAI bouwt dit.",
+                json!({"style":"literal","dictionary":["OpenAI"]}),
+                false,
+            ),
+        ] {
+            let mut pair = settings;
+            pair["id"] = json!("cleanup");
+            pair["raw"] = json!(raw);
+            pair["cleaned"] = json!(cleaned);
+            let mut input = fixture();
+            input["cleanup_pairs"] = json!([pair.clone()]);
+            let result = evaluate(input).unwrap();
+            assert_eq!(result["cleanup"][0]["accepted"], accepted);
+            assert_eq!(
+                result["cleanup"][0]["text"],
+                if accepted { cleaned } else { raw }
+            );
+
+            pair["op"] = json!("cleanup_guard");
+            let guard = evaluate(pair).unwrap();
+            assert_eq!(guard["accepted"], accepted);
+            assert_eq!(guard["text"], if accepted { cleaned } else { raw });
+        }
+    }
+
+    #[test]
+    fn cleanup_guard_rejects_invalid_saved_settings() {
+        let input = json!({"op":"cleanup_guard","raw":"send it","cleaned":"Send it."});
+        let mut invalid = input.clone();
+        invalid["style"] = json!("unknown");
+        assert_eq!(evaluate(invalid), Err("invalid_style"));
+        let mut invalid = input;
+        invalid["dictionary"] = json!([17]);
+        assert_eq!(evaluate(invalid), Err("invalid_request"));
     }
 
     #[test]
