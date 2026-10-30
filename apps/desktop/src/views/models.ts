@@ -1,7 +1,7 @@
 import { liveText, bindLocalization, l, t, uiLocale, localizeBackendText, type LocalizedText, type UiText } from "../i18n.ts";
 import { localModelDisplayName } from "../settings-presentation.ts";
 import { api, listen, type ModelChoice, type RemoteModel, type Settings } from "../api";
-import { errorText, field, formatBytes, h, isCancellation, section, select } from "../dom";
+import { controlButton, textField, errorText, field, formatBytes, h, isCancellation, section, select } from "../dom";
 import type { Context } from "../main";
 import { processingSummary, providerDestination } from "../processing-state";
 import { ModelCatalogCache, providerFingerprint, providerVerification, taskFingerprint, type ProviderSlot } from "../provider-verification";
@@ -102,13 +102,13 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
         let active = ctx.info.active_model_downloads?.includes(selectedModel.id) ?? false;
         const progress = h("progress", { hidden: !active, "aria-label": l("providers.local.downloading_model", () => ({ model: String(localModelDisplayName(selectedModel)) })) });
         const outcome = h("p", { class: "help", role: "status" });
-        const download = h("button", { class: "btn", disabled: active || accountKind?.availability.status !== "available", onclick: async () => {
+        const download = controlButton({ class: "btn", disabled: active || accountKind?.availability.status !== "available", onclick: async () => {
           active = true; download.disabled = true; cancel.hidden = false; progress.hidden = false;
           try { await api.downloadModel(selectedModel.id); if (!disposed) await ctx.refresh(); }
           catch (error) { if (!disposed && !isCancellation(error)) { outcome.textContent = errorText(error); outcome.className = "error"; } }
           finally { if (!disposed) { active = false; download.disabled = false; cancel.hidden = true; progress.hidden = true; } }
         } }, l("settings.setup.download", () => ({ size: formatBytes(selectedModel.size_bytes) })));
-        const cancel = h("button", { class: "btn", hidden: !active, onclick: () => api.cancelDownload(selectedModel.id).catch(ctx.report) }, l("common.cancel"));
+        const cancel = controlButton({ class: "btn", hidden: !active, onclick: () => api.cancelDownload(selectedModel.id).catch(ctx.report) }, l("common.cancel"));
         ctx.onDispose(() => { disposed = true; });
         void listen<{ id: string; downloaded: number; total: number }>("download-progress", (event) => {
           if (!disposed && event.payload.id === selectedModel.id) { progress.max = event.payload.total || 1; progress.value = event.payload.downloaded; }
@@ -136,8 +136,7 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
           catalogStatus.hidden = false;
         });
     }
-    const input = h("input", {
-      type: "text",
+    const input = textField({ type: "text",
       value: choice.model,
       list: listId,
       placeholder: accountKind?.is_cli_agent ? l("providers.cli_default_model") : l("providers.model_name"),
@@ -151,7 +150,7 @@ async function slot(ctx: Context, key: Slot, title: string | LocalizedText, subt
   let testing = false;
   let disposed = false;
   ctx.onDispose(() => { disposed = true; });
-  const test = h("button", { class: "btn", disabled: !configured, onclick: async () => {
+  const test = controlButton({ class: "btn", disabled: !configured, onclick: async () => {
     if (testing) return;
     const fingerprint = taskFingerprint(ctx.info, key);
     testing = true; draw();

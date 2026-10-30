@@ -54,6 +54,7 @@ pub fn install_menu(app: &tauri::AppHandle) -> tauri::Result<()> {
         let native = app.state::<NativeUi>();
         let mut sources = native.stock.lock().unwrap();
         remember_menu_items(menu.items()?, &app_names, &mut sources)?;
+        crate::desktop_commands::install(app, &menu)?;
         for (item, original) in sources.iter() {
             if let Some(label) = stock_menu_text(language(), original, &app_names) {
                 set_stock_text(item, label)?;
@@ -163,6 +164,7 @@ pub fn apply(app: &tauri::AppHandle, shared: &crate::state::Shared) -> tauri::Re
     }
     #[cfg(target_os = "macos")]
     crate::macos_tray::changed();
+    crate::desktop_commands::refresh(app)?;
     Ok(())
 }
 

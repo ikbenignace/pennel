@@ -2,7 +2,7 @@ import { bindLocalization, l, t, formatNumber, localizeBackendText, type UiText 
 import { meetingDate as dateLabel, speakerLabel, speakerUiLabel, sourceSpeakerLabel, templateUiLabel } from "../meeting-labels.ts";
 import { api, fixtureClient, listen, type MeetingAnswer, type MeetingDetail, type MeetingFinished, type MeetingStatus, type MeetingVoice, type Passage, type Segment, type SpeakerRecognition, type MeetingRetranscriptionStatus, type MeetingTemplate, type SpeakerSetup } from "../api";
 import { SerialQueue, orFallback, persistAll } from "../async";
-import { askText, askTextWithSwitch, confirmDialog, errorText, formatClock, h, markdown, menuButton, select } from "../dom";
+import { controlButton, textField, askText, askTextWithSwitch, confirmDialog, errorText, formatClock, h, markdown, menuButton, select } from "../dom";
 import { recognitionSummary } from "../speaker-state";
 import { MeetingDraft } from "../meeting-draft";
 import type { Context } from "../main";
@@ -242,7 +242,7 @@ function recoveryNotice(ctx: Context, status: MeetingStatus, latest = () => stat
   bindLocalization(message, () => { message.textContent = warnings().join(" "); });
   const actions = h("div", { class: "row" });
   if (status.can_retry_persistence && status.session_id) {
-    const retry = h("button", { class: "btn", onclick: async () => {
+    const retry = controlButton({ class: "btn", onclick: async () => {
       retry.disabled = true;
       try { await flushMeetingDrafts(); await api.retryMeetingPersistence(status.session_id!); ctx.rerender(); }
       catch (error) { actionError = errorText(error); message.textContent = localizeBackendText(actionError); retry.disabled = false; }
@@ -251,7 +251,7 @@ function recoveryNotice(ctx: Context, status: MeetingStatus, latest = () => stat
   }
   if (status.transcript.some((segment) => !segment.failed && segment.text.trim())) {
     const copied = h("span", { class: "help", role: "status" });
-    actions.append(h("button", { class: "btn", onclick: async () => {
+    actions.append(controlButton({ class: "btn", onclick: async () => {
       try {
         await api.copyText(latest().transcript.filter((segment) => !segment.failed).map((segment) => `${formatClock(segment.start_ms / 1000)} ${speakerLabel(segment)}: ${segment.text}`).join("\n"));
         copied.replaceChildren(h("span", {}, l("meetings.copied_transcript")));
@@ -304,9 +304,9 @@ function chat(ctx: Context, meetingId: string | null) {
     })) : null;
     history.append(h("div", { class: "chat-exchange" }, h("p", { class: "chat-question" }, exchange.question), response, citations));
   }
-  const input = h("input", { type: "text", class: "grow", value: state.draft, disabled: busy,
+  const input = textField({ type: "text", class: "grow", value: state.draft, disabled: busy,
     placeholder: meetingId ? l("meetings.ask_placeholder_this") : l("meetings.ask_placeholder_all"), "aria-label": l("meetings.your_question") });
-  const submit = h("button", { class: "btn", disabled: busy || !state.draft.trim() || !languageModelConfigured(ctx.info) }, busy ? l("meetings.working") : l("meetings.ask"));
+  const submit = controlButton({ class: "btn", disabled: busy || !state.draft.trim() || !languageModelConfigured(ctx.info) }, busy ? l("meetings.working") : l("meetings.ask"));
   const setup = h("div", { class: "meeting-setup chat-setup help", role: "status" }, h("span", { class: "meeting-setup-reason" }, l("meetings.questions_setup_help")),
     h("button", { class: "text-button", onclick: () => ctx.openSetup("llm") }, l("meetings.set_up_questions")));
   const refreshReadiness = () => {
@@ -342,13 +342,13 @@ export async function meetingsView(ctx: Context): Promise<HTMLElement> {
   if (ctx.param === "__chat__") return h("div", { class: "meeting-selected" }, chat(ctx, null));
   if (ctx.param) {
     try { return h("div", { class: "meeting-selected" }, await meetingDetail(ctx, ctx.param)); }
-    catch (error) { return h("div", { class: "empty-state" }, h("p", { class: "error" }, errorText(error)), h("button", { class: "btn", onclick: () => ctx.navigate("meetings") }, l("meetings.back_meetings"))); }
+    catch (error) { return h("div", { class: "empty-state" }, h("p", { class: "error" }, errorText(error)), controlButton({ class: "btn", onclick: () => ctx.navigate("meetings") }, l("meetings.back_meetings"))); }
   }
   const meetings = await api.meetings("");
   if (meetings.length) return h("div", { class: "empty-state library-placeholder" }, h("p", { class: "muted" }, l("meetings.choose_or_record")));
   return h("div", { class: "empty-state meeting-library-empty" }, icon("notebook"), h("h2", {}, l("meetings.empty_meetings")),
     h("p", { class: "muted" }, l("meetings.empty_meetings_help")),
-    h("button", { class: "btn primary", onclick: () => ctx.navigate("live") }, l("meetings.first_recording")));
+    controlButton({ class: "btn primary", onclick: () => ctx.navigate("live") }, l("meetings.first_recording")));
 }
 
 async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
@@ -429,7 +429,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   const panelId = `meeting-panel-${++panelNumber}`;
   let retranscriptionStatus = detail.retranscription_status;
   let ownRetranscription = false;
-  const reprocess = h("button", { class: "btn" }, l("meetings.retranscribe_audio"));
+  const reprocess = controlButton({ class: "btn" }, l("meetings.retranscribe_audio"));
   const reprocessReason = h("p", { class: "help meeting-control-reason" });
   const refreshRetranscription = () => {
     const control = retranscriptionControl(detail.retranscription_plan, retranscriptionStatus, runtime.busy, current.working);
@@ -515,7 +515,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     : retranscriptionStatus?.progress.phase === "completed" ? t("meetings.retranscription_done") : "";
   const message = h("p", { class: "meeting-message help", role: "status" }, messageText());
   bindLocalization(message, () => { message.textContent = messageText(); });
-  const regenerate = h("button", { class: "btn" });
+  const regenerate = controlButton({ class: "btn" });
   const setupReason = h("span", { class: "meeting-setup-reason" });
   const setupAction = h("button", { class: "text-button", onclick: async () => {
     try { await notes.flush(); rememberPosition(); ctx.openSetup("llm"); }
@@ -583,7 +583,7 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
     : !speakerSetup?.ready ? cloudRoute ? t("backend.sign_in_to_pennel_cloud_under_settings_account_first") : t("meetings.download_speaker_models")
     : null;
   const canDiarize = !speakerReason();
-  const diarize = h("button", { class: "btn", disabled: !canDiarize || current.working,
+  const diarize = controlButton({ class: "btn", disabled: !canDiarize || current.working,
     title: speakerReason() ?? (cloudRoute ? l("meetings.speaker_cloud_help") : l("meetings.speaker_local_help")) }, l("meetings.recognize_speakers"));
   diarize.addEventListener("click", async () => {
     if (current.working || speakerReason()) return;
@@ -640,15 +640,15 @@ async function meetingDetail(ctx: Context, id: string): Promise<HTMLElement> {
   ctx.onFocusChange((focused) => { if (focused) void refreshRetranscriptionPlan().catch(ctx.report); });
   refreshRetranscription();
   const footer = h("footer", { class: "meeting-footer" }, h("div", { class: "row" }, templateSlot, regenerate, h("span", { class: "grow" }), copied, diarize, share,
-    h("button", { class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? l("meetings.show_finder") : l("meetings.open_folder"))), diarizeReason);
+    controlButton({ class: "btn", onclick: () => api.openPath(detail.dir) }, ctx.info.platform === "macos" ? l("meetings.show_finder") : l("meetings.open_folder"))), diarizeReason);
   const banners = h("div", { hidden: true });
   void conflictsReady.then((conflicts) => {
     if (disposed) return;
     banners.hidden = !conflicts.length;
     banners.replaceChildren(...conflicts.map((name) => h("div", { class: "conflict-banner", role: "status" }, icon("warning"),
     h("span", {}, l("meetings.conflict_notice")),
-    h("button", { class: "btn", onclick: () => { void api.openPath(detail.dir).catch(ctx.report); } }, l("meetings.view")),
-    h("button", { class: "btn danger", onclick: async () => {
+    controlButton({ class: "btn", onclick: () => { void api.openPath(detail.dir).catch(ctx.report); } }, l("meetings.view")),
+    controlButton({ class: "btn danger", onclick: async () => {
       if (!await confirmDialog(l("meetings.delete_conflict_title"), l("meetings.file_will_delete", { name }), l("common.delete"))) return;
       try { await api.deleteConflictCopy(id, name); } catch (error) { ctx.report(error); }
       ctx.rerender();
@@ -760,9 +760,9 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
   }
   if (!initial.busy && ctx.param) return meetingDetail(ctx, ctx.param);
   if (!initial.busy) {
-    const title = h("input", { type: "text", placeholder: l("meetings.meeting_title_placeholder"), class: "grow", "aria-label": l("meetings.meeting_title_label") });
+    const title = textField({ type: "text", placeholder: l("meetings.meeting_title_placeholder"), class: "grow", "aria-label": l("meetings.meeting_title_label") });
     const status = h("p", { class: "error", role: "status" }, initial.error ? localizeBackendText(initial.error) : "");
-    const start = h("button", { class: "btn primary" }, l("common.start_recording"));
+    const start = controlButton({ class: "btn primary" }, l("common.start_recording"));
     const retained = !!initial.recognition && !!(initial.persistence_error || initial.terminal_error);
     const processing = meetingProcessingNotice(ctx, () => retained ? initial : undefined, retained);
     const audioReason = h("p", { class: "help" });
@@ -770,7 +770,7 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
       audioReason.textContent = ctx.info.capabilities.system_audio.reason ? localizeBackendText(ctx.info.capabilities.system_audio.reason) : "";
       audioReason.hidden = !audioReason.textContent;
     };
-    const microphoneAccess = h("button", { class: "btn", onclick: async () => {
+    const microphoneAccess = controlButton({ class: "btn", onclick: async () => {
       try { await api.requestPermission("microphone"); await ctx.refresh(); } catch (error) { ctx.report(error); }
     } }, l("onboarding.open_settings"));
     const refreshMicrophoneAccess = () => {
@@ -809,7 +809,7 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
   notes.input.classList.add("live-notes");
   notes.input.placeholder = t("meetings.live_notes_placeholder");
   bindLocalization(notes.input, () => { notes.input.placeholder = t("meetings.live_notes_placeholder"); });
-  const title = h("input", { type: "text", class: "live-title", value: liveTitleDraft.value, "aria-label": l("meetings.meeting_title_label") });
+  const title = textField({ type: "text", class: "live-title", value: liveTitleDraft.value, "aria-label": l("meetings.meeting_title_label") });
   title.addEventListener("input", () => { liveTitleDraft.edit(title.value); void flushLiveTitle().catch(ctx.report); });
   title.addEventListener("blur", () => { void flushLiveTitle().catch(ctx.report); });
   ctx.onDispose(() => { void flushLiveTitle().catch(ctx.report); });
@@ -828,7 +828,7 @@ export async function meetingView(ctx: Context): Promise<HTMLElement> {
   let disposed = false;
   ctx.onDispose(() => { disposed = true; refreshing.dispose(); });
   const phase = h("span", { class: "help", role: "status" });
-  const stop = h("button", { class: "btn", disabled: initial.phase !== "recording" }, l("common.stop_recording"));
+  const stop = controlButton({ class: "btn", disabled: initial.phase !== "recording" }, l("common.stop_recording"));
   const update = (status: MeetingStatus) => {
     latestStatus = status;
     processing.refresh();

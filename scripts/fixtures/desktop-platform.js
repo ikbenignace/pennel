@@ -203,7 +203,18 @@
   async function invoke(command, args = {}) {
     calls.push(command);
     switch (command) {
-      case "app_info": return info();
+      case "desktop_environment": return {
+        material: options.native_material || "unavailable",
+        appearance: settings.appearance === "system" ? options.appearance : settings.appearance,
+        reduce_transparency: Boolean(options.reduce_transparency),
+        reduce_motion: Boolean(options.reduce_motion),
+        increase_contrast: Boolean(options.increase_contrast),
+        titlebar_height: options.platform && options.platform !== "macos" ? 0 : 28,
+        titlebar_controls_width: options.platform && options.platform !== "macos" ? 0 : 96,
+        focused: options.window_focused !== false,
+      };
+      case "set_desktop_command_state": globalThis.__PENNEL_DESKTOP_COMMAND_STATE__ = clone(args.state); return null;
+      case "app_info": if (options.app_info_fail) throw new Error("Synthetic startup failure"); if (options.app_info_delay_ms) await new Promise(resolve => setTimeout(resolve, options.app_info_delay_ms)); return info();
       case "save_settings": {
         settings = clone(args.settings);
         settings.ui_language = ["en", "nl", "system"].includes(settings.ui_language) ? settings.ui_language : "system";
@@ -354,7 +365,7 @@
       case "check_for_updates": return { available: false, version: null, body: null };
       case "export_meeting": return { title: "Projectoverleg", markdown: summary, html: "<h2>Besluiten</h2><p>De planning wordt maandag afgerond.</p>" };
       case "choose_meetings_dir": return null;
-      case "pick_style_application": return { id: "com.apple.mail", name: "Mail" };
+      case "pick_style_application": return options.style_picker_cancelled ? null : { id: "com.apple.mail", name: "Mail" };
       case "start_meeting": return meetingId;
       case "save_template": return "qa-template";
       case "rename_meeting": return meetingId;

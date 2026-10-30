@@ -6,6 +6,7 @@ import type { LoginPoll } from "./cloud-login";
 export type { ClaudeStatus };
 import type { WorkspaceRoute } from "./workspace-state";
 import { localizeUiResponse } from "./ui-response.ts";
+import type { DesktopCommandState, DesktopEnvironment } from "./desktop-chrome-state.ts";
 
 interface PlatformClient {
   invoke(command: string, args?: Record<string, unknown>): Promise<unknown>;
@@ -574,6 +575,8 @@ export interface CloudError {
 }
 
 export const api = {
+  desktopEnvironment: () => invoke<DesktopEnvironment>("desktop_environment"),
+  setDesktopCommandState: (state: DesktopCommandState) => invoke<void>("set_desktop_command_state", { state }),
   info: () => invoke<AppInfo>("app_info"),
   saveSettings: (settings: Settings) => invoke<AppInfo>("save_settings", { settings }),
   addProvider: (kind: ProviderKind) => invoke<AppInfo>("add_provider", { kind }),

@@ -28,6 +28,14 @@ impl Default for Secrets {
 }
 
 impl Secrets {
+    /// Captures never share the installed Preview's Keychain service.
+    pub fn for_capture() -> Self {
+        Self {
+            service: "dev.pennel.Pennel.capture.preview",
+            ..Self::new(true)
+        }
+    }
+
     pub fn new(preview: bool) -> Self {
         let service = match (cfg!(target_os = "macos"), preview) {
             (true, false) => "dev.pennel.Pennel",
@@ -79,6 +87,28 @@ impl Secrets {
             .unwrap()
             .insert(account.to_owned(), value.clone());
         value
+    }
+
+    /// Check whether a credential exists without reading its secret during UI startup.
+    pub fn has(&self, account: &str) -> Result<bool, String> {
+        if account.is_empty() {
+            return Ok(false);
+        }
+        if let Some(cached) = self.cache.lock().unwrap().get(account) {
+            return Ok(cached.is_some());
+        }
+        #[cfg(test)]
+        if self.in_memory {
+            return Ok(false);
+        }
+        #[cfg(target_os = "macos")]
+        {
+            crate::macos::credential_presence(self.service, account)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Ok(self.get(account).is_some())
+        }
     }
 
     pub fn set(&self, account: &str, value: &str) -> Result<(), String> {
@@ -162,6 +192,15 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    fn native_capture_never_uses_installed_preview_credentials() {
+        let capture = Secrets::for_capture();
+        assert_ne!(capture.service, Secrets::new(true).service);
+        assert_ne!(capture.service, Secrets::new(false).service);
+        assert!(capture.service.ends_with(".preview"));
+        assert!(capture.migrate_legacy(&[]).is_err());
+    }
+
+    #[test]
     fn verification_revision_changes_only_after_successful_credential_writes() {
         let secrets = Secrets::in_memory();
         let initial = secrets.revision();
@@ -176,6 +215,16 @@ mod tests {
         secrets.fail_writes.store(true, Ordering::SeqCst);
         assert!(secrets.set("provider", "rejected synthetic key").is_err());
         assert_eq!(secrets.revision(), replacement);
+    }
+
+    #[test]
+    fn presence_reports_saved_and_removed_keys_without_exposing_values() {
+        let secrets = Secrets::in_memory();
+        assert!(!secrets.has("synthetic").unwrap());
+        secrets.set("synthetic", "synthetic-secret").unwrap();
+        assert!(secrets.has("synthetic").unwrap());
+        secrets.set("synthetic", "").unwrap();
+        assert!(!secrets.has("synthetic").unwrap());
     }
 
     #[test]

@@ -41,6 +41,17 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
+/** Shared push button and text-field constructors keep ordinary controls consistent across views. */
+export function controlButton(attrs: Attrs = {}, ...children: (Child | Child[])[]): HTMLButtonElement {
+  const classes = String(attrs.class ?? "").split(/\s+/).filter(Boolean);
+  if (!classes.includes("btn")) classes.unshift("btn");
+  return h("button", { ...attrs, class: classes.join(" ") }, ...children);
+}
+
+export function textField(attrs: Attrs = {}): HTMLInputElement {
+  return h("input", { type: "text", ...attrs });
+}
+
 export function section(title: UiText, subtitle: UiText | null, ...body: (Child | Child[])[]) {
   const headingId = `section-${++sectionNumber}`;
   const node = h(
@@ -418,11 +429,11 @@ export function confirmDialog(title: UiText, detail: UiText, action: UiText = l(
   return new Promise((resolve) => {
     const { dialog, heading, description, close } = namedDialog(title, detail);
     const finish = (value: boolean) => { close(); resolve(value); };
-    const cancel = h("button", { class: "btn", onclick: () => finish(false) }, l("common.cancel"));
+    const cancel = controlButton({ class: "btn", onclick: () => finish(false) }, l("common.cancel"));
     dialog.append(heading, ...(description ? [description] : []),
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
         cancel,
-        h("button", { class: "btn danger", onclick: () => finish(true) }, action)));
+        controlButton({ class: "btn danger", onclick: () => finish(true) }, action)));
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(false); });
     document.body.append(dialog);
     dialog.showModal();
@@ -433,12 +444,12 @@ export function confirmDialog(title: UiText, detail: UiText, action: UiText = l(
 export function askText(title: UiText, value: string, detail: UiText = ""): Promise<string | null> {
   return new Promise((resolve) => {
     const { dialog, heading, description, close } = namedDialog(title, detail);
-    const input = h("input", { type: "text", value, "aria-label": title });
+    const input = textField({ type: "text", value, "aria-label": title });
     const finish = (result: string | null) => { close(); resolve(result); };
     const form = h("form", {}, heading, description, input,
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
-        h("button", { class: "btn", type: "button", onclick: () => finish(null) }, l("common.cancel")),
-        h("button", { class: "btn primary", type: "submit" }, l("common.save"))));
+        controlButton({ class: "btn", type: "button", onclick: () => finish(null) }, l("common.cancel")),
+        controlButton({ class: "btn primary", type: "submit" }, l("common.save"))));
     form.addEventListener("submit", (event) => { event.preventDefault(); finish(input.value.trim()); });
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(null); });
     dialog.append(form);
@@ -453,13 +464,13 @@ export function askText(title: UiText, value: string, detail: UiText = ""): Prom
 export function askTextWithSwitch(title: UiText, value: string, detail: UiText, label: UiText, checked = false): Promise<{ text: string; on: boolean } | null> {
   return new Promise((resolve) => {
     const { dialog, heading, description, close } = namedDialog(title, detail);
-    const input = h("input", { type: "text", value, "aria-label": title });
+    const input = textField({ type: "text", value, "aria-label": title });
     const option = h("input", { type: "checkbox", role: "switch", checked });
     const finish = (result: { text: string; on: boolean } | null) => { close(); resolve(result); };
     const form = h("form", {}, heading, description, input, h("label", { class: "checkbox" }, option, label),
       h("div", { class: "dialog-actions row" }, h("span", { class: "grow" }),
-        h("button", { class: "btn", type: "button", onclick: () => finish(null) }, l("common.cancel")),
-        h("button", { class: "btn primary", type: "submit" }, l("common.save"))));
+        controlButton({ class: "btn", type: "button", onclick: () => finish(null) }, l("common.cancel")),
+        controlButton({ class: "btn primary", type: "submit" }, l("common.save"))));
     form.addEventListener("submit", (event) => { event.preventDefault(); finish({ text: input.value.trim(), on: option.checked }); });
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(null); });
     dialog.append(form);

@@ -1,6 +1,6 @@
 import { bindLocalization, l, liveText, localizeBackendText, t, type UiText } from "../i18n.ts";
 import { api, type HotkeyTrigger, type Style } from "../api";
-import { errorText, h, section, select, toggle } from "../dom";
+import { controlButton, textField, errorText, h, section, select, toggle } from "../dom";
 import type { Context } from "../main";
 import { icon } from "../icons";
 import { appBadge } from "../app-icon";
@@ -117,13 +117,13 @@ export function dictationView(ctx: Context): HTMLElement {
       toggle(l("dictation.pad.paste_externally"), s.dictation_pad_auto_paste, (value) => { void ctx.save((settings) => { settings.dictation_pad_auto_paste = value; }); }, ctx.info.capabilities.pad_external_paste),
       h("p", { class: "help" }, l("dictation.pad.paste_help"))),
     section(l("dictation.access.title"), l("dictation.access.help"),
-      h("button", { class: "btn", onclick: () => api.showWindow("onboarding", "dictation-setup") }, l("dictation.access.check_ellipsis"))),
+      controlButton({ class: "btn", onclick: () => api.showWindow("onboarding", "dictation-setup") }, l("dictation.access.check_ellipsis"))),
   );
 }
 
 export function dictionaryView(ctx: Context): HTMLElement {
   const terms = ctx.info.settings.dictionary;
-  const input = h("input", { type: "text", placeholder: l("dictation.dictionary.example"), class: "grow" });
+  const input = textField({ type: "text", placeholder: l("dictation.dictionary.example"), class: "grow" });
   const add = () => {
     const term = input.value.trim();
     if (!term || terms.includes(term)) return;
@@ -138,7 +138,7 @@ export function dictionaryView(ctx: Context): HTMLElement {
     section(
       l("dictation.dictionary.title"),
       l("dictation.dictionary.help"),
-      h("div", { class: "row" }, input, h("button", { class: "btn", onclick: add }, l("dictation.add"))),
+      h("div", { class: "row" }, input, controlButton({ class: "btn", onclick: add }, l("dictation.add"))),
       h(
         "div",
         { class: "dictionary-list" },
@@ -161,7 +161,7 @@ export function dictionaryView(ctx: Context): HTMLElement {
 
 export function stylesView(ctx: Context): HTMLElement {
   const rules = ctx.info.settings.style_rules;
-  const input = h("input", { type: "text", placeholder: ctx.info.platform === "macos" ? l("dictation.style.app_id") : l("dictation.style.program_name"), class: "grow" });
+  const input = textField({ type: "text", placeholder: ctx.info.platform === "macos" ? l("dictation.style.app_id") : l("dictation.style.program_name"), class: "grow" });
   const add = () => {
     const value = input.value.trim();
     const id = ctx.info.platform === "macos" || (value.includes(".") && !/\.exe$/i.test(value)) ? value : value.toLowerCase().replace(/\.exe$/, "");
@@ -171,7 +171,7 @@ export function stylesView(ctx: Context): HTMLElement {
   input.addEventListener("keydown", (event) => { if (event.key === "Enter") add(); });
   const pickerStatus = h("p", { class: "help", role: "status" });
   const unavailable = ctx.info.platform === "linux" && ctx.info.capabilities.selection.status === "unsupported";
-  const pick = h("button", { class: "btn", disabled: unavailable, onclick: async () => {
+  const pick = controlButton({ class: "btn", disabled: unavailable, onclick: async () => {
     pick.disabled = true;
     try {
       const application = await api.pickStyleApplication();
@@ -179,7 +179,10 @@ export function stylesView(ctx: Context): HTMLElement {
         await ctx.save((settings) => { settings.style_rules.push({ bundle_id: application.id, style: "neutral" }); });
       }
     } catch (error) { pickerStatus.textContent = errorText(error); }
-    finally { pick.disabled = unavailable; }
+    finally {
+      pick.disabled = unavailable;
+      if (pick.isConnected && !pick.disabled) pick.focus({ preventScroll: true });
+    }
   } }, l("dictation.style.add_app"));
   return h(
     "div",
@@ -211,7 +214,7 @@ export function stylesView(ctx: Context): HTMLElement {
       }),
       h("div", { class: "row style-add" }, pick), pickerStatus,
       h("details", { class: "advanced-style" }, h("summary", {}, l("dictation.style.manual")),
-        h("div", { class: "row" }, input, h("button", { class: "btn", disabled: unavailable, onclick: add }, l("dictation.add")))),
+        h("div", { class: "row" }, input, controlButton({ class: "btn", disabled: unavailable, onclick: add }, l("dictation.add")))),
       unavailable ? h("p", { class: "help" }, l("dictation.style.wayland")) : null,
     ),
   );

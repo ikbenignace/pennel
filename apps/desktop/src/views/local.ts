@@ -1,7 +1,7 @@
 import { bindLocalization, liveText, l, t, uiLocale, formatNumber, localizeBackendText, type LocalizedText } from "../i18n.ts";
 import { localModelDisplayName, localModelLanguageName } from "../settings-presentation.ts";
 import { api, listen, type LocalModel } from "../api";
-import { confirmDialog, errorText, field, h, isCancellation, section, select } from "../dom";
+import { controlButton, confirmDialog, errorText, field, h, isCancellation, section, select } from "../dom";
 import type { Context } from "../main";
 
 const progress = new Map<string, { downloaded: number; total: number }>();
@@ -80,11 +80,11 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     let actions: (Node | string)[];
     if (active) {
       actions = [
-        h("button", { class: "btn", onclick: () => api.cancelDownload(model.id) }, l("common.cancel")),
+        controlButton({ class: "btn", onclick: () => api.cancelDownload(model.id) }, l("common.cancel")),
       ];
     } else if (model.state.kind === "downloaded") {
       actions = [
-        ...inUse.has(model.id) ? [] : [h("button", { class: "btn", disabled: !!unsupported, onclick: () => use(model) }, l("providers.local.use"))],
+        ...inUse.has(model.id) ? [] : [controlButton({ class: "btn", disabled: !!unsupported, onclick: () => use(model) }, l("providers.local.use"))],
         h(
           "button",
           {
@@ -108,12 +108,13 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       actions =
         model.state.kind === "partial"
           ? [
-              h("button", { class: "btn", disabled: !!unsupported, onclick: start }, l("providers.local.resume")),
-              h("button", { class: "btn danger", onclick: async () => await ctx.mutate(() => api.deleteModel(model.id)) }, l("settings.template.delete")),
+              controlButton({ class: "btn", disabled: !!unsupported, onclick: start }, l("providers.local.resume")),
+              controlButton({ class: "btn danger", onclick: async () => await ctx.mutate(() => api.deleteModel(model.id)) }, l("settings.template.delete")),
             ]
-          : [h("button", { class: "btn", disabled: !!unsupported, onclick: start }, l("providers.local.download"))];
+          : [controlButton({ class: "btn", disabled: !!unsupported, onclick: start }, l("providers.local.download"))];
     }
     const inUseHere = inUse.has(model.id);
+    const unmeasuredVariant = model.id === "whisper-large-v3-turbo-q5_0";
     const metadata = liveText(() => [localizeBackendText(model.description), `${formatNumber(Math.floor(model.size_bytes / 1e6))} MB`, model.parameters ? t("providers.local.parameters", { count: model.parameters }) : null].filter(Boolean).join(" · "));
     const languages = () => [...model.languages].map(localModelLanguageName).sort((a, b) => a.localeCompare(b, uiLocale()));
     const languageDetails = model.languages.length ? h("details", { class: "model-languages" }, h("summary", {}), h("p", {})) : null;
@@ -132,7 +133,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
         h("div", { class: "row" }, h("strong", {}, localModelDisplayName(model)), inUseHere || model.recommended ? h("span", { class: "model-badge" }, inUseHere ? l("providers.local.in_use") : l("providers.local.recommended")) : null),
         h("p", { class: "model-details" }, metadata)),
         h("div", { class: "row model-actions" }, actions)),
-      h("div", { class: "model-scores" }, bar(l("providers.local.speed"), model.speed), bar(l("providers.local.accuracy"), model.accuracy)), languageDetails,
+      h("div", { class: "model-scores" }, bar(l("providers.local.speed"), unmeasuredVariant ? null : model.speed), bar(l("providers.local.accuracy"), unmeasuredVariant ? null : model.accuracy)), languageDetails,
       active ? h("progress", { "data-model": model.id, max: active.total || 1, value: active.downloaded, "aria-label": l("providers.local.downloading_model", () => ({ model: String(localModelDisplayName(model)) })) }) : null,
       failures.has(model.id) ? h("div", { class: "error" }, l("providers.local.download_failed", () => ({ error: errorText(failures.get(model.id)) }))) : null);
   };
@@ -167,6 +168,7 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
     },
   });
 
+  const prominent = (model: LocalModel) => model.recommended || model.id === "whisper-large-v3-turbo-q5_0" || model.state.kind === "downloaded";
   const root = h(
     "div",
     {},
@@ -178,8 +180,8 @@ export async function localView(ctx: Context, embedded = false): Promise<HTMLEle
       h("p", { class: "help" }, l("providers.local.text_help")),
       h("div", { class: "row model-filters" }, h("div", { class: "model-language" }, h("span", { "aria-hidden": "true" }, l("providers.local.accuracy_for")), languagePicker), h("label", { class: "row" }, onlyThis, l("providers.local.only_language"))),
       h("p", { class: "help model-benchmark-note" }, l("providers.local.benchmark_help")),
-      models.filter((model) => model.recommended || model.state.kind === "downloaded").map(card),
-      h("details", { class: "all-models" }, h("summary", {}, l("providers.local.all_models", () => ({ count: formatNumber(models.filter((model) => !model.recommended && model.state.kind !== "downloaded").length) }))), models.filter((model) => !model.recommended && model.state.kind !== "downloaded").map(card)),
+      models.filter(prominent).map(card),
+      h("details", { class: "all-models" }, h("summary", {}, l("providers.local.all_models", () => ({ count: formatNumber(models.filter((model) => !prominent(model)).length) }))), models.filter((model) => !prominent(model)).map(card)),
       field(
         l("providers.local.release_after"),
         select<string>(

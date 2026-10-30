@@ -1,5 +1,6 @@
 import { api, type AppIdentity } from "./api";
 import { h } from "./dom";
+import { icon as uiIcon } from "./icons";
 import { applicationLabel } from "./presentation";
 
 const identities = new Map<string, Promise<AppIdentity | null>>();
@@ -13,9 +14,9 @@ function identity(id: string): Promise<AppIdentity | null> {
   return pending;
 }
 
-/** Real application icon and name when the platform can resolve them; a generic rounded square otherwise. */
+/** Real application icon and name when the platform can resolve them; a generic application symbol otherwise. */
 export function appBadge(id: string): { icon: HTMLElement; name: HTMLSpanElement } {
-  const icon = h("span", { class: "app-icon", "aria-hidden": "true" });
+  const icon = h("span", { class: "app-icon", "aria-hidden": "true" }, uiIcon("laptop"));
   const name = h("span", { class: "app-name" }, applicationLabel(id));
   void identity(id).then((found) => {
     if (!found) return;
