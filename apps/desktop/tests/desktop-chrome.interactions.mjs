@@ -60,7 +60,8 @@ export async function checkDesktopChrome() {
     }
     assert(getComputedStyle(document.querySelector(".workspace-body")).backgroundColor !== "rgba(0, 0, 0, 0)", "The reading surface became transparent.");
     const navigationControl = document.querySelector(".library-shortcuts button");
-    assert(getComputedStyle(toggle).fontFamily.includes("-apple-system") && getComputedStyle(navigationControl).fontFamily.includes("-apple-system"), "macOS chrome did not use system typography.");
+    const usesFigtree = control => getComputedStyle(control).fontFamily.split(",")[0].replaceAll('"', "").trim() === "Figtree";
+    assert(usesFigtree(toggle) && usesFigtree(navigationControl), "macOS chrome did not retain the shared Figtree typography.");
     assert(parseFloat(getComputedStyle(navigationControl).fontSize) >= 13 && navigationControl.getBoundingClientRect().height >= 32, "Source navigation lost its readable labels or 32 pt targets.");
     if (!initialVisible) toggle.click();
     const separator = document.querySelector(".workspace-separator");

@@ -2,8 +2,8 @@
 
 /*
  * Pennel's shared windows, drawn after the original Pennel app: the system title bar, Figtree
- * reading text with Instrument Serif for large titles. macOS chrome uses the system font and a
- * native material host; content remains warm opaque paper. Only theme tokens are used.
+ * throughout with Instrument Serif for large titles. macOS chrome uses a native material host;
+ * content remains warm opaque paper. Only theme tokens are used.
  */
 
 /* Base */

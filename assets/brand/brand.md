@@ -39,7 +39,7 @@ Rules
 
 ## Typography and geometry
 
-- **Figtree** carries reading content and the shared interface. macOS navigation, buttons and control labels use the system font through the chrome font role. Use Regular for prose, Medium for controls and SemiBold for short headings.
+- **Figtree** carries navigation, body text, buttons, labels and small section headings on every platform. The chrome font role follows the shared interface font. Use Regular for prose, Medium for controls and SemiBold for short headings.
 - **Instrument Serif** Regular carries large product titles, the wordmark and marketing. Use the shared page/display/onboarding tokens; never fake bold or use serif type in controls.
 - Use sentence case. Shared sizes include 11 pt captions, 12 pt labels, 13 pt body, 14 pt reading text, 16 pt section headings, 21 pt compact titles, 26–28 pt onboarding/welcome titles and 28–30 pt large page/display titles. Enlarge text without losing critical content or actions.
 - Use a 4 pt spacing grid. Content controls have 6 pt radii, segmented controls 8 pt, panels and windows 12 pt. The desktop toolbar uses 36 pt circular icon controls and capsule action groups in a 52 pt window band, with 12 pt between groups. Ordinary desktop controls are at least 28 pt high, sidebar search fields 36 pt and source-list rows 32 pt. Search fields leave 12 pt before the icon and 8 pt between icon and text. Rounded pills elsewhere are reserved for the recording overlay and compact indicators.

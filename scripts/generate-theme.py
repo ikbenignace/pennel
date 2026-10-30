@@ -362,7 +362,9 @@ class GeneratorTests(unittest.TestCase):
     def test_desktop_chrome_keeps_reading_fonts_and_shared_sidebar_bounds(self) -> None:
         css, swift = render_css(self.tokens), render_swift(self.tokens)
         self.assertIn('--ui: "Figtree"', css)
-        self.assertIn(':root[data-platform="macos"] {\n  --chrome-ui: -apple-system', css)
+        self.assertEqual(self.tokens["typography"]["macos-chrome"], "brand")
+        self.assertIn('--chrome-ui: var(--ui);', css)
+        self.assertNotIn(':root[data-platform="macos"]', css)
         for name, value in self.tokens["desktop"].items():
             self.assertIn(f"--desktop-{name}: {scalar(value)}px", css)
             self.assertIn(f"{swift_name(name)}: CGFloat = {scalar(value)}", swift)

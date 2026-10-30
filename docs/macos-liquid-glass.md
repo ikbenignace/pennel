@@ -9,7 +9,7 @@ This follow-up to [#65](https://github.com/pennel-app/pennel/issues/65) retains 
 | Swift macOS integration | Material host, empty unified toolbar for system geometry, public AppKit availability guards, actual window appearance, live accessibility/focus notifications, owner-attached application picker |
 | Rust/Tauri | Host lifecycle and typed environment events, native menu commands and availability, owner-attached folder picker, isolated capture profile |
 | Tauri macOS configuration | Transparent webview, native decorated overlay titlebar and hidden visual title; macOS 14.4 remains the minimum |
-| Frontend and shared tokens | Toolbar, adjustable/collapsible sidebar, system-font chrome, opaque reading content, accessible states and keyboard navigation |
+| Frontend and shared tokens | Toolbar, adjustable/collapsible sidebar, shared Figtree chrome, opaque reading content, accessible states and keyboard navigation |
 
 The host assigns the retained webview presentation to `NSGlassEffectView.contentView`. The pinned Tauri 2.12.5/window-vibrancy 0.8.1 effect implementation does not establish that relationship. Apple's [AppKit adoption guidance](https://developer.apple.com/videos/play/wwdc2025/310/) recommends embedding content inside the effect. No new runtime dependency is required.
 
@@ -32,7 +32,7 @@ Native captures use a separate app identity and only owned window IDs. Browser f
 
 ### Reviewed desktop candidate
 
-Desktop code revision: `f5092e8482cd52c44179caa847de3c54f762934c`. The development capture executable's SHA-256 is `4ff5edf99fa6acd90540e48800b0493f75ccca6b609eb6c83d411035a38dad59`; its ad-hoc bundle passed `codesign --verify --deep --strict`. Later evidence-only commits do not change desktop code.
+Native desktop candidate before the typography parity correction below: `f5092e8482cd52c44179caa847de3c54f762934c`. The development capture executable's SHA-256 is `4ff5edf99fa6acd90540e48800b0493f75ccca6b609eb6c83d411035a38dad59`; its ad-hoc bundle passed `codesign --verify --deep --strict`. The retained native captures predate that correction.
 
 The [machine-readable receipt](evidence/macos-liquid-glass-2026-10-29/receipt.json) records four current native EN/NL light/dark captures and separates historical checks from the current rounded-sheet candidate. The retained padding candidate also exercised circular sidebar/search activation, fullscreen, the maximum sidebar at minimum window size, and real transparency/contrast preferences. Native and frontend states matched; the controls stayed visible with opaque fallbacks. Original settings and the original System Settings page were restored.
 
@@ -75,3 +75,13 @@ The sidebar search field has a shared 36 point minimum height, 12 point leading 
 ### Rounded content sheets — 30 October 2026
 
 Workspace and Settings content use the existing 12 point panel radius. Their own scroll containers clip backgrounds to the curve. A continuous navigation-material backing behind the sheets makes all corners visible while avoiding a second tint layer in either sidebar. Layout dimensions and footer spacing stay unchanged. Frontend build/212 tests, 16 EN/NL light/dark/minimum-size fixtures and four native meeting/Settings captures passed.
+
+### Typography parity — 30 October 2026
+
+The canonical macOS chrome font token now selects the shared Figtree interface font, matching the project rules and other platforms. Native materials, toolbar geometry and control sizes are unchanged. The theme regression first reproduced the system-font mismatch, then passed after changing the token; the chrome interaction checks now require Figtree as the primary font.
+
+- `python3 scripts/generate-theme.py --self-test` and `--check`: 12 tests and generated-output checks pass.
+- Desktop `npm ci && npm run build && npm test`: frontend build and 212 tests pass.
+- `node scripts/capture-desktop-reference.mjs --case desktop-chrome-interaction --case desktop-chrome-minimum --case meeting-notes --case settings-main --locale both --appearance both --output build/merge-pr71-figtree`: 16 owned headless captures pass, including the 760×520 window and maximum sidebar width, with no horizontal overflow or runtime errors. Representative light Settings and dark Dutch minimum-size captures were visually reviewed.
+
+These captures establish frontend typography and layout. Rust/native builds and fresh native captures were not rerun for this correction because the local Rust toolchain is unavailable; hosted CI and native/device acceptance remain separate gates.

@@ -221,7 +221,3 @@
   --voice-3: #92bae3;
   --voice-4: #d7bb83;
 }
-
-:root[data-platform="macos"] {
-  --chrome-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Cantarell, Ubuntu, "Noto Sans", sans-serif;
-}
