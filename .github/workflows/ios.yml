@@ -42,6 +42,7 @@ jobs:
           targets: aarch64-apple-darwin, aarch64-apple-ios, aarch64-apple-ios-sim
       - uses: Swatinem/rust-cache@v2
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: core
           # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
           # the build script's output, which would then link against a missing directory.

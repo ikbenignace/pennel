@@ -3,8 +3,8 @@
 #
 # The box runs several GitHub runner processes as the same user. They used to
 # share ~/.rustup, so one job's `toolchain install` / wipe removed rustc from
-# under another's cargo (`never executed` / ENOENT on rustc). Isolate by the
-# runner install dir (…/actions-runner-2/_work/…).
+# under another's cargo (`never executed` / ENOENT on rustc). Isolate self-hosted
+# toolchains by runner; hosted VMs need stable paths for Rust cache reuse.
 #
 # Extra arguments are rustup components (clippy, rustfmt, ...).
 set -euo pipefail
@@ -22,9 +22,8 @@ if [ -n "${GITHUB_WORKSPACE:-}" ]; then
   runner_id="${runner_id}-$(basename "$prefix")"
 fi
 runner_id=$(printf '%s' "$runner_id" | tr -c 'A-Za-z0-9._-' '-')
-export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup/runners/$runner_id}"
-
 if [ "${RUNNER_ENVIRONMENT:-}" = "self-hosted" ]; then
+  export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup/runners/$runner_id}"
   # The registry sources in a shared CARGO_HOME are extracted and pruned by
   # whichever runner finishes first, which removed crate files (and
   # `rustc` runs) from under a concurrent job. Each runner process gets its
@@ -39,6 +38,8 @@ if [ "${RUNNER_ENVIRONMENT:-}" = "self-hosted" ]; then
   for proxy in rustup cargo rustc rustdoc rustfmt cargo-fmt cargo-clippy clippy-driver rust-gdb rust-lldb cargo-miri; do
     ln -sf "$SHARED_CARGO_HOME/bin/rustup" "$CARGO_HOME/bin/$proxy"
   done
+else
+  export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
 fi
 
 mkdir -p "$CARGO_HOME/bin" "$RUSTUP_HOME"

@@ -13,6 +13,10 @@ on:
       - 'evaluations/decision-models/**'
       - '.github/workflows/decision-evaluation.yml'
 
+concurrency:
+  group: decision-evaluation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   offline:
     strategy:
@@ -34,6 +38,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: core -> ../build/evaluation-core-target
       - name: Build evaluation-only bridge without native models
         run: cargo build --locked --manifest-path core/Cargo.toml --no-default-features --features evaluation --bin pennel-eval

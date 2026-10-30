@@ -22,6 +22,9 @@ def classify(paths):
             selected.update(('platform', 'app'))
         elif path.startswith('apps/macos/'):
             selected.add('legacy')
+        elif path.startswith(('apps/mobile/', 'apps/ios/')):
+            # Their own workflows validate native/mobile inputs; desktop does not consume them.
+            continue
         elif path.startswith('assets/locales/'):
             selected.update(('core', 'legacy', 'app'))
         elif path.startswith('assets/'):

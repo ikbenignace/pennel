@@ -17,7 +17,7 @@ done
 
 rm -rf "$bindings"
 # Library mode reads crate metadata via `cargo metadata`, which needs the crate directory as cwd.
-(cd "$root/core" && cargo run --quiet --bin uniffi-bindgen -- \
+(cd "$root/core" && cargo run --quiet --no-default-features --bin uniffi-bindgen -- \
   generate --library "$sim_dir/libpennel_core.dylib" --language swift --out-dir "$bindings")
 
 mkdir -p "$bindings/headers"

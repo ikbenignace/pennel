@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - name: Test change selection
-        run: python3 -B -m unittest discover -s scripts/tests -p 'test_ci_changes.py'
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_ci_*.py'
       - name: English diagnostic defaults
         run: python3 -B -m unittest discover -s scripts/tests -p 'test_language_policy.py'
       - name: Select affected checks
