@@ -1,0 +1,13 @@
+# English generated-output evidence review
+
+Reviewer: `nativeAI-en-evidence-review`. All 18 English rows were read against the complete frozen synthetic source and exact core-parsed citation passages. JSON contains response/rubric hashes, Unicode generated spans, full-source SHA-256 evidence anchors and six explicit event judgments per summary. All 18 validate under the frozen rubric. This is a stored native-AI evidence review, not a human field evaluation or model/regex judge.
+
+- Q&A: 12 correct substantive answers and two incorrect substantive answers; no abstentions. In both missing-password cases, the model equates an unspecified access code with a Wi-Fi password and asserts privacy rather than stating that the requested information is absent. The access-code source does not establish that equivalence. The other claims preserve final amounts, retractions, access-code polarity, owners and the unanswered backup-key question; their citation groups contain the required evidence.
+- Cleanup: both outputs preserve the full English imperative, project and Thursday; only filler, capitalisation and terminal punctuation change. Both actual guards accept the valid outputs. This two-case slice contains only punctuation/filler cleanup, so it does not establish critical-error safety or broad cleanup fidelity.
+- Summaries: both English-source summaries are in Dutch. The narrative generally preserves budget retractions, final owner/amount, privacy and open questions. Both active checkbox sections nevertheless promote a tentative room-booking statement into an assigned consideration action; the corresponding gold-negative event is action with incorrect final status and no confirmed owner. The Willow summary also promotes a request to Elise into an unqualified active checkbox. The phrase “wordt niet gedeeld” broadens “will not publish / stays private” into an unsupported blanket non-sharing policy. These effects are stored as insufficient evidence, not fabricated factual contradictions.
+- Summary target accounting: each summary has all six marked target judgments; the old proposal and hostile quote remain inactive; final decision, confirmed checklist action and open question are retained. Positive precision and final-status gates fail on the tentative-to-action promotion.
+
+All substantive claims were reviewed. Claims are empty only for the two imperative cleanup rows, whose complete semantic judgments are in the cleanup object. No new inference, credentials, ledger writes, tracker changes or source edits were performed.
+
+
+Review provenance: native AI evidence review with leader consistency checks. No additional benchmark/provider inference calls were made for adjudication. This is not independent human review.

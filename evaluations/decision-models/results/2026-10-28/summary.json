@@ -1,0 +1,73 @@
+{
+  "evidence_kind": "measured_local_inference_and_deterministic_core",
+  "generation_commit": "4a3135b99ede8363493eb13e599b19b796a88603",
+  "heldout_status_counts": {
+    "gliclass-multilingual:ok": 1572,
+    "gliclass-multilingual:unavailable": 96,
+    "gliner-multilingual:ok": 1524,
+    "gliner-multilingual:unavailable": 96,
+    "gte-reranker:ok": 48
+  },
+  "hosted_requests": 0,
+  "hosted_workload_cost": "unmeasured; no requests were made",
+  "known_hosted_billed_usd": "0.00",
+  "languages": [
+    "en",
+    "nl",
+    "mixed"
+  ],
+  "limits": [
+    "Authored procedural grammar, not natural meeting distribution",
+    "Only one frozen zero-shot prompt family; no general claim about candidate model ability",
+    "Returned label-only confidence is not a full probability distribution",
+    "Timestamp citation syntax is distinct from factual support",
+    "Load time includes artifact verification and framework imports; OS file caches uncontrolled"
+  ],
+  "local_inference_billed_usd": "0.00",
+  "model_download_bytes": 2770266421,
+  "recommendations": {
+    "answerability": {
+      "en": "defer_new_model; retain current/manual behavior",
+      "mixed": "defer_new_model; retain current/manual behavior",
+      "nl": "defer_new_model; retain current/manual behavior"
+    },
+    "claim_support": {
+      "en": "defer_new_model; retain current/manual behavior",
+      "mixed": "defer_new_model; retain current/manual behavior",
+      "nl": "defer_new_model; retain current/manual behavior"
+    },
+    "cleanup": {
+      "en": "defer_new_model; retain current/manual behavior",
+      "mixed": "defer_new_model; retain current/manual behavior",
+      "nl": "defer_new_model; retain current/manual behavior"
+    },
+    "events": {
+      "en": "defer_new_model; retain current/manual behavior",
+      "mixed": "defer_new_model; retain current/manual behavior",
+      "nl": "defer_new_model; retain current/manual behavior"
+    },
+    "ranking": {
+      "en": "defer_new_model; retain current/manual behavior",
+      "mixed": "defer_new_model; retain current/manual behavior",
+      "nl": "defer_new_model; retain current/manual behavior"
+    },
+    "speaker_names": {
+      "en": "defer_new_model; retain current/manual behavior",
+      "mixed": "defer_new_model; retain current/manual behavior",
+      "nl": "defer_new_model; retain current/manual behavior"
+    },
+    "templates": {
+      "en": "defer_new_model; retain current/manual behavior",
+      "mixed": "defer_new_model; retain current/manual behavior",
+      "nl": "defer_new_model; retain current/manual behavior"
+    }
+  },
+  "remaining_gates": [
+    "Hosted credentials, verified selected-route retention/region and actual usage/billing/end-to-end latency",
+    "Installed generative baseline and answer/summary/cleanup factual-support adjudication",
+    "Q8 graph/reference parity; local Mac Decider and secondary Laya measurements",
+    "Windows/Linux model inference and packaged runtime/linkage/resource acceptance",
+    "Field/pilot/device/deployment acceptance for production feature follow-ups"
+  ],
+  "run_manifest_hash": "f89a727418bc7b85676f5a2367b92bd3a6e96757814e27b479d5e25a431b692c"
+}

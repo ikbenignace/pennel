@@ -13,6 +13,8 @@ mod diarize;
 mod dictation_pad;
 mod engine;
 mod error;
+#[cfg(feature = "evaluation")]
+pub mod evaluation;
 mod export;
 mod gesture;
 mod history;

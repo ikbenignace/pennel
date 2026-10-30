@@ -593,6 +593,8 @@ mod tests {
     fn slow_agent_is_killed() {
         let dir = tempfile::tempdir().unwrap();
         let fake = script(dir.path(), "gemini", "sleep 5");
+        // Login-shell discovery is process-wide setup, outside the agent's deadline.
+        let _ = login_shell_path();
         let started = Instant::now();
         let err = complete(
             ProviderKind::GeminiCli,

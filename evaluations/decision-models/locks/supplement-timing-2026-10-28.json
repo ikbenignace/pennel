@@ -1,0 +1,126 @@
+{
+  "cold_definition": "Fresh client after metadata setup, not server/model cold.",
+  "condition": "Complete fixed serial panel only if its entire conservative bound fits the reconciled shared ledger; no quality-dependent case/model selection.",
+  "config_sha256": "b0c9eb3a6d3108f61e95868f66c007491912b4c4bf5d2f48c16962a2fe6142a3",
+  "experiment": "suggestions-v2-resource-panel",
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "logical_cpus": 14,
+    "machine": "arm64",
+    "memory_bytes": 51539607552,
+    "python": "3.14.2",
+    "release": "27.0.0",
+    "system": "Darwin"
+  },
+  "hosted_total_ceiling_usd": "2.00",
+  "panel": {
+    "cases_sha256": "bce42920067add692ab792bfbcf6bbe8989e3d987f86bf0053d3479c49bb3b4e",
+    "cold_client_samples_per_language": 5,
+    "excluded_warmups_per_case": 1,
+    "latency_concurrency": 1,
+    "panel_hash": "6ab0be76a108c4afb91a6cb95f938ff6d9aea3a49740fd6a05a271fd12b23bd1",
+    "runners": [
+      {
+        "case_ids": [
+          "decision-suggestions-v2-heldout-00-en-owner",
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-en-template",
+          "decision-suggestions-v2-heldout-00-mixed-owner",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-mixed-template",
+          "decision-suggestions-v2-heldout-00-nl-owner",
+          "decision-suggestions-v2-heldout-00-nl-name",
+          "decision-suggestions-v2-heldout-00-nl-template"
+        ],
+        "cold_case_ids": [
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-nl-name"
+        ],
+        "runner_id": "openrouter-jev"
+      },
+      {
+        "case_ids": [
+          "decision-suggestions-v2-heldout-00-en-owner",
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-en-template",
+          "decision-suggestions-v2-heldout-00-mixed-owner",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-mixed-template",
+          "decision-suggestions-v2-heldout-00-nl-owner",
+          "decision-suggestions-v2-heldout-00-nl-name",
+          "decision-suggestions-v2-heldout-00-nl-template"
+        ],
+        "cold_case_ids": [
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-nl-name"
+        ],
+        "runner_id": "openrouter-decider"
+      },
+      {
+        "case_ids": [
+          "decision-suggestions-v2-heldout-00-en-owner",
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-en-template",
+          "decision-suggestions-v2-heldout-00-mixed-owner",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-mixed-template",
+          "decision-suggestions-v2-heldout-00-nl-owner",
+          "decision-suggestions-v2-heldout-00-nl-name",
+          "decision-suggestions-v2-heldout-00-nl-template"
+        ],
+        "cold_case_ids": [
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-nl-name"
+        ],
+        "runner_id": "openrouter-decider-flash"
+      },
+      {
+        "case_ids": [
+          "decision-suggestions-v2-heldout-00-en-owner",
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-en-template",
+          "decision-suggestions-v2-heldout-00-mixed-owner",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-mixed-template",
+          "decision-suggestions-v2-heldout-00-nl-owner",
+          "decision-suggestions-v2-heldout-00-nl-name",
+          "decision-suggestions-v2-heldout-00-nl-template"
+        ],
+        "cold_case_ids": [
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-nl-name"
+        ],
+        "runner_id": "openrouter-clef-flash"
+      },
+      {
+        "case_ids": [
+          "decision-suggestions-v2-heldout-00-en-owner",
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-en-template",
+          "decision-suggestions-v2-heldout-00-mixed-owner",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-mixed-template",
+          "decision-suggestions-v2-heldout-00-nl-owner",
+          "decision-suggestions-v2-heldout-00-nl-name",
+          "decision-suggestions-v2-heldout-00-nl-template"
+        ],
+        "cold_case_ids": [
+          "decision-suggestions-v2-heldout-00-en-name",
+          "decision-suggestions-v2-heldout-00-mixed-name",
+          "decision-suggestions-v2-heldout-00-nl-name"
+        ],
+        "runner_id": "openrouter-mercury"
+      }
+    ],
+    "split": "heldout",
+    "version": 1,
+    "warm_samples_per_case": 30
+  },
+  "parent_manifest_sha256": "c3129022da30d4896020fb0cc046f3de45b8c0db483fe1495f182ca1233b0315",
+  "sampling": "Five cold client samples per language and30warm per frozen task/language, plus excludedwarmups.",
+  "source_commit": "8e693d9"
+}

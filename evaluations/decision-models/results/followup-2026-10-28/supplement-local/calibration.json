@@ -1,0 +1,4324 @@
+{
+  "calibration_predictions_sha256": "b37ffa54dc644975e7927c51203aa736216cfd3f7bb7bf26e5a8bf17b417a1c8",
+  "calibration_rows": 432,
+  "evaluation_split": "heldout",
+  "fit_split": "calibration",
+  "fits": {
+    "1ab5d3b5cbbea0a5bcb1a559dccc845bef3c93278471f2b1af6f9751f483b5eb": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "unknown",
+          "robin",
+          "noel",
+          "mira"
+        ],
+        "language": "nl",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "speaker_names",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-nl-name-reordered",
+          "decision-suggestions-v2-calibration-01-nl-name-reordered",
+          "decision-suggestions-v2-calibration-02-nl-name-reordered",
+          "decision-suggestions-v2-calibration-03-nl-name-reordered",
+          "decision-suggestions-v2-calibration-04-nl-name-reordered",
+          "decision-suggestions-v2-calibration-05-nl-name-reordered",
+          "decision-suggestions-v2-calibration-06-nl-name-reordered",
+          "decision-suggestions-v2-calibration-07-nl-name-reordered",
+          "decision-suggestions-v2-calibration-08-nl-name-reordered",
+          "decision-suggestions-v2-calibration-09-nl-name-reordered",
+          "decision-suggestions-v2-calibration-10-nl-name-reordered",
+          "decision-suggestions-v2-calibration-11-nl-name-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "unknown",
+            "robin",
+            "noel",
+            "mira"
+          ],
+          "language": "nl",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "speaker_names",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "1ab5d3b5cbbea0a5bcb1a559dccc845bef3c93278471f2b1af6f9751f483b5eb",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 0.6856413428303917,
+        "objective_before": 0.7485443167505522,
+        "parameters": {
+          "temperature": 1.5101070780096586
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 9,
+          "correct_count": 9,
+          "coverage": 0.75,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.6970953785695829
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 4,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.98
+    },
+    "2875d33225d799c36249b644fd799fa0ca5041e2736be16cda0cd5bec3bf114b": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "abstain",
+          "standup",
+          "klantgesprek",
+          "een-op-een",
+          "algemeen"
+        ],
+        "language": "en",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "templates",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-en-template-reordered",
+          "decision-suggestions-v2-calibration-01-en-template-reordered",
+          "decision-suggestions-v2-calibration-02-en-template-reordered",
+          "decision-suggestions-v2-calibration-03-en-template-reordered",
+          "decision-suggestions-v2-calibration-04-en-template-reordered",
+          "decision-suggestions-v2-calibration-05-en-template-reordered",
+          "decision-suggestions-v2-calibration-06-en-template-reordered",
+          "decision-suggestions-v2-calibration-07-en-template-reordered",
+          "decision-suggestions-v2-calibration-08-en-template-reordered",
+          "decision-suggestions-v2-calibration-09-en-template-reordered",
+          "decision-suggestions-v2-calibration-10-en-template-reordered",
+          "decision-suggestions-v2-calibration-11-en-template-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "abstain",
+            "standup",
+            "klantgesprek",
+            "een-op-een",
+            "algemeen"
+          ],
+          "language": "en",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "templates",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "2875d33225d799c36249b644fd799fa0ca5041e2736be16cda0cd5bec3bf114b",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.3906191230646727,
+        "objective_before": 1.5731205055867274,
+        "parameters": {
+          "temperature": 1.9651936570978272
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 1,
+          "correct_count": 1,
+          "coverage": 0.08333333333333333,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.3759988710020434
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 5,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "2fbafa8b3e3cc098eb22db5c03db842f940d9e0f70966d1c8606a4a8f8d2a5f6": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "algemeen",
+          "een-op-een",
+          "klantgesprek",
+          "standup",
+          "abstain"
+        ],
+        "language": "en",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "templates",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-en-template",
+          "decision-suggestions-v2-calibration-01-en-template",
+          "decision-suggestions-v2-calibration-02-en-template",
+          "decision-suggestions-v2-calibration-03-en-template",
+          "decision-suggestions-v2-calibration-04-en-template",
+          "decision-suggestions-v2-calibration-05-en-template",
+          "decision-suggestions-v2-calibration-06-en-template",
+          "decision-suggestions-v2-calibration-07-en-template",
+          "decision-suggestions-v2-calibration-08-en-template",
+          "decision-suggestions-v2-calibration-09-en-template",
+          "decision-suggestions-v2-calibration-10-en-template",
+          "decision-suggestions-v2-calibration-11-en-template"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "algemeen",
+            "een-op-een",
+            "klantgesprek",
+            "standup",
+            "abstain"
+          ],
+          "language": "en",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "templates",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "2fbafa8b3e3cc098eb22db5c03db842f940d9e0f70966d1c8606a4a8f8d2a5f6",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.351965881608621,
+        "objective_before": 1.387292500199699,
+        "parameters": {
+          "temperature": 1.397965115544313
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 2,
+          "correct_count": 2,
+          "coverage": 0.16666666666666666,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.39670056632490425
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 5,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "3852e3e1cda539f6972d91ce40c57a4b6a729edb97e5fb3cbb651ee7bce53e69": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "unknown",
+          "robin",
+          "noel",
+          "mira"
+        ],
+        "language": "mixed",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "speaker_names",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-01-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-02-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-03-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-04-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-05-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-06-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-07-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-08-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-09-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-10-mixed-name-reordered",
+          "decision-suggestions-v2-calibration-11-mixed-name-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "unknown",
+            "robin",
+            "noel",
+            "mira"
+          ],
+          "language": "mixed",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "speaker_names",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "3852e3e1cda539f6972d91ce40c57a4b6a729edb97e5fb3cbb651ee7bce53e69",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 0.6657229529267892,
+        "objective_before": 0.7184963794268739,
+        "parameters": {
+          "temperature": 1.4447644721839348
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 9,
+          "correct_count": 9,
+          "coverage": 0.75,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.7109873715472769
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 4,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.98
+    },
+    "5aca8a7aba1ff35467a2ba3b062a2b90bda9a99a8d7095f30e841a6b6cd04811": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "abstain",
+          "standup",
+          "klantgesprek",
+          "een-op-een",
+          "algemeen"
+        ],
+        "language": "mixed",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "templates",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-01-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-02-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-03-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-04-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-05-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-06-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-07-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-08-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-09-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-10-mixed-template-reordered",
+          "decision-suggestions-v2-calibration-11-mixed-template-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "abstain",
+            "standup",
+            "klantgesprek",
+            "een-op-een",
+            "algemeen"
+          ],
+          "language": "mixed",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "templates",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "5aca8a7aba1ff35467a2ba3b062a2b90bda9a99a8d7095f30e841a6b6cd04811",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.4232323797222914,
+        "objective_before": 1.6017720283902437,
+        "parameters": {
+          "temperature": 2.02477642683005
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 0,
+          "correct_count": 0,
+          "coverage": 0.0,
+          "selective_accuracy": null,
+          "selective_precision": null,
+          "threshold": null
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 5,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "6d5d996c100cf5502880a477e6d4f53d836d5b99a044b0260bfcf1717ce218a4": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "mira",
+          "noel",
+          "robin",
+          "unknown"
+        ],
+        "language": "nl",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "speaker_names",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-nl-name",
+          "decision-suggestions-v2-calibration-01-nl-name",
+          "decision-suggestions-v2-calibration-02-nl-name",
+          "decision-suggestions-v2-calibration-03-nl-name",
+          "decision-suggestions-v2-calibration-04-nl-name",
+          "decision-suggestions-v2-calibration-05-nl-name",
+          "decision-suggestions-v2-calibration-06-nl-name",
+          "decision-suggestions-v2-calibration-07-nl-name",
+          "decision-suggestions-v2-calibration-08-nl-name",
+          "decision-suggestions-v2-calibration-09-nl-name",
+          "decision-suggestions-v2-calibration-10-nl-name",
+          "decision-suggestions-v2-calibration-11-nl-name"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "mira",
+            "noel",
+            "robin",
+            "unknown"
+          ],
+          "language": "nl",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "speaker_names",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "6d5d996c100cf5502880a477e6d4f53d836d5b99a044b0260bfcf1717ce218a4",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 0.7313096067342094,
+        "objective_before": 0.7626501970788704,
+        "parameters": {
+          "temperature": 1.3565869838326257
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 9,
+          "correct_count": 9,
+          "coverage": 0.75,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.7359096678244789
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 4,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.98
+    },
+    "72b0c7ee150822a5f39e423c6e17c45590af96833f5d1f944d4a111717f1c414": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "speaker_1",
+          "speaker_2",
+          "unknown"
+        ],
+        "language": "en",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+        "runner_id": "gliclass-multilingual",
+        "subtask": "owner",
+        "task": "events",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-en-owner",
+          "decision-suggestions-v2-calibration-01-en-owner",
+          "decision-suggestions-v2-calibration-02-en-owner",
+          "decision-suggestions-v2-calibration-03-en-owner",
+          "decision-suggestions-v2-calibration-04-en-owner",
+          "decision-suggestions-v2-calibration-05-en-owner",
+          "decision-suggestions-v2-calibration-06-en-owner",
+          "decision-suggestions-v2-calibration-07-en-owner",
+          "decision-suggestions-v2-calibration-08-en-owner",
+          "decision-suggestions-v2-calibration-09-en-owner",
+          "decision-suggestions-v2-calibration-10-en-owner",
+          "decision-suggestions-v2-calibration-11-en-owner"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "speaker_1",
+            "speaker_2",
+            "unknown"
+          ],
+          "language": "en",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+          "runner_id": "gliclass-multilingual",
+          "subtask": "owner",
+          "task": "events",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "72b0c7ee150822a5f39e423c6e17c45590af96833f5d1f944d4a111717f1c414",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.0782627990295999,
+        "objective_before": 1.4888110765414657,
+        "parameters": {
+          "temperature": 5.608899379392478
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 4,
+          "correct_count": 4,
+          "coverage": 0.3333333333333333,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.4338716889041091
+        },
+        "threshold_scope": "all_class_predictions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 3,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "7d1647da95a51ac3c9518b37ff20568972d2f737c0fc233f48d736d0af887feb": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "unknown",
+          "speaker_2",
+          "speaker_1"
+        ],
+        "language": "en",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+        "runner_id": "gliclass-multilingual",
+        "subtask": "owner",
+        "task": "events",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-en-owner-reordered",
+          "decision-suggestions-v2-calibration-01-en-owner-reordered",
+          "decision-suggestions-v2-calibration-02-en-owner-reordered",
+          "decision-suggestions-v2-calibration-03-en-owner-reordered",
+          "decision-suggestions-v2-calibration-04-en-owner-reordered",
+          "decision-suggestions-v2-calibration-05-en-owner-reordered",
+          "decision-suggestions-v2-calibration-06-en-owner-reordered",
+          "decision-suggestions-v2-calibration-07-en-owner-reordered",
+          "decision-suggestions-v2-calibration-08-en-owner-reordered",
+          "decision-suggestions-v2-calibration-09-en-owner-reordered",
+          "decision-suggestions-v2-calibration-10-en-owner-reordered",
+          "decision-suggestions-v2-calibration-11-en-owner-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "unknown",
+            "speaker_2",
+            "speaker_1"
+          ],
+          "language": "en",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+          "runner_id": "gliclass-multilingual",
+          "subtask": "owner",
+          "task": "events",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "7d1647da95a51ac3c9518b37ff20568972d2f737c0fc233f48d736d0af887feb",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.0568702775082928,
+        "objective_before": 1.244891585133776,
+        "parameters": {
+          "temperature": 3.422299531245519
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 4,
+          "correct_count": 4,
+          "coverage": 0.3333333333333333,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.4801921873531532
+        },
+        "threshold_scope": "all_class_predictions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 3,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "95d56868ffbbbd6f061e4402ea2ad36474dcd13f85502746283677feb7cc22ea": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "speaker_1",
+          "speaker_2",
+          "unknown"
+        ],
+        "language": "mixed",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+        "runner_id": "gliclass-multilingual",
+        "subtask": "owner",
+        "task": "events",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-mixed-owner",
+          "decision-suggestions-v2-calibration-01-mixed-owner",
+          "decision-suggestions-v2-calibration-02-mixed-owner",
+          "decision-suggestions-v2-calibration-03-mixed-owner",
+          "decision-suggestions-v2-calibration-04-mixed-owner",
+          "decision-suggestions-v2-calibration-05-mixed-owner",
+          "decision-suggestions-v2-calibration-06-mixed-owner",
+          "decision-suggestions-v2-calibration-07-mixed-owner",
+          "decision-suggestions-v2-calibration-08-mixed-owner",
+          "decision-suggestions-v2-calibration-09-mixed-owner",
+          "decision-suggestions-v2-calibration-10-mixed-owner",
+          "decision-suggestions-v2-calibration-11-mixed-owner"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "speaker_1",
+            "speaker_2",
+            "unknown"
+          ],
+          "language": "mixed",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+          "runner_id": "gliclass-multilingual",
+          "subtask": "owner",
+          "task": "events",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "95d56868ffbbbd6f061e4402ea2ad36474dcd13f85502746283677feb7cc22ea",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.0811337400648766,
+        "objective_before": 1.7437710790961127,
+        "parameters": {
+          "temperature": 6.553238613229237
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 4,
+          "correct_count": 4,
+          "coverage": 0.3333333333333333,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.4481097032727682
+        },
+        "threshold_scope": "all_class_predictions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 3,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "987715bf629a203b11cbfd640163daa514a075edd59ba83e01965159c5620a16": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "algemeen",
+          "een-op-een",
+          "klantgesprek",
+          "standup",
+          "abstain"
+        ],
+        "language": "mixed",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "templates",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-mixed-template",
+          "decision-suggestions-v2-calibration-01-mixed-template",
+          "decision-suggestions-v2-calibration-02-mixed-template",
+          "decision-suggestions-v2-calibration-03-mixed-template",
+          "decision-suggestions-v2-calibration-04-mixed-template",
+          "decision-suggestions-v2-calibration-05-mixed-template",
+          "decision-suggestions-v2-calibration-06-mixed-template",
+          "decision-suggestions-v2-calibration-07-mixed-template",
+          "decision-suggestions-v2-calibration-08-mixed-template",
+          "decision-suggestions-v2-calibration-09-mixed-template",
+          "decision-suggestions-v2-calibration-10-mixed-template",
+          "decision-suggestions-v2-calibration-11-mixed-template"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "algemeen",
+            "een-op-een",
+            "klantgesprek",
+            "standup",
+            "abstain"
+          ],
+          "language": "mixed",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "templates",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "987715bf629a203b11cbfd640163daa514a075edd59ba83e01965159c5620a16",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.3921977823701506,
+        "objective_before": 1.426594214479744,
+        "parameters": {
+          "temperature": 1.4290345707298786
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 1,
+          "correct_count": 1,
+          "coverage": 0.08333333333333333,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.3975273697914543
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 5,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "9b0fc49509c5130ec236cb757a4a69dd9ff2202620b30384b1a27aee53e97c3b": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "unknown",
+          "speaker_2",
+          "speaker_1"
+        ],
+        "language": "mixed",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+        "runner_id": "gliclass-multilingual",
+        "subtask": "owner",
+        "task": "events",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-01-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-02-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-03-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-04-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-05-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-06-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-07-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-08-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-09-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-10-mixed-owner-reordered",
+          "decision-suggestions-v2-calibration-11-mixed-owner-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "unknown",
+            "speaker_2",
+            "speaker_1"
+          ],
+          "language": "mixed",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+          "runner_id": "gliclass-multilingual",
+          "subtask": "owner",
+          "task": "events",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "9b0fc49509c5130ec236cb757a4a69dd9ff2202620b30384b1a27aee53e97c3b",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.0476101239800404,
+        "objective_before": 1.385270658862743,
+        "parameters": {
+          "temperature": 3.700938596627249
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 4,
+          "correct_count": 4,
+          "coverage": 0.3333333333333333,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.5195646322525266
+        },
+        "threshold_scope": "all_class_predictions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 3,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "a48bc845e03013b9eeea0e2edd671f1c68fe2f204a3ce1d0840b24885abd30dc": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "unknown",
+          "speaker_2",
+          "speaker_1"
+        ],
+        "language": "nl",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+        "runner_id": "gliclass-multilingual",
+        "subtask": "owner",
+        "task": "events",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-01-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-02-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-03-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-04-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-05-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-06-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-07-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-08-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-09-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-10-nl-owner-reordered",
+          "decision-suggestions-v2-calibration-11-nl-owner-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "unknown",
+            "speaker_2",
+            "speaker_1"
+          ],
+          "language": "nl",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+          "runner_id": "gliclass-multilingual",
+          "subtask": "owner",
+          "task": "events",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "a48bc845e03013b9eeea0e2edd671f1c68fe2f204a3ce1d0840b24885abd30dc",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.0985681545575778,
+        "objective_before": 2.033112447809479,
+        "parameters": {
+          "temperature": 10.791081047340615
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 2,
+          "correct_count": 2,
+          "coverage": 0.16666666666666666,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.4135553706606826
+        },
+        "threshold_scope": "all_class_predictions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 3,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "c3a79b729fe8dd9fa7a7d627b6e78c818271fa902aef3dc0b6ee12f90f0dbc18": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "unknown",
+          "robin",
+          "noel",
+          "mira"
+        ],
+        "language": "en",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "speaker_names",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-en-name-reordered",
+          "decision-suggestions-v2-calibration-01-en-name-reordered",
+          "decision-suggestions-v2-calibration-02-en-name-reordered",
+          "decision-suggestions-v2-calibration-03-en-name-reordered",
+          "decision-suggestions-v2-calibration-04-en-name-reordered",
+          "decision-suggestions-v2-calibration-05-en-name-reordered",
+          "decision-suggestions-v2-calibration-06-en-name-reordered",
+          "decision-suggestions-v2-calibration-07-en-name-reordered",
+          "decision-suggestions-v2-calibration-08-en-name-reordered",
+          "decision-suggestions-v2-calibration-09-en-name-reordered",
+          "decision-suggestions-v2-calibration-10-en-name-reordered",
+          "decision-suggestions-v2-calibration-11-en-name-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "unknown",
+            "robin",
+            "noel",
+            "mira"
+          ],
+          "language": "en",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "speaker_names",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "c3a79b729fe8dd9fa7a7d627b6e78c818271fa902aef3dc0b6ee12f90f0dbc18",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 0.6100132421776545,
+        "objective_before": 0.6763456551773777,
+        "parameters": {
+          "temperature": 1.4939401229912166
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 9,
+          "correct_count": 9,
+          "coverage": 0.75,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.757452206090599
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 4,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.98
+    },
+    "cec59c438afe082a08f3bae786def4e98510ff177e86bed5b072e37365a778f3": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "mira",
+          "noel",
+          "robin",
+          "unknown"
+        ],
+        "language": "mixed",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "speaker_names",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-mixed-name",
+          "decision-suggestions-v2-calibration-01-mixed-name",
+          "decision-suggestions-v2-calibration-02-mixed-name",
+          "decision-suggestions-v2-calibration-03-mixed-name",
+          "decision-suggestions-v2-calibration-04-mixed-name",
+          "decision-suggestions-v2-calibration-05-mixed-name",
+          "decision-suggestions-v2-calibration-06-mixed-name",
+          "decision-suggestions-v2-calibration-07-mixed-name",
+          "decision-suggestions-v2-calibration-08-mixed-name",
+          "decision-suggestions-v2-calibration-09-mixed-name",
+          "decision-suggestions-v2-calibration-10-mixed-name",
+          "decision-suggestions-v2-calibration-11-mixed-name"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "mira",
+            "noel",
+            "robin",
+            "unknown"
+          ],
+          "language": "mixed",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "speaker_names",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "cec59c438afe082a08f3bae786def4e98510ff177e86bed5b072e37365a778f3",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 0.5802432238916224,
+        "objective_before": 0.5916317009299538,
+        "parameters": {
+          "temperature": 1.205727090216641
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 9,
+          "correct_count": 9,
+          "coverage": 0.75,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.7872572252594073
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 4,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.98
+    },
+    "d3a4ec3cb9df69c887007f8e2561c7716ea09d73a09e341b83c91b8909cec409": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "algemeen",
+          "een-op-een",
+          "klantgesprek",
+          "standup",
+          "abstain"
+        ],
+        "language": "nl",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "templates",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-nl-template",
+          "decision-suggestions-v2-calibration-01-nl-template",
+          "decision-suggestions-v2-calibration-02-nl-template",
+          "decision-suggestions-v2-calibration-03-nl-template",
+          "decision-suggestions-v2-calibration-04-nl-template",
+          "decision-suggestions-v2-calibration-05-nl-template",
+          "decision-suggestions-v2-calibration-06-nl-template",
+          "decision-suggestions-v2-calibration-07-nl-template",
+          "decision-suggestions-v2-calibration-08-nl-template",
+          "decision-suggestions-v2-calibration-09-nl-template",
+          "decision-suggestions-v2-calibration-10-nl-template",
+          "decision-suggestions-v2-calibration-11-nl-template"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "algemeen",
+            "een-op-een",
+            "klantgesprek",
+            "standup",
+            "abstain"
+          ],
+          "language": "nl",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "templates",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "d3a4ec3cb9df69c887007f8e2561c7716ea09d73a09e341b83c91b8909cec409",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.5978534882772701,
+        "objective_before": 1.8759528008830753,
+        "parameters": {
+          "temperature": 5.227000618885526
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 2,
+          "correct_count": 2,
+          "coverage": 0.16666666666666666,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.26700550472021883
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 5,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "e0b9d5aa945ec177ed8be23b284ff99ec9f3dcced81eb9119d2b5d5bb060c637": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "mira",
+          "noel",
+          "robin",
+          "unknown"
+        ],
+        "language": "en",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "speaker_names",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-en-name",
+          "decision-suggestions-v2-calibration-01-en-name",
+          "decision-suggestions-v2-calibration-02-en-name",
+          "decision-suggestions-v2-calibration-03-en-name",
+          "decision-suggestions-v2-calibration-04-en-name",
+          "decision-suggestions-v2-calibration-05-en-name",
+          "decision-suggestions-v2-calibration-06-en-name",
+          "decision-suggestions-v2-calibration-07-en-name",
+          "decision-suggestions-v2-calibration-08-en-name",
+          "decision-suggestions-v2-calibration-09-en-name",
+          "decision-suggestions-v2-calibration-10-en-name",
+          "decision-suggestions-v2-calibration-11-en-name"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "mira",
+            "noel",
+            "robin",
+            "unknown"
+          ],
+          "language": "en",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "6946bbd04c6d706a97daad3fa511bba28aff87cc0d69e5f6d4d781e96dfed447",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "speaker_names",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "e0b9d5aa945ec177ed8be23b284ff99ec9f3dcced81eb9119d2b5d5bb060c637",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 0.629321729352343,
+        "objective_before": 0.6810551144611211,
+        "parameters": {
+          "temperature": 1.4373045846649297
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 9,
+          "correct_count": 9,
+          "coverage": 0.75,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.7909599063597806
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 4,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.98
+    },
+    "f600edf6adabb5645b1fdb3112ccd87f5a1c834525ec5e5f5eaf66dee294f295": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "speaker_1",
+          "speaker_2",
+          "unknown"
+        ],
+        "language": "nl",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+        "runner_id": "gliclass-multilingual",
+        "subtask": "owner",
+        "task": "events",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-nl-owner",
+          "decision-suggestions-v2-calibration-01-nl-owner",
+          "decision-suggestions-v2-calibration-02-nl-owner",
+          "decision-suggestions-v2-calibration-03-nl-owner",
+          "decision-suggestions-v2-calibration-04-nl-owner",
+          "decision-suggestions-v2-calibration-05-nl-owner",
+          "decision-suggestions-v2-calibration-06-nl-owner",
+          "decision-suggestions-v2-calibration-07-nl-owner",
+          "decision-suggestions-v2-calibration-08-nl-owner",
+          "decision-suggestions-v2-calibration-09-nl-owner",
+          "decision-suggestions-v2-calibration-10-nl-owner",
+          "decision-suggestions-v2-calibration-11-nl-owner"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "speaker_1",
+            "speaker_2",
+            "unknown"
+          ],
+          "language": "nl",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "241e59bc4eb47505cf1f36cf034a03f7e9d237105f333f3b791c1fa6e9f8ab0e",
+          "runner_id": "gliclass-multilingual",
+          "subtask": "owner",
+          "task": "events",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "f600edf6adabb5645b1fdb3112ccd87f5a1c834525ec5e5f5eaf66dee294f295",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.1044863968557488,
+        "objective_before": 2.053173101509824,
+        "parameters": {
+          "temperature": 13.623423111828446
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 3,
+          "correct_count": 3,
+          "coverage": 0.25,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.3940151811115263
+        },
+        "threshold_scope": "all_class_predictions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 3,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    },
+    "fbb40557667f05673703a747a7d41e356a3512f4a1cd8c06712e19218f609cb2": {
+      "context": {
+        "grouping": "one_question_per_request",
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "labels": [
+          "abstain",
+          "standup",
+          "klantgesprek",
+          "een-op-een",
+          "algemeen"
+        ],
+        "language": "nl",
+        "model": "knowledgator/gliclass-multilang-edge",
+        "precision": "float32",
+        "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+        "runner_id": "gliclass-multilingual",
+        "subtask": null,
+        "task": "templates",
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "fit": {
+        "calibration_case_ids": [
+          "decision-suggestions-v2-calibration-00-nl-template-reordered",
+          "decision-suggestions-v2-calibration-01-nl-template-reordered",
+          "decision-suggestions-v2-calibration-02-nl-template-reordered",
+          "decision-suggestions-v2-calibration-03-nl-template-reordered",
+          "decision-suggestions-v2-calibration-04-nl-template-reordered",
+          "decision-suggestions-v2-calibration-05-nl-template-reordered",
+          "decision-suggestions-v2-calibration-06-nl-template-reordered",
+          "decision-suggestions-v2-calibration-07-nl-template-reordered",
+          "decision-suggestions-v2-calibration-08-nl-template-reordered",
+          "decision-suggestions-v2-calibration-09-nl-template-reordered",
+          "decision-suggestions-v2-calibration-10-nl-template-reordered",
+          "decision-suggestions-v2-calibration-11-nl-template-reordered"
+        ],
+        "calibration_group_ids": [
+          "decision-suggestions-v2-calibration-00",
+          "decision-suggestions-v2-calibration-01",
+          "decision-suggestions-v2-calibration-02",
+          "decision-suggestions-v2-calibration-03",
+          "decision-suggestions-v2-calibration-04",
+          "decision-suggestions-v2-calibration-05",
+          "decision-suggestions-v2-calibration-06",
+          "decision-suggestions-v2-calibration-07",
+          "decision-suggestions-v2-calibration-08",
+          "decision-suggestions-v2-calibration-09",
+          "decision-suggestions-v2-calibration-10",
+          "decision-suggestions-v2-calibration-11"
+        ],
+        "calibration_split": "calibration",
+        "context": {
+          "grouping": "one_question_per_request",
+          "identity": {
+            "actual_model": "knowledgator/gliclass-multilang-edge",
+            "device": "cpu",
+            "files": {
+              "config.json": {
+                "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+                "size": 2595
+              },
+              "model.safetensors": {
+                "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+                "size": 286004020
+              },
+              "special_tokens_map.json": {
+                "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+                "size": 1051
+              },
+              "tokenizer.json": {
+                "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+                "size": 34364000
+              },
+              "tokenizer_config.json": {
+                "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+                "size": 47181
+              }
+            },
+            "model": "knowledgator/gliclass-multilang-edge",
+            "model_id": "gliclass-multilingual",
+            "packages": {
+              "gliclass": "0.1.21",
+              "torch": "2.9.1",
+              "transformers": "5.21.0"
+            },
+            "precision": "float32",
+            "python": "3.11.15",
+            "repo": "knowledgator/gliclass-multilang-edge",
+            "requested_model": "knowledgator/gliclass-multilang-edge",
+            "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+            "threads": 4,
+            "transport": "local",
+            "upstream": "owned_local_worker"
+          },
+          "labels": [
+            "abstain",
+            "standup",
+            "klantgesprek",
+            "een-op-een",
+            "algemeen"
+          ],
+          "language": "nl",
+          "model": "knowledgator/gliclass-multilang-edge",
+          "precision": "float32",
+          "prompt_hash": "35b12f86040c842fad00279c33de9894af0ceae9ec07171aabd99d3a9fa712c5",
+          "runner_id": "gliclass-multilingual",
+          "subtask": null,
+          "task": "templates",
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "context_hash": "fbb40557667f05673703a747a7d41e356a3512f4a1cd8c06712e19218f609cb2",
+        "format_version": 1,
+        "kind": "temperature",
+        "objective": "mean_nll + 0.001 * log(T)^2; T in [0.05,20]",
+        "objective_after": 1.5689280211547505,
+        "objective_before": 1.7210741555217934,
+        "parameters": {
+          "temperature": 3.1693726144503005
+        },
+        "sample_count": 12,
+        "status": "fitted",
+        "threshold": {
+          "accepted_count": 2,
+          "correct_count": 2,
+          "coverage": 0.16666666666666666,
+          "selective_accuracy": 1.0,
+          "selective_precision": 1.0,
+          "threshold": 0.2948531456786819
+        },
+        "threshold_scope": "positive_suggestions",
+        "warnings": [
+          "Fewer than 30 calibration observations; fitted estimates are preliminary."
+        ]
+      },
+      "meeting_group_count": 12,
+      "observed_class_count": 5,
+      "sample_count": 12,
+      "status": "fitted",
+      "threshold_target_precision": 0.95
+    }
+  },
+  "format_version": 1,
+  "gates": [],
+  "ignored_splits": {},
+  "minimum_calibration_samples": 10,
+  "minimum_meeting_groups": 2,
+  "minimum_observed_classes": 2,
+  "protocol_sha256": "e3f50103a77924026a694a47ebab87b3dcd73a365011c9ee9a42bf94879da043",
+  "run_manifest_hash": "7a1946ebca426489b3aa2b051eef5bda763f6eedde7358518709872eb1cab25c",
+  "supplement_corpus_hash": "ee8423a522fd7c4913845c85e12923bd003a16179fca27976450811b2f5d6706",
+  "supplement_protocol_hash": "425d796e43ae5a5eaf2793d4656899c6df459ad502d8380bd40e2eb477581c98",
+  "supplement_source_fingerprint": "b08c48d8cebb37d43216106222075c04e3928018c00ff560fb9aba2943a8bfe7",
+  "supplement_version": "decision-suggestions-v2",
+  "uncalibratable": [
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-00-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-01-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-02-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-03-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-04-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-05-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-06-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-07-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-08-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-09-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-10-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-en-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-en-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-en-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-en-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-en-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-en-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-nl-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-nl-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-nl-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-nl-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-nl-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-nl-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-mixed-template",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-mixed-template-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-mixed-owner",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-mixed-owner-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-mixed-name",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    },
+    {
+      "case_id": "decision-suggestions-v2-calibration-11-mixed-name-reordered",
+      "reason": "unsupported_score_type",
+      "runner_id": "gliner-multilingual"
+    }
+  ]
+}

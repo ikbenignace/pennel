@@ -1,0 +1,57 @@
+import sys,json,copy,hashlib,datetime
+from pathlib import Path
+sys.path.insert(0,str(Path('evaluations/decision-models').resolve()))
+import run
+from corpus import build_corpus
+root=Path('build/decision-model-evaluation/openrouter')
+corpus=build_corpus(); bridge=run.read_json(root/'prepared/core-artifacts.json')
+config=run.read_json('evaluations/decision-models/configs/openrouter-2026-10-28.json')
+frozen=run.read_json('evaluations/decision-models/locks/openrouter-2026-10-28.json')
+original=run.read_json(root/'heldout/predictions.json')
+assert original['frozen']==run.digest(frozen)
+ranking=run.ranking_cases(corpus,bridge,'heldout')
+full=[c for c in corpus['decisions'] if c['split']=='heldout']+ranking
+rows_by_runner={item['id']:[dict(r) for r in original['rows'] if r['runner_id']==item['id']] for item in config['runners']}
+for name,rows in rows_by_runner.items():
+    assert len(rows)==len(full)
+    for row,case in zip(rows,full):
+        assert (row['task'],row['language'],row['group_id'])==(case['task'],case['language'],case['group_id'])
+        assert row.get('case_id',case['id'])==case['id']
+        row['case_id']=case['id']
+        if case['task']=='ranking': assert row['baseline_ranked_ids']==case['baseline_ranked_ids']
+audit={'observed_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'frozen_manifest':run.digest(frozen),'source_commit':run.git('rev-parse','HEAD'),'selector':'Only unresolved_charge placeholders with no request attempts; all paid/error/completed cases preserved.','failed_request_retried':False,'completed_paid_requests_repeated':False,'continuations':[]}
+# Complete the unaffected provider first while the rate-limited provider cools down.
+ordered=sorted(config['runners'],key=lambda item:item['model']=='cloudflare/clef-flash')
+for item in ordered:
+    rows=rows_by_runner[item['id']]
+    pending=[case for case,row in zip(full,rows) if row.get('reason')=='unresolved_charge' and not row.get('attempts')]
+    if not pending: continue
+    classes=[case for case in pending if case['task']!='ranking']
+    ranks=[case for case in pending if case['task']=='ranking']
+    assert not ranks or len(ranks)==len(ranking)
+    narrow={**corpus,'decisions':classes}
+    chosen=copy.deepcopy(item)
+    if not ranks: chosen['tasks']=[task for task in chosen['tasks'] if task!='ranking']
+    settings={**config,'runners':[chosen]}
+    destination=root/'heldout-continuations'/item['id']
+    new,availability=run.live_predictions(narrow,bridge,settings,'heldout',destination,frozen)
+    expected=classes+ranks
+    assert len(new)==len(expected)
+    positions={case['id']:i for i,case in enumerate(full)}
+    for row,case in zip(new,expected):
+        assert (row['task'],row['language'],row['group_id'])==(case['task'],case['language'],case['group_id'])
+        index=positions[case['id']]
+        assert rows[index].get('reason')=='unresolved_charge' and not rows[index].get('attempts')
+        row['case_id']=case['id']
+        row['continuation']={'previous_status':'unsent_due_to_unresolved_charge','source':'frozen workload continuation after verified billing reconciliation'}
+        rows[index]=row
+    audit['continuations'].append({'runner_id':item['id'],'case_count':len(new),'availability':availability})
+    combined=[r for configured in config['runners'] for r in rows_by_runner[configured['id']]]
+    out=root/'heldout-complete'; out.mkdir(exist_ok=True)
+    run.save_json(out/'predictions.json',{'frozen':run.digest(frozen),'rows':combined})
+    with (out/'predictions.jsonl').open('w',encoding='utf-8') as stream:
+        for row in combined: stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+    run.save_json(out/'continuation-audit.json',audit)
+    ledger=run.read_json('build/decision-model-evaluation/spend-ledger.json')
+    print(json.dumps({'completed_provider':item['id'],'continuation_cases':len(new),'known_billed_usd':ledger['known_billed_usd'],'unresolved':ledger['unresolved_charge']}),flush=True)
+    if ledger['unresolved_charge']: break

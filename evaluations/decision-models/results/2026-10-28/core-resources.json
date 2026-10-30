@@ -1,0 +1,316 @@
+{
+  "binary_bytes": 1527248,
+  "panel": [
+    {
+      "language": "en",
+      "mode": "whole_meeting",
+      "query_id": "en-heldout-01-q0"
+    },
+    {
+      "language": "en",
+      "mode": "long_meeting",
+      "query_id": "en-heldout-00-q0"
+    },
+    {
+      "language": "en",
+      "mode": "library",
+      "query_id": "en-heldout-00-q-library"
+    },
+    {
+      "language": "nl",
+      "mode": "whole_meeting",
+      "query_id": "nl-heldout-01-q0"
+    },
+    {
+      "language": "nl",
+      "mode": "long_meeting",
+      "query_id": "nl-heldout-00-q0"
+    },
+    {
+      "language": "nl",
+      "mode": "library",
+      "query_id": "nl-heldout-00-q-library"
+    },
+    {
+      "language": "mixed",
+      "mode": "whole_meeting",
+      "query_id": "mixed-heldout-01-q0"
+    },
+    {
+      "language": "mixed",
+      "mode": "long_meeting",
+      "query_id": "mixed-heldout-00-q0"
+    },
+    {
+      "language": "mixed",
+      "mode": "library",
+      "query_id": "mixed-heldout-00-q-library"
+    }
+  ],
+  "panel_hash": "b06f5b63ddb2c5cb2f4c183de704af67288912ffa247a15fa8fff516f202b985",
+  "production_native_binary_increment_bytes": null,
+  "production_native_binary_note": "No decision runtime is embedded or packaged by this issue",
+  "results": [
+    {
+      "cold_definition": "owned process startup plus fresh synthetic library/index",
+      "cold_index": {
+        "max_ms": 15.669458,
+        "min_ms": 8.938834,
+        "n": 5,
+        "p50_ms": 10.196125,
+        "p95_ms": 14.917658,
+        "percentile_method": "linear_type_7"
+      },
+      "cold_process": {
+        "max_ms": 381.1454580281861,
+        "min_ms": 351.6518339747563,
+        "n": 5,
+        "p50_ms": 360.9108329983428,
+        "p95_ms": 378.29661641735584,
+        "percentile_method": "linear_type_7"
+      },
+      "language": "en",
+      "memory_scope": "OS peak resident memory of the owned core executable; not Pennel app memory",
+      "peak_rss_bytes": 17694720,
+      "transport": "local_core",
+      "warm_cleanup_guard": {
+        "max_ms": 0.001834,
+        "min_ms": 0.000917,
+        "n": 60,
+        "p50_ms": 0.0012915000000000001,
+        "p95_ms": 0.00154405,
+        "percentile_method": "linear_type_7"
+      },
+      "warm_queries": {
+        "library": {
+          "ask": {
+            "max_ms": 0.798375,
+            "min_ms": 0.46575,
+            "n": 30,
+            "p50_ms": 0.5503750000000001,
+            "p95_ms": 0.6647769000000001,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.325542,
+            "min_ms": 0.2425,
+            "n": 30,
+            "p50_ms": 0.2905415,
+            "p95_ms": 0.31978385,
+            "percentile_method": "linear_type_7"
+          }
+        },
+        "long_meeting": {
+          "ask": {
+            "max_ms": 1.352292,
+            "min_ms": 0.610875,
+            "n": 30,
+            "p50_ms": 0.722729,
+            "p95_ms": 1.07765595,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.372125,
+            "min_ms": 0.241833,
+            "n": 30,
+            "p50_ms": 0.30708349999999995,
+            "p95_ms": 0.32827514999999996,
+            "percentile_method": "linear_type_7"
+          }
+        },
+        "whole_meeting": {
+          "ask": {
+            "max_ms": 0.108625,
+            "min_ms": 0.051292,
+            "n": 30,
+            "p50_ms": 0.06297900000000001,
+            "p95_ms": 0.08510190000000001,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.403834,
+            "min_ms": 0.190166,
+            "n": 30,
+            "p50_ms": 0.22597899999999999,
+            "p95_ms": 0.281517,
+            "percentile_method": "linear_type_7"
+          }
+        }
+      }
+    },
+    {
+      "cold_definition": "owned process startup plus fresh synthetic library/index",
+      "cold_index": {
+        "max_ms": 19.312375,
+        "min_ms": 10.225625,
+        "n": 5,
+        "p50_ms": 16.319083,
+        "p95_ms": 19.000608399999997,
+        "percentile_method": "linear_type_7"
+      },
+      "cold_process": {
+        "max_ms": 390.0349159957841,
+        "min_ms": 361.1909169703722,
+        "n": 5,
+        "p50_ms": 375.38658402627334,
+        "p95_ms": 389.78481619851664,
+        "percentile_method": "linear_type_7"
+      },
+      "language": "nl",
+      "memory_scope": "OS peak resident memory of the owned core executable; not Pennel app memory",
+      "peak_rss_bytes": 17399808,
+      "transport": "local_core",
+      "warm_cleanup_guard": {
+        "max_ms": 0.001666,
+        "min_ms": 0.000916,
+        "n": 60,
+        "p50_ms": 0.0012085,
+        "p95_ms": 0.0015,
+        "percentile_method": "linear_type_7"
+      },
+      "warm_queries": {
+        "library": {
+          "ask": {
+            "max_ms": 0.822917,
+            "min_ms": 0.460292,
+            "n": 30,
+            "p50_ms": 0.5477289999999999,
+            "p95_ms": 0.77903765,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.398542,
+            "min_ms": 0.190459,
+            "n": 30,
+            "p50_ms": 0.22206199999999998,
+            "p95_ms": 0.31670655000000003,
+            "percentile_method": "linear_type_7"
+          }
+        },
+        "long_meeting": {
+          "ask": {
+            "max_ms": 1.122458,
+            "min_ms": 0.653875,
+            "n": 30,
+            "p50_ms": 0.7620835,
+            "p95_ms": 1.09573575,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.326333,
+            "min_ms": 0.189208,
+            "n": 30,
+            "p50_ms": 0.2222915,
+            "p95_ms": 0.30798355,
+            "percentile_method": "linear_type_7"
+          }
+        },
+        "whole_meeting": {
+          "ask": {
+            "max_ms": 0.137208,
+            "min_ms": 0.052541,
+            "n": 30,
+            "p50_ms": 0.065271,
+            "p95_ms": 0.1030981,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.362292,
+            "min_ms": 0.18075,
+            "n": 30,
+            "p50_ms": 0.2212915,
+            "p95_ms": 0.3159766,
+            "percentile_method": "linear_type_7"
+          }
+        }
+      }
+    },
+    {
+      "cold_definition": "owned process startup plus fresh synthetic library/index",
+      "cold_index": {
+        "max_ms": 26.160167,
+        "min_ms": 10.623916,
+        "n": 5,
+        "p50_ms": 21.381208,
+        "p95_ms": 25.4922086,
+        "percentile_method": "linear_type_7"
+      },
+      "cold_process": {
+        "max_ms": 479.34354201424867,
+        "min_ms": 368.1323329801671,
+        "n": 5,
+        "p50_ms": 415.530750004109,
+        "p95_ms": 468.12315040733665,
+        "percentile_method": "linear_type_7"
+      },
+      "language": "mixed",
+      "memory_scope": "OS peak resident memory of the owned core executable; not Pennel app memory",
+      "peak_rss_bytes": 17088512,
+      "transport": "local_core",
+      "warm_cleanup_guard": {
+        "max_ms": 0.014166,
+        "min_ms": 0.000916,
+        "n": 60,
+        "p50_ms": 0.0015625,
+        "p95_ms": 0.0029211499999999995,
+        "percentile_method": "linear_type_7"
+      },
+      "warm_queries": {
+        "library": {
+          "ask": {
+            "max_ms": 0.958291,
+            "min_ms": 0.532708,
+            "n": 30,
+            "p50_ms": 0.6191875,
+            "p95_ms": 0.89045435,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.338375,
+            "min_ms": 0.163292,
+            "n": 30,
+            "p50_ms": 0.1902085,
+            "p95_ms": 0.28283590000000003,
+            "percentile_method": "linear_type_7"
+          }
+        },
+        "long_meeting": {
+          "ask": {
+            "max_ms": 1.272458,
+            "min_ms": 0.72625,
+            "n": 30,
+            "p50_ms": 0.8235005,
+            "p95_ms": 1.17746645,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.373542,
+            "min_ms": 0.1615,
+            "n": 30,
+            "p50_ms": 0.1903335,
+            "p95_ms": 0.2646606,
+            "percentile_method": "linear_type_7"
+          }
+        },
+        "whole_meeting": {
+          "ask": {
+            "max_ms": 0.105417,
+            "min_ms": 0.051083,
+            "n": 30,
+            "p50_ms": 0.06285450000000001,
+            "p95_ms": 0.1012875,
+            "percentile_method": "linear_type_7"
+          },
+          "search": {
+            "max_ms": 0.288917,
+            "min_ms": 0.152417,
+            "n": 30,
+            "p50_ms": 0.1804585,
+            "p95_ms": 0.2660708,
+            "percentile_method": "linear_type_7"
+          }
+        }
+      }
+    }
+  ]
+}

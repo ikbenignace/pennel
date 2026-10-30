@@ -1,0 +1,260 @@
+{
+  "experiment": "53-2026-10-28-cpu",
+  "description": "Synthetic-only; primary local CPU adapters and explicitly unavailable hosted/secondary configurations. No production settings or credentials.",
+  "ledger_path": "build/decision-model-evaluation/spend-ledger.json",
+  "runners": [
+    {
+      "id": "gliclass-multilingual",
+      "enabled": true,
+      "transport": "local_worker",
+      "model": "gliclass-multilingual",
+      "model_dir": "build/evaluation-models/gliclass-multilingual/d16c08ef70547514081952104e6fc3d190d9ee39",
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup",
+        "ranking"
+      ],
+      "question_grouping": "one_case_per_request"
+    },
+    {
+      "id": "gliner-multilingual",
+      "enabled": true,
+      "transport": "local_worker",
+      "model": "gliner-multilingual",
+      "model_dir": "build/evaluation-models/gliner-multilingual/e173bca1f0c4217d7a55b3b0c705d5ece8a0218d",
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup"
+      ],
+      "question_grouping": "one_case_per_request"
+    },
+    {
+      "id": "gte-reranker",
+      "enabled": true,
+      "transport": "local_worker",
+      "model": "gte-reranker",
+      "model_dir": "build/evaluation-models/gte-reranker/8215cf04918ba6f7b6a62bb44238ce2953d8831c",
+      "tasks": [
+        "ranking"
+      ],
+      "question_grouping": "one_case_per_request"
+    },
+    {
+      "id": "gliclass-v4-q8",
+      "enabled": true,
+      "transport": "local_worker",
+      "model": "gliclass-v4-q8",
+      "model_dir": "build/evaluation-models/gliclass-v4-q8/885af1af8a07edf4ed34df83ca0d995ed8201283",
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup",
+        "ranking"
+      ],
+      "question_grouping": "one_case_per_request"
+    },
+    {
+      "id": "laya",
+      "enabled": true,
+      "transport": "local_worker",
+      "model": "laya",
+      "model_dir": "build/evaluation-models/laya/1720e3e3357cfe1e281542e223f8273b0890ca34",
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup"
+      ],
+      "question_grouping": "one_case_per_request"
+    },
+    {
+      "id": "openrouter-jev",
+      "enabled": true,
+      "transport": "openrouter",
+      "model": "typesafe/jev-1.14",
+      "expected_returned_model": "typesafe/jev-1.14-20261014",
+      "upstream_tag": "typesafe",
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "credential_env": "OPENROUTER_API_KEY",
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "max_input_tokens": 32768,
+      "billing_overhead_tokens": 2048,
+      "max_request_cost_usd": "0.10",
+      "max_cost_usd": "2.00",
+      "retries": 0,
+      "question_grouping": "one_case_per_request",
+      "privacy": {
+        "processing_region": "global",
+        "data_collection": "deny",
+        "zdr": false,
+        "policy_verified": false,
+        "policy_url": "https://openrouter.ai/typesafe/jev-1.14",
+        "note": "Synthetic-only experiment. Account/route retention has not been verified; hosted key is unavailable in the initial environment. Do not bypass this gate."
+      }
+    },
+    {
+      "id": "openrouter-decider",
+      "enabled": true,
+      "transport": "openrouter",
+      "model": "perplexity/pplx-decider-v1.2",
+      "expected_returned_model": "perplexity/pplx-decider-v1.2-20261016",
+      "upstream_tag": "perplexity",
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "credential_env": "OPENROUTER_API_KEY",
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "max_input_tokens": 32768,
+      "billing_overhead_tokens": 2048,
+      "max_request_cost_usd": "0.10",
+      "max_cost_usd": "2.00",
+      "retries": 0,
+      "question_grouping": "one_case_per_request",
+      "privacy": {
+        "processing_region": "global",
+        "data_collection": "deny",
+        "zdr": false,
+        "policy_verified": false,
+        "policy_url": "https://openrouter.ai/perplexity/pplx-decider-v1.2",
+        "note": "Synthetic-only experiment. Account/route retention has not been verified; hosted key is unavailable in the initial environment. Do not bypass this gate."
+      }
+    },
+    {
+      "id": "openrouter-decider-flash",
+      "enabled": true,
+      "transport": "openrouter",
+      "model": "perplexity/pplx-decider-flash-v1.2",
+      "expected_returned_model": "perplexity/pplx-decider-flash-v1.2-20261016",
+      "upstream_tag": "perplexity",
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "credential_env": "OPENROUTER_API_KEY",
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "max_input_tokens": 32768,
+      "billing_overhead_tokens": 2048,
+      "max_request_cost_usd": "0.10",
+      "max_cost_usd": "2.00",
+      "retries": 0,
+      "question_grouping": "one_case_per_request",
+      "privacy": {
+        "processing_region": "global",
+        "data_collection": "deny",
+        "zdr": false,
+        "policy_verified": false,
+        "policy_url": "https://openrouter.ai/perplexity/pplx-decider-flash-v1.2",
+        "note": "Synthetic-only experiment. Account/route retention has not been verified; hosted key is unavailable in the initial environment. Do not bypass this gate."
+      }
+    },
+    {
+      "id": "openrouter-clef-flash",
+      "enabled": true,
+      "transport": "openrouter",
+      "model": "cloudflare/clef-flash",
+      "expected_returned_model": "cloudflare/clef-flash",
+      "upstream_tag": "cloudflare",
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "credential_env": "OPENROUTER_API_KEY",
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "max_input_tokens": 24576,
+      "billing_overhead_tokens": 2048,
+      "max_request_cost_usd": "0.10",
+      "max_cost_usd": "2.00",
+      "retries": 0,
+      "question_grouping": "one_case_per_request",
+      "privacy": {
+        "processing_region": "global",
+        "data_collection": "deny",
+        "zdr": false,
+        "policy_verified": false,
+        "policy_url": "https://openrouter.ai/cloudflare/clef-flash",
+        "note": "Synthetic-only experiment. Account/route retention has not been verified; hosted key is unavailable in the initial environment. Do not bypass this gate."
+      }
+    },
+    {
+      "id": "openrouter-mercury",
+      "enabled": true,
+      "transport": "openrouter",
+      "model": "inception/mercury-decide",
+      "expected_returned_model": "inception/mercury-decide-20260930",
+      "upstream_tag": "inception",
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "credential_env": "OPENROUTER_API_KEY",
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "max_input_tokens": 32768,
+      "billing_overhead_tokens": 2048,
+      "max_request_cost_usd": "0.10",
+      "max_cost_usd": "2.00",
+      "retries": 0,
+      "question_grouping": "one_case_per_request",
+      "privacy": {
+        "processing_region": "global",
+        "data_collection": "deny",
+        "zdr": false,
+        "policy_verified": false,
+        "policy_url": "https://openrouter.ai/inception/mercury-decide",
+        "note": "Synthetic-only experiment. Account/route retention has not been verified; hosted key is unavailable in the initial environment. Do not bypass this gate."
+      }
+    }
+  ],
+  "generative": [
+    {
+      "enabled": true,
+      "provider": "ollama",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "model": "gemma3:12b",
+      "tasks": [
+        "meeting_qa",
+        "summary",
+        "cleanup"
+      ],
+      "timeout_secs": 90
+    },
+    {
+      "enabled": true,
+      "provider": "ollama",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "model": "qwen3:14b",
+      "tasks": [
+        "meeting_qa",
+        "summary",
+        "cleanup"
+      ],
+      "timeout_secs": 90
+    }
+  ]
+}

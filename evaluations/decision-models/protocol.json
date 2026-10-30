@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "issue": "https://github.com/pennel-app/pennel/issues/53",
+  "status": "preregistered_before_heldout_inference",
+  "languages": ["en", "nl", "mixed"],
+  "corpus": {
+    "meeting_groups": 90,
+    "groups_per_language": 30,
+    "groups_per_language_per_split": {"development": 10, "calibration": 10, "heldout": 10},
+    "split_unit": "meeting_group",
+    "family_policy": "Linked meetings, translations and perturbations share a group and split.",
+    "source_policy": "Synthetic content only; each source span carries fixture provenance.",
+    "freeze": "Commit and hash protocol, corpus, prompt/label order, question grouping, frozen candidates, model/tokenizer/artifact revisions, precision, hardware and routing/privacy configuration before held-out inference."
+  },
+  "budgets": {
+    "model_download_bytes": 3221225472,
+    "hosted_usd": "2.00",
+    "owned_memory_bytes": 25769803776,
+    "automatic_retries": 0,
+    "live_execution": "Only explicit evaluation configuration enables inference; credentials alone do not.",
+    "spend_policy": "Reserve conservative per-request cost. Reconcile every attempt, repeated state and retry; halt subsequent paid work on unresolved cost or exhausted budget."
+  },
+  "local_warm_p95_budgets_ms": {
+    "ranking": 1000,
+    "answerability": 750,
+    "claim_support": 750,
+    "events": 5000,
+    "templates": 1000,
+    "speaker_names": 1000,
+    "cleanup": 250
+  },
+  "acceptance": {
+    "scope": "Every requirement is evaluated independently for en, nl and mixed; there is no universal winner from an average.",
+    "ranking": {"ndcg_at_5_gain_min": 0.03, "paired_bootstrap_lower_bound_positive": true, "evidence_recall_regression_allowed": false},
+    "answerability": {"selective_precision_min": 0.98, "coverage_min": 0.5},
+    "claim_support": {"selective_precision_min": 0.98, "coverage_min": 0.5},
+    "events": {"macro_f1_min": 0.9, "accepted_item_precision_min": 0.95, "correct_owner_and_final_status_required": true},
+    "templates": {"macro_f1_min": 0.9, "selective_accuracy_min": 0.95, "coverage_min": 0.5},
+    "speaker_names": {"precision_min": 0.98, "coverage_min": 0.5, "forced_ambiguous_names_max": 0},
+    "cleanup": {"accepted_critical_corruptions_max": 0, "valid_cleanup_acceptance_min": 0.9},
+    "unresolved_measurements": "Missing model identity, evidence judgments, required metrics or resource measurements block adoption; they do not become zero or passing values."
+  },
+  "metrics": {
+    "ranking": "nDCG@5 uses (2^grade-1)/log2(rank+1), grades 0..3. Recall treats any grade>0 as relevant. Candidate recall is measured before reranking. Unanswerable queries have undefined nDCG/recall and are reported separately.",
+    "classification": "Abstentions count as uncovered and false negatives. Report per-class and macro/micro precision, recall and F1 alongside whole-set accuracy and accepted-label accuracy/coverage.",
+    "categorical_brier": "Mean unnormalised sum over labels of (probability-one_hot_target)^2, range [0,2].",
+    "binary_brier": "Mean (p_true-binary_target)^2, range [0,1], reported separately for true/false decisions.",
+    "ece": "Top-label expected calibration error with 10 equal-width probability bins, using every probability-bearing case independently of abstention thresholds.",
+    "probability_policy": "Only genuine typed class distributions support Brier/ECE and calibration. Provider confidence and relevance logits are retained as metadata, never relabelled as probabilities.",
+    "comparison": "Paired bootstrap of equal-weight meeting-group means, 2000 replicates, seed 53, 95% percentile interval. Compare one language and split at a time."
+  },
+  "calibration": {
+    "fit_split": "calibration",
+    "test_split": "heldout",
+    "minimum_observations": 10,
+    "minimum_observed_classes": 2,
+    "minimum_meeting_groups": 2,
+    "context_fields": ["model", "transport", "upstream", "precision", "prompt_hash", "labels", "grouping"],
+    "context_policy": "Bind the full ordered-label and identity/routing/privacy context by SHA-256; changes require refitting before a new held-out evaluation.",
+    "multiclass": "One-parameter temperature scaling, mean NLL + 0.001*log(T)^2, T in [0.05,20].",
+    "binary": "Monotone logistic calibration, mean binary NLL + 0.01*((slope-1)^2+intercept^2), slope in [0.001,20], intercept in [-20,20].",
+    "threshold": "Choose the threshold maximizing calibration coverage at the task's required accepted-label precision. Abstain completely if none qualifies. Never fit on held-out rows.",
+    "small_sample": "Report sample and meeting counts and flag fewer than 30 observations. One observed class retains identity calibration with an explicit warning.",
+    "label_variants": "Keep ordered-label variants explicit and separate; do not select the best held-out order."
+  },
+  "grounding_rubric": {
+    "unit": "An atomic factual claim plus its cited source spans.",
+    "supported": "The cited source establishes every material part of the claim, including speaker, amount/date, polarity and final state after any retraction.",
+    "contradicted": "A cited source conflicts with the claim, or a later explicit correction/retraction invalidates it.",
+    "insufficient": "The source is related but does not establish the claim; a syntactically valid citation alone is insufficient.",
+    "unresolved": "Store the raw synthetic prediction and a pending adjudication; exclude unresolved judgments from factual-support denominators, disclose their count and block adoption.",
+    "summary": "Score factual/action/decision content against annotated evidence; checkbox or heading syntax alone does not establish event detection or support.",
+    "preservation": "Keep original and final commitment status, owner identity, user notes and content language distinct from interface/template language.",
+    "adjudication": "Store bilingual evidence judgments and rubric version alongside response hashes so offline replay regenerates the same report."
+  },
+  "latency_sampling": {
+    "cold_samples": 5,
+    "warm_samples": 30,
+    "panel": "Use a fixed, hashed, task/language-stratified panel; quality cases run once per frozen configuration, latency repeats are accounted separately.",
+    "percentile_method": "linear_type_7",
+    "record_sample_count": true,
+    "local_cold": "Only claim model-cold/load-time observations when the suite owns process and model startup; never unload or restart the user's services.",
+    "hosted_cold": "Client-cold request latency is not server/model-cold latency. Server load time and memory remain unmeasured unless independently supplied and clearly attributed.",
+    "transport_separation": "Report OpenRouter end-to-end, direct-provider and local latency separately. Do not estimate OpenRouter overhead by subtracting differing upstream measurements."
+  },
+  "identity_and_privacy": {
+    "hosted_preference": "Prefer OpenRouter for the requested model/version and typed capability; use explicit direct configurations for unavailable combinations, with no runtime destination fallback.",
+    "route_policy": "Pin a model and specific supported upstream endpoint, disable provider/model fallbacks, retain the actual model/provider/request ID and routing configuration. Record any unavailable pinning or metadata.",
+    "retention_region": "Verify explicit route retention and processing-region requirements; never weaken requirements after rejection or treat a generic edge location as inference residency.",
+    "checkpoint_policy": "OpenRouter liquid/d1 and liquid/d1.1 and local LiquidAI/d1-2B remain distinct configurations unless exact checkpoint equivalence is proven.",
+    "logging": "Diagnostics contain IDs, timings, lengths and sanitized errors. Credentials and meeting/dictation content never enter diagnostic logs."
+  },
+  "recommendations": {
+    "allowed": ["adopt", "retain_current", "defer"],
+    "policy": "Recommend separately per task and language; adopting no new model is valid. A fixture, mock, inference run, package test, device test and deployment are distinct evidence.",
+    "production_gates": ["Packaged runtime/resource and linkage acceptance", "Required platform/device acceptance", "Chosen hosted route privacy/region and deployed configuration acceptance"],
+    "completion": "Keep #53 open while required measurements, judgments, reproducibility or acceptance remain unmet."
+  }
+}
