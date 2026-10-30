@@ -1,0 +1,189 @@
+{
+  "binary_bytes": 1527248,
+  "binary_sha256": "ef9c80b0a038c0f5e577c56942d6ecc56becc1a10363c3d61a8b391a07db7a83",
+  "candidates_prompts_hash": "b9129d151d98df9d84ca100d7c0dafdeae8f100882b950882e31d49ae02bf2b7",
+  "config_hash": "b77c7bc7a3803916889b724c97c75a31162d6a36579315dd49862998376d02fb",
+  "corpus_hash": "412596f499ebf57428bad3c700af87b4d48558471a64bce2798beeca32077e80",
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "logical_cpus": 14,
+    "machine": "arm64",
+    "memory_bytes": 51539607552,
+    "python": "3.14.2",
+    "release": "27.0.0",
+    "system": "Darwin"
+  },
+  "hosted_spend_ceiling_usd": "2.00",
+  "local_latency_panel": {
+    "case_ids": [
+      "en-heldout-00-missing-context",
+      "en-heldout-01-claim-final",
+      "en-heldout-00-cleanup-amount-verification",
+      "en-heldout-01-action-owner",
+      "en-heldout-00-q-library-ranking",
+      "en-heldout-01-name-ambiguous",
+      "en-heldout-00-template-missing",
+      "mixed-heldout-00-missing-context",
+      "mixed-heldout-01-claim-final",
+      "mixed-heldout-00-cleanup-amount-verification",
+      "mixed-heldout-01-action-owner",
+      "mixed-heldout-00-q-library-ranking",
+      "mixed-heldout-01-name-ambiguous",
+      "mixed-heldout-00-template-missing",
+      "nl-heldout-00-missing-context",
+      "nl-heldout-01-claim-final",
+      "nl-heldout-00-cleanup-amount-verification",
+      "nl-heldout-01-action-owner",
+      "nl-heldout-00-q-library-ranking",
+      "nl-heldout-01-name-ambiguous",
+      "nl-heldout-00-template-missing"
+    ],
+    "cases_sha256": "6c1564087005de1a255bcc77c038cf1ed8447307e7fb1293ae0c2566ede10657",
+    "cold_samples_per_language": 5,
+    "excluded_warmups_per_case": 1,
+    "panel_hash": "ffb8cd307dd88de30791f04e95fa5b67f2a4eef698abfa202f9f078856a82864",
+    "runners": [
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "gliclass-multilingual"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "gliner-multilingual"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-q-library-ranking",
+          "mixed-heldout-00-q-library-ranking",
+          "nl-heldout-00-q-library-ranking"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-q-library-ranking",
+          "mixed-heldout-00-q-library-ranking",
+          "nl-heldout-00-q-library-ranking"
+        ],
+        "runner_id": "gte-reranker"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "gliclass-v4-q8"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "laya"
+      }
+    ],
+    "split": "heldout",
+    "version": 1,
+    "warm_samples_per_case": 30
+  },
+  "model_download_ceiling_bytes": 3221225472,
+  "models_hash": "66e887fd818e00499c88e18e216f2c58f80ad842907dca9afcd9882a2292d99a",
+  "protocol_hash": "4cdee7eed33efad1acde859d8a00c4bc24464f927664c8f07e924a91a8320d7f",
+  "schema_version": 1,
+  "source_commit": "1b35233b05c92810b22480887d8a48bc5ec6af13",
+  "source_fingerprint": "e209f629ed01d3b2694749a2149866e0ec61cfa3bbc33b4fe022103b9a7239f3",
+  "split_policy": "meeting-family-disjoint; calibration only fits calibration"
+}

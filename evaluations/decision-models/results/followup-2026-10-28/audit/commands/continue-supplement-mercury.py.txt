@@ -1,0 +1,122 @@
+"""One-shot Mercury warm-slot continuation; no fresh panel or Clef requests."""
+
+import argparse
+import copy
+from decimal import Decimal
+import importlib.util
+import json
+from pathlib import Path
+import sys
+import threading
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "evaluations/decision-models"))
+import run
+from hosted_measurements import _budget
+from metrics import timing_metrics
+from runners import SpendLedger
+from supplement import build_supplement
+from timing_continuation import _summarize, execute_continuation, plan_continuation
+
+HELPER = ROOT / "build/decision-model-evaluation/continue-supplement-timing.py"
+SPEC = importlib.util.spec_from_file_location("previous_supplement_timing_driver", HELPER)
+previous = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(previous)
+REPORT = ROOT / "build/decision-model-evaluation/supplement-timing-mercury-independent/report.json"
+OUTPUT = ROOT / "build/decision-model-evaluation/supplement-timing-mercury-stage2"
+
+
+def prepare():
+    plan = previous.build_plan(REPORT)
+    mercury = next(row for row in plan["models"] if row["runner_id"] == "openrouter-mercury")
+    assert mercury["mode"] == "warm_continuation" and not mercury["remaining_cold"]
+    assert mercury["original_record_count"] == 179
+    for row in plan["models"]:
+        if row["runner_id"] == "openrouter-clef-flash":
+            row.update(mode="deferred_unavailable_repeated_http_429", new_requests_authorized_by_this_plan=0)
+        elif row["runner_id"] != mercury["runner_id"]:
+            assert row["mode"] == "complete_no_requests"
+    plan.update(experiment="suggestions-v2-mercury-warm-slot-stage2", execution_order=[mercury["runner_id"]],
+                total_remaining_bound_usd=mercury["bound_usd"], independent_helper_file_sha256=previous.sha(__file__),
+                execution_output_path=str(OUTPUT.relative_to(ROOT)),
+                clef_policy="No Clef requests or probes; preserve repeated HTTP429 outcomes and unavailable remaining slots.",
+                continuation_policy="Preserve all179 prior Mercury records; fill only frozen missing warm indices with one excluded warmup per incomplete cell.")
+    return plan
+
+
+def execute(plan, output):
+    assert plan == prepare() and output.resolve() == OUTPUT.resolve() and not output.exists()
+    settings, corpus = run.read_json(previous.CONFIG), build_supplement()
+    original = run.read_json(REPORT)
+    item = next(row for row in settings["runners"] if row["id"] == "openrouter-mercury")
+    ledger_path = ROOT / settings["ledger_path"]
+    assert ledger_path.resolve() == (ROOT / "build/decision-model-evaluation/spend-ledger.json").resolve()
+    def save_ledger(state):
+        temporary = ledger_path.with_suffix(".tmp")
+        run.save_json(temporary, state)
+        temporary.replace(ledger_path)
+    cancelled = threading.Event()
+    with run.experiment_lock(ledger_path):
+        ledger = SpendLedger.from_dict(run.read_json(ledger_path), checkpoint=save_ledger)
+        remaining = _budget(ledger)
+        assert remaining is not None and Decimal(plan["total_remaining_bound_usd"]) <= remaining
+        output.mkdir(parents=True)
+        with (output / "new-receipts.jsonl").open("x", encoding="utf-8") as stream:
+            def capture(row):
+                row.update(quality_evaluation=False, idle_after_ms=0, pacing_stratum="mercury_stage2_unpaced")
+                stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+                stream.flush()
+            continued = execute_continuation(original, [item], corpus, [], ledger, cancel_event=cancelled, checkpoint=capture)
+        merged = copy.deepcopy(original)
+        target = next(row for row in merged["models"] if row["runner_id"] == item["id"])
+        target.update(continued["models"][0])
+        normalized = plan_continuation(merged, settings, corpus, [])
+        for row in normalized["models"]:
+            _summarize(row)
+            model = next(value for value in merged["models"] if value["runner_id"] == row["runner_id"])
+            model.update(row)
+            strata = {}
+            for record in row["records"]:
+                if record["phase"] == "warm":
+                    key = (record.get("pacing_stratum", "original_unpaced"), record["language"], record["task"])
+                    strata.setdefault(key, []).append(record)
+            model["pacing_strata"] = [{"stratum": key[0], "language": key[1], "task": key[2], "consumed_slots": len(rows),
+                                       "status_counts": {status: sum(record["status"] == status for record in rows) for status in sorted({record["status"] for record in rows})},
+                                       "successful_request_latency": timing_metrics([record["latency_ms"] for record in rows if record["status"] == "ok" and isinstance(record.get("latency_ms"), (int,float))])}
+                                      for key, rows in sorted(strata.items())]
+            if row["runner_id"] == "openrouter-clef-flash":
+                model.update(status="unavailable_repeated_http_429", remaining_slots_unavailable=True,
+                             availability_reason=plan["clef_policy"], complete_coverage=False)
+                for cell in model["cases"]:
+                    if cell["consumed_slots"] < 30:
+                        cell.update(unavailable_slots=30-cell["consumed_slots"], unmeasured_reason="repeated_http_429_no_new_probe")
+        mercury_complete = target["complete_coverage"]
+        merged.update(continuation_plan_sha256=run.digest(plan), ledger=ledger.snapshot(),
+                      complete_coverage=False, independent_mercury_scope_complete=mercury_complete, all_passed=False,
+                      status="mercury_complete_clef_unavailable" if mercury_complete else "partial", quality_evaluation=False,
+                      clef_policy=plan["clef_policy"], execution_order=plan["execution_order"])
+        run.save_json(output / "report.json", merged)
+        print(json.dumps({"status":merged["status"],"new_records":len(continued['new_records']),
+                          "known_billed_usd":str(ledger.spent),"ledger_unresolved":ledger.unresolved}),flush=True)
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    mode=parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--prepare',action='store_true');mode.add_argument('--execute',action='store_true')
+    parser.add_argument('--frozenPath','--frozen-path',type=Path)
+    parser.add_argument('--outputPath','--output-path',type=Path,required=True)
+    args=parser.parse_args()
+    if args.prepare:
+        assert not args.outputPath.exists()
+        plan=prepare();run.save_json(args.outputPath,plan)
+        print(json.dumps({'status':'prepared_no_requests','plan_sha256':run.digest(plan),'bound_usd':plan['total_remaining_bound_usd'],
+                          'missing_warm_slots':sum(len(cell['indices'])for row in plan['models']if row['runner_id']=='openrouter-mercury'for cell in row['remaining_warm'])}))
+        return
+    if args.frozenPath is None:parser.error('Reviewed committed --frozenPath required')
+    relative=str(args.frozenPath.resolve().relative_to(ROOT))
+    assert run.git('ls-files','--',relative)and not run.git('status','--porcelain','--',relative,'evaluations/decision-models','core/src')
+    execute(run.read_json(args.frozenPath),args.outputPath)
+
+
+if __name__=='__main__':main()

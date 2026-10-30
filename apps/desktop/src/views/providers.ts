@@ -1,6 +1,6 @@
 import { liveText, bindLocalization, l, t, localizeBackendText, formatNumber } from "../i18n.ts";
 import { api, type ProviderAccount, type ProviderKind } from "../api";
-import { errorCode, errorText, field, h, menuButton, section } from "../dom";
+import { controlButton, textField, errorCode, errorText, field, h, menuButton, section } from "../dom";
 import { localView } from "./local";
 import type { Context } from "../main";
 import { VisibilityPoll } from "../window-lifecycle";
@@ -21,7 +21,7 @@ export async function providersView(ctx: Context): Promise<HTMLElement> {
     const kind = kinds.find((item) => item.kind === provider.kind);
     const ready = kind?.availability.status === "available" && (!kind.requires_key || !!keys[provider.id])
       && (!kind.is_cli_agent || !!provider.base_url) && (provider.kind !== "local" || localReady);
-    return h("button", { "aria-current": provider.id === selected ? "true" : null, onclick: () => { selected = provider.id; ctx.navigate("providers"); } },
+    return h("button", { "aria-current": provider.id === selected ? "true" : null, onclick: () => { selected = provider.id; if (ctx.param === "__local__") ctx.navigate("providers"); else ctx.rerender(); } },
       h("span", { class: "grow" }, h("span", { class: "provider-name" }, provider.name),
         h("span", { class: "provider-kind" }, l("providers.kind_status", () => ({ kind: localizeBackendText(kind?.label ?? provider.kind), status: ready ? t("providers.configured") : t("providers.not_configured") })))));
   }));
@@ -69,7 +69,7 @@ async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask):
     providerVerification.invalidate();
     return ctx.mutate(() => api.setKey(account.id, value));
   };
-  const name = h("input", { type: "text", value: account.name, "aria-label": l("common.name") });
+  const name = textField({ type: "text", value: account.name, "aria-label": l("common.name") });
   name.addEventListener("change", () => { void saveAccount("name", name.value.trim() || account.name).catch(ctx.report); });
   const body = section(liveText(() => localizeBackendText(kind.label)), null, task ? null : field(l("common.name"), name));
   body.append(h("p", { class: "help" }, l("providers.processing_destination", () => ({ destination: providerDestination(account) }))));
@@ -86,10 +86,10 @@ async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask):
       poll.setVisible(ctx.visible, false);
       ctx.onVisibilityChange((visible) => poll.setVisible(visible));
       ctx.onDispose(() => { disposed = true; poll.dispose(); });
-      body.append(h("button", { class: "btn", onclick: async () => { await api.requestPermission("speech"); await ctx.refresh(); } },
+      body.append(controlButton({ class: "btn", onclick: async () => { await api.requestPermission("speech"); await ctx.refresh(); } },
         speech?.status === "denied" ? l("providers.open_settings") : l("providers.grant_access")));
     }
-    body.append(h("button", { class: "btn", disabled: kind.availability.status !== "available", onclick: () => ctx.save((settings) => {
+    body.append(controlButton({ class: "btn", disabled: kind.availability.status !== "available", onclick: () => ctx.save((settings) => {
       if (task) settings[task] = { provider_id: account.id, model: kind.default_stt_model };
       else {
         settings.dictation_stt = { provider_id: account.id, model: kind.default_stt_model };
@@ -98,23 +98,23 @@ async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask):
     }) }, l("providers.use_speech")));
   } else if (account.kind === "apple_intelligence") {
     body.append(h("p", { class: "help" }, l("providers.apple_text_help")));
-    const test = h("button", { class: "btn", disabled: kind.availability.status !== "available", onclick: async () => {
+    const test = controlButton({ class: "btn", disabled: kind.availability.status !== "available", onclick: async () => {
       test.disabled = true; showStatus(() => t("providers.testing"));
       try { await api.testAppleIntelligence(); showStatus(() => t("providers.apple_verified")); }
       catch (error) { showStatus(() => t("providers.test_failed", { error: errorText(error) })); }
       test.disabled = false;
     } }, l("providers.test_model"));
     body.append(h("div", { class: "row" },
-      h("button", { class: "btn", disabled: kind.availability.status !== "available", onclick: () => ctx.save((settings) => {
+      controlButton({ class: "btn", disabled: kind.availability.status !== "available", onclick: () => ctx.save((settings) => {
         settings.llm = { provider_id: account.id, model: kind.default_llm_model };
       }) }, l("providers.use_text")),
       test,
-      h("button", { class: "btn", onclick: () => ctx.refresh().catch(ctx.report) }, l("providers.check_availability"))), status);
+      controlButton({ class: "btn", onclick: () => ctx.refresh().catch(ctx.report) }, l("providers.check_availability"))), status);
   } else if (kind.is_cli_agent) {
     body.append(h("p", { class: "help" }, l("providers.cli_help")));
-    const executable = h("input", { type: "text", value: account.base_url, placeholder: l("providers.cli_path"), "aria-label": l("providers.executable") });
+    const executable = textField({ type: "text", value: account.base_url, placeholder: l("providers.cli_path"), "aria-label": l("providers.executable") });
     executable.addEventListener("change", () => { void saveAccount("base_url", executable.value.trim()).catch(ctx.report); });
-    const detect = h("button", { class: "btn", onclick: async () => {
+    const detect = controlButton({ class: "btn", onclick: async () => {
       detect.disabled = true;
       try {
         const found = (await api.detectCliAgents()).find((agent) => agent.kind === account.kind);
@@ -123,7 +123,7 @@ async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask):
       } catch (error) { showStatus(() => errorText(error)); }
       detect.disabled = false;
     } }, l("providers.find_cli"));
-    const check = h("button", { class: "btn", onclick: async () => {
+    const check = controlButton({ class: "btn", onclick: async () => {
       check.disabled = true; showStatus(() => t("providers.testing"));
       try { await api.checkCliAgent(account.id, kind.default_llm_model); showStatus(() => t("providers.verified")); }
       catch (error) { showStatus(() => t("providers.test_failed", { error: errorText(error) })); }
@@ -133,13 +133,13 @@ async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask):
   } else if (account.kind === "pennel_cloud") {
     body.append(await cloudCard(ctx, status, showStatus));
   } else if (account.kind !== "local") {
-    const baseUrl = h("input", { type: "text", value: account.base_url, placeholder: kind.default_base_url || "https://…/v1", "aria-label": l("providers.base_url") });
+    const baseUrl = textField({ type: "text", value: account.base_url, placeholder: kind.default_base_url || "https://…/v1", "aria-label": l("providers.base_url") });
     baseUrl.addEventListener("change", () => { void saveAccount("base_url", baseUrl.value.trim()).catch(ctx.report); });
     body.append(field(l("providers.base_url"), baseUrl));
     if (kind.requires_key || account.kind === "custom") {
-      const key = h("input", { type: "password", placeholder: ctx.info.keys[account.id] ? l("providers.saved_key") : l("providers.paste_key"), autocomplete: "off", class: "grow", "aria-label": l("providers.api_key") });
+      const key = textField({ type: "password", placeholder: ctx.info.keys[account.id] ? l("providers.saved_key") : l("providers.paste_key"), autocomplete: "off", class: "grow", "aria-label": l("providers.api_key") });
       if (!task) key.addEventListener("change", () => { void saveKey(key.value).catch(ctx.report); });
-      const save = task ? h("button", { class: "btn", "data-setup-save": "key", disabled: true, onclick: async () => {
+      const save = task ? controlButton({ class: "btn", "data-setup-save": "key", disabled: true, onclick: async () => {
         if (!key.value) return;
         save!.disabled = true;
         try { await saveKey(key.value); key.value = ""; ctx.rerender(); }
@@ -150,9 +150,9 @@ async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask):
       if (save) key.addEventListener("input", () => { save.disabled = !key.value; });
       body.append(field(l("providers.api_key"), h("div", { class: "row" }, key,
         save,
-        ctx.info.keys[account.id] ? h("button", { class: "btn", onclick: () => saveKey("").catch(ctx.report) }, l("providers.clear_key")) : null)));
+        ctx.info.keys[account.id] ? controlButton({ class: "btn", onclick: () => saveKey("").catch(ctx.report) }, l("providers.clear_key")) : null)));
     }
-    const test = h("button", { class: "btn", onclick: async () => {
+    const test = controlButton({ class: "btn", onclick: async () => {
       test.disabled = true; showStatus(() => t("providers.testing"));
       try { const models = await api.providerModels(account.id); showStatus(() => t("providers.connection_verified", { count: formatNumber(models.length) })); }
       catch (error) { showStatus(() => t("providers.test_failed", { error: errorText(error) })); }
@@ -164,8 +164,7 @@ async function detail(ctx: Context, account: ProviderAccount, task?: SetupTask):
   body.append(h("p", { class: "help" }, l("providers.models_help")),
     h("button", { class: "text-button", onclick: () => ctx.navigate("models") }, l("providers.open_models")));
   return h("div", {}, body, account.kind === "local" ? await localView(ctx, true) : null,
-    h("div", { class: "row" }, h("span", { class: "grow" }), h("button", {
-      class: "btn danger", disabled: ctx.info.settings.providers.length < 2,
+    h("div", { class: "row" }, h("span", { class: "grow" }), controlButton({ class: "btn danger", disabled: ctx.info.settings.providers.length < 2,
       onclick: () => ctx.mutate(() => api.removeProvider(account.id)),
     }, l("providers.remove"))));
 }
@@ -180,6 +179,6 @@ async function cloudCard(ctx: Context, status: HTMLElement, showStatus: (text: (
       return status;
     }
     return h("div", {}, h("p", {}, l("providers.cloud_sign_in")),
-      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => ctx.navigate("account") }, l("providers.cloud_sign_in"))));
+      h("div", { class: "row" }, controlButton({ class: "btn primary", onclick: () => ctx.navigate("account") }, l("providers.cloud_sign_in"))));
   }
 }

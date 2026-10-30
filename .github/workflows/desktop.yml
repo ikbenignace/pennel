@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      cache_probe:
+        description: Allow this manual run to seed Linux caches for a repeat-run cache check
+        type: boolean
+        default: false
 
 concurrency:
   group: desktop-${{ github.ref }}
@@ -78,6 +83,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         if: runner.environment == 'github-hosted'
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.cache_probe && runner.os == 'Linux') }}
           workspaces: core
           # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
           # the build script's output, which would then link against a missing directory.
@@ -175,6 +181,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         if: runner.environment == 'github-hosted'
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.cache_probe && runner.os == 'Linux') }}
           workspaces: apps/desktop/src-tauri
           # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
           # the build script's output, which would then link against a missing directory.

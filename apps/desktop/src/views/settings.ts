@@ -1,7 +1,7 @@
 import { liveText, bindLocalization, l, t, formatNumber } from "../i18n.ts";
 import { templateDisplayName, recordActionOptions } from "../settings-presentation.ts";
 import { api, type Capability, type KnownVoice, type MeetingTemplate, type SpeakerRecognitionMode, type SpeakerSetup } from "../api";
-import { askText, confirmDialog, errorText, h, section, select, toggle } from "../dom";
+import { controlButton, textField, askText, confirmDialog, errorText, h, section, select, toggle } from "../dom";
 import { trainedLabel } from "../speaker-state";
 import { SpeakerModels, enrollmentBlocker, enrollmentDialog, speakerDownload } from "./voices";
 import type { Context } from "../main";
@@ -25,7 +25,7 @@ function templateEditor(ctx: Context, target: { id: string | null; name: string;
   const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const titleId = `template-editor-${crypto.randomUUID()}`;
   const dialog = h("dialog", { class: "editor-dialog template-editor", "aria-labelledby": titleId });
-  const name = h("input", { type: "text", value: target.name, placeholder: l("common.name"), "aria-label": l("common.name") });
+  const name = textField({ type: "text", value: target.name, placeholder: l("common.name"), "aria-label": l("common.name") });
   const body = h("textarea", { rows: 12, placeholder: l("settings.template.body_label"), "aria-label": l("settings.template.body_label") });
   body.value = target.body;
   const status = h("p", { class: "error", role: "status" });
@@ -42,11 +42,11 @@ function templateEditor(ctx: Context, target: { id: string | null; name: string;
   update();
   bindLocalization(sections, update);
   const close = () => { dialog.close(); dialog.remove(); if (previousFocus?.isConnected) previousFocus.focus(); };
-  const save = h("button", { class: "btn primary", type: "submit" }, l("common.save"));
+  const save = controlButton({ class: "btn primary", type: "submit" }, l("common.save"));
   const form = h("form", {}, h("h2", { id: titleId }, target.id ? l("settings.template.edit_title") : l("settings.template.new")), name, body,
     h("p", { class: "help" }, l("settings.template.editor_help")),
     sections, status, h("div", { class: "row dialog-actions" }, h("span", { class: "grow" }),
-      h("button", { class: "btn", type: "button", onclick: close }, l("common.cancel")), save));
+      controlButton({ class: "btn", type: "button", onclick: close }, l("common.cancel")), save));
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     invalidName = !name.value.trim(); saveError = null; updateStatus();
@@ -81,9 +81,9 @@ async function templateSection(ctx: Context, templates: MeetingTemplate[]) {
     templates.map((template) => h("div", { class: "row template-row" },
       h("span", { class: "grow" }, templateDisplayName(template)),
       !template.builtin || template.customized ? h("span", { class: "badge" }, template.builtin ? l("settings.template.modified") : l("settings.template.custom")) : null,
-      h("button", { class: "btn", onclick: () => edit(template) }, l("settings.template.edit")),
-      !template.builtin || template.customized ? h("button", { class: "btn", onclick: () => remove(template) }, template.builtin ? l("settings.template.restore") : l("settings.template.delete")) : null)),
-    h("button", { class: "btn", onclick: () => templateEditor(ctx, { id: null, name: "", body: "" }) }, l("settings.template.new")));
+      controlButton({ class: "btn", onclick: () => edit(template) }, l("settings.template.edit")),
+      !template.builtin || template.customized ? controlButton({ class: "btn", onclick: () => remove(template) }, template.builtin ? l("settings.template.restore") : l("settings.template.delete")) : null)),
+    controlButton({ class: "btn", onclick: () => templateEditor(ctx, { id: null, name: "", body: "" }) }, l("settings.template.new")));
 }
 
 async function speakerSections(ctx: Context, setup: SpeakerSetup): Promise<HTMLElement[]> {
@@ -121,9 +121,9 @@ async function speakerSections(ctx: Context, setup: SpeakerSetup): Promise<HTMLE
   const learnVoice = async () => {
     if (await enrollmentDialog(setup.enrollment_text)) ctx.rerender();
   };
-  const learn = h("button", { class: "btn", onclick: learnVoice }, l("settings.voice.learn"));
-  const again = h("button", { class: "btn", onclick: learnVoice }, l("settings.voice.again"));
-  const forget = h("button", { class: "btn danger", onclick: async () => {
+  const learn = controlButton({ class: "btn", onclick: learnVoice }, l("settings.voice.learn"));
+  const again = controlButton({ class: "btn", onclick: learnVoice }, l("settings.voice.again"));
+  const forget = controlButton({ class: "btn danger", onclick: async () => {
     if (!await confirmDialog(l("settings.voice.forget_title"), l("settings.voice.forget_help"), l("settings.voice.forget"))) return;
     try { await api.forgetVoiceProfile(); ctx.rerender(); } catch (error) { ctx.report(error); }
   } }, l("settings.voice.forget_mine"));
@@ -132,16 +132,16 @@ async function speakerSections(ctx: Context, setup: SpeakerSetup): Promise<HTMLE
   const knownRow = (voice: KnownVoice) => h("div", { class: "row template-row" },
     h("span", { class: "grow" }, voice.name),
     h("span", { class: "help" }, voice.meetings === 1 ? l("settings.voice.meeting") : l("settings.voice.meetings", () => ({ count: formatNumber(voice.meetings) }))),
-    h("button", { class: "btn", onclick: async () => {
+    controlButton({ class: "btn", onclick: async () => {
       const name = await askText(l("settings.voice.name_prompt"), voice.name);
       if (!name || name === voice.name) return;
       try { await api.renameKnownVoice(voice.id, name); ctx.rerender(); } catch (error) { ctx.report(error); }
     } }, l("settings.voice.rename")),
-    h("button", { class: "btn", onclick: async () => {
+    controlButton({ class: "btn", onclick: async () => {
       if (!await confirmDialog(l("settings.voice.forget_known_title", { name: voice.name }), l("settings.voice.forget_known_help"), l("settings.voice.forget"))) return;
       try { await api.forgetKnownVoice(voice.id); ctx.rerender(); } catch (error) { ctx.report(error); }
     } }, l("settings.voice.forget")));
-  const forgetAll = h("button", { class: "btn danger", disabled: !setup.known.length && !setup.profile, onclick: async () => {
+  const forgetAll = controlButton({ class: "btn danger", disabled: !setup.known.length && !setup.profile, onclick: async () => {
     if (!await confirmDialog(l("settings.voice.forget_all_title"), l("settings.voice.forget_all_help"), l("settings.voice.forget_all_action"))) return;
     try { await api.forgetAllVoices(); ctx.rerender(); } catch (error) { ctx.report(error); }
   } }, l("settings.voice.forget_all"));
@@ -173,11 +173,11 @@ export async function meetingSettingsView(ctx: Context): Promise<HTMLElement> {
   return h("div", { class: "settings-pane" },
     section(l("settings.folder.title"), l("settings.folder.help"),
       h("div", { class: "row" }, path,
-        h("button", { class: "btn", disabled: pathLocked, onclick: async () => {
+        controlButton({ class: "btn", disabled: pathLocked, onclick: async () => {
           const selected = await api.chooseMeetingsDir();
           if (selected !== null) await ctx.save((next) => { next.meetings_dir = selected; });
         } }, l("settings.folder.choose")),
-        settings.meetings_dir ? h("button", { class: "btn", disabled: pathLocked, onclick: () => ctx.save((next) => { next.meetings_dir = ""; }) }, l("settings.folder.default")) : null),
+        settings.meetings_dir ? controlButton({ class: "btn", disabled: pathLocked, onclick: () => ctx.save((next) => { next.meetings_dir = ""; }) }, l("settings.folder.default")) : null),
       ctx.info.preview ? h("p", { class: "help" }, l("settings.folder.preview_help")) : null,
       !ctx.info.preview && recording.busy ? h("p", { class: "help" }, l("settings.folder.busy_help")) : null,
       /(?:Mobile Documents|\/Documents(?:\/|$)|\/Desktop(?:\/|$))/.test(settings.meetings_dir)
@@ -197,7 +197,7 @@ export async function recordingSettingsView(ctx: Context): Promise<HTMLElement> 
   const names = new Map(apps);
   const appIds = new Map((ctx.info.recording_app_ids ?? apps.map(([id]) => id)).map((id) => [id, names.get(id) ?? id]));
   settings.app_rules.forEach((rule) => { if (!appIds.has(rule.bundle_id)) appIds.set(rule.bundle_id, rule.bundle_id); });
-  const addTitle = h("input", { type: "text", placeholder: l("settings.recording.title_placeholder"), class: "grow" });
+  const addTitle = textField({ type: "text", placeholder: l("settings.recording.title_placeholder"), class: "grow" });
   const add = async () => {
     const title = addTitle.value.trim();
     if (!title || settings.event_rules.some((rule) => rule.title.toLocaleLowerCase() === title.toLocaleLowerCase())) return;
@@ -233,7 +233,7 @@ export async function recordingSettingsView(ctx: Context): Promise<HTMLElement> 
           if (action !== "ask") next.calendar_rules.push({ calendar_id: calendar.id, calendar_name: calendar.name, action });
         })))) : null),
     section(l("settings.recording.per_meeting"), l("settings.recording.rule_help"),
-      h("div", { class: "row" }, addTitle, h("button", { class: "btn", onclick: add }, l("settings.recording.add_rule"))),
+      h("div", { class: "row" }, addTitle, controlButton({ class: "btn", onclick: add }, l("settings.recording.add_rule"))),
       settings.event_rules.map((rule) => h("div", { class: "row rule-row" }, h("span", { class: "grow" }, rule.title),
         select(recordActionOptions(), rule.action, (action) => ctx.save((next) => { const found = next.event_rules.find((item) => item.title === rule.title); if (found) found.action = action; })),
         h("button", { class: "button-icon", "aria-label": l("settings.recording.remove_rule", () => ({ title: rule.title })), onclick: () => ctx.save((next) => { next.event_rules = next.event_rules.filter((item) => item.title !== rule.title); }) }, icon("close"))))));

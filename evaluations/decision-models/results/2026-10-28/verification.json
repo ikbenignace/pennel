@@ -1,0 +1,44 @@
+{
+  "core_evaluation_feature": {
+    "ignored": 3,
+    "passed": 616
+  },
+  "core_format_clippy": "passed",
+  "default_core_mac_tests": "passed make core && make test && make app",
+  "desktop_backend": {
+    "tests_passed": 209
+  },
+  "desktop_frontend": {
+    "build": "passed",
+    "tests_passed": 207
+  },
+  "initial_ci": {
+    "head": "4a3135b99ede8363493eb13e599b19b796a88603",
+    "offline_linux": "passed",
+    "offline_macos": "passed",
+    "offline_windows": "Original assertion corrected; latest CI is tracked on https://github.com/pennel-app/pennel/pull/64"
+  },
+  "ios_core": {
+    "bindings": "identical to macOS",
+    "build": "passed"
+  },
+  "ios_mobile_kit": {
+    "tests_passed": 64
+  },
+  "local_evaluation_tests": {
+    "passed": 147
+  },
+  "post_generation_checks": {
+    "cli_timeout_regression": {
+      "after": "Same slow-shell reproduction passes after warming the one-time cache before timing; the one-second process deadline and three-second assertion are unchanged.",
+      "before": "Four-second login-shell initialization incorrectly consumed the process-deadline stopwatch; existing test failed.",
+      "scope": "Test setup only; production behavior and recorded inference unchanged."
+    },
+    "core_format_clippy": "passed",
+    "core_no_default_tests": {
+      "ignored": 3,
+      "passed": 611
+    }
+  },
+  "production_acceptance": "not established"
+}

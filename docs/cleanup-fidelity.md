@@ -80,3 +80,20 @@ scripts/build-desktop-preview.sh
 The actual shared Tauri preview also builds. Its isolated preview identity, arm64 architecture, bundle metadata, strict development signature and disk-image integrity pass inspection. The DMG contains 14,908,235 bytes, SHA-256 `36b9a2f7616f5035b86b913a9f63898e3f4825ee9faec18fb4c80fcf3a1297b2`; this is local preview packaging, not production signing or installed-device acceptance.
 
 Eight owned desktop captures cover English/Dutch and light/dark, with interaction checks for disabled qualification, disabling a saved preference, save-failure recovery and zero inference actions. Active Expo English/Dutch controls were also visually checked with the matching JavaScript bundle. The [mobile ledger](mobile.md#cleanup-fidelity--29-october-2026) records matched native builds, tests and product hashes. Real provider qualification, live latency, physical devices and installed Windows/Linux acceptance remain open. The fixture corpus was unchanged while additional numeric, dictionary-boundary and Literal regressions were repaired; earlier local reports remain in `build/cleanup-fidelity/5fb3746-published`.
+
+## Merge integration — 30 October 2026
+
+The combined candidate retains the evaluation, optional-provider, startup and Mac-material ancestry from PRs #64, #69, #66 and #71. Evaluation now calls the production cleanup assessment with each sample's style and dictionary; removed negation returns raw text. The generative runner forwards those same settings. Historical corpora, manifests, recorded predictions and reports remain unchanged; new offline output measures the current source separately.
+
+Desktop integration preserves custom-provider key controls and credential-store errors. Settings/provider/key mutations release their inference guard before refreshing cleanup verification. Shared controls retain Figtree on Mac and other platforms.
+
+The evaluation executable builds and eight Rust evaluation tests pass. All 253 offline Python tests, including historical replays, pass; the current offline baseline also completes. Reproduce with:
+
+```sh
+scripts/with-toolchain.sh cargo build --locked --manifest-path core/Cargo.toml --no-default-features --features evaluation --bin pennel-eval
+scripts/with-toolchain.sh cargo test --locked --manifest-path core/Cargo.toml --no-default-features --features evaluation --lib evaluation
+python3 -B -m unittest discover -s evaluations/decision-models/tests -v
+python3 -B evaluations/decision-models/run.py --offline
+```
+
+The integrated frontend build and 222 tests, 23 visual-fixture tests, and 20 EN/NL light/dark interaction captures pass. Core/native packaging, backend checks and generated mobile builds remain required on the integrated head; current hosted results are attached to [PR #70](https://github.com/pennel-app/pennel/pull/70). These integration checks do not qualify a semantic model or satisfy physical-device/release acceptance.

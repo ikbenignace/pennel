@@ -112,6 +112,7 @@ fn build_macos_platform() {
         "EventKit",
         "Speech",
         "Security",
+        "LocalAuthentication",
         "Foundation",
         "UniformTypeIdentifiers",
     ] {

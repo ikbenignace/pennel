@@ -1,7 +1,7 @@
 import { bindLocalization, l, t, localizeBackendText } from "../i18n.ts";
 import { api, listen, type DictationSessionSnapshot, type PillState, type SetupReadiness } from "../api";
 import { SerialQueue } from "../async";
-import { errorText, h } from "../dom";
+import { controlButton, errorText, h } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
 import { PadDraftState, PadNavigationBlocked } from "../dictation-session-state";
 import { icon } from "../icons";
@@ -28,14 +28,14 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   const status = h("p", { class: "pad-status help", role: "status", "aria-live": "polite" });
   const target = h("p", { class: "help pad-target" });
   const textarea = h("textarea", { class: "dictation-pad", value: draft.value, lang: ctx.info.settings.language ?? "", "aria-label": l("dictation.pad.title"), placeholder: l("dictation.pad.placeholder"), spellcheck: true });
-  const start = h("button", { class: "btn primary" }, icon("mic"), l("dictation.pad.start"));
+  const start = controlButton({ class: "btn primary" }, icon("mic"), l("dictation.pad.start"));
   const cancel = h("button", { class: "text-button", hidden: true, onclick: () => { void session.cancel().catch(showError); } }, l("common.cancel"));
-  const copy = h("button", { class: "btn", onclick: async () => {
+  const copy = controlButton({ class: "btn", onclick: async () => {
     try { await api.copyText(textarea.value); status.textContent = t("dictation.pad.copied"); }
     catch (error) { showError(error); }
   } }, icon("copy"), l("common.copy"));
   const setup = h("div", { class: "pad-setup", hidden: true }, icon("warning"), h("span", {}, l("dictation.pad.not_ready")),
-    h("button", { class: "btn", onclick: () => {
+    controlButton({ class: "btn", onclick: () => {
       if (readiness?.configured) void api.showWindow("onboarding", "dictation-permissions").catch(showError);
       else ctx.openSetup("dictation_stt");
     } }, l("dictation.pad.setup")));
@@ -161,11 +161,11 @@ function dictationHome(ctx: Context): HTMLElement {
   let latestReadiness: SetupReadiness | null = null;
   const introduction = h("p", { class: "dictation-home-intro muted" }, l("dictation.home.intro"));
   const shortcutInstruction = h("span", { class: "muted" }, l("dictation.home.shortcut"));
-  const repair = h("button", { class: "btn dictation-home-repair", hidden: true, onclick: () => {
+  const repair = controlButton({ class: "btn dictation-home-repair", hidden: true, onclick: () => {
     if (latestReadiness?.configured) void api.showWindow("onboarding", "dictation-permissions").catch(ctx.report);
     else ctx.openSetup("dictation_stt");
   } }, l("dictation.pad.setup"));
-  const practice = h("button", { class: "btn primary", onclick: async () => {
+  const practice = controlButton({ class: "btn primary", onclick: async () => {
     practice.disabled = true;
     try { await api.showWindow("onboarding", "practice"); }
     catch (error) { ctx.report(error); }

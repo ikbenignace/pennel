@@ -39,3 +39,18 @@ test("removed entries are forgotten and deleting a focused row has a safe headin
   assert.deepEqual(memory.plan(options), { target: null, fallback: null, scroll: null });
   assert.deepEqual(memory.plan({ ...options, returning: false, previous: { id: "expired", action: "delete" } }), { target: null, fallback: "heading", scroll: null });
 });
+
+test("History arrows and boundaries move selection while clearing another row's action", () => {
+  const memory = new HistoryFocusMemory();
+  const entries = ["first", "second", "third"];
+  memory.remember("first", "delete");
+  assert.deepEqual(memory.move(entries, "first", "ArrowDown"), { id: "second" });
+  assert.deepEqual(memory.selection(new Set(entries)), { id: "second" });
+  assert.deepEqual(memory.move(entries, "second", "End"), { id: "third" });
+  assert.deepEqual(memory.move(entries, "third", "ArrowDown"), { id: "third" });
+  assert.deepEqual(memory.move(entries, "third", "Home"), { id: "first" });
+  assert.deepEqual(memory.move(entries, "first", "ArrowUp"), { id: "first" });
+  assert.equal(memory.move(entries, "first", "Delete"), null);
+  assert.equal(memory.move([], null, "ArrowDown"), null);
+  assert.deepEqual(memory.selection(new Set(entries)), { id: "first" });
+});

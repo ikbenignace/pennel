@@ -108,6 +108,8 @@ make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=<assigned-sim
 
 `build:ios` produces an unsigned ARM64 Release candidate in `apps/mobile/build/DerivedData/Build/Products`; it does not create a signed distribution archive. Native hosted tests use a separate Debug build directory and simulator ad-hoc signing. Run these builds sequentially: some Expo pod scripts switch shared precompiled SDK frameworks by configuration.
 
+CI runs these same three configurations sequentially and publishes phase timing receipts. The [compiler-cache pilot](ci-performance.md) is opt-in through manual workflow inputs; normal pull-request and main checks keep it off. It caches only Xcode compiler outputs outside the generated project, requires an exact compatible seed for warm measurements, and retains all clean/repeated generation, pod ownership and native test gates. The documented build commands above use the same wrapper and forward the original Xcode arguments when the pilot is off.
+
 For development, use `npm start` from `apps/mobile` and an installed development build. `npm run device:hub` also runs without Metro for Release-candidate QA; follow the [assigned-device workflow](mobile-device-hub.md). Default configuration uses preview identifiers and credentials. Production identity requires explicit `PENNEL_VARIANT=production`; its signed in-place upgrade has not been accepted.
 
 Local checks on 27–28 October 2026 include mobile typechecking, 42 UI regressions, six plugin checks, seven widget probes, six real pod ownership checks, 61 Swift helper tests, and **21 hosted native runtime plus two keyboard tests**. The hosted suite now executes assertions: it exposed and verified repairs for early ActivityKit initialization during Objective-C framework loading and exact-EOF archive reads. Runtime startup remains in the app launch callback before scene/JavaScript creation.
@@ -282,5 +284,20 @@ Typechecking, 65 UI/controller tests, 64 Swift helper tests, clean/repeated gene
 | ARM64 iPhoneOS | 71,115,186 | `1b9155abc8d2d93c33e6e9b6252947feeb374b8844eb33b39f988959a8980e46` | `b2bbef17b2ae59fe4d79fa05671340943f32858f7a697e8ae4858ad0c266b7e2` |
 
 The refreshed Expo preview (`app.pennel.ios.preview`) was installed on the assigned simulator and its installed executable/JavaScript hashes checked against the final product. The EN/NL captures cover the unchanged JavaScript UI; the refined Rust core has separate native test evidence. Device Hub captures in English and Dutch verify the disabled control, saved preference, availability reason, configured destination and raw fallback text. Tapping the unqualified switch leaves the saved setting off. The original English/dark/Clean/off preferences were restored and checked. These captures establish Expo UI behavior; retained SwiftUI visuals are not mobile product acceptance. The [compact receipt](evidence/cleanup-fidelity-2026-10-29.json) records product and capture hashes; local screenshots are `build/mobile/qa/device-hub/cleanup-verification-expo-en.png` and `cleanup-verification-expo-nl.png`.
+
+### Merge integration — 30 October 2026
+
+The candidate integrating PRs #64, #69, #66, #71 and #70 preserves the active Expo/native interfaces and default-off, unqualified semantic verifier. Mobile typecheck, plugin/widget regressions, all 65 UI/controller tests and 64 Swift helper tests pass again. The [evaluation compatibility checks](cleanup-fidelity.md#merge-integration--30-october-2026) preserve historical measurements.
+
+```sh
+npm --prefix apps/mobile ci
+npm --prefix apps/mobile run typecheck
+npm --prefix apps/mobile run test:plugins
+npm --prefix apps/mobile run test:widgets
+npm --prefix apps/mobile run test:ui
+swift test --package-path apps/ios/PennelMobileKit
+```
+
+Clean/repeated generation and pod ownership, matched simulator and unsigned-device builds, and native runtime/keyboard tests remain required on the integrated candidate through the mobile workflow (`make mobile-ios`, unsigned `npm run build:ios`, and `make mobile-native-test`). Signed physical-device, keyboard cold-start, provider/model qualification, live latency, deployment and release acceptance remain open; earlier simulator evidence does not establish those gates.
 
 Synthetic/mock quality and timing do not establish semantic model qualification or live stop-to-result latency. Physical iPhone behavior, signed upgrades, keyboard cold start, installed Windows/Linux workflows, Cloud deployment and App Review remain separate gates. No paid inference, model download, real dictation or production credential change was performed.

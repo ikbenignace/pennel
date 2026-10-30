@@ -1,5 +1,5 @@
 import { api, fixtureClient, listen, type DictationSessionSnapshot, type KindInfo, type LocalModel, type OnboardingGoal, type OnboardingStep, type PermissionInfo, type ProviderAccount, type ProviderKind, type SetupReadiness } from "../api";
-import { errorText, formatBytes, h, isCancellation, select, type ChoiceElement } from "../dom";
+import { controlButton, textField, errorText, formatBytes, h, isCancellation, select, type ChoiceElement } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
 import { icon } from "../icons";
 import { defaultModelId, initialEngine, manualPracticeAllowed, modelOptionLabel, onboardingFlow, onboardingProgressChange, onboardingResumeStep, onboardingRouteIntent, onboardingSteps, stepIndex, type Engine } from "../onboarding-state";
@@ -31,7 +31,7 @@ class OnboardingWizard {
   readonly root = h("div", { class: "onboarding-shell" });
   private readonly body = h("div", { class: "onboarding-body" });
   private readonly progress = h("div", { class: "onboarding-progress", role: "img" });
-  private readonly next = h("button", { class: "btn primary onboarding-next", onclick: () => { void this.advance().catch(this.fail); } });
+  private readonly next = controlButton({ class: "btn primary onboarding-next", onclick: () => { void this.advance().catch(this.fail); } });
   private readonly back = h("button", { class: "text-button", onclick: () => { void this.previous().catch(this.fail); } }, l("onboarding.back"));
   private readonly skip = h("button", { class: "text-button", onclick: () => { void this.leave().catch(this.fail); } });
   private readonly count = h("span", { class: "help onboarding-count" });
@@ -475,9 +475,9 @@ class OnboardingWizard {
     bindLocalization(picker, () => picker.setAttribute("aria-label", t("onboarding.own_provider")));
     const kind = this.customKind(); const account = this.customAccount();
     const keySet = !!account && this.ctx.info.keys[account.id];
-    const key = h("input", { type: "password", "data-onboarding-key": true, "aria-label": l("onboarding.api_key"), autocomplete: "off", placeholder: keySet ? l("onboarding.key_saved") : l("onboarding.paste_key") });
-    const model = h("input", { type: "text", value: this.providerModel, "aria-label": l("onboarding.model"), placeholder: l("onboarding.model_name"), oninput: (event) => { this.providerModel = (event.target as HTMLInputElement).value; } });
-    const url = h("input", { type: "text", value: this.providerBaseUrl, "aria-label": l("onboarding.server_address"), placeholder: "https://…", oninput: (event) => { this.providerBaseUrl = (event.target as HTMLInputElement).value; } });
+    const key = textField({ type: "password", "data-onboarding-key": true, "aria-label": l("onboarding.api_key"), autocomplete: "off", placeholder: keySet ? l("onboarding.key_saved") : l("onboarding.paste_key") });
+    const model = textField({ type: "text", value: this.providerModel, "aria-label": l("onboarding.model"), placeholder: l("onboarding.model_name"), oninput: (event) => { this.providerModel = (event.target as HTMLInputElement).value; } });
+    const url = textField({ type: "text", value: this.providerBaseUrl, "aria-label": l("onboarding.server_address"), placeholder: "https://…", oninput: (event) => { this.providerBaseUrl = (event.target as HTMLInputElement).value; } });
     for (const option of picker.options) {
       const optionKind = option.value.startsWith("new:") ? this.customKinds().find((item) => item.kind === option.value.slice(4)) : this.customKinds().find((item) => item.kind === this.customAccounts().find((item) => item.id === option.value)?.kind);
       option.disabled = optionKind?.availability.status === "unsupported";
@@ -525,7 +525,7 @@ class OnboardingWizard {
     const unsupported = permission?.status === "unsupported";
     const unknown = permission?.status === "unknown";
     const status = h("span", { class: "permission-status" }, ...(granted ? [icon("check"), h("span", {}, l("onboarding.permission_ready"))] : []));
-    const button = h("button", { class: "btn", disabled: unsupported || (this.ctx.info.platform === "linux" && kind === "microphone"), onclick: async () => {
+    const button = controlButton({ class: "btn", disabled: unsupported || (this.ctx.info.platform === "linux" && kind === "microphone"), onclick: async () => {
       button.disabled = true;
       try { await api.requestPermission(kind); await this.refreshPermissions(); }
       catch (error) { this.fail(error); button.disabled = false; }
@@ -603,7 +603,7 @@ class OnboardingWizard {
       h("div", { class: "onboarding-meeting-ready" }, icon("notebook"), h("h2", {}, l("onboarding.meeting_not_recording")),
         h("p", { class: "help" }, l("onboarding.meeting_ready_help"))),
       ...(!this.readiness.can_record ? [h("p", { class: "error", role: "status" }, this.ownedStatus(() => this.readiness?.reason ?? "")),
-        h("button", { class: "btn", onclick: () => { void this.resume().catch(this.fail); } }, l("onboarding.check_setup"))] : []));
+        controlButton({ class: "btn", onclick: () => { void this.resume().catch(this.fail); } }, l("onboarding.check_setup"))] : []));
   }
 
   private async renderVoice(generation: number) {

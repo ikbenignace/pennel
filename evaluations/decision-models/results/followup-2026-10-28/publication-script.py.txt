@@ -1,0 +1,627 @@
+#!/usr/bin/env python3
+"""Package completed #53 evidence; no inference, credentials or ledger mutation."""
+
+import argparse
+import copy
+from contextlib import contextmanager
+from decimal import Decimal, InvalidOperation
+import gzip
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+
+ROOT = Path(__file__).resolve().parents[2]
+BUILD = ROOT / "build/decision-model-evaluation"
+DEFAULT_TARGET = ROOT / "evaluations/decision-models/results/followup-2026-10-28"
+
+
+class ArchiveError(ValueError):
+    pass
+
+
+def read_json(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def json_bytes(value):
+    return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2,
+                       allow_nan=False) + "\n").encode("utf-8")
+
+
+def gz_bytes(value):
+    output = io.BytesIO()
+    with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as stream:
+        stream.write(value)
+    return output.getvalue()
+
+
+def decimal(value):
+    if isinstance(value, bool):
+        raise ArchiveError("invalid_financial_number")
+    try:
+        result = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ArchiveError("invalid_financial_number") from None
+    if not result.is_finite() or result < 0:
+        raise ArchiveError("invalid_financial_number")
+    return result
+
+
+def validate_ledger(ledger):
+    if ledger.get("unresolved_charge") or ledger.get("pending_reservations") or decimal(ledger.get("reserved_usd")):
+        raise ArchiveError("reconcile_all_charges_before_publication")
+    attempts = ledger.get("attempts")
+    if not isinstance(attempts, list) or len(attempts) != ledger.get("attempt_count"):
+        raise ArchiveError("ledger_attempt_count_mismatch")
+    identifiers = [attempt.get("reservation_id") for attempt in attempts]
+    if any(not isinstance(value, str) or not value for value in identifiers) or len(set(identifiers)) != len(identifiers):
+        raise ArchiveError("duplicate_or_missing_ledger_reservation")
+    if any(attempt.get("billed_cost_usd") is None for attempt in attempts):
+        raise ArchiveError("unresolved_atomic_charge")
+    if any(attempt.get("metadata", {}).get("request_sent") is False and decimal(attempt["billed_cost_usd"])
+           for attempt in attempts):
+        raise ArchiveError("unsent_request_has_a_billed_charge")
+    actual = sum((decimal(attempt["billed_cost_usd"]) for attempt in attempts), Decimal(0))
+    limit, known = decimal(ledger.get("limit_usd")), decimal(ledger.get("known_billed_usd"))
+    if actual != known or not 0 < limit <= Decimal("2.00") or actual > limit:
+        raise ArchiveError("cumulative_spend_or_ledger_sum_invalid")
+    return actual
+
+
+def assert_public(value):
+    forbidden = {"authorization", "proxy-authorization", "api_key", "apikey", "access_token", "refresh_token"}
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if str(key).casefold() in forbidden:
+                raise ArchiveError("credential_field_in_public_artifact")
+            assert_public(item)
+    elif isinstance(value, list):
+        for item in value:
+            assert_public(item)
+    elif isinstance(value, str) and "sk-or-v1-" in value:
+        raise ArchiveError("credential_pattern_in_public_artifact")
+
+
+def without_ledger_attempts(value, ledger_reference="../billing-ledger.json.gz"):
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if key == "ledger" and isinstance(item, dict):
+                result[key] = {k: without_ledger_attempts(v, ledger_reference) for k, v in item.items() if k != "attempts"}
+                result[key]["attempts_archive"] = ledger_reference
+            else:
+                result[key] = without_ledger_attempts(item, ledger_reference)
+        return result
+    if isinstance(value, list):
+        return [without_ledger_attempts(item, ledger_reference) for item in value]
+    return value
+
+
+def rows(path):
+    path = Path(path)
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            return [json.loads(line) for line in stream if line.strip()]
+    if path.suffix == ".json":
+        value = read_json(path)
+        return value["rows"] if isinstance(value, dict) else value
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def jsonl_bytes(values):
+    return "".join(json.dumps(value, ensure_ascii=False, allow_nan=False) + "\n" for value in values).encode("utf-8")
+
+
+def measured_rows(values, transport):
+    for row in values:
+        assert_public(row)
+        if row.get("status") == "ok" and (row.get("measurement") != "measured_inference"
+                or row.get("identity", {}).get("transport") != transport):
+            raise ArchiveError("mocked_or_unidentified_prediction_in_measured_publication")
+
+
+def validate_target(target, workspace=ROOT):
+    target = Path(target).resolve()
+    expected_parent = (Path(workspace) / "evaluations/decision-models/results").resolve()
+    if target.parent != expected_parent or not target.name.startswith("followup-"):
+        raise ArchiveError("publication_requires_a_new_followup_results_directory")
+    if target.exists() or target.is_symlink():
+        raise ArchiveError("existing_publication_preserved_choose_a_new_target")
+    return target
+
+
+@contextmanager
+def publication_lock(ledger_path):
+    """Use the inference lock while reading; never modify the ledger file."""
+    path = Path(ledger_path).with_suffix(".lock")
+    try:
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        raise ArchiveError("inference_is_active_or_ledger_lock_needs_review") from None
+    try:
+        os.write(descriptor, str(os.getpid()).encode("ascii"))
+        yield
+    finally:
+        os.close(descriptor)
+        path.unlink(missing_ok=True)
+
+
+def supplement_directories(build, calibration_dir=None, heldout_dir=None):
+    def choose(explicit, stem):
+        if explicit is not None:
+            return Path(explicit).resolve()
+        final = build / (stem + "-final")
+        if final.exists():
+            return final
+        completed = build / (stem + "-complete")
+        return completed if completed.exists() else build / stem
+    return choose(calibration_dir, "supplement-calibration"), choose(heldout_dir, "supplement-heldout")
+
+
+def required_inputs(build, calibration_dir=None, heldout_dir=None):
+    cal, test = supplement_directories(build, calibration_dir, heldout_dir)
+    return [
+        build / "spend-ledger.json",
+        *(build / "mercury-final" / name for name in ("resources.json", "receipts.jsonl", "summary.json")),
+        *(build / "generative-heldout" / name for name in ("manifest.json", "inputs.json.gz", "predictions.jsonl",
+                                                           "adjudications.json", "timing.json", "timing-receipts.jsonl")),
+        *(cal / name for name in ("manifest.json", "predictions.json", "calibration.json",
+                                 "execution.json", "availability.json", "report.json")),
+        *(test / name for name in ("manifest.json", "predictions.json", "calibration.json",
+                                  "execution.json", "availability.json", "report.json")),
+    ]
+
+
+def observations(build, supplied, actual):
+    folder = build / "openrouter"
+    selected = set(Path(path).resolve() for path in supplied)
+    for pattern in ("billing-reconciliation-30254-*.json", "billing-reconciliation-31709-*.json",
+                    "billing-reconciliation-33241-*.json",
+                    "billing-reconciliation-34001-*.json",
+                    "billing-reconciliation-35145-*.json", "billing-reconciliation-35260-*.json",
+                    "billing-reconciliation-followup*.json"):
+        selected.update(path.resolve() for path in folder.glob(pattern))
+    values, matches = {}, []
+    for path in sorted(selected):
+        if not path.is_file():
+            raise ArchiveError("reconciliation_file_missing")
+        value = read_json(path)
+        assert_public(value)
+        name = path.name
+        if name in values and values[name] != value:
+            raise ArchiveError("ambiguous_reconciliation_filename")
+        values[name] = value
+        baseline = value.get("key_usage_baseline_usd")
+        reported = value.get("provider_reported_key_usage_usd")
+        known = value.get("known_request_billed_usd")
+        if baseline is not None and reported is not None and known is not None:
+            if (decimal(known) == actual and decimal(reported) - decimal(baseline) == actual
+                    and not value.get("pending_reservations")):
+                matches.append(name)
+    if not matches:
+        raise ArchiveError("final_authenticated_key_usage_reconciliation_required")
+    return {"observations": values, "final_matching_observations": matches,
+            "policy": "Historical observations and failed responses are preserved. The final key-usage observation equals the complete cumulative ledger from its recorded zero baseline; account balances, labels and credentials are absent."}
+
+
+def timing_complete(report):
+    if report.get("complete_coverage") is True:
+        return True
+    models = report.get("models", [])
+    planned = {row["runner_id"]: row for row in report.get("panel", {}).get("runners", [])}
+    if not models or planned and {model.get("runner_id") for model in models} != set(planned):
+        return False
+    for model in models:
+        cells = model.get("cases", [])
+        expected = planned.get(model.get("runner_id"))
+        if not cells or expected and {cell.get("case_id") for cell in cells} != set(expected["case_ids"]):
+            return False
+        for cell in cells:
+            warm_outcomes = cell.get("warm_status_counts")
+            consumed = sum(warm_outcomes.values()) if isinstance(warm_outcomes, dict) else cell.get("warm", {}).get("n")
+            if consumed != 30:
+                return False
+            if expected and cell["case_id"] in expected.get("cold_case_ids", []):
+                cold_outcomes = cell.get("cold_client_status_counts")
+                consumed = sum(cold_outcomes.values()) if isinstance(cold_outcomes, dict) else cell.get("cold_client", {}).get("n")
+                if consumed != 5:
+                    return False
+    return bool(planned) or report.get("status") == "ok"
+
+
+def timing_artifacts(report, directory):
+    """Retain cumulative measured and unavailable cells without pooling contexts."""
+    directory = Path(directory)
+    full_journal = rows(directory / "receipts.jsonl") if (directory / "receipts.jsonl").is_file() else []
+    records = []
+    for model in report.get("models", []):
+        identifier = model["runner_id"]
+        values = model.get("records")
+        if values is None:
+            values = [row for row in full_journal if row.get("runner_id") == identifier]
+            if model.get("record_count", 0) != len(values):
+                raise ArchiveError("cumulative_timing_receipts_required")
+        counters, seen = {}, set()
+        for source in values:
+            row = copy.deepcopy(source)
+            if row.get("runner_id", identifier) != identifier:
+                raise ArchiveError("timing_receipt_runner_mismatch")
+            row.update(runner_id=identifier, quality_evaluation=False)
+            phase, case_id = row.get("phase"), row.get("case_id")
+            if phase not in ("cold_client", "warm", "warmup", "continuation_warmup") or not case_id:
+                raise ArchiveError("unexpected_timing_receipt_phase_or_case")
+            if phase in ("cold_client", "warm"):
+                key = (case_id, phase)
+                legacy = row.get("planned_sample_index")
+                index = row.get("sample_index", legacy - 1 if isinstance(legacy, int) and not isinstance(legacy, bool) else counters.get(key, 0))
+                limit = 5 if phase == "cold_client" else 30
+                if (isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < limit
+                        or (*key, index) in seen):
+                    raise ArchiveError("duplicate_or_invalid_timing_slot")
+                row["sample_index"] = index
+                seen.add((*key, index))
+                counters[key] = counters.get(key, 0) + 1
+            records.append(row)
+    compact = without_ledger_attempts(report)
+    planned = {model["runner_id"]: model for model in report.get("panel", {}).get("runners", [])}
+    for model in compact.get("models", []):
+        identifier = model["runner_id"]
+        model_rows = [row for row in records if row["runner_id"] == identifier]
+        model["record_count"] = len(model_rows)
+        model.pop("records", None)
+        cold_ids = set(planned.get(identifier, {}).get("cold_case_ids", []))
+        for cell in model.get("cases", []):
+            cell_rows = [row for row in model_rows if row["case_id"] == cell["case_id"]]
+            consumed_warm = {row["sample_index"] for row in cell_rows if row["phase"] == "warm"}
+            consumed_cold = {row["sample_index"] for row in cell_rows if row["phase"] == "cold_client"}
+            cell["warm_consumed_slots"] = len(consumed_warm)
+            cell["warm_unmeasured_slot_indices"] = sorted(set(range(30)) - consumed_warm)
+            cell["cold_client_consumed_slots"] = len(consumed_cold)
+            cell["cold_client_unmeasured_slot_indices"] = sorted(set(range(5)) - consumed_cold) if cell["case_id"] in cold_ids else []
+            cell["complete_coverage"] = not cell["warm_unmeasured_slot_indices"] and not cell["cold_client_unmeasured_slot_indices"]
+            successes = sum(row.get("status") == "ok" and row["phase"] in ("cold_client", "warm") for row in cell_rows)
+            failures = any(row.get("status") != "ok" and row["phase"] in ("cold_client", "warm") for row in cell_rows)
+            cell["resource_measurement_status"] = ("complete_with_failed_samples" if failures else "complete_successful_samples") if cell["complete_coverage"] else (
+                "partially_measured" if successes else "unavailable" if str(model.get("status", "")).startswith("unavailable") else "unmeasured")
+            if not cell["complete_coverage"]:
+                cell.setdefault("unmeasured_reason", model.get("reason") or report.get("reason") or "Frozen slots remain unmeasured after the recorded service failure.")
+        model["complete_coverage"] = bool(model.get("cases")) and all(cell["complete_coverage"] for cell in model["cases"])
+        model["all_planned_samples_successful"] = model["complete_coverage"] and all(
+            row.get("status") == "ok" for row in model_rows if row["phase"] in ("cold_client", "warm"))
+    compact["quality_evaluation"] = False
+    compact["complete_coverage"] = bool(compact.get("models")) and all(model["complete_coverage"] for model in compact["models"])
+    compact["all_planned_samples_successful"] = compact["complete_coverage"] and all(model["all_planned_samples_successful"] for model in compact["models"])
+    compact["receipt_scope"] = "Canonical cumulative model records. Original stage journals and resource reports remain in audit/; no timing rows add task-quality evidence. Missing cells stay explicit."
+    return compact, records
+
+
+def build_plan(workspace=ROOT, build=BUILD, reconciliation_paths=(),
+               calibration_dir=None, heldout_dir=None, timing_dir=None):
+    workspace, build = Path(workspace).resolve(), Path(build).resolve()
+    cal, test = supplement_directories(build, calibration_dir, heldout_dir)
+    missing = [path for path in required_inputs(build, cal, test) if not path.is_file()]
+    if missing:
+        relative = [str(path.relative_to(build)) if path.is_relative_to(build) else str(path) for path in missing]
+        raise ArchiveError("missing_completed_inputs: " + ", ".join(relative))
+    ledger_path = build / "spend-ledger.json"
+    ledger_bytes = ledger_path.read_bytes()
+    ledger = json.loads(ledger_bytes)
+    actual = validate_ledger(ledger)
+    reconciliation = observations(build, reconciliation_paths, actual)
+    module_path = str(workspace / "evaluations/decision-models")
+    if module_path not in sys.path:
+        sys.path.insert(0, module_path)
+    import generate
+    import followup
+
+    files = {}
+
+    def add_json(name, value, compress=False):
+        assert_public(value)
+        data = json_bytes(value)
+        files[name] = gz_bytes(data) if compress else data
+
+    def add_jsonl(name, values, compress=False):
+        for value in values:
+            assert_public(value)
+        data = jsonl_bytes(values)
+        files[name] = gz_bytes(data) if compress else data
+
+    mercury = build / "mercury-final"
+    mercury_resources, mercury_summary = read_json(mercury / "resources.json"), read_json(mercury / "summary.json")
+    mercury_rows = rows(mercury / "receipts.jsonl")
+    if (not mercury_summary.get("complete_coverage") or len(mercury_rows) != mercury_summary.get("record_count")
+            or any(row.get("quality_evaluation") is not False for row in mercury_rows)):
+        raise ArchiveError("mercury_timing_coverage_or_quality_scope_invalid")
+    for model in mercury_resources.get("models", []):
+        if model.get("record_count") != len(model.get("records", [])):
+            raise ArchiveError("mercury_model_receipt_count_invalid")
+        model.pop("records", None)
+    add_json("mercury/resources.json", without_ledger_attempts(mercury_resources))
+    add_json("mercury/summary.json", mercury_summary)
+    add_jsonl("mercury/receipts.jsonl.gz", mercury_rows, compress=True)
+
+    generative = build / "generative-heldout"
+    generated = rows(generative / "predictions.jsonl")
+    measured_rows(generated, "openrouter_generative")
+    gen_report = generate.report(generative)
+    if any(cell["pending"] for language in gen_report["languages"].values() for cell in language.values()):
+        raise ArchiveError("finish_all_successful_generation_adjudications_before_publication")
+    for name in ("manifest.json", "adjudications.json"):
+        add_json("generative/" + name, read_json(generative / name))
+    payload = gzip.decompress((generative / "inputs.json.gz").read_bytes())
+    assert_public(json.loads(payload))
+    files["generative/inputs.json.gz"] = gz_bytes(payload)
+    add_jsonl("generative/predictions.jsonl", generated)
+    timing = read_json(generative / "timing.json")
+    timing_rows = rows(generative / "timing-receipts.jsonl")
+    if not timing.get("complete_coverage") or any(row.get("quality_evaluation") is not False for row in timing_rows):
+        raise ArchiveError("generative_timing_incomplete_or_receives_quality_credit")
+    if len(timing_rows) != len(timing.get("records", [])):
+        raise ArchiveError("generative_timing_journal_count_mismatch")
+    add_json("generative/timing.json", without_ledger_attempts(timing))
+    add_jsonl("generative/timing-receipts.jsonl.gz", timing_rows, compress=True)
+    add_json("generative/report.json.gz", without_ledger_attempts(gen_report), compress=True)
+    if (generative / "availability.json").is_file():
+        add_json("generative/availability.json", read_json(generative / "availability.json"))
+    if (generative / "ledger-summary.json").is_file():
+        add_json("generative/ledger-summary.json", read_json(generative / "ledger-summary.json"))
+    for name in ("generative-development", "generative-development-canonical"):
+        directory = build / name
+        if (directory / "predictions.jsonl").is_file():
+            add_jsonl("generative/" + name + ".jsonl.gz", rows(directory / "predictions.jsonl"), compress=True)
+
+    calibration_report = followup.replay(cal)
+    supplement_report = followup.replay(test)
+    if (read_json(cal / "execution.json").get("status") != "complete"
+            or read_json(test / "execution.json").get("status") != "complete"):
+        raise ArchiveError("supplement_execution_incomplete")
+    if read_json(cal / "calibration.json") != read_json(test / "calibration.json"):
+        raise ArchiveError("supplement_test_calibration_differs_from_fitted_artifact")
+    for name in ("manifest.json", "calibration.json", "execution.json", "availability.json"):
+        add_json("supplement/" + name, read_json(test / name))
+    for directory, prefix in ((test, ""), (cal, "calibration-")):
+        for name in ("continuation-audit.json", "continuation.json", "recovery.json"):
+            if (directory / name).is_file():
+                add_json("supplement/" + prefix + name, read_json(directory / name))
+    for directory, prefix in ((test, ""), (cal, "calibration-")):
+        predictions = rows(directory / "predictions.json")
+        measured_rows(predictions, "openrouter")
+        add_jsonl("supplement/" + prefix + "predictions.jsonl.gz", predictions, compress=True)
+    add_json("supplement/calibration-execution.json", read_json(cal / "execution.json"))
+    add_json("supplement/calibration-availability.json", read_json(cal / "availability.json"))
+    add_json("supplement/report.json.gz", supplement_report, compress=True)
+    add_json("supplement/calibration-report.json.gz", calibration_report, compress=True)
+
+    audit_sources = []
+    audit_candidates = [(build / (stem + suffix), current) for stem, current in
+                        (("supplement-calibration", cal), ("supplement-heldout", test))
+                        for suffix in ("", "-complete")]
+    for initial, current in audit_candidates:
+        if not initial.is_dir() or initial.resolve() == current.resolve():
+            continue
+        prefix = "audit/" + initial.name + "/"
+        entry = {"source": initial.name, "quality_evaluation": False,
+                 "scope": "Preserved interrupted or budget-blocked journal; not the completed experiment's metric denominator."}
+        for name in ("manifest.json", "execution.json", "availability.json", "continuation-audit.json", "continuation.json", "recovery.json"):
+            if (initial / name).is_file():
+                add_json(prefix + name, read_json(initial / name))
+        for name in ("predictions.jsonl", "predictions.json"):
+            if (initial / name).is_file():
+                values = rows(initial / name)
+                suffix = "journal.jsonl.gz" if name.endswith(".jsonl") else "canonical-predictions.jsonl.gz"
+                add_jsonl(prefix + suffix, values, compress=True)
+                entry[suffix + "_rows"] = len(values)
+        audit_sources.append(entry)
+    add_json("audit/initial-attempts.json", {"sources": audit_sources, "quality_evaluation": False})
+
+    resource_dir = Path(timing_dir).resolve() if timing_dir is not None else build / "supplement-timing"
+    resource_report, resource_rows, resource_complete = None, [], False
+    if (resource_dir / "report.json").is_file() and any((resource_dir / name).is_file() for name in ("receipts.jsonl", "new-receipts.jsonl")):
+        resource_report = read_json(resource_dir / "report.json")
+        compact, resource_rows = timing_artifacts(resource_report, resource_dir)
+        resource_complete = compact["complete_coverage"]
+        # A partial resource panel still belongs beside the quality report, with unknown cells visible.
+        add_json("supplement/resources.json", compact)
+        add_jsonl("supplement/timing-receipts.jsonl.gz", resource_rows, compress=True)
+    elif timing_dir is not None:
+        raise ArchiveError("explicit_supplement_timing_inputs_missing")
+    resource_audits = []
+    for stage in sorted(path for path in build.glob("supplement-timing*") if path.is_dir()):
+        if not (stage / "report.json").is_file():
+            continue
+        prefix = "audit/" + stage.name + "/"
+        stage_report = read_json(stage / "report.json")
+        stage_report = without_ledger_attempts(stage_report, "../../billing-ledger.json.gz")
+        stage_report["quality_evaluation"] = False
+        add_json(prefix + "report.json.gz", stage_report, compress=True)
+        journals = []
+        for name in ("receipts.jsonl", "new-receipts.jsonl"):
+            if (stage / name).is_file():
+                values = rows(stage / name)
+                add_jsonl(prefix + name + ".gz", values, compress=True)
+                journals.append({"file": name + ".gz", "rows": len(values)})
+        resource_audits.append({"stage": stage.name, "selected_cumulative_source": stage.resolve() == resource_dir.resolve(),
+                                "journals": journals, "quality_evaluation": False})
+    add_json("audit/timing-stages.json", {"stages": resource_audits, "quality_evaluation": False})
+
+    add_json("billing-ledger.json.gz", ledger, compress=True)
+    add_json("billing-reconciliation.json", reconciliation)
+    summary = {"evidence_kind": "measured_followup_with_offline_reviewer_adjudication",
+               "cumulative_actual_requests": sum(a.get("metadata", {}).get("request_sent") is not False for a in ledger["attempts"]),
+               "cumulative_ledger_attempts": ledger["attempt_count"], "cumulative_actual_billed_usd": str(actual),
+               "authorized_hosted_total_usd": "2.00", "ledger_atomic_sum_verified": True,
+               "unresolved_charges": False, "mercury_timing": {key: mercury_summary.get(key) for key in
+                   ("record_count", "cold_client_samples", "warm_slots", "warm_ok_samples", "warm_failed_samples", "excluded_warmups", "complete_coverage")},
+               "generative_quality_rows": len(generated), "generative_quality": gen_report["languages"],
+               "generative_timing_records": len(timing_rows), "generative_timing_complete_coverage": timing["complete_coverage"],
+               "supplement_status_counts": supplement_report["status_counts"],
+               "supplement_calibration_contexts": calibration_report.get("calibration_contexts"),
+               "supplement_completed_sources": {"calibration": cal.name, "heldout": test.name},
+               "supplement_preserved_initial_attempts": audit_sources,
+               "supplement_timing_complete_coverage": resource_complete,
+               "supplement_timing_records": len(resource_rows),
+               "supplement_timing_source": resource_dir.name if resource_report is not None else None,
+               "supplement_timing_status": resource_report.get("status") if resource_report is not None else "not_available",
+               "original_results_preserved": ["../2026-10-28", "../openrouter-2026-10-28"],
+               "production_defaults_changed": False,
+               "quality_scope": "Measured inference plus stored AI evidence judgments; timing repetitions add no semantic quality evidence. Adoption recommendations belong to the accompanying reviewed report."}
+    add_json("summary.json", summary)
+    files["publication-script.py.txt"] = Path(__file__).read_bytes()
+    index = {"schema_version": 1, "ledger_source_sha256": hashlib.sha256(ledger_bytes).hexdigest(),
+             "files": {name: {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+                       for name, data in sorted(files.items())},
+             "index_policy": "The index excludes itself and any subsequently authored README or verification notes.",
+             "financial_policy": "One cumulative ledger is archived once; nested resource summaries reference it. No ledger balance or credential is reset."}
+    add_json("artifact-index.json", index)
+    if ledger_path.read_bytes() != ledger_bytes:
+        raise ArchiveError("ledger_changed_during_packaging")
+    return files, summary
+
+
+def publish(files, target):
+    target = validate_target(target)
+    target.mkdir(exist_ok=False)
+    # Every input is validated in memory first. Existing files are never replaced.
+    for name, data in sorted(files.items()):
+        path = target / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("xb") as stream:
+            stream.write(data)
+
+
+def self_test():
+    sample = {"attempt_count": 2, "attempts": [
+        {"reservation_id": "1", "billed_cost_usd": "0.10"},
+        {"reservation_id": "2", "billed_cost_usd": "0.20"}],
+        "known_billed_usd": "0.30", "limit_usd": "2.00", "pending_reservations": {},
+        "reserved_usd": "0", "unresolved_charge": False}
+    assert validate_ledger(sample) == Decimal("0.30")
+    for field, value in (("unresolved_charge", True), ("pending_reservations", {"3": "0.01"}),
+                         ("attempt_count", 3), ("known_billed_usd", "0.31"), ("limit_usd", "3.00")):
+        invalid = copy.deepcopy(sample)
+        invalid[field] = value
+        try:
+            validate_ledger(invalid)
+        except ArchiveError:
+            pass
+        else:
+            raise AssertionError("Invalid ledger accepted")
+    invalid = copy.deepcopy(sample)
+    invalid["attempts"][1]["billed_cost_usd"] = None
+    try:
+        validate_ledger(invalid)
+    except ArchiveError:
+        pass
+    else:
+        raise AssertionError("Unknown charge accepted")
+    text = b'{"z": "No\xc3\xabl", "a": 1}\n'
+    assert gz_bytes(text) == gz_bytes(text) and gzip.decompress(gz_bytes(text)) == text
+    cleaned = without_ledger_attempts({"ledger": {"attempts": [1], "known_billed_usd": "0.3"}, "attempts": [{"usage": 1}]})
+    assert "attempts" not in cleaned["ledger"] and cleaned["attempts"] == [{"usage": 1}]
+    for value in ({"Authorization": "synthetic"}, {"api_key": "synthetic"}):
+        try:
+            assert_public(value)
+        except ArchiveError:
+            pass
+        else:
+            raise AssertionError("Credential field accepted")
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        parent = root / "evaluations/decision-models/results"
+        parent.mkdir(parents=True)
+        target = validate_target(parent / "followup-fixture", workspace=root)
+        target.mkdir()
+        (target / "preserve.txt").write_text("preserve", encoding="utf-8")
+        try:
+            validate_target(target, workspace=root)
+        except ArchiveError:
+            pass
+        else:
+            raise AssertionError("Existing target accepted")
+        assert (target / "preserve.txt").read_text(encoding="utf-8") == "preserve"
+        build = root / "build"
+        build.mkdir()
+        initial = build / "supplement-calibration"
+        initial.mkdir()
+        assert supplement_directories(build)[0] == initial
+        complete = build / "supplement-calibration-complete"
+        complete.mkdir()
+        assert supplement_directories(build)[0] == complete
+        final = build / "supplement-calibration-final"
+        final.mkdir()
+        assert supplement_directories(build)[0] == final
+        assert supplement_directories(build, initial)[0] == initial.resolve()
+        report = {"status": "partial", "panel": {"runners": [{"runner_id": "fixture", "case_ids": ["c"], "cold_case_ids": ["c"]}]},
+                  "models": [{"runner_id": "fixture", "status": "unavailable_repeated_http_429", "cases": [{"case_id": "c"}],
+                              "records": [{"case_id": "c", "phase": "warm", "sample_index": 0, "status": "error"}]}]}
+        compact, receipts = timing_artifacts(report, build)
+        cell = compact["models"][0]["cases"][0]
+        assert not compact["complete_coverage"] and not compact["all_planned_samples_successful"]
+        assert cell["resource_measurement_status"] == "unavailable" and cell["warm_consumed_slots"] == 1
+        assert 0 not in cell["warm_unmeasured_slot_indices"] and len(cell["warm_unmeasured_slot_indices"]) == 29
+        assert cell["cold_client_unmeasured_slot_indices"] == list(range(5))
+        assert receipts[0]["quality_evaluation"] is False
+        report["models"][0]["records"] = [{"case_id": "c", "phase": "warm", "sample_index": index, "status": "error" if index == 0 else "ok"} for index in range(30)]
+        report["models"][0]["records"] += [{"case_id": "c", "phase": "cold_client", "sample_index": index, "status": "ok"} for index in range(5)]
+        compact, _ = timing_artifacts(report, build)
+        assert compact["complete_coverage"] and not compact["all_planned_samples_successful"]
+        assert compact["models"][0]["cases"][0]["resource_measurement_status"] == "complete_with_failed_samples"
+    assert timing_complete({"complete_coverage": True})
+    assert timing_complete({"status": "ok", "models": [{"status": "ok", "cases": [{"warm": {"n": 30}}]}]})
+    assert not timing_complete({"status": "partial", "models": [{"status": "ok", "cases": [{"warm": {"n": 29}}]}]})
+    assert timing_complete({"status": "partial", "panel": {"runners": [{"runner_id": "fixture", "case_ids": ["c"], "cold_case_ids": ["c"]}]},
+                            "models": [{"runner_id": "fixture", "cases": [{"case_id": "c", "warm_status_counts": {"ok": 29, "error": 1},
+                                                                                  "cold_client_status_counts": {"ok": 5}}]}]})
+    print(json.dumps({"status": "offline_self_test_passed", "inference_requests": 0, "public_artifacts_written": 0}))
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true", help="Validate completed inputs and compute a plan without publishing")
+    mode.add_argument("--publish", action="store_true", help="Create a fresh follow-up result directory")
+    mode.add_argument("--self-test", action="store_true", help="Run only synthetic, offline archiver checks")
+    parser.add_argument("--build-root", type=Path, default=BUILD)
+    parser.add_argument("--target", type=Path, default=DEFAULT_TARGET)
+    parser.add_argument("--calibration-dir", type=Path, help="Completed calibration directory; defaults prefer -final, then -complete")
+    parser.add_argument("--heldout-dir", type=Path, help="Completed held-out directory; defaults prefer -final, then -complete")
+    parser.add_argument("--timing-dir", type=Path, help="Optional supplement timing report and receipt directory")
+    parser.add_argument("--reconciliation", type=Path, action="append", default=[])
+    args = parser.parse_args(argv)
+    if args.self_test:
+        self_test()
+        return 0
+    target = validate_target(args.target)
+    ledger_path = args.build_root.resolve() / "spend-ledger.json"
+    if args.check:
+        if ledger_path.with_suffix(".lock").exists():
+            raise ArchiveError("inference_is_active_or_ledger_lock_needs_review")
+        files, summary = build_plan(build=args.build_root, reconciliation_paths=args.reconciliation,
+                                   calibration_dir=args.calibration_dir, heldout_dir=args.heldout_dir,
+                                   timing_dir=args.timing_dir)
+    else:
+        with publication_lock(ledger_path):
+            files, summary = build_plan(build=args.build_root, reconciliation_paths=args.reconciliation,
+                                       calibration_dir=args.calibration_dir, heldout_dir=args.heldout_dir,
+                                       timing_dir=args.timing_dir)
+            publish(files, target)
+    print(json.dumps({"status": "published" if args.publish else "validated_without_publication",
+                      "target": str(target.relative_to(ROOT)), "files": len(files),
+                      "artifact_bytes": sum(map(len, files.values())),
+                      "cumulative_billed_usd": summary["cumulative_actual_billed_usd"],
+                      "cumulative_actual_requests": summary["cumulative_actual_requests"]}))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (ArchiveError, OSError, ValueError) as error:
+        print("Publication stopped: " + str(error), file=sys.stderr)
+        raise SystemExit(1)

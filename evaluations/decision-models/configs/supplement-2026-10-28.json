@@ -1,0 +1,203 @@
+{
+  "credential_source": {
+    "account": "OPENROUTER_API_KEY",
+    "export": "benchmark subprocess environment only",
+    "kind": "os_credential_store",
+    "service": "dev.pennel.evaluation.openrouter"
+  },
+  "description": "Independent bounded supplement, original results preserved; same cumulative ledger.",
+  "experiment": "53-suggestions-v2",
+  "ledger_path": "build/decision-model-evaluation/spend-ledger.json",
+  "route_evidence": {
+    "path": "evaluations/decision-models/evidence/followup-2026-10-28.json",
+    "sha256": "3bd72ded26d142e25af945c7779e0a99244eea67a7d877222c4acfa38c64c043"
+  },
+  "runners": [
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "concurrency": 4,
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "typesafe/jev-1.14-20261014",
+      "id": "openrouter-jev",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 32768,
+      "max_request_cost_usd": "0.10",
+      "model": "typesafe/jev-1.14",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T19:22:53.096934+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "tasks": [
+        "templates",
+        "events",
+        "speaker_names"
+      ],
+      "transport": "openrouter",
+      "upstream_tag": "typesafe"
+    },
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "concurrency": 4,
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "perplexity/pplx-decider-v1.2-20261016",
+      "id": "openrouter-decider",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 32768,
+      "max_request_cost_usd": "0.10",
+      "model": "perplexity/pplx-decider-v1.2",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T19:22:53.096934+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "tasks": [
+        "templates",
+        "events",
+        "speaker_names"
+      ],
+      "transport": "openrouter",
+      "upstream_tag": "perplexity"
+    },
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "concurrency": 4,
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "perplexity/pplx-decider-flash-v1.2-20261016",
+      "id": "openrouter-decider-flash",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 32768,
+      "max_request_cost_usd": "0.10",
+      "model": "perplexity/pplx-decider-flash-v1.2",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T19:22:53.096934+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "tasks": [
+        "templates",
+        "events",
+        "speaker_names"
+      ],
+      "transport": "openrouter",
+      "upstream_tag": "perplexity"
+    },
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "concurrency": 4,
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "cloudflare/clef-flash",
+      "id": "openrouter-clef-flash",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 24576,
+      "max_request_cost_usd": "0.10",
+      "max_state_bytes": 2000,
+      "model": "cloudflare/clef-flash",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T19:22:53.096934+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "tasks": [
+        "templates",
+        "events",
+        "speaker_names"
+      ],
+      "transport": "openrouter",
+      "upstream_tag": "cloudflare"
+    },
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "concurrency": 4,
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "inception/mercury-decide-20260930",
+      "id": "openrouter-mercury",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 32768,
+      "max_request_cost_usd": "0.10",
+      "model": "inception/mercury-decide",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T19:22:53.096934+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "tasks": [
+        "templates",
+        "events",
+        "speaker_names"
+      ],
+      "transport": "openrouter",
+      "upstream_tag": "inception"
+    }
+  ]
+}

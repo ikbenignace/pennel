@@ -1,0 +1,4031 @@
+{
+  "models": [
+    {
+      "artifact_manifest_bytes": 320418847,
+      "artifact_size_source": "registry download metadata",
+      "cases": [
+        {
+          "case_id": "en-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": 20.441833010409027,
+            "min_ms": 14.855707995593548,
+            "n": 30,
+            "p50_ms": 15.664104517782107,
+            "p95_ms": 17.63972721528262,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 52.45233402820304,
+            "min_ms": 45.91212497325614,
+            "n": 30,
+            "p50_ms": 47.46366702602245,
+            "p95_ms": 50.606350335874595,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": 31.0611660243012,
+            "min_ms": 24.455583014059812,
+            "n": 5,
+            "p50_ms": 30.272166011855006,
+            "p95_ms": 30.995791219174862,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "en",
+          "load": {
+            "max_ms": 2755.818958976306,
+            "min_ms": 2110.929040994961,
+            "n": 5,
+            "p50_ms": 2191.3824580260552,
+            "p95_ms": 2643.7359505915083,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 2790.7494170358405,
+            "min_ms": 2148.434875009116,
+            "n": 5,
+            "p50_ms": 2227.320125035476,
+            "p95_ms": 2679.0770170278847,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 20.389333018101752,
+            "min_ms": 17.629334004595876,
+            "n": 30,
+            "p50_ms": 18.739083025138825,
+            "p95_ms": 19.94253749435302,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": 60.99629198433831,
+            "min_ms": 46.478500007651746,
+            "n": 30,
+            "p50_ms": 47.32539551332593,
+            "p95_ms": 57.57413966348395,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": 289.6581660024822,
+            "min_ms": 254.71395795466378,
+            "n": 30,
+            "p50_ms": 262.2241039935034,
+            "p95_ms": 277.1157835464692,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 60.253750008996576,
+            "min_ms": 46.79374996339902,
+            "n": 30,
+            "p50_ms": 48.331146012060344,
+            "p95_ms": 52.97077514405828,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": 17.76537502883002,
+            "min_ms": 15.25808300357312,
+            "n": 30,
+            "p50_ms": 16.131167038111016,
+            "p95_ms": 17.400377162266523,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": 31.343832961283624,
+            "min_ms": 19.27687495481223,
+            "n": 30,
+            "p50_ms": 21.658812038367614,
+            "p95_ms": 25.600502162706107,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 79.75633296882734,
+            "min_ms": 48.918250016868114,
+            "n": 30,
+            "p50_ms": 50.90349999954924,
+            "p95_ms": 53.28896023274865,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": 26.968082995153964,
+            "min_ms": 25.80020797904581,
+            "n": 5,
+            "p50_ms": 26.41912503167987,
+            "p95_ms": 26.95868299342692,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "mixed",
+          "load": {
+            "max_ms": 2129.7772909747437,
+            "min_ms": 2092.8176660090685,
+            "n": 5,
+            "p50_ms": 2119.1132909734733,
+            "p95_ms": 2127.8467909782194,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 2167.06691699801,
+            "min_ms": 2128.337250032928,
+            "n": 5,
+            "p50_ms": 2153.513459023088,
+            "p95_ms": 2165.0585668045096,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 25.489874999038875,
+            "min_ms": 19.388665969017893,
+            "n": 30,
+            "p50_ms": 22.598770505283028,
+            "p95_ms": 24.53574595565442,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": 69.20291698770598,
+            "min_ms": 48.39829198317602,
+            "n": 30,
+            "p50_ms": 51.23124999227002,
+            "p95_ms": 64.85811890743207,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": 327.30624999385327,
+            "min_ms": 243.68000001413748,
+            "n": 30,
+            "p50_ms": 248.96543700015172,
+            "p95_ms": 270.7685751403915,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 50.85729103302583,
+            "min_ms": 48.6320840427652,
+            "n": 30,
+            "p50_ms": 49.69541649916209,
+            "p95_ms": 50.56378096633125,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": 16.673457983415574,
+            "min_ms": 14.432583004236221,
+            "n": 30,
+            "p50_ms": 15.659521013731137,
+            "p95_ms": 16.336270520696416,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": 29.763875005301088,
+            "min_ms": 19.234250008594245,
+            "n": 30,
+            "p50_ms": 20.52368750446476,
+            "p95_ms": 21.959656118997373,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 64.0445000026375,
+            "min_ms": 58.18987503880635,
+            "n": 30,
+            "p50_ms": 60.68922899430618,
+            "p95_ms": 62.796000140951946,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": 37.51104202819988,
+            "min_ms": 23.772957967594266,
+            "n": 5,
+            "p50_ms": 25.35658300621435,
+            "p95_ms": 36.43716701772064,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "nl",
+          "load": {
+            "max_ms": 2134.9419170292094,
+            "min_ms": 2102.5944160064682,
+            "n": 5,
+            "p50_ms": 2107.689875003416,
+            "p95_ms": 2130.4003920173272,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 2170.449791010469,
+            "min_ms": 2138.8739999965765,
+            "n": 5,
+            "p50_ms": 2143.2862910442054,
+            "p95_ms": 2166.1012746044435,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 22.54341699881479,
+            "min_ms": 19.173124979715794,
+            "n": 30,
+            "p50_ms": 20.500499522313476,
+            "p95_ms": 22.43950990086887,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": 63.26287495903671,
+            "min_ms": 59.54541696701199,
+            "n": 30,
+            "p50_ms": 61.0246249998454,
+            "p95_ms": 62.65152744599618,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": 302.2199999541044,
+            "min_ms": 246.85887503437698,
+            "n": 30,
+            "p50_ms": 255.25806201039813,
+            "p95_ms": 277.73651281604543,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 60.739792010281235,
+            "min_ms": 58.19133296608925,
+            "n": 30,
+            "p50_ms": 59.28193801082671,
+            "p95_ms": 60.57415831601247,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": 22.415083018131554,
+            "min_ms": 19.416166993323714,
+            "n": 30,
+            "p50_ms": 20.656916516600177,
+            "p95_ms": 22.023545647971332,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        }
+      ],
+      "failures": [],
+      "identity": {
+        "actual_model": "knowledgator/gliclass-multilang-edge",
+        "device": "cpu",
+        "files": {
+          "config.json": {
+            "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+            "size": 2595
+          },
+          "model.safetensors": {
+            "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+            "size": 286004020
+          },
+          "special_tokens_map.json": {
+            "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+            "size": 1051
+          },
+          "tokenizer.json": {
+            "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+            "size": 34364000
+          },
+          "tokenizer_config.json": {
+            "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+            "size": 47181
+          }
+        },
+        "model": "knowledgator/gliclass-multilang-edge",
+        "model_id": "gliclass-multilingual",
+        "packages": {
+          "gliclass": "0.1.21",
+          "torch": "2.9.1",
+          "transformers": "5.21.0"
+        },
+        "precision": "float32",
+        "python": "3.11.15",
+        "repo": "knowledgator/gliclass-multilang-edge",
+        "requested_model": "knowledgator/gliclass-multilang-edge",
+        "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+        "threads": 4,
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "limitations": [
+        "Cold means a fresh owned process; operating-system file caches are uncontrolled.",
+        "RSS covers the owned CPU worker; GPU, private user processes and server memory are unmeasured.",
+        "No native Pennel package is built by this resource panel."
+      ],
+      "load": {
+        "max_ms": 2755.818958976306,
+        "min_ms": 2092.8176660090685,
+        "n": 15,
+        "p50_ms": 2113.4908749954775,
+        "p95_ms": 2363.5284296295144,
+        "percentile_method": "linear_type_7"
+      },
+      "measurement": "measured_local_inference",
+      "model": "gliclass-multilingual",
+      "native_binary_size_bytes": null,
+      "peak_rss_bytes": 1652736000,
+      "process_start": {
+        "max_ms": 2790.7494170358405,
+        "min_ms": 2128.337250032928,
+        "n": 15,
+        "p50_ms": 2149.086250050459,
+        "p95_ms": 2399.896017007996,
+        "percentile_method": "linear_type_7"
+      },
+      "runner_id": "gliclass-multilingual",
+      "startup_attempts": 16,
+      "status": "ok",
+      "warm_startup": {
+        "identity": {
+          "actual_model": "knowledgator/gliclass-multilang-edge",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+              "size": 2595
+            },
+            "model.safetensors": {
+              "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+              "size": 286004020
+            },
+            "special_tokens_map.json": {
+              "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+              "size": 1051
+            },
+            "tokenizer.json": {
+              "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+              "size": 34364000
+            },
+            "tokenizer_config.json": {
+              "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+              "size": 47181
+            }
+          },
+          "model": "knowledgator/gliclass-multilang-edge",
+          "model_id": "gliclass-multilingual",
+          "packages": {
+            "gliclass": "0.1.21",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "knowledgator/gliclass-multilang-edge",
+          "requested_model": "knowledgator/gliclass-multilang-edge",
+          "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "limitations": [],
+        "load_ms": 2207.5909160193987,
+        "peak_rss_bytes": 1615446016,
+        "process_start_ms": 2244.932457979303,
+        "status": "ready"
+      }
+    },
+    {
+      "artifact_manifest_bytes": 1165502491,
+      "artifact_size_source": "registry download metadata",
+      "cases": [
+        {
+          "case_id": "en-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": 47.17637499561533,
+            "min_ms": 39.15929200593382,
+            "n": 30,
+            "p50_ms": 40.40052049094811,
+            "p95_ms": 44.56116844667122,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 179.80704101501033,
+            "min_ms": 141.25983300618827,
+            "n": 30,
+            "p50_ms": 145.30056246439926,
+            "p95_ms": 164.68778522394135,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": 81.59237500512972,
+            "min_ms": 68.15362500492483,
+            "n": 5,
+            "p50_ms": 69.20029100729153,
+            "p95_ms": 79.27243340527639,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "en",
+          "load": {
+            "max_ms": 6660.646250005811,
+            "min_ms": 6530.082041979767,
+            "n": 5,
+            "p50_ms": 6575.717583007645,
+            "p95_ms": 6655.604733410291,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 6704.811999981757,
+            "min_ms": 6568.310042028315,
+            "n": 5,
+            "p50_ms": 6614.118291996419,
+            "p95_ms": 6698.4205249813385,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 54.44966698996723,
+            "min_ms": 42.895791004411876,
+            "n": 30,
+            "p50_ms": 44.41908351145685,
+            "p95_ms": 49.94745379663073,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": 146.7596250004135,
+            "min_ms": 139.30650003021583,
+            "n": 30,
+            "p50_ms": 142.44645851431414,
+            "p95_ms": 145.2763064065948,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 152.7069170260802,
+            "min_ms": 147.95479201711714,
+            "n": 30,
+            "p50_ms": 150.18672950100154,
+            "p95_ms": 152.23182933114003,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "en-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": 46.514625020790845,
+            "min_ms": 41.987083037383854,
+            "n": 30,
+            "p50_ms": 43.61395802698098,
+            "p95_ms": 45.08100814418867,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": 42.773582972586155,
+            "min_ms": 38.986583007499576,
+            "n": 30,
+            "p50_ms": 40.241042006528005,
+            "p95_ms": 42.142302202410065,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 150.07933299057186,
+            "min_ms": 141.76654198672622,
+            "n": 30,
+            "p50_ms": 143.63422899623401,
+            "p95_ms": 146.15416450833436,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": 70.2926249941811,
+            "min_ms": 68.39266698807478,
+            "n": 5,
+            "p50_ms": 69.68170899199322,
+            "p95_ms": 70.29008319368586,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "mixed",
+          "load": {
+            "max_ms": 6527.316666964907,
+            "min_ms": 6479.980167001486,
+            "n": 5,
+            "p50_ms": 6509.544041997287,
+            "p95_ms": 6526.211933570448,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 6564.421417017002,
+            "min_ms": 6515.514041006099,
+            "n": 5,
+            "p50_ms": 6545.651958032977,
+            "p95_ms": 6563.1456836126745,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 49.92829100228846,
+            "min_ms": 43.56095800176263,
+            "n": 30,
+            "p50_ms": 46.41016648383811,
+            "p95_ms": 48.786783157265745,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": 164.66641600709409,
+            "min_ms": 142.23124994896352,
+            "n": 30,
+            "p50_ms": 145.37785400170833,
+            "p95_ms": 152.66844407306053,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 221.1084999726154,
+            "min_ms": 140.7703749719076,
+            "n": 30,
+            "p50_ms": 143.5287079657428,
+            "p95_ms": 159.58177221764345,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": 59.08891704166308,
+            "min_ms": 43.00454101758078,
+            "n": 30,
+            "p50_ms": 45.14677048427984,
+            "p95_ms": 50.38032033480704,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": 47.06045798957348,
+            "min_ms": 43.8092079712078,
+            "n": 30,
+            "p50_ms": 45.04672950133681,
+            "p95_ms": 46.33989987196401,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 162.50554099678993,
+            "min_ms": 154.53241602517664,
+            "n": 30,
+            "p50_ms": 156.56881252652965,
+            "p95_ms": 160.2475920226425,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": 75.6149580120109,
+            "min_ms": 68.74045799486339,
+            "n": 5,
+            "p50_ms": 70.56474999990314,
+            "p95_ms": 74.8917832155712,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "nl",
+          "load": {
+            "max_ms": 6646.645999979228,
+            "min_ms": 6499.9661250039935,
+            "n": 5,
+            "p50_ms": 6553.004749992397,
+            "p95_ms": 6629.338516783901,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 6682.4351659743115,
+            "min_ms": 6535.62412498286,
+            "n": 5,
+            "p50_ms": 6592.041124997195,
+            "p95_ms": 6665.402207779698,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 64.67175000580028,
+            "min_ms": 43.693834042642266,
+            "n": 30,
+            "p50_ms": 47.36660452908836,
+            "p95_ms": 61.60774359887,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": 191.43237499520183,
+            "min_ms": 154.93808302562684,
+            "n": 30,
+            "p50_ms": 158.251125481911,
+            "p95_ms": 174.3874334526481,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 161.62908397382125,
+            "min_ms": 154.04529200168326,
+            "n": 30,
+            "p50_ms": 157.5224790140055,
+            "p95_ms": 160.63420785940252,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": 46.074834011960775,
+            "min_ms": 43.428750010207295,
+            "n": 30,
+            "p50_ms": 44.482083001639694,
+            "p95_ms": 45.604689815081656,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        }
+      ],
+      "failures": [],
+      "identity": {
+        "actual_model": "fastino/GLiNER2.5-multi-Decide",
+        "device": "cpu",
+        "files": {
+          "config.json": {
+            "sha256": "aa29cd584316b61b0bfed94d03ee1cfdaf28b46a37686293742929c49b8bd2f7",
+            "size": 4106
+          },
+          "encoder_config/config.json": {
+            "sha256": "d0ebbcb8b458e285a39e12cc315cbaf3d1c6f631e7281e6b22dd5b4071183f83",
+            "size": 858
+          },
+          "model.safetensors": {
+            "sha256": "9efe0f88c99f2aa794452e9559dc60e98d60d9fa2bf1b60cf2710411b6da5b4e",
+            "size": 1149461028
+          },
+          "tokenizer.json": {
+            "sha256": "c62446df87ae18ec98b133f8f84fc449a07cc89bbf8ef192a4cb5f9c53777a7a",
+            "size": 16035853
+          },
+          "tokenizer_config.json": {
+            "sha256": "fd4a31dc2f1f17e31638c5f0e783b81cdb2fbe6bddd116a8d9e5d50d78148cf1",
+            "size": 646
+          }
+        },
+        "model": "fastino/GLiNER2.5-multi-Decide",
+        "model_id": "gliner-multilingual",
+        "packages": {
+          "gliner2": "2.1.0",
+          "torch": "2.9.1",
+          "transformers": "5.21.0"
+        },
+        "precision": "float32",
+        "python": "3.11.15",
+        "repo": "fastino/GLiNER2.5-multi-Decide",
+        "requested_model": "fastino/GLiNER2.5-multi-Decide",
+        "revision": "e173bca1f0c4217d7a55b3b0c705d5ece8a0218d",
+        "threads": 4,
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "limitations": [
+        "Cold means a fresh owned process; operating-system file caches are uncontrolled.",
+        "RSS covers the owned CPU worker; GPU, private user processes and server memory are unmeasured.",
+        "No native Pennel package is built by this resource panel."
+      ],
+      "load": {
+        "max_ms": 6660.646250005811,
+        "min_ms": 6479.980167001486,
+        "n": 15,
+        "p50_ms": 6530.082041979767,
+        "p95_ms": 6650.846074987203,
+        "percentile_method": "linear_type_7"
+      },
+      "measurement": "measured_local_inference",
+      "model": "gliner-multilingual",
+      "native_binary_size_bytes": null,
+      "peak_rss_bytes": 3576299520,
+      "process_start": {
+        "max_ms": 6704.811999981757,
+        "min_ms": 6515.514041006099,
+        "n": 15,
+        "p50_ms": 6568.310042028315,
+        "p95_ms": 6689.148216176545,
+        "percentile_method": "linear_type_7"
+      },
+      "runner_id": "gliner-multilingual",
+      "startup_attempts": 16,
+      "status": "ok",
+      "warm_startup": {
+        "identity": {
+          "actual_model": "fastino/GLiNER2.5-multi-Decide",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "aa29cd584316b61b0bfed94d03ee1cfdaf28b46a37686293742929c49b8bd2f7",
+              "size": 4106
+            },
+            "encoder_config/config.json": {
+              "sha256": "d0ebbcb8b458e285a39e12cc315cbaf3d1c6f631e7281e6b22dd5b4071183f83",
+              "size": 858
+            },
+            "model.safetensors": {
+              "sha256": "9efe0f88c99f2aa794452e9559dc60e98d60d9fa2bf1b60cf2710411b6da5b4e",
+              "size": 1149461028
+            },
+            "tokenizer.json": {
+              "sha256": "c62446df87ae18ec98b133f8f84fc449a07cc89bbf8ef192a4cb5f9c53777a7a",
+              "size": 16035853
+            },
+            "tokenizer_config.json": {
+              "sha256": "fd4a31dc2f1f17e31638c5f0e783b81cdb2fbe6bddd116a8d9e5d50d78148cf1",
+              "size": 646
+            }
+          },
+          "model": "fastino/GLiNER2.5-multi-Decide",
+          "model_id": "gliner-multilingual",
+          "packages": {
+            "gliner2": "2.1.0",
+            "torch": "2.9.1",
+            "transformers": "5.21.0"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "fastino/GLiNER2.5-multi-Decide",
+          "requested_model": "fastino/GLiNER2.5-multi-Decide",
+          "revision": "e173bca1f0c4217d7a55b3b0c705d5ece8a0218d",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "limitations": [
+          "The classify_text adapter returns a selected label and optional top-label confidence, not a verified complete probability distribution; Brier/ECE are unavailable."
+        ],
+        "load_ms": 6526.780874992255,
+        "peak_rss_bytes": 3572154368,
+        "process_start_ms": 6563.187707972247,
+        "status": "ready"
+      }
+    },
+    {
+      "artifact_manifest_bytes": 629087675,
+      "artifact_size_source": "registry download metadata",
+      "cases": [
+        {
+          "case_id": "en-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": 319.95741702849045,
+            "min_ms": 273.90162501251325,
+            "n": 5,
+            "p50_ms": 274.78391700424254,
+            "p95_ms": 311.3590086228214,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "en",
+          "load": {
+            "max_ms": 2497.6813750108704,
+            "min_ms": 1785.4221669840626,
+            "n": 5,
+            "p50_ms": 1806.6462080460042,
+            "p95_ms": 2364.495883404743,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 2548.4689999721013,
+            "min_ms": 1818.2492920313962,
+            "n": 5,
+            "p50_ms": 1840.5091669992544,
+            "p95_ms": 2412.064108380582,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": 292.8682090132497,
+            "min_ms": 262.7377089811489,
+            "n": 30,
+            "p50_ms": 267.5836040289141,
+            "p95_ms": 287.1468165743863,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "mixed-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": 308.37387504288927,
+            "min_ms": 283.01270899828523,
+            "n": 5,
+            "p50_ms": 287.663540977519,
+            "p95_ms": 305.0924166338518,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "mixed",
+          "load": {
+            "max_ms": 1898.1513339676894,
+            "min_ms": 1800.331583013758,
+            "n": 5,
+            "p50_ms": 1821.95191597566,
+            "p95_ms": 1894.6338087669574,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 1934.2094169696793,
+            "min_ms": 1839.092415990308,
+            "n": 5,
+            "p50_ms": 1858.9004999957979,
+            "p95_ms": 1930.3842751774937,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": 332.83404097892344,
+            "min_ms": 268.43550003832206,
+            "n": 30,
+            "p50_ms": 272.0825000142213,
+            "p95_ms": 296.3632938801311,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        },
+        {
+          "case_id": "nl-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": 302.218708966393,
+            "min_ms": 282.45041600894183,
+            "n": 5,
+            "p50_ms": 286.5820409497246,
+            "p95_ms": 299.42900056485087,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": true,
+          "cold_status_counts": {
+            "ok": 5
+          },
+          "language": "nl",
+          "load": {
+            "max_ms": 1853.1652920064516,
+            "min_ms": 1794.7732910397463,
+            "n": 5,
+            "p50_ms": 1812.40550003713,
+            "p95_ms": 1845.3434585942887,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": 1887.6092080026865,
+            "min_ms": 1828.8976249750704,
+            "n": 5,
+            "p50_ms": 1846.9034999725409,
+            "p95_ms": 1880.166099802591,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": 313.4050829685293,
+            "min_ms": 268.68108299095184,
+            "n": 30,
+            "p50_ms": 273.5844790004194,
+            "p95_ms": 283.7638230790617,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          },
+          "warmup_status": "ok"
+        }
+      ],
+      "failures": [],
+      "identity": {
+        "actual_model": "Alibaba-NLP/gte-multilingual-reranker-base",
+        "custom_code_revision": "40ced75c3017eb27626c9d4ea981bde21a2662f4",
+        "device": "cpu",
+        "files": {
+          "config.json": {
+            "sha256": "995730781d157e147c13ccdfe0eb20a0875c486b6c4de8c97f0bbd845549dbc0",
+            "size": 1494
+          },
+          "custom_code/configuration.py": {
+            "sha256": "3411088045ffb8a9a0aa9936eae275896b39983a2ee5b08f091b44e6289e4fe4",
+            "size": 7127
+          },
+          "custom_code/modeling.py": {
+            "sha256": "374670b416fcc82f081c9cd28b5fd61c2bd91bbe18eb4798fcc48a81f9c250a0",
+            "size": 59023
+          },
+          "model.safetensors": {
+            "sha256": "10ebaa49322dd7e01a13a91c49810939e3f91f231aceaa47fdf0cab3083954f6",
+            "size": 611934706
+          },
+          "special_tokens_map.json": {
+            "sha256": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835",
+            "size": 964
+          },
+          "tokenizer.json": {
+            "sha256": "d6f76fe13d42f80dcee0cb86a1aeb5f14f8909bb8a8782f7a4a4ad76697ef164",
+            "size": 17083021
+          },
+          "tokenizer_config.json": {
+            "sha256": "6f00514620aff01ba8b7291b2394e98daca5be264cb743805232d9ae27494b2a",
+            "size": 1340
+          }
+        },
+        "model": "Alibaba-NLP/gte-multilingual-reranker-base",
+        "model_id": "gte-reranker",
+        "packages": {
+          "torch": "2.9.1",
+          "transformers": "4.57.6"
+        },
+        "precision": "float32",
+        "python": "3.11.15",
+        "repo": "Alibaba-NLP/gte-multilingual-reranker-base",
+        "requested_model": "Alibaba-NLP/gte-multilingual-reranker-base",
+        "revision": "8215cf04918ba6f7b6a62bb44238ce2953d8831c",
+        "threads": 4,
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "limitations": [
+        "Cold means a fresh owned process; operating-system file caches are uncontrolled.",
+        "RSS covers the owned CPU worker; GPU, private user processes and server memory are unmeasured.",
+        "No native Pennel package is built by this resource panel."
+      ],
+      "load": {
+        "max_ms": 2497.6813750108704,
+        "min_ms": 1785.4221669840626,
+        "n": 15,
+        "p50_ms": 1814.0561249456368,
+        "p95_ms": 2078.010346280644,
+        "percentile_method": "linear_type_7"
+      },
+      "measurement": "measured_local_inference",
+      "model": "gte-reranker",
+      "native_binary_size_bytes": null,
+      "peak_rss_bytes": 2199535616,
+      "process_start": {
+        "max_ms": 2548.4689999721013,
+        "min_ms": 1818.2492920313962,
+        "n": 15,
+        "p50_ms": 1850.0987499719486,
+        "p95_ms": 2118.4872918704064,
+        "percentile_method": "linear_type_7"
+      },
+      "runner_id": "gte-reranker",
+      "startup_attempts": 16,
+      "status": "ok",
+      "warm_startup": {
+        "identity": {
+          "actual_model": "Alibaba-NLP/gte-multilingual-reranker-base",
+          "custom_code_revision": "40ced75c3017eb27626c9d4ea981bde21a2662f4",
+          "device": "cpu",
+          "files": {
+            "config.json": {
+              "sha256": "995730781d157e147c13ccdfe0eb20a0875c486b6c4de8c97f0bbd845549dbc0",
+              "size": 1494
+            },
+            "custom_code/configuration.py": {
+              "sha256": "3411088045ffb8a9a0aa9936eae275896b39983a2ee5b08f091b44e6289e4fe4",
+              "size": 7127
+            },
+            "custom_code/modeling.py": {
+              "sha256": "374670b416fcc82f081c9cd28b5fd61c2bd91bbe18eb4798fcc48a81f9c250a0",
+              "size": 59023
+            },
+            "model.safetensors": {
+              "sha256": "10ebaa49322dd7e01a13a91c49810939e3f91f231aceaa47fdf0cab3083954f6",
+              "size": 611934706
+            },
+            "special_tokens_map.json": {
+              "sha256": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835",
+              "size": 964
+            },
+            "tokenizer.json": {
+              "sha256": "d6f76fe13d42f80dcee0cb86a1aeb5f14f8909bb8a8782f7a4a4ad76697ef164",
+              "size": 17083021
+            },
+            "tokenizer_config.json": {
+              "sha256": "6f00514620aff01ba8b7291b2394e98daca5be264cb743805232d9ae27494b2a",
+              "size": 1340
+            }
+          },
+          "model": "Alibaba-NLP/gte-multilingual-reranker-base",
+          "model_id": "gte-reranker",
+          "packages": {
+            "torch": "2.9.1",
+            "transformers": "4.57.6"
+          },
+          "precision": "float32",
+          "python": "3.11.15",
+          "repo": "Alibaba-NLP/gte-multilingual-reranker-base",
+          "requested_model": "Alibaba-NLP/gte-multilingual-reranker-base",
+          "revision": "8215cf04918ba6f7b6a62bb44238ce2953d8831c",
+          "threads": 4,
+          "transport": "local",
+          "upstream": "owned_local_worker"
+        },
+        "limitations": [],
+        "load_ms": 1937.8338340320624,
+        "peak_rss_bytes": 2197012480,
+        "process_start_ms": 1972.7785830036737,
+        "status": "ready"
+      }
+    },
+    {
+      "artifact_manifest_bytes": 655257408,
+      "artifact_size_source": "registry download metadata",
+      "cases": [
+        {
+          "case_id": "en-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-00-q-library-ranking",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "ranking",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        }
+      ],
+      "failures": [
+        {
+          "reason": "onnx_graph_and_reference_parity_unverified",
+          "stage": "startup",
+          "status": "unavailable"
+        }
+      ],
+      "identity": {
+        "model": "gliclass-v4-q8"
+      },
+      "limitations": [
+        "Cold means a fresh owned process; operating-system file caches are uncontrolled.",
+        "RSS covers the owned CPU worker; GPU, private user processes and server memory are unmeasured.",
+        "No native Pennel package is built by this resource panel."
+      ],
+      "load": {
+        "max_ms": null,
+        "min_ms": null,
+        "n": 0,
+        "p50_ms": null,
+        "p95_ms": null,
+        "percentile_method": "linear_type_7"
+      },
+      "measurement": "measured_local_inference",
+      "model": "gliclass-v4-q8",
+      "native_binary_size_bytes": null,
+      "peak_rss_bytes": 31784960,
+      "process_start": {
+        "max_ms": null,
+        "min_ms": null,
+        "n": 0,
+        "p50_ms": null,
+        "p95_ms": null,
+        "percentile_method": "linear_type_7"
+      },
+      "runner_id": "gliclass-v4-q8",
+      "startup_attempts": 1,
+      "status": "unavailable_or_partial"
+    },
+    {
+      "artifact_manifest_bytes": 678201774,
+      "artifact_size_source": "registry download metadata",
+      "cases": [
+        {
+          "case_id": "en-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "en-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "en",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "mixed-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "mixed",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-00-missing-context",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "answerability",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-01-claim-final",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "claim_support",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-01-action-owner",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "case_id": "nl-heldout-00-template-missing",
+          "cold": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_measured": false,
+          "cold_status_counts": {},
+          "language": "nl",
+          "load": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "process_start": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        }
+      ],
+      "failures": [
+        {
+          "reason": "artifact_verification_failed",
+          "stage": "startup",
+          "status": "unavailable"
+        }
+      ],
+      "identity": {
+        "model": "laya"
+      },
+      "limitations": [
+        "Cold means a fresh owned process; operating-system file caches are uncontrolled.",
+        "RSS covers the owned CPU worker; GPU, private user processes and server memory are unmeasured.",
+        "No native Pennel package is built by this resource panel."
+      ],
+      "load": {
+        "max_ms": null,
+        "min_ms": null,
+        "n": 0,
+        "p50_ms": null,
+        "p95_ms": null,
+        "percentile_method": "linear_type_7"
+      },
+      "measurement": "measured_local_inference",
+      "model": "laya",
+      "native_binary_size_bytes": null,
+      "peak_rss_bytes": 5586944,
+      "process_start": {
+        "max_ms": null,
+        "min_ms": null,
+        "n": 0,
+        "p50_ms": null,
+        "p95_ms": null,
+        "percentile_method": "linear_type_7"
+      },
+      "runner_id": "laya",
+      "startup_attempts": 1,
+      "status": "unavailable_or_partial"
+    }
+  ],
+  "panel": {
+    "case_ids": [
+      "en-heldout-00-missing-context",
+      "en-heldout-01-claim-final",
+      "en-heldout-00-cleanup-amount-verification",
+      "en-heldout-01-action-owner",
+      "en-heldout-00-q-library-ranking",
+      "en-heldout-01-name-ambiguous",
+      "en-heldout-00-template-missing",
+      "mixed-heldout-00-missing-context",
+      "mixed-heldout-01-claim-final",
+      "mixed-heldout-00-cleanup-amount-verification",
+      "mixed-heldout-01-action-owner",
+      "mixed-heldout-00-q-library-ranking",
+      "mixed-heldout-01-name-ambiguous",
+      "mixed-heldout-00-template-missing",
+      "nl-heldout-00-missing-context",
+      "nl-heldout-01-claim-final",
+      "nl-heldout-00-cleanup-amount-verification",
+      "nl-heldout-01-action-owner",
+      "nl-heldout-00-q-library-ranking",
+      "nl-heldout-01-name-ambiguous",
+      "nl-heldout-00-template-missing"
+    ],
+    "cases_sha256": "6c1564087005de1a255bcc77c038cf1ed8447307e7fb1293ae0c2566ede10657",
+    "cold_samples_per_language": 5,
+    "excluded_warmups_per_case": 1,
+    "panel_hash": "ffb8cd307dd88de30791f04e95fa5b67f2a4eef698abfa202f9f078856a82864",
+    "runners": [
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "gliclass-multilingual"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "gliner-multilingual"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-q-library-ranking",
+          "mixed-heldout-00-q-library-ranking",
+          "nl-heldout-00-q-library-ranking"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-q-library-ranking",
+          "mixed-heldout-00-q-library-ranking",
+          "nl-heldout-00-q-library-ranking"
+        ],
+        "runner_id": "gte-reranker"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "gliclass-v4-q8"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "laya"
+      }
+    ],
+    "split": "heldout",
+    "version": 1,
+    "warm_samples_per_case": 30
+  }
+}

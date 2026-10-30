@@ -1,3 +1,5 @@
+import { listKeyIndex } from "./library-list.ts";
+
 export interface HistoryFocusTarget { id: string; action?: string }
 export interface HistoryFocusPlan {
   target: HistoryFocusTarget | null;
@@ -16,6 +18,13 @@ export class HistoryFocusMemory {
   selection(available: ReadonlySet<string>): HistoryFocusTarget | null {
     if (this.value && !available.has(this.value.id)) this.value = null;
     return this.value ? { ...this.value } : null;
+  }
+
+  move(ordered: readonly string[], current: string | null, key: string): HistoryFocusTarget | null {
+    const index = listKeyIndex(key, ordered.indexOf(current ?? ""), ordered.length);
+    if (index < 0) return null;
+    this.remember(ordered[index]);
+    return { id: ordered[index] };
   }
 
   plan(options: { requested?: string; previous: HistoryFocusTarget | null; available: ReadonlySet<string>; returning: boolean; unobstructed: boolean }): HistoryFocusPlan {

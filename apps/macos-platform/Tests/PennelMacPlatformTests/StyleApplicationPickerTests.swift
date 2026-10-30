@@ -4,6 +4,34 @@ import XCTest
 
 final class StyleApplicationPickerTests: XCTestCase {
     @MainActor
+    func testSheetUsesItsOwnerAndCancellationRestoresTheOriginalResponder() async throws {
+        _ = NSApplication.shared
+        let owner = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+        owner.isReleasedWhenClosed = false
+        let field = PickerFocusView(frame: owner.contentView!.bounds)
+        owner.contentView!.addSubview(field)
+        XCTAssertTrue(owner.makeFirstResponder(field))
+        let panel = NSOpenPanel()
+        let selected = try await pickStyleApplication(title: "Add app…", prompt: "Add", owner: owner, panel: panel) { shown, parent, finish in
+            XCTAssertTrue(shown === panel)
+            XCTAssertTrue(parent === owner)
+            XCTAssertFalse(shown.canChooseDirectories)
+            XCTAssertFalse(shown.allowsMultipleSelection)
+            XCTAssertEqual(shown.title, "Add app…")
+            owner.makeFirstResponder(nil)
+            finish(.cancel)
+        }
+        XCTAssertNil(selected)
+        XCTAssertTrue(owner.firstResponder === field)
+        owner.close()
+    }
+
+    func testCancellingIgnoresAnUnusableSelection() throws {
+        XCTAssertNil(try styleApplicationSelection(response: .cancel, url: URL(fileURLWithPath: "/missing.app")))
+        XCTAssertThrowsError(try styleApplicationSelection(response: .OK, url: URL(string: "https://example.test/App.app")))
+    }
+
+    @MainActor
     func testPickerRelabelsWithoutReplacingItsSelectionOrRules() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false
@@ -33,4 +61,8 @@ final class StyleApplicationPickerTests: XCTestCase {
         }
         XCTAssertThrowsError(try styleApplicationSelection(bundleID: "dev.app", name: "App\nname", fallbackName: "App"))
     }
+}
+
+private final class PickerFocusView: NSView {
+    override var acceptsFirstResponder: Bool { true }
 }

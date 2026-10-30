@@ -1,0 +1,108 @@
+[
+  {
+    "details": {
+      "identity": {
+        "actual_model": "knowledgator/gliclass-multilang-edge",
+        "device": "cpu",
+        "files": {
+          "config.json": {
+            "sha256": "d8496b9d3d12d9d8d3dedfed36810781d8d091025deda8ebd01ba8ae6494500e",
+            "size": 2595
+          },
+          "model.safetensors": {
+            "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+            "size": 286004020
+          },
+          "special_tokens_map.json": {
+            "sha256": "6e3204c5a4004719c185007a745d1940471a6fb02521cfa0a00306dbb6bc5903",
+            "size": 1051
+          },
+          "tokenizer.json": {
+            "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+            "size": 34364000
+          },
+          "tokenizer_config.json": {
+            "sha256": "548d38dab71ad1110e1fc13a134f0c4d3c9cd2694302d02e2dc5606fb74da0d4",
+            "size": 47181
+          }
+        },
+        "model": "knowledgator/gliclass-multilang-edge",
+        "model_id": "gliclass-multilingual",
+        "packages": {
+          "gliclass": "0.1.21",
+          "torch": "2.9.1",
+          "transformers": "5.21.0"
+        },
+        "precision": "float32",
+        "python": "3.11.15",
+        "repo": "knowledgator/gliclass-multilang-edge",
+        "requested_model": "knowledgator/gliclass-multilang-edge",
+        "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+        "threads": 4,
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "limitations": [],
+      "load_ms": 2877.535292005632,
+      "peak_rss_bytes": 1651933184,
+      "process_start_ms": 2924.624582985416,
+      "status": "ready"
+    },
+    "id": "gliclass-multilingual",
+    "status": "available"
+  },
+  {
+    "details": {
+      "identity": {
+        "actual_model": "fastino/GLiNER2.5-multi-Decide",
+        "device": "cpu",
+        "files": {
+          "config.json": {
+            "sha256": "aa29cd584316b61b0bfed94d03ee1cfdaf28b46a37686293742929c49b8bd2f7",
+            "size": 4106
+          },
+          "encoder_config/config.json": {
+            "sha256": "d0ebbcb8b458e285a39e12cc315cbaf3d1c6f631e7281e6b22dd5b4071183f83",
+            "size": 858
+          },
+          "model.safetensors": {
+            "sha256": "9efe0f88c99f2aa794452e9559dc60e98d60d9fa2bf1b60cf2710411b6da5b4e",
+            "size": 1149461028
+          },
+          "tokenizer.json": {
+            "sha256": "c62446df87ae18ec98b133f8f84fc449a07cc89bbf8ef192a4cb5f9c53777a7a",
+            "size": 16035853
+          },
+          "tokenizer_config.json": {
+            "sha256": "fd4a31dc2f1f17e31638c5f0e783b81cdb2fbe6bddd116a8d9e5d50d78148cf1",
+            "size": 646
+          }
+        },
+        "model": "fastino/GLiNER2.5-multi-Decide",
+        "model_id": "gliner-multilingual",
+        "packages": {
+          "gliner2": "2.1.0",
+          "torch": "2.9.1",
+          "transformers": "5.21.0"
+        },
+        "precision": "float32",
+        "python": "3.11.15",
+        "repo": "fastino/GLiNER2.5-multi-Decide",
+        "requested_model": "fastino/GLiNER2.5-multi-Decide",
+        "revision": "e173bca1f0c4217d7a55b3b0c705d5ece8a0218d",
+        "threads": 4,
+        "transport": "local",
+        "upstream": "owned_local_worker"
+      },
+      "limitations": [
+        "The classify_text adapter returns a selected label and optional top-label confidence, not a verified complete probability distribution; Brier/ECE are unavailable."
+      ],
+      "load_ms": 6486.418750020675,
+      "peak_rss_bytes": 3576463360,
+      "process_start_ms": 6518.225417006761,
+      "status": "ready"
+    },
+    "id": "gliner-multilingual",
+    "status": "available"
+  }
+]

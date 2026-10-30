@@ -1,7 +1,7 @@
 import { api, type ClaudeAccessView, type ClaudeStatus, type CloudAccount, type CloudDevice, type CloudLinkRole, type CloudLinkView, type CloudSyncSetup, type Settings, type SyncReport } from "../api";
 import { claudeInstructions, claudeStatusText } from "../claude-access";
 import { accountScreenFor, afterSignOut, copyStatusText, formatUsage, initialAccountUi, planSyncRedraw, pollLogin, recoveryNeedsConfirmation, relativeTime, type LoginPoll } from "../cloud-login";
-import { confirmDialog, errorCode, errorText, h, section, toggle } from "../dom";
+import { controlButton, textField, confirmDialog, errorCode, errorText, h, section, toggle } from "../dom";
 import type { Context } from "../main";
 import { bindLocalization, liveText, l, localizeBackendText, t, uiLocale, type UiText } from "../i18n";
 import { connectionRole, linkIsPending, qrImageSource, syncRequiresBackup, syncSetupAction } from "../device-link";
@@ -250,20 +250,20 @@ function signedOut(ctx: Context): HTMLElement {
       h("p", {}, l("account.login.browser_code")),
       h("p", { class: "login-code", "aria-live": "polite" }, start.user_code),
       h("div", { class: "row" },
-        h("button", { class: "btn", onclick: () => void api.openUrl(start.verification_uri).catch(ctx.report) }, l("account.login.reopen_browser")),
-        h("button", { class: "btn", onclick: cancelLogin }, l("account.login.cancel")))));
+        controlButton({ class: "btn", onclick: () => void api.openUrl(start.verification_uri).catch(ctx.report) }, l("account.login.reopen_browser")),
+        controlButton({ class: "btn", onclick: cancelLogin }, l("account.login.cancel")))));
   }
   return h("div", {}, heading(), plainSection(
     ...(ui.login.kind === "expired"
       ? [h("p", { class: "error", role: "alert" }, l("account.login.expired")),
-         h("button", { class: "btn primary", onclick: () => void beginLogin(ctx) }, l("account.login.start_again"))]
+         controlButton({ class: "btn primary", onclick: () => void beginLogin(ctx) }, l("account.login.start_again"))]
       : [h("p", {}, l("account.setup.intro")),
          ui.notice ? h("p", { class: "error", role: "alert" }, liveText(noticeText)) : null,
          h("div", { class: "row" },
-           h("button", { class: "btn primary", onclick: () => void beginConnection(ctx, "new_device") }, l("account.setup.connect")),
-           h("button", { class: "btn", onclick: () => { linkManual = true; update(); } }, l("account.link.manual"))),
+           controlButton({ class: "btn primary", onclick: () => void beginConnection(ctx, "new_device") }, l("account.setup.connect")),
+           controlButton({ class: "btn", onclick: () => { linkManual = true; update(); } }, l("account.link.manual"))),
          h("p", { class: "help" }, l("account.setup.first_device")),
-         h("button", { class: "btn", onclick: () => void beginLogin(ctx) }, l("account.setup.email"))])));
+         controlButton({ class: "btn", onclick: () => void beginLogin(ctx) }, l("account.setup.email"))])));
 }
 
 function scheduleLinkPoll(ctx: Context) {
@@ -339,12 +339,12 @@ function connectionSection(ctx: Context, role: CloudLinkRole): HTMLElement {
   const pending = Boolean(view && linkIsPending(view.phase));
   const startLabel = role === "trusted_device" ? "account.link.start_trusted" : "account.link.start_new";
   const source = qrImageSource(view?.qr_svg ?? null);
-  const input = h("input", { type: "text", class: "device-link-entry", value: linkDraft, autocomplete: "off", spellcheck: "false", autocapitalize: "characters", "aria-label": l("account.link.code") });
+  const input = textField({ type: "text", class: "device-link-entry", value: linkDraft, autocomplete: "off", spellcheck: "false", autocapitalize: "characters", "aria-label": l("account.link.code") });
   input.addEventListener("input", () => { linkDraft = input.value; });
   const manual = linkManual ? h("form", { class: "row", onsubmit: (event: Event) => {
     event.preventDefault();
     if (input.value.trim()) void beginConnection(ctx, role, input.value.trim());
-  } }, input, h("button", { class: "btn primary", type: "submit", disabled: linkBusy }, l("account.link.join"))) : null;
+  } }, input, controlButton({ class: "btn primary", type: "submit", disabled: linkBusy }, l("account.link.join"))) : null;
   const manualAction = async () => {
     if (pending) await cancelConnection();
     linkManual = true;
@@ -364,17 +364,17 @@ function connectionSection(ctx: Context, role: CloudLinkRole): HTMLElement {
     linkFailure ? h("p", { role: "alert", class: "error" }, liveText(() => accountFailureText(linkFailure))) : null,
     manual,
     h("div", { class: "row" },
-      view?.phase === "awaiting_approval" && role === "trusted_device" ? h("button", { class: "btn primary", disabled: linkBusy, onclick: async () => {
+      view?.phase === "awaiting_approval" && role === "trusted_device" ? controlButton({ class: "btn primary", disabled: linkBusy, onclick: async () => {
         const run = linkRun;
         linkBusy = true; update();
         try { const next = await api.cloudLinkApprove(); if (run === linkRun) linkView = next; }
         catch (error) { if (run === linkRun) linkFailure = error; }
         finally { if (run === linkRun) { linkBusy = false; update(); scheduleLinkPoll(ctx); } }
       } }, l("account.link.approve")) : null,
-      linkFailure && pending ? h("button", { class: "btn", onclick: () => { linkFailure = null; void refreshConnection(ctx); } }, l("account.link.retry_poll")) : null,
-      !pending && view?.phase !== "complete" && !linkManual ? h("button", { class: "btn primary", disabled: linkBusy, onclick: () => void beginConnection(ctx, role) }, l(view ? "account.link.retry" : startLabel)) : null,
-      !linkManual && view?.phase !== "complete" ? h("button", { class: "btn", disabled: linkBusy, onclick: () => void manualAction() }, l("account.link.manual")) : null,
-      h("button", { class: "btn", disabled: linkBusy, onclick: () => void cancelConnection() }, l(view?.phase === "complete" ? "account.link.done" : "common.cancel"))));
+      linkFailure && pending ? controlButton({ class: "btn", onclick: () => { linkFailure = null; void refreshConnection(ctx); } }, l("account.link.retry_poll")) : null,
+      !pending && view?.phase !== "complete" && !linkManual ? controlButton({ class: "btn primary", disabled: linkBusy, onclick: () => void beginConnection(ctx, role) }, l(view ? "account.link.retry" : startLabel)) : null,
+      !linkManual && view?.phase !== "complete" ? controlButton({ class: "btn", disabled: linkBusy, onclick: () => void manualAction() }, l("account.link.manual")) : null,
+      controlButton({ class: "btn", disabled: linkBusy, onclick: () => void cancelConnection() }, l(view?.phase === "complete" ? "account.link.done" : "common.cancel"))));
 }
 
 function slots(): [keyof Pick<Settings, "dictation_stt" | "llm" | "meeting_stt">, string][] { return [
@@ -414,13 +414,13 @@ function cloudPrompt(ctx: Context): HTMLElement | null {
   return plainSection(
     h("p", {}, l("account.cloud_offer", () => ({ tasks: localizedList(emptySlots(ctx.info.settings).map(([, label]) => label)) }))),
     h("div", { class: "row" },
-      h("button", { class: "btn primary", onclick: adopt }, l("common.yes")),
-      h("button", { class: "btn", onclick: close }, l("common.no"))));
+      controlButton({ class: "btn primary", onclick: adopt }, l("common.yes")),
+      controlButton({ class: "btn", onclick: close }, l("common.no"))));
 }
 
 function accountSection(ctx: Context, account: CloudAccount | null, error: unknown): HTMLElement {
   let signingOut = false;
-  const logout = h("button", { class: "btn" }, liveText(() => t(signingOut ? "account.logout.busy" : "account.logout.action")));
+  const logout = controlButton({ class: "btn" }, liveText(() => t(signingOut ? "account.logout.busy" : "account.logout.action")));
   bindLocalization(logout, () => { logout.textContent = t(signingOut ? "account.logout.busy" : "account.logout.action"); });
   logout.addEventListener("click", async () => {
     const ownsIdentity = accountActions.captureIdentity();
@@ -510,33 +510,33 @@ function syncSection(ctx: Context, report: SyncReport, enabled: boolean, warning
     ui.shownCode ? h("p", {}, l("account.setup.backup_help")) : null,
     !ui.shownCode && state === "create" ? [
       h("p", {}, l("account.setup.new_library")),
-      h("button", { class: "btn primary", onclick: prepare }, l("account.setup.create")),
+      controlButton({ class: "btn primary", onclick: prepare }, l("account.setup.create")),
     ] : null,
     !ui.shownCode && state === "unlock" ? [
       h("p", {}, l("account.setup.locked")),
-      h("button", { class: "btn primary", disabled: linkBusy, onclick: () => void beginConnection(ctx, "new_device") }, l("account.setup.connect")),
+      controlButton({ class: "btn primary", disabled: linkBusy, onclick: () => void beginConnection(ctx, "new_device") }, l("account.setup.connect")),
     ] : null,
     !ui.shownCode && needsBackup ? [
       h("p", { role: "status" }, l("account.setup.backup_missing")),
-      h("button", { class: "btn primary", onclick: () => void generateRecoveryCode(ctx, () => api.cloudSyncNewRecoveryCode()) }, l("account.setup.replace_backup")),
+      controlButton({ class: "btn primary", onclick: () => void generateRecoveryCode(ctx, () => api.cloudSyncNewRecoveryCode()) }, l("account.setup.replace_backup")),
     ] : null,
     !ui.shownCode && state === "resume" && !needsBackup ? [
       h("p", { role: "status" }, l(setup?.phase === "paused" ? "account.setup.paused" : "account.setup.ready")),
-      h("button", { class: "btn primary", onclick: () => void action(ctx, () => api.cloudSyncResume()) }, l("account.setup.resume")),
+      controlButton({ class: "btn primary", onclick: () => void action(ctx, () => api.cloudSyncResume()) }, l("account.setup.resume")),
     ] : null,
     lineElement,
     enabled && report.last_success_ms !== null ? h("p", { class: "help" }, l("account.setup.counts", () => ({ uploaded: report.uploaded, downloaded: report.downloaded, conflicts: report.conflicts }))) : null,
     showNotice && ui.notice ? h("p", { class: "error", role: "alert" }, liveText(noticeText)) : null,
-    !setup ? h("button", { class: "btn", onclick: () => void ctx.refresh().catch(ctx.report) }, l("common.retry")) : null,
+    !setup ? controlButton({ class: "btn", onclick: () => void ctx.refresh().catch(ctx.report) }, l("common.retry")) : null,
     warning ? h("p", { class: "help" }, liveText(() => localizeBackendText(warning))) : null,
-    report.brake ? h("button", { class: "btn", onclick: async () => {
+    report.brake ? controlButton({ class: "btn", onclick: async () => {
       const ok = await confirmDialog(l("account.sync.confirm_deletes_title"), l("account.sync.confirm_deletes_detail"), l("account.sync.confirm_deletes"));
       if (ok) await action(ctx, () => api.cloudSyncConfirmDeletes());
     } }, l("account.sync.confirm_deletes")) : null,
-    !ui.shownCode && setup?.can_approve_devices && !needsBackup ? h("button", { class: "btn", disabled: linkBusy, onclick: () => void beginConnection(ctx, "trusted_device") }, l("account.link.start_trusted")) : null,
+    !ui.shownCode && setup?.can_approve_devices && !needsBackup ? controlButton({ class: "btn", disabled: linkBusy, onclick: () => void beginConnection(ctx, "trusted_device") }, l("account.link.start_trusted")) : null,
     enabled ? h("div", { class: "row" },
-      h("button", { class: "btn", onclick: () => void action(ctx, () => api.cloudSyncDisable()) }, l("account.setup.pause")),
-      !needsVault(report) ? h("button", { class: "btn", disabled: ui.syncing, onclick: () => {
+      controlButton({ class: "btn", onclick: () => void action(ctx, () => api.cloudSyncDisable()) }, l("account.setup.pause")),
+      !needsVault(report) ? controlButton({ class: "btn", disabled: ui.syncing, onclick: () => {
         const ownsIdentity = accountActions.captureIdentity();
         ui.syncing = true;
         window.clearTimeout(syncingTimer);
@@ -587,8 +587,8 @@ function recoverySheet(ctx: Context, code: string): HTMLElement {
     h("p", {}, l("account.setup.backup_help")),
     h("div", { class: "recovery-code", "aria-label": l("account.recovery.title") }, code.split("-").map((group) => h("span", {}, group))),
     h("div", { class: "row" },
-      h("button", { class: "btn", onclick: () => { if (ownsDisplay()) void copyRecoveryCode(code, status); } }, l("account.recovery.copy")),
-      h("button", { class: "btn primary", disabled: !context, onclick: () => {
+      controlButton({ class: "btn", onclick: () => { if (ownsDisplay()) void copyRecoveryCode(code, status); } }, l("account.recovery.copy")),
+      controlButton({ class: "btn primary", disabled: !context, onclick: () => {
         if (!context || !ownsDisplay()) return;
         void action(ctx, async (current) => {
           try { await api.cloudRecoveryConfirm(code, context); }
@@ -612,7 +612,7 @@ function unlockVisible(report: SyncReport, enabled: boolean): boolean {
 function unlockSection(ctx: Context, report: SyncReport, enabled: boolean): HTMLElement | null {
   const reset = enabled && report.status.kind === "vault_reset";
   if (!unlockVisible(report, enabled)) return null;
-  const input = h("input", { type: "text", value: ui.codeDraft, autocomplete: "off", spellcheck: "false", autocapitalize: "characters", "aria-label": l("account.recovery.title") });
+  const input = textField({ type: "text", value: ui.codeDraft, autocomplete: "off", spellcheck: "false", autocapitalize: "characters", "aria-label": l("account.recovery.title") });
   input.addEventListener("input", () => { ui.codeDraft = input.value; });
   const submit = () => void action(ctx, async (current) => {
     await api.cloudSyncUnlock(input.value);
@@ -622,7 +622,7 @@ function unlockSection(ctx: Context, report: SyncReport, enabled: boolean): HTML
     ui.askCode = false;
   });
   const form = h("form", { class: "row", onsubmit: (event: Event) => { event.preventDefault(); submit(); } },
-    input, h("button", { class: "btn primary", type: "submit" }, l("account.recovery.unlock")));
+    input, controlButton({ class: "btn primary", type: "submit" }, l("account.recovery.unlock")));
   return section(l("account.recovery.title"), null,
     reset ? h("p", {}, l("account.recovery.vault_reset")) : null,
     form,
@@ -630,7 +630,7 @@ function unlockSection(ctx: Context, report: SyncReport, enabled: boolean): HTML
     h("button", { class: "text-button", onclick: () => { ui.lostCode = !ui.lostCode; update(); } }, l("account.recovery.lost")),
     ui.lostCode ? [
       h("p", { class: "help" }, l("account.link.lost_help")),
-      h("button", { class: "btn danger", onclick: async () => {
+      controlButton({ class: "btn danger", onclick: async () => {
         const ownsIdentity = accountActions.captureIdentity();
         const ok = await confirmDialog(l("account.recovery.reset_title"),
           l("account.recovery.reset_detail"),
@@ -644,7 +644,7 @@ function recoverySection(ctx: Context): HTMLElement {
   return section(l("account.recovery.title"), null,
     recoveryNeedsConfirmation({ signedIn: true, syncOn: true, confirmed: confirmedFlag() })
       ? h("p", { class: "error", role: "status" }, l("account.recovery.unconfirmed")) : null,
-    h("button", { class: "btn", onclick: async () => {
+    controlButton({ class: "btn", onclick: async () => {
       const ownsIdentity = accountActions.captureIdentity();
       const ok = await confirmDialog(l("account.recovery.new_title"), l("account.recovery.new_detail"), l("account.recovery.new"));
       if (ok && ownsIdentity()) await generateRecoveryCode(ctx, () => api.cloudSyncNewRecoveryCode());
@@ -656,8 +656,8 @@ function copyField(label: UiText, value: string): HTMLElement {
   return h("div", {},
     h("p", { class: "help" }, label),
     h("div", { class: "row" },
-      h("input", { type: "text", class: "grow", readonly: true, value, "aria-label": label, spellcheck: "false" }),
-      h("button", { class: "btn", onclick: async () => {
+      textField({ type: "text", class: "grow", readonly: true, value, "aria-label": label, spellcheck: "false" }),
+      controlButton({ class: "btn", onclick: async () => {
         try { await api.copyText(value); showCopyStatus(status, null); }
         catch (error) { showCopyStatus(status, errorText(error)); }
       } }, l("common.copy")),
@@ -692,7 +692,7 @@ function seenText(device: CloudDevice): string {
 
 function devicesSection(ctx: Context, devices: CloudDevice[]): HTMLElement {
   return section(l("account.devices.title"), null, h("div", { class: "list" }, devices.map((device) => {
-    const name = h("input", { type: "text", class: "device-name", value: device.name, "aria-label": l("account.devices.name") });
+    const name = textField({ type: "text", class: "device-name", value: device.name, "aria-label": l("account.devices.name") });
     name.dataset.original = device.name;
     name.addEventListener("change", () => {
       const next = name.value.trim();
@@ -703,7 +703,7 @@ function devicesSection(ctx: Context, devices: CloudDevice[]): HTMLElement {
       name,
       h("span", { class: "muted" }, liveText(() => `${device.platform} · ${seenText(device)}`)),
       device.current ? h("span", { class: "muted" }, l("account.devices.current")) : null,
-      device.current ? null : h("button", { class: "btn", onclick: async () => {
+      device.current ? null : controlButton({ class: "btn", onclick: async () => {
         const ok = await confirmDialog(l("account.devices.revoke_title"),
           l("account.devices.revoke_detail"),
           l("account.devices.revoke"));
@@ -713,7 +713,7 @@ function devicesSection(ctx: Context, devices: CloudDevice[]): HTMLElement {
 }
 
 function deleteSection(ctx: Context): HTMLElement {
-  return section(l("account.delete.title"), null, h("button", { class: "btn danger", onclick: async () => {
+  return section(l("account.delete.title"), null, controlButton({ class: "btn danger", onclick: async () => {
     const ownsIdentity = accountActions.captureIdentity();
     const ok = await confirmDialog(l("account.delete.confirm_title"),
       l("account.delete.detail"),

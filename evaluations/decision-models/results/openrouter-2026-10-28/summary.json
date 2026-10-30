@@ -1,0 +1,39 @@
+{
+  "actual_billed_usd": "0.313064388",
+  "actual_requests_all_stages": 30162,
+  "budget_ceiling_usd": "2.00",
+  "costs_usd": {
+    "calibration": "0.124473208",
+    "development": "0.000060710",
+    "heldout": "0.124717286",
+    "latency": "0.063813184"
+  },
+  "evidence_kind": "measured_OpenRouter_Decisions_API",
+  "frozen_manifest_hash": "20f0a59b3caef84e33e12cf2a6fead8617ed80ca44e20f7e685d897a6b16a4ad",
+  "generation_commit": "d3c18bcd67e15617552d0e4f783139514940a4b8",
+  "heldout_bound_abstentions": 480,
+  "heldout_gateway_errors": 1,
+  "heldout_successful_cases": 7856,
+  "heldout_validation_errors": 3,
+  "hosted_models": 5,
+  "paid_requests_retried": 0,
+  "planned_heldout_cases": 8340,
+  "production_model_defaults_changed": false,
+  "provider_policy": "Exact global routes, data_collection deny, provider ZDR required; account logging/opt-ins not inspected; no regional residency claim.",
+  "qualified_research_candidates": {
+    "answerability_claim_support": "All5 meet frozen point quality gates in bounded synthetic inputs; optional verification prototype only",
+    "cleanup": "Frozen-calibrated Decider, Flash and Mercury pass all3language point safety/valid-acceptance gates; prefer testing Flash/standard optional paths",
+    "events": "Kind detection qualifies, complete structured extraction deferred for owner evidence",
+    "ranking": "Perplexity Decider standard passes all3language quality gates; sequential HTTP integration deferred for latency redesign",
+    "speaker_names": "Point positive-suggestion gates pass but ambiguity contexts are unfitted; retain explicit naming",
+    "templates": "Gate infeasible with45%maximum correct coverage vs50%minimum; no model-quality rejection inferred"
+  },
+  "reconciled_failures": 4,
+  "remaining_gates": [
+    "Generative answer/citation grounding and real generated-cleanup fidelity",
+    "Template protocol feasibility repair in a separately preregistered future corpus",
+    "Diverse owner and ambiguous-name calibration contexts",
+    "Mercury full serial latency interrupted by service error",
+    "Opaque hosted weights/hardware/precision; packaged runtime and device/deployment acceptance"
+  ]
+}

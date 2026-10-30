@@ -1,0 +1,271 @@
+{
+  "catalog": {
+    "architecture": {
+      "input_modalities": [
+        "image",
+        "text",
+        "file"
+      ],
+      "instruct_type": null,
+      "modality": "text+image+file->text",
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "GPT"
+    },
+    "benchmarks": {
+      "artificial_analysis": {
+        "agentic_index": null,
+        "coding_index": 20.2,
+        "intelligence_index": null
+      },
+      "design_arena": [
+        {
+          "arena": "models",
+          "category": "3d",
+          "elo": 834,
+          "rank": 128,
+          "win_rate": 30.5
+        },
+        {
+          "arena": "models",
+          "category": "codecategories",
+          "elo": 992,
+          "rank": 130,
+          "win_rate": 47.5
+        },
+        {
+          "arena": "models",
+          "category": "dataviz",
+          "elo": 1034,
+          "rank": 112,
+          "win_rate": 49.2
+        },
+        {
+          "arena": "models",
+          "category": "gamedev",
+          "elo": 1069,
+          "rank": 109,
+          "win_rate": 58.5
+        },
+        {
+          "arena": "models",
+          "category": "uicomponent",
+          "elo": 956,
+          "rank": 122,
+          "win_rate": 45.4
+        },
+        {
+          "arena": "models",
+          "category": "website",
+          "elo": 997,
+          "rank": 132,
+          "win_rate": 47.8
+        }
+      ]
+    },
+    "canonical_slug": "openai/gpt-4.1-mini-2025-04-14",
+    "context_length": 1047576,
+    "created": 1744651381,
+    "default_parameters": {},
+    "description": "GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost. It retains a 1 million token context window and scores 45.1% on hard...",
+    "expiration_date": null,
+    "hugging_face_id": "",
+    "id": "openai/gpt-4.1-mini",
+    "knowledge_cutoff": "2024-06-30",
+    "links": {
+      "details": "/api/v1/models/openai/gpt-4.1-mini-2025-04-14/endpoints"
+    },
+    "name": "OpenAI: GPT-4.1 Mini",
+    "per_request_limits": null,
+    "pricing": {
+      "completion": "0.0000016",
+      "input_cache_read": "0.0000001",
+      "prompt": "0.0000004",
+      "web_search": "0.01"
+    },
+    "supported_parameters": [
+      "max_completion_tokens",
+      "max_tokens",
+      "response_format",
+      "seed",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ],
+    "supported_voices": null,
+    "top_provider": {
+      "context_length": 1047576,
+      "is_moderated": true,
+      "max_completion_tokens": 32768
+    }
+  },
+  "endpoint": {
+    "context_length": 1047576,
+    "latency_last_30m": {
+      "p50": 909,
+      "p75": 1939,
+      "p90": 2668.2000000000003,
+      "p99": 3052.92
+    },
+    "max_completion_tokens": 942818,
+    "max_prompt_tokens": null,
+    "model_id": "openai/gpt-4.1-mini",
+    "model_name": "OpenAI: GPT-4.1 Mini",
+    "name": "Azure | openai/gpt-4.1-mini-2025-04-14",
+    "native_tools": {},
+    "perf_last_30m_by_workload": {
+      "text_generation": {
+        "latency": {
+          "p50": 909,
+          "p75": 1939,
+          "p90": 2668.2000000000003,
+          "p99": 3052.92
+        },
+        "request_count": 33,
+        "throughput": {
+          "p50": 83,
+          "p75": 70.5,
+          "p90": 66.2,
+          "p99": 49.52
+        }
+      }
+    },
+    "pricing": {
+      "completion": "0.00000176",
+      "discount": 0,
+      "input_cache_read": "0.00000011",
+      "prompt": "0.00000044",
+      "web_search": "0.01"
+    },
+    "provider_name": "Azure",
+    "quantization": "unknown",
+    "service_tier": null,
+    "status": 0,
+    "supported_parameters": [
+      "temperature",
+      "top_p",
+      "max_completion_tokens",
+      "tools",
+      "tool_choice",
+      "structured_outputs",
+      "response_format",
+      "seed"
+    ],
+    "supports_diarization": false,
+    "supports_image_reference": false,
+    "supports_implicit_caching": true,
+    "supports_multiple_audio_references": false,
+    "supports_tool_choice": {
+      "auto": true,
+      "function": true,
+      "none": true,
+      "required": true
+    },
+    "supports_voice_cloning": false,
+    "tag": "azure/swedencentral",
+    "throughput_last_30m": {
+      "p50": 83,
+      "p75": 70.5,
+      "p90": 66.2,
+      "p99": 49.52
+    },
+    "uptime_last_1d": 100,
+    "uptime_last_30m": null,
+    "uptime_last_5m": null
+  },
+  "identity": {
+    "api_surface": "chat_completions",
+    "catalog_canonical_model": "openai/gpt-4.1-mini-2025-04-14",
+    "catalog_model": "openai/gpt-4.1-mini",
+    "configured_provider": "azure/swedencentral",
+    "provider": null,
+    "requested_model": "openai/gpt-4.1-mini-2025-04-14",
+    "returned_model": null,
+    "transport": "openrouter_generative"
+  },
+  "inactive_conditional_fees": {
+    "web_search": "0.01"
+  },
+  "limitations": [
+    "Hosted server weights, precision, load and memory are not independently established.",
+    "Global ZDR route controls do not establish regional residency or account logging settings."
+  ],
+  "status": "ok",
+  "zdr_endpoint": {
+    "context_length": 1047576,
+    "latency_last_30m": {
+      "p50": 849.5,
+      "p75": 1784.75,
+      "p90": 2674.4,
+      "p99": 5772.540000000011
+    },
+    "max_completion_tokens": 942818,
+    "max_prompt_tokens": null,
+    "model_id": "openai/gpt-4.1-mini",
+    "model_name": "OpenAI: GPT-4.1 Mini",
+    "name": "Azure | openai/gpt-4.1-mini-2025-04-14",
+    "native_tools": {},
+    "perf_last_30m_by_workload": {
+      "text_generation": {
+        "latency": {
+          "p50": 849.5,
+          "p75": 1784.75,
+          "p90": 2674.4,
+          "p99": 5772.540000000011
+        },
+        "request_count": 52,
+        "throughput": {
+          "p50": 96,
+          "p75": 70.75,
+          "p90": 60,
+          "p99": 38.4
+        }
+      }
+    },
+    "pricing": {
+      "completion": "0.00000176",
+      "discount": 0,
+      "input_cache_read": "0.00000011",
+      "prompt": "0.00000044",
+      "web_search": "0.01"
+    },
+    "provider_name": "Azure",
+    "quantization": "unknown",
+    "service_tier": null,
+    "status": 0,
+    "supported_parameters": [
+      "temperature",
+      "top_p",
+      "max_completion_tokens",
+      "tools",
+      "tool_choice",
+      "structured_outputs",
+      "response_format",
+      "seed"
+    ],
+    "supports_diarization": false,
+    "supports_image_reference": false,
+    "supports_implicit_caching": true,
+    "supports_multiple_audio_references": false,
+    "supports_tool_choice": {
+      "auto": true,
+      "function": true,
+      "none": true,
+      "required": true
+    },
+    "supports_voice_cloning": false,
+    "tag": "azure/swedencentral",
+    "throughput_last_30m": {
+      "p50": 96,
+      "p75": 70.75,
+      "p90": 60,
+      "p99": 38.4
+    },
+    "uptime_last_1d": 100,
+    "uptime_last_30m": 100,
+    "uptime_last_5m": null
+  }
+}
