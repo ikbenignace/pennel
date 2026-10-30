@@ -149,6 +149,8 @@ final class DesktopMaterialHost: NSObject {
     private let preferences: () -> DesktopDisplayPreferences
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var lastPublished: DesktopEnvironmentSnapshot?
+    private var pendingSnapshot: DesktopEnvironmentSnapshot?
+    private var publicationScheduled = false
     private var label: String
     private var sink: DesktopEnvironmentSink?
     private var detached = false
@@ -178,6 +180,23 @@ final class DesktopMaterialHost: NSObject {
         return host
     }
 
+    private static func canTransfer(_ constraint: NSLayoutConstraint) -> Bool {
+        guard constraint.firstItem != nil, isPublicAttribute(constraint.firstAttribute) else { return false }
+        if constraint.secondItem == nil {
+            return constraint.secondAttribute == .notAnAttribute && [.width, .height].contains(constraint.firstAttribute)
+        }
+        return isPublicAttribute(constraint.secondAttribute)
+    }
+
+    private static func isPublicAttribute(_ attribute: NSLayoutConstraint.Attribute) -> Bool {
+        switch attribute {
+        case .left, .right, .top, .bottom, .leading, .trailing, .width, .height, .centerX, .centerY, .lastBaseline, .firstBaseline:
+            return true
+        default:
+            return false
+        }
+    }
+
     private init(content: NSView, parent: NSView, window: NSWindow, floating: Bool, label: String,
                  sink: DesktopEnvironmentSink?, preferences: @escaping () -> DesktopDisplayPreferences, allowLiquidGlass: Bool) {
         self.window = window
@@ -189,7 +208,10 @@ final class DesktopMaterialHost: NSObject {
             ? DesktopMainWindowChrome(window: window) : nil
         originalAutoresizing = content.autoresizingMask
         originalTranslatesConstraints = content.translatesAutoresizingMaskIntoConstraints
-        originalConstraints = parent.constraints.filter { ($0.firstItem as? NSView) === content || ($0.secondItem as? NSView) === content }
+        // AppKit regenerates autoresizing constraints with private attributes that the public initializer cannot clone.
+        originalConstraints = parent.constraints.filter {
+            (($0.firstItem as? NSView) === content || ($0.secondItem as? NSView) === content) && Self.canTransfer($0)
+        }
         NSLayoutConstraint.deactivate(originalConstraints)
         let originalFrame = content.frame
         let siblingAbove = parent.subviews.drop(while: { $0 !== content }).dropFirst().first
@@ -246,11 +268,22 @@ final class DesktopMaterialHost: NSObject {
             root.effectiveAppearance.performAsCurrentDrawingAppearance { background = NSColor.windowBackgroundColor.cgColor }
         }
         presentation.layer?.backgroundColor = background
-        guard next != lastPublished else { return }
+        guard sink != nil, next != lastPublished || pendingSnapshot != nil else { return }
+        pendingSnapshot = next
+        guard !publicationScheduled else { return }
+        publicationScheduled = true
+        // A native callback can emit through Wry; wait until with_webview has released its window lock.
+        DispatchQueue.main.async { [weak self] in self?.publishPendingSnapshot() }
+    }
+
+    private func publishPendingSnapshot() {
+        publicationScheduled = false
+        let next = pendingSnapshot
+        pendingSnapshot = nil
+        guard !detached, let next, next != lastPublished, let sink, let json = next.json else { return }
         lastPublished = next
-        if let sink, let json = next.json {
-            label.withCString { label in json.withCString { value in sink(label, value) } }
-        }
+        let label = label
+        label.withCString { label in json.withCString { value in sink(label, value) } }
     }
 
     private func observe() {
@@ -277,6 +310,7 @@ final class DesktopMaterialHost: NSObject {
         observers.removeAll()
         (root as? DesktopMaterialRoot)?.environmentChanged = nil
         sink = nil
+        pendingSnapshot = nil
         NSLayoutConstraint.deactivate(replacementConstraints)
         let content = presentation.content
         content.removeFromSuperview()

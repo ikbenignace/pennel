@@ -97,7 +97,7 @@ mod native {
         let label = CString::new(window.label()).map_err(|_| "Invalid native window label")?;
         window
             .with_webview(move |webview| {
-                let _ = unsafe {
+                let snapshot = unsafe {
                     take_snapshot(pennel_mac_desktop_material_attach(
                         webview.inner(),
                         label.as_ptr(),
@@ -105,6 +105,17 @@ mod native {
                         environment_changed,
                     ))
                 };
+                let log = crate::diagnostics::Log::new("window");
+                if let Some(snapshot) = snapshot {
+                    log.info(format!(
+                        "Native material ready: window={} material={:?} titlebar_height={:.1}",
+                        label.to_string_lossy(),
+                        snapshot.material,
+                        snapshot.titlebar_height
+                    ));
+                } else {
+                    log.error("Native material attachment returned no environment snapshot");
+                }
             })
             .map_err(|error| error.to_string())
     }

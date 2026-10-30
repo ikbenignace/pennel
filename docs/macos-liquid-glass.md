@@ -85,3 +85,24 @@ The canonical macOS chrome font token now selects the shared Figtree interface f
 - `node scripts/capture-desktop-reference.mjs --case desktop-chrome-interaction --case desktop-chrome-minimum --case meeting-notes --case settings-main --locale both --appearance both --output build/merge-pr71-figtree`: 16 owned headless captures pass, including the 760×520 window and maximum sidebar width, with no horizontal overflow or runtime errors. Representative light Settings and dark Dutch minimum-size captures were visually reviewed.
 
 These captures establish frontend typography and layout. Rust/native builds and fresh native captures were not rerun for this correction because the local Rust toolchain is unavailable; hosted CI and native/device acceptance remain separate gates.
+
+### Native attachment and callback repair — 30 October 2026
+
+Opening the regular Preview exposed two failures that synthetic captures had missed. After real AppKit layout, autoresizing constraints contain private attributes that cannot be reconstructed through the public `NSLayoutConstraint` initializer. The host now transfers only publicly representable constraints and retains the original frame/autoresizing behavior so AppKit regenerates its internal constraints. Explicit constraints retain their priorities, identifiers and teardown behavior.
+
+The native environment sink also re-entered Wry while `with_webview` still held its window mutex. Publication now uses one asynchronous main-queue handoff, coalesces the latest snapshot, reads the current sink/label at delivery and drops detached-host events. Synchronous environment reads remain available. Attachment diagnostics record only the app-owned window label, material and titlebar geometry.
+
+Both failures were reproduced before their fixes. The native platform suite passes 116 tests, including real laid-out webviews, glass/vibrancy, resizing, explicit constraints, deferred/coalesced delivery and detached-host replacement. Frontend build/222 tests, backend 224 tests/Clippy, 23 visual-fixture tests, 50 packaging tests and theme checks pass.
+
+The actual regular Preview was rebuilt with its existing Apple Development signing identity and existing Preview data/Keychain namespace. On macOS 27.0.1, its running window was captured and visually inspected: native traffic lights, circular toolbar controls, the sidebar and rounded reading sheet render correctly. Runtime metadata reports `LiquidGlass` and a 52-point titlebar. Settings/back navigation, Find, sidebar collapse/restore, native zoom/restore, window close/reopen and three consecutive Finder-style reopen requests remain responsive in the same process; no new layout exception was observed. Actual-user window captures stay in ignored local evidence rather than this public repository.
+
+```sh
+swift test --package-path apps/macos-platform
+npm --prefix apps/desktop run build
+npm --prefix apps/desktop test
+scripts/with-toolchain.sh cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+scripts/with-toolchain.sh cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+scripts/build-desktop-preview.sh
+```
+
+This establishes local running-Preview behavior on the tested Mac. Review/merge, hosted platform checks, older-macOS and broader installed-device/accessibility/release acceptance remain separate.
