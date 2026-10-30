@@ -496,6 +496,35 @@ export interface SyncReport {
   last_success_ms: number | null;
 }
 
+export interface CloudSyncSetup {
+  phase: "signed_out" | "new_library" | "locked" | "ready" | "paused" | "active";
+  sync_enabled: boolean;
+  generation: number | null;
+  can_approve_devices: boolean;
+  uploaded: number;
+  downloaded: number;
+  conflicts: number;
+  last_success_ms: number | null;
+}
+
+export type CloudLinkRole = "new_device" | "trusted_device";
+export type CloudLinkPhase = "idle" | "waiting_peer" | "confirming" | "awaiting_approval" | "waiting_approval" | "provisioning" | "complete" | "cancelled" | "expired" | "failed";
+export interface CloudLinkView {
+  phase: CloudLinkPhase;
+  role: CloudLinkRole | null;
+  request_id: string | null;
+  connection_code: string | null;
+  qr_payload: string | null;
+  qr_svg: string | null;
+  verification_code: string | null;
+  peer_name: string | null;
+  peer_platform: string | null;
+  account_email: string | null;
+  expires_at_ms: number | null;
+  error_code: string | null;
+  error_message: string | null;
+}
+
 export interface SpeakerRecognition {
   voices: number;
   named: number;
@@ -689,6 +718,18 @@ export const api = {
   cloudRevokeDevice: (id: string) => invoke<void>("cloud_revoke_device", { id }),
   cloudDeleteAccount: () => invoke<void>("cloud_delete_account"),
   cloudSyncEnable: () => invoke<string>("cloud_sync_enable"),
+  cloudSyncSetup: () => invoke<CloudSyncSetup>("cloud_sync_setup"),
+  cloudSyncPrepare: () => invoke<string | null>("cloud_sync_prepare"),
+  cloudRecoveryCodeContext: (code: string) => invoke<string>("cloud_recovery_code_context", { code }),
+  cloudRecoveryConfirm: (code: string, context: string) => invoke<void>("cloud_recovery_confirm", { code, context }),
+  cloudSyncActivate: () => invoke<void>("cloud_sync_activate"),
+  cloudSyncResume: () => invoke<void>("cloud_sync_resume"),
+  cloudLinkStart: (role: CloudLinkRole) => invoke<CloudLinkView>("cloud_link_start", { role }),
+  cloudLinkJoin: (code: string, role: CloudLinkRole) => invoke<CloudLinkView>("cloud_link_join", { code, role }),
+  cloudLinkPoll: () => invoke<CloudLinkView>("cloud_link_poll"),
+  cloudLinkView: () => invoke<CloudLinkView>("cloud_link_view"),
+  cloudLinkApprove: () => invoke<CloudLinkView>("cloud_link_approve"),
+  cloudLinkCancel: () => invoke<CloudLinkView>("cloud_link_cancel"),
   cloudSyncUnlock: (code: string) => invoke<void>("cloud_sync_unlock", { code }),
   cloudSyncNewRecoveryCode: () => invoke<string>("cloud_sync_new_recovery_code"),
   cloudSyncReset: () => invoke<string>("cloud_sync_reset"),

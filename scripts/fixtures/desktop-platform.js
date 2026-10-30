@@ -164,14 +164,23 @@
     { id: "qa-dictation-failed", created_at_ms: now - 27 * 60 * 60_000, app_bundle_id: "com.apple.Notes", raw: "", text: "", status: "failed", error: "Geen verbinding met de provider.", has_audio: true },
   ];
   // `cloud` is unset (signed out), "synced" or "conflict"; all accounts, devices and codes are synthetic.
-  const signedIn = Boolean(options.cloud);
+  let signedIn = Boolean(options.cloud);
+  let syncSetupPhase = options.sync_setup || (signedIn ? "active" : "signed_out");
+  if (options.sync_setup) settings.cloud_sync = options.sync_setup === "active";
   const notSignedIn = () => ({ code: "not_signed_in", message: "Je bent niet ingelogd bij Pennel Cloud." });
   const cloudAccount = { email: "noor@example.com", audio_seconds: 5400, tokens: 120000, storage_bytes: 52_428_800, limit_audio_seconds: 36000, limit_tokens: 2_000_000, limit_storage_bytes: 5_368_709_120 };
   const cloudDevices = [
     { id: "qa-device-mac", name: "MacBook van Noor", platform: "macos", last_seen_iso: "2026-10-25T08:55:00Z", current: true },
     { id: "qa-device-windows", name: "Werklaptop", platform: "windows", last_seen_iso: "2026-10-24T16:10:00Z", current: false },
   ];
-  const syncReport = () => ({ status: { kind: signedIn ? "synced" : "signed_out" }, brake: false, uploaded: 0, downloaded: 0, conflicts: options.cloud === "conflict" ? 1 : 0, last_success_ms: signedIn ? now - 4 * 60_000 : null });
+  const syncReport = () => ({ status: options.sync_error ? { kind: "error", message: "Synthetic sync connection failed." } : { kind: !signedIn ? "signed_out" : !settings.cloud_sync ? "off" : options.sync_status || "synced" }, brake: false, uploaded: settings.cloud_sync ? 3 : 0, downloaded: settings.cloud_sync ? 2 : 0, conflicts: options.cloud === "conflict" ? 1 : 0, last_success_ms: signedIn && ["active", "paused"].includes(syncSetupPhase) ? now - 4 * 60_000 : null });
+  const syncSetup = () => ({ phase: syncSetupPhase, sync_enabled: settings.cloud_sync, generation: signedIn && syncSetupPhase !== "new_library" ? 1 : null, can_approve_devices: ["active", "paused", "ready"].includes(syncSetupPhase), uploaded: syncReport().uploaded, downloaded: syncReport().downloaded, conflicts: syncReport().conflicts, last_success_ms: syncReport().last_success_ms });
+  const emptyLink = () => ({ phase: "idle", role: null, request_id: null, connection_code: null, qr_payload: null, qr_svg: null, verification_code: null, peer_name: null, peer_platform: null, account_email: null, expires_at_ms: null, error_code: null, error_message: null });
+  const fixtureLink = (phase, role = options.link_role || (syncSetup().can_approve_devices ? "trusted_device" : "new_device")) => ({ ...emptyLink(), phase, role, request_id: "qa-connection-request", connection_code: phase === "waiting_peer" ? "QAFIXTURE-12345678" : null, verification_code: ["awaiting_approval", "waiting_approval", "provisioning"].includes(phase) ? "481 926" : null, peer_name: "Noor’s iPhone", peer_platform: "ios", account_email: "noor@example.com", expires_at_ms: now + 600000, error_code: phase === "failed" ? "connection_failed" : null, error_message: phase === "failed" ? "Synthetic connection rejected." : null });
+  let deviceLink = options.link_phase ? fixtureLink(options.link_phase) : emptyLink();
+  let linkPolls = 0;
+  let recoveryCode = "QAFI-XTUR-E000-0000-0000-0000";
+  const completeLink = () => { signedIn = true; settings.cloud_sync = true; syncSetupPhase = "active"; deviceLink = fixtureLink("complete", deviceLink.role); emit("settings-changed", null); emit("sync-changed", syncReport()); return clone(deviceLink); };
   const fixture = {
     ...options, now: new ActualDate(now).toISOString(), meeting_id: meetingId,
     onboarding: { step: options.step, engine: options.engine || "local", download_error: options.download_error || null, practice_error: options.practice_error || null },
@@ -387,6 +396,33 @@
       case "cloud_account": if (!signedIn) throw notSignedIn(); return clone(cloudAccount);
       case "cloud_devices": if (!signedIn) throw notSignedIn(); return clone(cloudDevices);
       case "claude_access": case "set_claude_access": return { enabled: Boolean(options.claude), status: options.claude ? { kind: "connected", last_request_ms: now - 2 * 60_000 } : { kind: "off" }, mcp_url: "https://api.pennel.app/mcp" };
+      case "cloud_sync_setup": return syncSetup();
+      case "cloud_sync_prepare":
+        if (!signedIn) throw notSignedIn();
+        if (syncSetupPhase === "locked") throw { code: "vault_locked", message: "Enter your recovery code." };
+        settings.cloud_sync = false; syncSetupPhase = "ready"; recoveryCode = "QAFI-XTUR-E000-0000-0000-0000";
+        if (options.recovery_delay_ms) await new Promise(resolve => setTimeout(resolve, options.recovery_delay_ms));
+        return recoveryCode;
+      case "cloud_sync_activate": case "cloud_sync_resume":
+        if (!signedIn || syncSetupPhase === "locked") throw { code: "vault_locked", message: "Enter your recovery code." };
+        settings.cloud_sync = true; syncSetupPhase = "active"; emit("sync-changed", syncReport()); return null;
+      case "cloud_sync_unlock": signedIn = true; settings.cloud_sync = true; syncSetupPhase = "active"; emit("sync-changed", syncReport()); return null;
+      case "cloud_recovery_code_context":
+        if (!signedIn || args.code !== recoveryCode) throw { code: "recovery_code", message: "This recovery code changed." };
+        return `qa-recovery-context:${cloudAccount.email}:${recoveryCode}`;
+      case "cloud_recovery_confirm":
+        if (!signedIn || args.code !== recoveryCode || args.context !== `qa-recovery-context:${cloudAccount.email}:${recoveryCode}`) throw { code: "recovery_changed", message: "This recovery code changed. Save the current code." };
+        settings.cloud_sync = true; syncSetupPhase = "active"; emit("sync-changed", syncReport()); return null;
+      case "cloud_sync_new_recovery_code": recoveryCode = "QAFI-XTUR-E111-1111-1111-1111"; return recoveryCode;
+      case "cloud_sync_reset": signedIn = true; settings.cloud_sync = true; syncSetupPhase = "active"; recoveryCode = "QAFI-XTUR-E222-2222-2222-2222"; return recoveryCode;
+      case "cloud_link_view": return clone(deviceLink);
+      case "cloud_link_start": linkPolls = 0; deviceLink = fixtureLink("waiting_peer", args.role); return clone(deviceLink);
+      case "cloud_link_join": linkPolls = 0; deviceLink = fixtureLink(args.role === "trusted_device" ? "awaiting_approval" : "waiting_approval", args.role); return clone(deviceLink);
+      case "cloud_link_poll":
+        if (options.link_auto_complete && ++linkPolls > 0) return completeLink();
+        return clone(deviceLink);
+      case "cloud_link_approve": return completeLink();
+      case "cloud_link_cancel": deviceLink = emptyLink(); return clone(deviceLink);
       case "cloud_sync_last": return syncReport();
       case "cloud_folder_warning": return null;
       case "meeting_sync_states": return signedIn && !options.empty ? [{ id: meetingId, state: options.cloud === "conflict" ? "conflict" : "synced" }] : [];
@@ -394,7 +430,9 @@
       case "cloud_login_start": return { user_code: "QAFX-2026", verification_uri: "https://example.com/qa-login", device_code: "qa-device-code", interval_secs: 5 };
       case "cloud_login_poll": return { kind: "pending" };
       case "cloud_sync_now": return syncReport();
-      case "cloud_logout": case "cloud_rename_device": case "cloud_revoke_device": case "cloud_sync_disable": case "cloud_sync_confirm_deletes":
+      case "cloud_logout": signedIn = false; settings.cloud_sync = false; syncSetupPhase = "signed_out"; deviceLink = emptyLink(); emit("sync-changed", syncReport()); emit("settings-changed", null); return null;
+      case "cloud_sync_disable": settings.cloud_sync = false; syncSetupPhase = "paused"; emit("sync-changed", syncReport()); return null;
+      case "cloud_rename_device": case "cloud_revoke_device": case "cloud_sync_confirm_deletes":
       case "delete_conflict_copy": case "open_url": case "copy_secret_text": return null;
       case "show_window": case "show_workspace": case "copy_text": case "play_meeting_audio": case "stop_audio":
       case "answer_record_prompt": case "toggle_dictation": case "install_update": case "share_meeting": case "open_log": case "open_path":
