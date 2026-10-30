@@ -1,0 +1,7 @@
+{
+  "calibration_sha256": "5ad6511b99b590879c41cc464c49f21deb0a8f0007a2baa6a2439726daba9ac5",
+  "predictions_sha256": "0061c173bb63178fc106c302958337ba47670077a8b9fabf1a17e143c7887e7d",
+  "run_manifest_hash": "7a1946ebca426489b3aa2b051eef5bda763f6eedde7358518709872eb1cab25c",
+  "split": "heldout",
+  "status": "complete"
+}

@@ -1,0 +1,576 @@
+{
+  "calibration": {
+    "completed_paid_requests_repeated": false,
+    "continuations": [
+      {
+        "availability": [
+          {
+            "catalog": {
+              "architecture": {
+                "input_modalities": [
+                  "text",
+                  "image"
+                ],
+                "instruct_type": null,
+                "modality": "text+image->decisions",
+                "output_modalities": [
+                  "decisions"
+                ],
+                "tokenizer": "Other"
+              },
+              "canonical_slug": "inception/mercury-decide-20260930",
+              "context_length": 65536,
+              "created": 1790789334,
+              "default_parameters": {},
+              "description": "Mercury Decide is Inception's structured decision model, served as a System One endpoint. Send a state along with typed questions, and it returns a choice, a score, or a yes/no...",
+              "expiration_date": null,
+              "hugging_face_id": null,
+              "id": "inception/mercury-decide",
+              "knowledge_cutoff": null,
+              "links": {
+                "details": "/api/v1/models/inception/mercury-decide-20260930/endpoints"
+              },
+              "name": "Inception: Mercury Decide",
+              "per_request_limits": null,
+              "pricing": {
+                "completion": "0",
+                "input_cache_read": "0",
+                "prompt": "0.00000002"
+              },
+              "supported_parameters": [],
+              "supported_voices": null,
+              "top_provider": {
+                "context_length": 65536,
+                "is_moderated": false,
+                "max_completion_tokens": 58982
+              }
+            },
+            "endpoints": [
+              {
+                "context_length": 65536,
+                "latency_last_30m": {
+                  "p50": 278,
+                  "p75": 349,
+                  "p90": 466,
+                  "p99": 1027.1800000000003
+                },
+                "max_completion_tokens": 58982,
+                "max_prompt_tokens": null,
+                "model_id": "inception/mercury-decide",
+                "model_name": "Inception: Mercury Decide",
+                "name": "Inception | inception/mercury-decide-20260930",
+                "native_tools": {},
+                "perf_last_30m_by_workload": {
+                  "decisions": {
+                    "latency": {
+                      "p50": 278,
+                      "p75": 349,
+                      "p90": 466,
+                      "p99": 1027.1800000000003
+                    },
+                    "request_count": 205986,
+                    "throughput": null
+                  }
+                },
+                "pricing": {
+                  "completion": "0",
+                  "discount": 0.5,
+                  "input_cache_read": "0",
+                  "prompt": "0.00000002"
+                },
+                "provider_name": "Inception",
+                "quantization": "unknown",
+                "service_tier": null,
+                "status": 0,
+                "supported_parameters": [],
+                "supports_diarization": false,
+                "supports_image_reference": false,
+                "supports_implicit_caching": true,
+                "supports_multiple_audio_references": false,
+                "supports_tool_choice": {
+                  "auto": true,
+                  "function": true,
+                  "none": true,
+                  "required": true
+                },
+                "supports_voice_cloning": false,
+                "tag": "inception",
+                "throughput_last_30m": {
+                  "p50": 0,
+                  "p75": 0,
+                  "p90": 0,
+                  "p99": 0
+                },
+                "uptime_last_1d": 100,
+                "uptime_last_30m": 100,
+                "uptime_last_5m": 100
+              }
+            ],
+            "id": "openrouter-mercury",
+            "limitations": [],
+            "model": "inception/mercury-decide",
+            "pricing": {
+              "completion": "0",
+              "discount": 0.5,
+              "input_cache_read": "0",
+              "prompt": "0.00000002"
+            },
+            "pricing_source": "pinned_endpoint",
+            "status": "ok",
+            "transport": "openrouter"
+          }
+        ],
+        "case_count": 1668,
+        "runner_id": "openrouter-mercury"
+      },
+      {
+        "availability": [
+          {
+            "catalog": {
+              "architecture": {
+                "input_modalities": [
+                  "text",
+                  "image"
+                ],
+                "instruct_type": null,
+                "modality": "text+image->decisions",
+                "output_modalities": [
+                  "decisions"
+                ],
+                "tokenizer": "Qwen"
+              },
+              "canonical_slug": "cloudflare/clef-flash",
+              "context_length": 24576,
+              "created": 1790870973,
+              "default_parameters": {},
+              "description": "Clef-flash is the fast 9B member of Cloudflare's open-source Clef decision model family, a fine-tune of Qwen3.5-9B served on Workers AI. It turns a state (text or structured JSON) plus...",
+              "expiration_date": null,
+              "hugging_face_id": "Cloudflare/clef-flash",
+              "id": "cloudflare/clef-flash",
+              "knowledge_cutoff": null,
+              "links": {
+                "details": "/api/v1/models/cloudflare/clef-flash/endpoints"
+              },
+              "name": "Cloudflare: Clef Flash",
+              "per_request_limits": null,
+              "pricing": {
+                "completion": "0",
+                "prompt": "0.000000038"
+              },
+              "supported_parameters": [],
+              "supported_voices": null,
+              "top_provider": {
+                "context_length": 24576,
+                "is_moderated": false,
+                "max_completion_tokens": 22118
+              }
+            },
+            "endpoints": [
+              {
+                "context_length": 24576,
+                "latency_last_30m": {
+                  "p50": 279,
+                  "p75": 491.25,
+                  "p90": 618.7,
+                  "p99": 1288.7199999999993
+                },
+                "max_completion_tokens": 22118,
+                "max_prompt_tokens": null,
+                "model_id": "cloudflare/clef-flash",
+                "model_name": "Cloudflare: Clef Flash",
+                "name": "DeepInfra | cloudflare/clef-flash",
+                "native_tools": {},
+                "perf_last_30m_by_workload": {
+                  "decisions": {
+                    "latency": {
+                      "p50": 279,
+                      "p75": 491.25,
+                      "p90": 618.7,
+                      "p99": 1288.7199999999993
+                    },
+                    "request_count": 1824,
+                    "throughput": null
+                  }
+                },
+                "pricing": {
+                  "completion": "0",
+                  "discount": 0.5,
+                  "prompt": "0.000000019"
+                },
+                "provider_name": "DeepInfra",
+                "quantization": "fp8",
+                "service_tier": null,
+                "status": 0,
+                "supported_parameters": [],
+                "supports_diarization": false,
+                "supports_image_reference": false,
+                "supports_implicit_caching": false,
+                "supports_multiple_audio_references": false,
+                "supports_tool_choice": {
+                  "auto": true,
+                  "function": true,
+                  "none": true,
+                  "required": true
+                },
+                "supports_voice_cloning": false,
+                "tag": "deepinfra/fp8",
+                "throughput_last_30m": {
+                  "p50": 0,
+                  "p75": 0,
+                  "p90": 0,
+                  "p99": 0
+                },
+                "uptime_last_1d": 100,
+                "uptime_last_30m": 100,
+                "uptime_last_5m": 100
+              },
+              {
+                "context_length": 16384,
+                "latency_last_30m": {
+                  "p50": 561,
+                  "p75": 809,
+                  "p90": 1153.4000000000012,
+                  "p99": 7262.519999999977
+                },
+                "max_completion_tokens": 14745,
+                "max_prompt_tokens": null,
+                "model_id": "cloudflare/clef-flash",
+                "model_name": "Cloudflare: Clef Flash",
+                "name": "Makora | cloudflare/clef-flash",
+                "native_tools": {},
+                "perf_last_30m_by_workload": {
+                  "decisions": {
+                    "latency": {
+                      "p50": 561,
+                      "p75": 809,
+                      "p90": 1153.4000000000012,
+                      "p99": 7262.519999999977
+                    },
+                    "request_count": 1245,
+                    "throughput": null
+                  }
+                },
+                "pricing": {
+                  "completion": "0",
+                  "discount": 0,
+                  "prompt": "0.00000002"
+                },
+                "provider_name": "Makora",
+                "quantization": "bf16",
+                "service_tier": null,
+                "status": 0,
+                "supported_parameters": [],
+                "supports_diarization": false,
+                "supports_image_reference": false,
+                "supports_implicit_caching": false,
+                "supports_multiple_audio_references": false,
+                "supports_tool_choice": {
+                  "auto": true,
+                  "function": true,
+                  "none": true,
+                  "required": true
+                },
+                "supports_voice_cloning": false,
+                "tag": "makora/bf16",
+                "throughput_last_30m": {
+                  "p50": 0,
+                  "p75": 0,
+                  "p90": 0,
+                  "p99": 0
+                },
+                "uptime_last_1d": 99.92205767731879,
+                "uptime_last_30m": 100,
+                "uptime_last_5m": 100
+              },
+              {
+                "context_length": 24576,
+                "latency_last_30m": {
+                  "p50": 285,
+                  "p75": 371,
+                  "p90": 1159.6000000000022,
+                  "p99": 3657.3500000000013
+                },
+                "max_completion_tokens": 22118,
+                "max_prompt_tokens": null,
+                "model_id": "cloudflare/clef-flash",
+                "model_name": "Cloudflare: Clef Flash",
+                "name": "PrimeIntellect | cloudflare/clef-flash",
+                "native_tools": {},
+                "perf_last_30m_by_workload": {
+                  "decisions": {
+                    "latency": {
+                      "p50": 285,
+                      "p75": 371,
+                      "p90": 1159.6000000000022,
+                      "p99": 3657.3500000000013
+                    },
+                    "request_count": 1680,
+                    "throughput": null
+                  }
+                },
+                "pricing": {
+                  "completion": "0",
+                  "discount": 0,
+                  "prompt": "0.000000021"
+                },
+                "provider_name": "PrimeIntellect",
+                "quantization": "unknown",
+                "service_tier": null,
+                "status": 0,
+                "supported_parameters": [],
+                "supports_diarization": false,
+                "supports_image_reference": false,
+                "supports_implicit_caching": false,
+                "supports_multiple_audio_references": false,
+                "supports_tool_choice": {
+                  "auto": true,
+                  "function": true,
+                  "none": true,
+                  "required": true
+                },
+                "supports_voice_cloning": false,
+                "tag": "primeintellect",
+                "throughput_last_30m": {
+                  "p50": 0,
+                  "p75": 0,
+                  "p90": 0,
+                  "p99": 0
+                },
+                "uptime_last_1d": 100,
+                "uptime_last_30m": 100,
+                "uptime_last_5m": 100
+              },
+              {
+                "context_length": 24576,
+                "latency_last_30m": {
+                  "p50": 422,
+                  "p75": 631,
+                  "p90": 1073.9000000000005,
+                  "p99": 3503.340000000004
+                },
+                "max_completion_tokens": 22118,
+                "max_prompt_tokens": null,
+                "model_id": "cloudflare/clef-flash",
+                "model_name": "Cloudflare: Clef Flash",
+                "name": "Cloudflare | cloudflare/clef-flash",
+                "native_tools": {},
+                "perf_last_30m_by_workload": {
+                  "decisions": {
+                    "latency": {
+                      "p50": 422,
+                      "p75": 631,
+                      "p90": 1073.9000000000005,
+                      "p99": 3503.340000000004
+                    },
+                    "request_count": 26603,
+                    "throughput": null
+                  }
+                },
+                "pricing": {
+                  "completion": "0",
+                  "discount": 0,
+                  "prompt": "0.000000038"
+                },
+                "provider_name": "Cloudflare",
+                "quantization": "unknown",
+                "service_tier": null,
+                "status": 0,
+                "supported_parameters": [],
+                "supports_diarization": false,
+                "supports_image_reference": false,
+                "supports_implicit_caching": false,
+                "supports_multiple_audio_references": false,
+                "supports_tool_choice": {
+                  "auto": true,
+                  "function": true,
+                  "none": true,
+                  "required": true
+                },
+                "supports_voice_cloning": false,
+                "tag": "cloudflare",
+                "throughput_last_30m": {
+                  "p50": 0,
+                  "p75": 0,
+                  "p90": 0,
+                  "p99": 0
+                },
+                "uptime_last_1d": 100,
+                "uptime_last_30m": 100,
+                "uptime_last_5m": 100
+              }
+            ],
+            "id": "openrouter-clef-flash",
+            "limitations": [],
+            "model": "cloudflare/clef-flash",
+            "pricing": {
+              "completion": "0",
+              "discount": 0,
+              "prompt": "0.000000038"
+            },
+            "pricing_source": "pinned_endpoint",
+            "status": "ok",
+            "transport": "openrouter"
+          }
+        ],
+        "case_count": 291,
+        "runner_id": "openrouter-clef-flash"
+      }
+    ],
+    "failed_request_retried": false,
+    "frozen_manifest": "20f0a59b3caef84e33e12cf2a6fead8617ed80ca44e20f7e685d897a6b16a4ad",
+    "observed_at": "2026-10-28T17:00:01.920365+00:00",
+    "selector": "Only unresolved_charge placeholders with no request attempts; all paid/error/completed cases preserved.",
+    "source_commit": "d3c18bcd67e15617552d0e4f783139514940a4b8"
+  },
+  "heldout": {
+    "completed_paid_requests_repeated": false,
+    "continuations": [
+      {
+        "availability": [
+          {
+            "catalog": {
+              "architecture": {
+                "input_modalities": [
+                  "text",
+                  "image"
+                ],
+                "instruct_type": null,
+                "modality": "text+image->decisions",
+                "output_modalities": [
+                  "decisions"
+                ],
+                "tokenizer": "Other"
+              },
+              "canonical_slug": "inception/mercury-decide-20260930",
+              "context_length": 65536,
+              "created": 1790789334,
+              "default_parameters": {},
+              "description": "Mercury Decide is Inception's structured decision model, served as a System One endpoint. Send a state along with typed questions, and it returns a choice, a score, or a yes/no...",
+              "expiration_date": null,
+              "hugging_face_id": null,
+              "id": "inception/mercury-decide",
+              "knowledge_cutoff": null,
+              "links": {
+                "details": "/api/v1/models/inception/mercury-decide-20260930/endpoints"
+              },
+              "name": "Inception: Mercury Decide",
+              "per_request_limits": null,
+              "pricing": {
+                "completion": "0",
+                "input_cache_read": "0",
+                "prompt": "0.00000002"
+              },
+              "supported_parameters": [],
+              "supported_voices": null,
+              "top_provider": {
+                "context_length": 65536,
+                "is_moderated": false,
+                "max_completion_tokens": 58982
+              }
+            },
+            "endpoints": [
+              {
+                "context_length": 65536,
+                "latency_last_30m": {
+                  "p50": 264,
+                  "p75": 309,
+                  "p90": 417.8000000000011,
+                  "p99": 1076.3500000000022
+                },
+                "max_completion_tokens": 58982,
+                "max_prompt_tokens": null,
+                "model_id": "inception/mercury-decide",
+                "model_name": "Inception: Mercury Decide",
+                "name": "Inception | inception/mercury-decide-20260930",
+                "native_tools": {},
+                "perf_last_30m_by_workload": {
+                  "decisions": {
+                    "latency": {
+                      "p50": 264,
+                      "p75": 309,
+                      "p90": 417.8000000000011,
+                      "p99": 1076.3500000000022
+                    },
+                    "request_count": 169640,
+                    "throughput": null
+                  }
+                },
+                "pricing": {
+                  "completion": "0",
+                  "discount": 0.5,
+                  "input_cache_read": "0",
+                  "prompt": "0.00000002"
+                },
+                "provider_name": "Inception",
+                "quantization": "unknown",
+                "service_tier": null,
+                "status": 0,
+                "supported_parameters": [],
+                "supports_diarization": false,
+                "supports_image_reference": false,
+                "supports_implicit_caching": true,
+                "supports_multiple_audio_references": false,
+                "supports_tool_choice": {
+                  "auto": true,
+                  "function": true,
+                  "none": true,
+                  "required": true
+                },
+                "supports_voice_cloning": false,
+                "tag": "inception",
+                "throughput_last_30m": {
+                  "p50": 0,
+                  "p75": 0,
+                  "p90": 0,
+                  "p99": 0
+                },
+                "uptime_last_1d": 100,
+                "uptime_last_30m": 100,
+                "uptime_last_5m": 100
+              }
+            ],
+            "id": "openrouter-mercury",
+            "limitations": [],
+            "model": "inception/mercury-decide",
+            "pricing": {
+              "completion": "0",
+              "discount": 0.5,
+              "input_cache_read": "0",
+              "prompt": "0.00000002"
+            },
+            "pricing_source": "pinned_endpoint",
+            "status": "ok",
+            "transport": "openrouter"
+          }
+        ],
+        "case_count": 71,
+        "runner_id": "openrouter-mercury"
+      }
+    ],
+    "failed_request_retried": false,
+    "frozen_manifest": "20f0a59b3caef84e33e12cf2a6fead8617ed80ca44e20f7e685d897a6b16a4ad",
+    "observed_at": "2026-10-28T17:45:17.163504+00:00",
+    "selector": "Only unresolved_charge placeholders with no request attempts; all paid/error/completed cases preserved.",
+    "source_commit": "d3c18bcd67e15617552d0e4f783139514940a4b8"
+  },
+  "latency": {
+    "completed_provider_timings_repeated": false,
+    "flash_failed_sample_replaced": false,
+    "flash_unsent_samples": 19,
+    "frozen_full_panel_hash": "aa145c186b85662c0fad3e7f0f0bce451e6c060f3644966be3787a7c2ab71f96",
+    "initial_timing_records": 1979,
+    "mercury_remaining_unmeasured_reason": "Second gateway error during its timing workload; no further inference planned.",
+    "remaining_provider_ids": [
+      "openrouter-clef-flash",
+      "openrouter-mercury"
+    ],
+    "remaining_provider_panel_hash": "87bee4f355b8771cf71b3fab4fe64159ebaf88de419d6130bd48873f5ea68d2d"
+  },
+  "script_sha256": {
+    "complete-flash-timing.py": "7e2423e32e1fa18ae63807a8af92ffc35054434f8f18a865f041e308482a2691",
+    "continue-calibration.py": "4249e28ae15fcb9fed7bf2cae7f4d85beb7bd634e97b1c20d11a61c2b1fa20d8",
+    "continue-heldout.py": "f108aa5f3d90dd368ba670d5407eed4573646fe0b32469fb25adae9dc0335385",
+    "measure-latency.py": "9ed58309642c7ac5477dc46fceb055ca05af0d00dec8a5f9648cf1eb698c4edd",
+    "measure-remaining-latency.py": "380371e18632696747cb7c7fb50b0a6113c63d269ddd570c86cb1b6e806cb820"
+  }
+}

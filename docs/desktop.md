@@ -145,6 +145,40 @@ Model downloads have one owner per model. Onboarding and Settings can attach to 
 
 Meeting answers can open the exact transcript, summary or personal-note passage and return to the original conversation position. Changed or ambiguous passages are reported instead of selecting unrelated text. Dialogs, detail tabs and context menus retain names, keyboard operation and focus restoration. These shared-renderer behaviors do not establish screen-reader or platform-device acceptance; use the [pilot checklist](improvement-pilot.md).
 
+### Optional decision and passage-ranking connections
+
+Advanced Models settings expose **Decision processing** and **Passage ranking**. Both
+start disabled, including on existing profiles. They reuse explicitly selected OpenRouter
+or Custom server accounts and their OS-stored keys. Custom accounts can have an optional
+key; a keyless local service remains supported. Removing an account disables its optional
+connections without selecting a replacement.
+
+Decision processing supports OpenRouter Decisions/System One, direct TypeSafe,
+Perplexity/Mercury and the official loopback Decider endpoint. Passage ranking uses TEI.
+The API format determines the request path; the existing account URL remains authoritative.
+Remote connections require HTTPS; HTTP is accepted only for a literal loopback address or
+localhost. On iPhone, loopback refers to the phone itself, not a Mac on the same network.
+
+Save the model and, for OpenRouter, an exact upstream route. Advanced fields can pin an
+expected returned model, set a conservative serialized-input byte budget and bound the
+timeout. These byte limits are not a tokenizer estimate. Oversized inputs fail before
+transmission instead of being truncated. OpenRouter requests deny data collection, require
+provider ZDR and disable fallbacks; these settings do not establish regional residency or
+account logging policies.
+
+**Test with sample** explicitly sends synthetic text only. Its result records the returned
+model/provider and confirms that the connection processed that sample; it does not
+establish accuracy or approve a model for automatic processing. Edits, account changes and
+cancellation invalidate late verification results. Ordinary dictation, summaries and
+meeting answers retain their existing providers and behavior.
+
+The typed Rust/native interface preserves raw distributions and confidence metadata,
+unknown usage/cost and model/provider identity. Confidence is not calibrated correctness.
+TEI scores remain relevance scores. Extraction uses validated Unicode-scalar offsets with
+an exclusive end. An offered choice ID exactly equal to `abstain` denotes explicit
+abstention; `unknown` remains an ordinary domain label. No new model runtime, download,
+automatic feature or hosted Pennel Cloud decision service is included.
+
 ### Pennel Cloud
 
 The shared app has an **Account** tab (last in Settings) with login, usage, meeting sync, the recovery code, devices and account deletion, plus a **Pennel Cloud** provider card. The native Mac reference app shows only a disabled **Account** tab and a disabled Pennel Cloud provider card, both reading "Beschikbaar in de nieuwe Pennel-app"; this is a recorded parity gap, not a hidden feature.

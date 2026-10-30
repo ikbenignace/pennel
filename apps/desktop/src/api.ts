@@ -145,6 +145,62 @@ export interface ModelChoice {
   model: string;
 }
 
+export type InferenceCapability = "decision" | "reranking";
+export type InferenceProtocol = "open_router_decisions" | "open_router_system_one" | "type_safe" | "perplexity" | "mercury" | "local_decider" | "tei";
+export interface InferenceConfig {
+  provider_id: string;
+  protocol: InferenceProtocol;
+  model: string;
+  expected_model: string | null;
+  upstream: string | null;
+  max_input_bytes: number;
+  timeout_secs: number;
+}
+export interface InferenceProtocolInfo {
+  protocol: InferenceProtocol;
+  name: string;
+  default_base_url: string;
+  decision: boolean;
+  reranking: boolean;
+  extraction: boolean;
+  requires_key: boolean;
+}
+export interface InferenceAvailability {
+  capability: InferenceCapability;
+  configured: boolean;
+  available: boolean;
+  reason: string;
+  provider_id: string | null;
+  model: string | null;
+  protocol: InferenceProtocol | null;
+  endpoint: string | null;
+}
+export interface InferenceIdentity {
+  protocol: InferenceProtocol;
+  endpoint: string;
+  requested_model: string;
+  requested_upstream: string | null;
+  actual_model: string | null;
+  actual_provider: string | null;
+  actual_revision: string | null;
+  request_id: string | null;
+}
+export interface InferenceUsage { input_tokens: number | null; output_tokens: number | null; billed_cost_usd: number | null }
+export type DecisionQuestionKind = "binary" | "choice" | "ordinal" | "extract";
+export interface DecisionQuestion { id: string; kind: DecisionQuestionKind; instructions: string; options: { id: string; description: string }[] }
+export interface DecisionRequest { state: string; questions: DecisionQuestion[] }
+export interface DecisionProbability { option_id: string; probability: number }
+export interface DecisionAnswer {
+  id: string; kind: DecisionQuestionKind; choice: string | null; value: number | null;
+  probabilities: DecisionProbability[]; confidence: number | null;
+  spans: { field_id: string; text: string; start_char: number; end_char: number; confidence: number | null }[];
+  not_stated: DecisionProbability[]; abstained: boolean;
+}
+export interface DecisionResult { answers: DecisionAnswer[]; identity: InferenceIdentity; usage: InferenceUsage }
+export interface RerankRequest { query: string; passages: { id: string; text: string }[] }
+export interface RerankResult { scores: { passage_id: string; score: number }[]; identity: InferenceIdentity; usage: InferenceUsage }
+export interface InferenceVerification { verified: boolean; message: string; identity: InferenceIdentity | null }
+
 export interface ClaudeAccessView {
   enabled: boolean;
   status: ClaudeStatus;
@@ -160,6 +216,8 @@ export interface Settings {
   dictation_stt: ModelChoice;
   meeting_stt: ModelChoice;
   llm: ModelChoice;
+  decision?: InferenceConfig | null;
+  reranking?: InferenceConfig | null;
   mode: "fast" | "clean";
   language: string | null;
   dictionary: string[];
@@ -565,6 +623,12 @@ export const api = {
   copyHistory: (id: string) => invoke<void>("copy_history", { id }),
   testProviderTask: (slot: "dictation_stt" | "meeting_stt" | "llm") =>
     invoke<{ verified: boolean; message: string }>("test_provider_task", { slot }),
+  inferenceProtocols: () => invoke<InferenceProtocolInfo[]>("inference_protocols"),
+  inferenceAvailability: (capability: InferenceCapability) => invoke<InferenceAvailability>("inference_availability", { capability }),
+  decide: (request: DecisionRequest, requestId: string) => invoke<DecisionResult>("inference_decide", { request, requestId }),
+  rerank: (request: RerankRequest, requestId: string) => invoke<RerankResult>("inference_rerank", { request, requestId }),
+  verifyInference: (capability: InferenceCapability, requestId: string) => invoke<InferenceVerification>("verify_inference", { capability, requestId }),
+  cancelInference: (requestId: string) => invoke<boolean>("cancel_inference", { requestId }),
   deleteHistory: (id: string) => invoke<void>("delete_history", { id }),
   openLog: () => invoke<void>("open_log"),
   openPath: (path: string) => invoke<void>("open_path", { path }),

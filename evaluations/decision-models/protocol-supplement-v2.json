@@ -1,0 +1,55 @@
+{
+  "version": "decision-suggestions-v2",
+  "status": "preregistered_before_supplement_heldout_inference",
+  "issue": "https://github.com/pennel-app/pennel/issues/53",
+  "original_protocol": "protocol.json",
+  "original_results_policy": "Keep prior corpus, protocol, predictions, calibration, locks and results unchanged. Report this independent supplement separately; never select a favorable corpus or label order after held-out inference.",
+  "purpose": "Repair the declared template coverage ceiling and single-class owner/name calibration contexts without relaxing acceptance thresholds.",
+  "languages": ["en", "nl", "mixed"],
+  "corpus": {
+    "meeting_groups": 36,
+    "meeting_documents": 108,
+    "groups_per_split": 12,
+    "split_unit": "meeting_group",
+    "translation_policy": "The three language variants share a group and split. Reordered-label variants stay with the originating meeting.",
+    "content_isolation": "Each split has its own topic, follow-up action objects, quantity ranges, deadlines and authored statement families. Topic context is present in inference state, not only metadata. No verbatim state or target-evidence text is reused across splits. Question instructions and candidate descriptions intentionally remain stable for calibration.",
+    "source": "Authored synthetic short meeting fragments only; no private recordings or model outputs.",
+    "scope": ["templates", "speaker_names", "events.owner"],
+    "decision_cases_per_language_task_split_order": 12,
+    "orders": ["authored", "reversed"],
+    "state_json_utf8_bytes_max": 2000,
+    "expected_template_positive_fraction": "2/3",
+    "expected_name_positive_fraction": "3/4",
+    "owner_targets": ["speaker_1", "speaker_2", "unknown"],
+    "fixed_name_candidates": ["Mira", "Noël", "Robin", "unknown"],
+    "name_scope": "Names are restricted to a fixed candidate list and established by direct self-introduction. This does not test open-vocabulary extraction or acoustic speaker recognition."
+  },
+  "calibration": {
+    "fit_split": "calibration",
+    "test_split": "heldout",
+    "minimum_observations": 10,
+    "minimum_observed_classes": 2,
+    "minimum_meeting_groups": 2,
+    "context_policy": "Use existing full identity/route/privacy, precision, prompt, ordered-label, question-grouping and language context rules. Preserve each order separately. No held-out threshold tuning."
+  },
+  "acceptance": {
+    "scope": "Apply original protocol thresholds independently per language; report raw and frozen-calibrated results and every error/abstention.",
+    "templates": {"macro_f1_min": 0.9, "selective_accuracy_min": 0.95, "coverage_min": 0.5},
+    "speaker_names": {"precision_min": 0.98, "coverage_min": 0.5, "forced_ambiguous_names_max": 0},
+    "events_owner": {"macro_f1_min": 0.9, "accepted_item_precision_min": 0.95, "correct_owner_and_final_status_required": true},
+    "combination": "Supplement owner results and original event-kind results may inform a structured-task recommendation, but independent classifiers do not establish measured end-to-end structured extraction."
+  },
+  "budgets": {
+    "hosted_usd_total_across_all_experiments": "2.00",
+    "automatic_retries": 0,
+    "shared_ledger": true,
+    "model_download_bytes_total": 3221225472,
+    "execution_policy": "Explicit evaluation configuration only; preserve existing spend and reservations. Commit corpus/protocol/prompt/model/route/config hashes before held-out inference."
+  },
+  "limitations": [
+    "This repair follows an observed design feasibility problem and is a new preregistered experiment, not an untouched original holdout.",
+    "Controlled synthetic grammar and fixed candidate names are not natural-meeting or device acceptance; procedural grammar transfer remains limited even with split-specific wording and event facts.",
+    "Calibration samples remain small. Twelve meeting groups per task/order/language support the declared minimum, not a broad statistical guarantee.",
+    "Bounded supplement inputs do not replace prior long-input refusals or prove full-context support."
+  ]
+}

@@ -32,6 +32,8 @@ public final class PennelNativeRuntime {
     private var recognitionWatches: [String: Task<Void, Never>] = [:]
     private var finishBudgetGeneration: UInt64 = 0
     private var settingsTail: Task<Void, Never>?
+    private let inferenceRequests = NativeInferenceRequests()
+    private var inferenceKeyRevisions: [String: UInt64] = [:]
     private var lastPublishedLanguage: String?
     private static let automaticConsent = "pennel.mobile.cloudSpeakerAutomaticConsent"
 
@@ -159,10 +161,29 @@ public final class PennelNativeRuntime {
         case "settings.read": return try BridgeJSON.encode(settingsProjection())
         case "settings.update": return try await settingsOperation { try await self.updateSettings(input) }
         case "settings.keyboard": return try BridgeJSON.encode(keyboardSettings())
+        case "inference.protocols": return try BridgeJSON.encode(inferenceProtocols().map(BridgeJSON.inferenceProtocol))
+        case "inference.availability":
+            let capability = try BridgeJSON.inferenceCapability(input.required("capability"))
+            return try BridgeJSON.encode(BridgeJSON.inferenceAvailability(engine.inferenceAvailability(capability: capability)))
+        case "inference.decide", "inference.rerank":
+            let capability: InferenceCapability = method == "inference.decide" ? .decision : .reranking
+            let id = try input.required("request_id")
+            guard let request = input.values["request"] as? [String: Any] else { throw PennelBridgeError("invalid_request", "Missing inference request.") }
+            let requestJSON = try BridgeJSON.encode(request)
+            return try await performInference(id: id, capability: capability) { engine, cancellation in
+                if capability == .decision { return try engine.decideJson(requestJson: requestJSON, cancellation: cancellation, keys: Keychain.apiKeys()) }
+                return try engine.rerankJson(requestJson: requestJSON, cancellation: cancellation, keys: Keychain.apiKeys())
+            }
+        case "inference.verify":
+            let capability = try BridgeJSON.inferenceCapability(input.required("capability"))
+            return try await performInference(id: input.required("request_id"), capability: capability) { engine, cancellation in
+                try BridgeJSON.encode(BridgeJSON.inferenceVerification(engine.verifyInference(capability: capability, cancellation: cancellation, keys: Keychain.apiKeys())))
+            }
+        case "inference.cancel": return try BridgeJSON.encode(inferenceRequests.cancel(id: input.required("request_id")))
         case "providers.add":
             let kind = try BridgeJSON.kind(input.required("kind"))
             if let reason = ProviderKinds.unavailableReason(kind) { throw PennelBridgeError("unsupported", reason) }
-            return try await settingsOperation {
+            return try await inferenceSettingsOperation {
                 let result = try await self.background { engine in
                     var providers = engine.settings().providers
                     if !ProviderKinds.isSingleton(kind) || !providers.contains(where: { $0.kind == kind }) {
@@ -175,7 +196,7 @@ public final class PennelNativeRuntime {
             }
         case "providers.remove":
             let id = try input.required("provider_id", alternative: "id")
-            return try await settingsOperation {
+            return try await inferenceSettingsOperation {
                 let result = try await self.background { engine in
                     let providers = engine.settings().providers
                     guard providers.contains(where: { $0.id == id }) else { throw PennelBridgeError("not_found", "Provider not found.") }
@@ -190,7 +211,12 @@ public final class PennelNativeRuntime {
             let id = try input.required("provider_id")
             guard model.settings.providers.contains(where: { $0.id == id }) else { throw PennelBridgeError("not_found", "Provider not found.") }
             guard let key = input.values["key"] as? String else { throw PennelBridgeError("invalid_request", "Missing key value.") }
-            guard Keychain.set(key: key.isEmpty ? nil : key, for: id) else { throw PennelBridgeError("credential_store", "The key could not be saved in Keychain.") }
+            let saved = inferenceRequests.changingCredentials {
+                guard Keychain.set(key: key.isEmpty ? nil : key, for: id) else { return false }
+                inferenceKeyRevisions[id, default: 0] += 1
+                return true
+            }
+            guard saved else { throw PennelBridgeError("credential_store", "The key could not be saved in Keychain.") }
             return "null"
         case "providers.test":
             let task = Self.providerTask(input.text("task"))
@@ -377,6 +403,28 @@ public final class PennelNativeRuntime {
         return try await Task.detached(priority: .userInitiated) { try work(engine) }.value
     }
 
+    private func inferenceFingerprint(_ capability: InferenceCapability) throws -> String {
+        let settings = try BridgeJSON.object(model.engine.mobileSettingsJson())
+        let field = capability == .decision ? "decision" : "reranking"
+        let selected = settings[field] as? [String: Any]
+        let id = selected?["provider_id"] as? String ?? ""
+        let account = (settings["providers"] as? [[String: Any]])?.first { $0["id"] as? String == id }
+        return try BridgeJSON.encode(["configuration": selected ?? [:], "provider": account ?? [:], "key_revision": inferenceKeyRevisions[id] ?? 0])
+    }
+
+    private func performInference(id: String, capability: InferenceCapability, work: @escaping @Sendable (PennelEngine, InferenceCancellation) throws -> String) async throws -> String {
+        let ticket = try inferenceRequests.begin(id: id, fingerprint: inferenceFingerprint(capability))
+        do {
+            let cancellation = ticket.cancellation
+            let result = try await background { engine in try work(engine, cancellation) }
+            guard inferenceRequests.finish(ticket, currentFingerprint: try inferenceFingerprint(capability)) else { throw PennelError.Cancelled }
+            return result
+        } catch {
+            _ = inferenceRequests.finish(ticket, currentFingerprint: "")
+            throw error
+        }
+    }
+
     private func settingsOperation(_ work: @escaping @MainActor () async throws -> String) async throws -> String {
         let previous = settingsTail
         let current = Task {
@@ -385,6 +433,10 @@ public final class PennelNativeRuntime {
         }
         settingsTail = Task { _ = try? await current.value }
         return try await current.value
+    }
+
+    private func inferenceSettingsOperation(_ work: @escaping @MainActor () async throws -> String) async throws -> String {
+        try await settingsOperation { try await self.inferenceRequests.changingConfiguration(work) }
     }
 
     private func stopPlayback() {
@@ -744,15 +796,21 @@ extension PennelNativeRuntime {
             guard input.flag("cloud_audio_consent") else { throw PennelBridgeError("consent_required", "Confirm automatic audio uploads before enabling Cloud speaker recognition.") }
         }
         let patch = try BridgeJSON.encode(changed)
-        _ = try await background { try $0.patchMobileSettings(json: patch) }
-        if enabled && mode == "cloud", hadConsent || input.flag("cloud_audio_consent") { UserDefaults.standard.set(true, forKey: Self.automaticConsent) }
-        else { UserDefaults.standard.removeObject(forKey: Self.automaticConsent) }
-        nextLayout?.store(in: keyboard)
-        if let nextSuggestions { KeyboardPreferences.setSuggestionsEnabled(nextSuggestions, in: keyboard) }
-        nextDuration?.store()
-        model.reloadSettings()
-        publishKeyboardPreferences()
-        return try BridgeJSON.encode(settingsProjection())
+        let apply: @MainActor () async throws -> String = {
+            _ = try await self.background { try $0.patchMobileSettings(json: patch) }
+            if enabled && mode == "cloud", hadConsent || input.flag("cloud_audio_consent") { UserDefaults.standard.set(true, forKey: Self.automaticConsent) }
+            else { UserDefaults.standard.removeObject(forKey: Self.automaticConsent) }
+            nextLayout?.store(in: keyboard)
+            if let nextSuggestions { KeyboardPreferences.setSuggestionsEnabled(nextSuggestions, in: keyboard) }
+            nextDuration?.store()
+            self.model.reloadSettings()
+            self.publishKeyboardPreferences()
+            return try BridgeJSON.encode(self.settingsProjection())
+        }
+        if changed["decision"] != nil || changed["reranking"] != nil || changed["providers"] != nil {
+            return try await inferenceRequests.changingConfiguration(apply)
+        }
+        return try await apply()
     }
 
     private func keyboardSettings() -> [String: Any] {
@@ -871,7 +929,7 @@ extension PennelNativeRuntime {
         let runtime = MeetingRuntime.shared
         let session = DictationSession.shared
         var value: [String: Any] = [
-            "ready": true, "platform": "ios", "settings": try settingsProjection(),
+            "ready": true, "platform": "ios", "settings": try settingsProjection(), "inference_key_revisions": inferenceKeyRevisions,
             "capabilities": capabilities(), "kinds": kindCatalog(),
             "keys": Dictionary(uniqueKeysWithValues: model.settings.providers.map { ($0.id, Keychain.hasKey(for: $0.id)) }),
             "dictation": ["phase": dictation.phase.rawValue, "text": dictation.text, "level": dictation.level, "error": BridgeJSON.optional(dictation.error), "error_code": BridgeJSON.optional(dictation.errorCode)] as [String: Any],
@@ -945,8 +1003,8 @@ extension PennelNativeRuntime {
                 }
             })
         }
-        observations.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { CloudSyncRunner.shared.enterBackground(); CloudSyncBackground.schedule() }
+        observations.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.inferenceRequests.cancelAll(); CloudSyncRunner.shared.enterBackground(); CloudSyncBackground.schedule() }
         })
         observations.append(center.addObserver(forName: Notification.Name("PennelFinishTaskExpired"), object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {

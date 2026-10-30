@@ -306,6 +306,16 @@
       case "add_provider": { const definition = kinds.find(kind => kind.kind === args.kind); settings.providers.push({ id: `qa-${args.kind}`, kind: args.kind, name: definition?.label || args.kind, base_url: definition?.default_base_url || "" }); return info(); }
       case "remove_provider": settings.providers = settings.providers.filter(provider => provider.id !== args.id); return info();
       case "set_key": keys[args.account] = Boolean(args.key); providerRevisions[args.account] = (providerRevisions[args.account] || 0) + 1; return info();
+      case "inference_protocols": return [
+        ["open_router_decisions", "OpenRouter Decisions", "https://openrouter.ai/api/v1"],
+        ["open_router_system_one", "OpenRouter System One", "https://openrouter.ai/api/v1"],
+        ["type_safe", "TypeSafe Jev", "https://api.typesafe.ai/v1"],
+        ["perplexity", "Perplexity Decisions", "https://api.perplexity.ai/v1"],
+        ["mercury", "Mercury Decide", "https://api.inceptionlabs.ai/v1"],
+        ["local_decider", "Local Decider", "http://127.0.0.1:8080/v1"],
+        ["tei", "TEI reranking", "http://127.0.0.1:8080"],
+      ].map(([protocol, name, default_base_url]) => ({ protocol, name, default_base_url, decision: protocol !== "tei", reranking: protocol === "tei", extraction: protocol === "mercury", requires_key: !["tei", "local_decider"].includes(protocol) }));
+      case "inference_availability": return { capability: args.capability, configured: false, available: false, reason: "Configure this optional connection first.", provider_id: null, model: null, protocol: null, endpoint: null };
       case "provider_models": return [{ id: "gpt-4o-mini-transcribe", name: "GPT-4o mini Transcribe", audio_input: true, is_router: false }, { id: "llama-3.3-70b-versatile", name: "Llama 3.3", audio_input: false, is_router: false }];
       case "test_provider_task": {
         if (!["dictation_stt", "meeting_stt", "llm"].includes(args.slot)) throw new Error("Onbekende QA-taak");

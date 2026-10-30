@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Recompute resource summaries from immutable timing receipts; no inference."""
+
+import argparse
+from collections import Counter, defaultdict
+import copy
+import gzip
+import hashlib
+import json
+import math
+from pathlib import Path
+import sys
+
+
+def find_workspace():
+    for root in [*Path(__file__).resolve().parents, Path.cwd(), *Path.cwd().parents]:
+        if (root / "evaluations/decision-models/metrics.py").is_file():
+            return root
+    raise ValueError("Run this postprocessor inside the Pennel repository")
+
+
+ROOT = find_workspace()
+sys.path.insert(0, str(ROOT / "evaluations/decision-models"))
+from metrics import timing_metrics
+
+
+def valid(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
+
+
+def counts(values):
+    return dict(sorted(Counter(row.get("status", "unavailable") for row in values).items()))
+
+
+def measured(values, successful=True):
+    return timing_metrics([row["latency_ms"] for row in values
+                           if (row.get("status") == "ok") == successful and valid(row.get("latency_ms"))])
+
+
+def summary_candidates(reports, runner, case_id=None):
+    values = []
+    for label, report in reports:
+        for model in report.get("models", []):
+            if model.get("runner_id") != runner:
+                continue
+            if case_id is None:
+                candidates = [model]
+            else:
+                candidates = [cell for cell in model.get("cases", []) if cell.get("case_id") == case_id]
+            for candidate in candidates:
+                summary = candidate.get("client_setup")
+                if isinstance(summary, dict) and isinstance(summary.get("n"), int) and summary["n"] > 0:
+                    values.append((label, summary))
+    return values
+
+
+def recover_setup(values, reports, runner, case_id=None):
+    cold = [row for row in values if row.get("phase") == "cold_client"]
+    samples = [row["client_setup_ms"] for row in cold if valid(row.get("client_setup_ms"))]
+    if samples:
+        summary = timing_metrics(samples)
+        source = "Canonical cold-client receipt client_setup_ms fields"
+    else:
+        candidates = [(label, item) for label, item in summary_candidates(reports, runner, case_id)
+                      if item["n"] <= len(cold)]
+        if candidates:
+            source, summary = sorted(candidates, key=lambda item: (-item[1]["n"], len(item[0]), item[0]))[0]
+            summary = copy.deepcopy(summary)
+        else:
+            summary, source = timing_metrics([]), None
+    return {"summary": summary, "source": source, "available_samples": summary["n"],
+            "unmeasured_samples": max(0, len(cold) - summary["n"]),
+            "scope": "Client metadata/preflight setup only, not server/model load. Aggregate percentile summaries are copied once, never pooled or reconstructed as raw samples."}
+
+
+def pacing_strata(values):
+    groups = defaultdict(list)
+    for row in values:
+        context = {"pacing_stratum": row.get("pacing_stratum", "original_unpaced"),
+                   "idle_after_ms": row.get("idle_after_ms"),
+                   "idle_after_ms_semantics": row.get("idle_after_ms_semantics")}
+        groups[json.dumps(context, sort_keys=True)].append(row)
+    result = []
+    for key, group in sorted(groups.items()):
+        warm = [row for row in group if row["phase"] == "warm"]
+        cold = [row for row in group if row["phase"] == "cold_client"]
+        excluded = [row for row in group if row["phase"] in ("warmup", "continuation_warmup")]
+        result.append({**json.loads(key), "records": len(group),
+                       "warm": measured(warm), "warm_failed": measured(warm, successful=False),
+                       "warm_status_counts": counts(warm), "cold_client": measured(cold),
+                       "cold_client_failed": measured(cold, successful=False), "cold_client_status_counts": counts(cold),
+                       "excluded_warmup_status_counts": counts(excluded),
+                       "scope": "Grouped only by recorded pacing metadata. original_unpaced is the declared default for original receipts without such metadata; it adds no measured delay."})
+    return result
+
+
+def derive(report, records, setup_reports=()):
+    result = copy.deepcopy(report)
+    result.setdefault("source_status", result.get("status"))
+    panel = {row["runner_id"]: row for row in result.get("panel", {}).get("runners", [])}
+    by_runner = defaultdict(list)
+    for row in records:
+        by_runner[row["runner_id"]].append(row)
+    for model in result.get("models", []):
+        identifier = model["runner_id"]
+        values = by_runner[identifier]
+        model.setdefault("source_status", model.get("status"))
+        model["record_count"] = len(values)
+        cold_ids = set(panel.get(identifier, {}).get("cold_case_ids", []))
+        for cell in model.get("cases", []):
+            cell_values = [row for row in values if row["case_id"] == cell["case_id"]]
+            warm = [row for row in cell_values if row["phase"] == "warm"]
+            cold = [row for row in cell_values if row["phase"] == "cold_client"]
+            failed = [row for row in [*cold, *warm] if row.get("status") != "ok"]
+            excluded = [row for row in cell_values if row["phase"] in ("warmup", "continuation_warmup")]
+            for phase, phase_rows, limit in (("warm", warm, 30), ("cold_client", cold, 5 if cell["case_id"] in cold_ids else 0)):
+                indices = [row["sample_index"] for row in phase_rows]
+                if any(isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < limit for index in indices) or len(indices) != len(set(indices)):
+                    raise ValueError("Duplicate or invalid canonical timing slot")
+                cell[phase] = measured(phase_rows)
+                cell[phase + "_failed"] = measured(phase_rows, successful=False)
+                cell[phase + "_status_counts"] = counts(phase_rows)
+                cell[phase + "_consumed_slots"] = len(indices)
+                cell[phase + "_unmeasured_slot_indices"] = sorted(set(range(limit)) - set(indices))
+            cell["failed"] = measured(failed, successful=False)
+            cell["failed_latency_unreported_samples"] = sum(not valid(row.get("latency_ms")) for row in failed)
+            cell["excluded_warmup_status_counts"] = counts(excluded)
+            cell["status_counts"] = counts(warm)
+            cell["consumed_slots"] = len(warm)
+            cell.setdefault("source_missing_indices", cell.get("missing_indices"))
+            cell["missing_indices"] = list(cell["warm_unmeasured_slot_indices"])
+            cell["complete_coverage"] = not cell["warm_unmeasured_slot_indices"] and not cell["cold_client_unmeasured_slot_indices"]
+            cell["all_planned_samples_successful"] = cell["complete_coverage"] and not failed
+            setup = recover_setup(cell_values, setup_reports, identifier, cell["case_id"])
+            cell["client_setup"], cell["client_setup_provenance"] = setup["summary"], setup
+            cell["pacing_strata"] = pacing_strata(cell_values)
+            errors = bool(failed or any(row.get("status") != "ok" for row in excluded))
+            if cell["complete_coverage"]:
+                cell["resource_measurement_status"] = "complete_coverage_with_errors" if errors else "ok"
+            else:
+                cell["resource_measurement_status"] = "unavailable_repeated_http429" if "429" in str(model["source_status"]) else "partially_measured" if cell_values else "unmeasured"
+            cell["latency_scope"] = "Successful planned OpenRouter request samples only; failed durations/counts and excluded warmups are separate. Overall percentiles may pool recorded stages; consult pacing_strata."
+        model["complete_coverage"] = bool(model.get("cases")) and all(cell["complete_coverage"] for cell in model["cases"])
+        model["all_planned_samples_successful"] = model["complete_coverage"] and all(cell["all_planned_samples_successful"] for cell in model["cases"])
+        errors = any(row.get("status") != "ok" for row in values)
+        if model["complete_coverage"]:
+            model["status"] = "complete_coverage_with_errors" if errors else "ok"
+        else:
+            model["status"] = "unavailable_repeated_http429" if "429" in str(model["source_status"]) else "partial"
+        setup = recover_setup(values, setup_reports, identifier)
+        model["client_setup"], model["client_setup_provenance"] = setup["summary"], setup
+    result["complete_coverage"] = bool(result.get("models")) and all(model["complete_coverage"] for model in result["models"])
+    result["all_planned_samples_successful"] = result["complete_coverage"] and all(model["all_planned_samples_successful"] for model in result["models"])
+    result["status"] = ("complete_coverage_with_errors" if any(model["status"] != "ok" for model in result["models"]) else "ok") if result["complete_coverage"] else "partial"
+    result["postprocessing"] = {"operation": "Recomputed latency/status fields from canonical receipts and recovered setup summaries from audited reports; no raw records, probabilities or costs changed.",
+                                "latency_percentile_method": "metrics.timing_metrics linear_type_7",
+                                "metrics_source_sha256": hashlib.sha256((ROOT / "evaluations/decision-models/metrics.py").read_bytes()).hexdigest(),
+                                "setup_scope": "Source aggregate summaries are reused once. Missing per-case setup remains unknown even when a measured model-level aggregate survives."}
+    return result
+
+
+def load_setup_reports(audit):
+    reports = []
+    for path in sorted(Path(audit).glob("supplement-timing*/report.json.gz")):
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            reports.append(("../audit/" + path.parent.name + "/report.json.gz", json.load(stream)))
+    return reports
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--resources", type=Path, required=True)
+    parser.add_argument("--receipts", type=Path, required=True)
+    parser.add_argument("--audit-directory", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    report = json.loads(args.resources.read_text(encoding="utf-8"))
+    with gzip.open(args.receipts, "rt", encoding="utf-8") as stream:
+        records = [json.loads(line) for line in stream if line.strip()]
+    derived = derive(report, records, load_setup_reports(args.audit_directory))
+    derived["postprocessing"]["canonical_receipts_sha256"] = hashlib.sha256(args.receipts.read_bytes()).hexdigest()
+    args.output.write_text(json.dumps(derived, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    print(json.dumps({"status": "postprocessed_without_inference", "models": [(model["runner_id"], model["status"]) for model in derived["models"]],
+                      "cold_samples": sum(cell["cold_client"]["n"] for model in derived["models"] for cell in model["cases"]),
+                      "missing_warm_slots": sum(len(cell["warm_unmeasured_slot_indices"]) for model in derived["models"] for cell in model["cases"])}))
+
+
+if __name__ == "__main__":
+    main()
