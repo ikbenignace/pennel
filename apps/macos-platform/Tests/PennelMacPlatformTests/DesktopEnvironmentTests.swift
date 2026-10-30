@@ -129,6 +129,88 @@ final class DesktopEnvironmentTests: XCTestCase {
     }
 
     @MainActor
+    func testNativeEnvironmentCallbacksAreDeferredAndCoalesceTheLatestSnapshot() throws {
+        try withWindow { _, _, webview in
+            receivedDesktopEnvironments = []
+            var preferences = DesktopDisplayPreferences(reduceTransparency: false, reduceMotion: false, increaseContrast: false)
+            let sink: DesktopEnvironmentSink = { label, json in
+                guard let label, let json else { return }
+                let event = String(cString: label) + ":" + String(cString: json)
+                MainActor.assumeIsolated { receivedDesktopEnvironments.append(event) }
+            }
+            let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "main", sink: sink, preferences: { preferences }))
+            defer { host.detach() }
+            XCTAssertTrue(receivedDesktopEnvironments.isEmpty)
+            preferences = .init(reduceTransparency: false, reduceMotion: true, increaseContrast: false)
+            host.refresh()
+            preferences = .init(reduceTransparency: true, reduceMotion: true, increaseContrast: false)
+            host.refresh()
+            XCTAssertTrue(receivedDesktopEnvironments.isEmpty)
+            drainDesktopEnvironmentEvents()
+            XCTAssertEqual(receivedDesktopEnvironments.count, 1)
+            XCTAssertTrue(receivedDesktopEnvironments.last?.contains("\"material\":\"opaque\"") == true)
+            XCTAssertTrue(receivedDesktopEnvironments.last?.contains("\"reduce_motion\":true") == true)
+            preferences = .init(reduceTransparency: false, reduceMotion: false, increaseContrast: false)
+            host.refresh()
+            XCTAssertEqual(receivedDesktopEnvironments.count, 1)
+            drainDesktopEnvironmentEvents()
+            XCTAssertEqual(receivedDesktopEnvironments.count, 2)
+            XCTAssertTrue(receivedDesktopEnvironments.last?.contains("\"reduce_transparency\":false") == true)
+            host.refresh()
+            drainDesktopEnvironmentEvents()
+            XCTAssertEqual(receivedDesktopEnvironments.count, 2)
+            preferences = .init(reduceTransparency: true, reduceMotion: false, increaseContrast: false)
+            host.refresh()
+            preferences = .init(reduceTransparency: false, reduceMotion: false, increaseContrast: false)
+            host.refresh()
+            drainDesktopEnvironmentEvents()
+            XCTAssertEqual(receivedDesktopEnvironments.count, 2)
+        }
+    }
+
+    @MainActor
+    func testQueuedCallbacksUseTheCurrentLabelAndSinkAfterRepeatedAttachment() throws {
+        try withWindow { _, _, webview in
+            receivedDesktopEnvironments = []
+            let oldSink: DesktopEnvironmentSink = { _, _ in
+                MainActor.assumeIsolated { receivedDesktopEnvironments.append("stale sink") }
+            }
+            let currentSink: DesktopEnvironmentSink = { label, json in
+                guard let label, let json else { return }
+                let event = String(cString: label) + ":" + String(cString: json)
+                MainActor.assumeIsolated { receivedDesktopEnvironments.append(event) }
+            }
+            let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "old", sink: oldSink))
+            defer { host.detach() }
+            XCTAssertTrue(DesktopMaterialHost.attach(to: webview, floating: false, label: "current", sink: currentSink) === host)
+            XCTAssertTrue(receivedDesktopEnvironments.isEmpty)
+            drainDesktopEnvironmentEvents()
+            XCTAssertEqual(receivedDesktopEnvironments.count, 1)
+            XCTAssertTrue(receivedDesktopEnvironments.first?.hasPrefix("current:") == true)
+        }
+    }
+
+    @MainActor
+    func testDetachedHostsDropQueuedCallbacksBeforeAReplacementAttaches() throws {
+        try withWindow { _, _, webview in
+            receivedDesktopEnvironments = []
+            let sink: DesktopEnvironmentSink = { label, json in
+                guard let label, let json else { return }
+                let event = String(cString: label) + ":" + String(cString: json)
+                MainActor.assumeIsolated { receivedDesktopEnvironments.append(event) }
+            }
+            let old = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "old", sink: sink))
+            old.detach()
+            let replacement = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "replacement", sink: sink))
+            defer { replacement.detach() }
+            XCTAssertTrue(receivedDesktopEnvironments.isEmpty)
+            drainDesktopEnvironmentEvents()
+            XCTAssertEqual(receivedDesktopEnvironments.count, 1)
+            XCTAssertTrue(receivedDesktopEnvironments.first?.hasPrefix("replacement:") == true)
+        }
+    }
+
+    @MainActor
     func testNativeAccessibilityNotificationPublishesOnceAndTeardownRemovesItsObserver() throws {
         try withWindow { _, _, webview in
             receivedDesktopEnvironments = []
@@ -139,17 +221,23 @@ final class DesktopEnvironmentTests: XCTestCase {
                 MainActor.assumeIsolated { receivedDesktopEnvironments.append(event) }
             }
             let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "main", sink: sink, preferences: { preferences }))
+            XCTAssertTrue(receivedDesktopEnvironments.isEmpty)
+            drainDesktopEnvironmentEvents()
             XCTAssertEqual(receivedDesktopEnvironments.count, 1)
             preferences = .init(reduceTransparency: true, reduceMotion: true, increaseContrast: false)
             NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+            XCTAssertEqual(receivedDesktopEnvironments.count, 1)
+            drainDesktopEnvironmentEvents()
             XCTAssertEqual(receivedDesktopEnvironments.count, 2)
             XCTAssertTrue(receivedDesktopEnvironments.last?.contains("main:") == true)
             XCTAssertTrue(receivedDesktopEnvironments.last?.contains("\"material\":\"opaque\"") == true)
             NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+            drainDesktopEnvironmentEvents()
             XCTAssertEqual(receivedDesktopEnvironments.count, 2)
             host.detach()
             preferences = .init(reduceTransparency: false, reduceMotion: false, increaseContrast: false)
             NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+            drainDesktopEnvironmentEvents()
             XCTAssertEqual(receivedDesktopEnvironments.count, 2)
         }
     }
@@ -162,16 +250,62 @@ final class DesktopEnvironmentTests: XCTestCase {
             webview.translatesAutoresizingMaskIntoConstraints = false
             let edges = [webview.leadingAnchor.constraint(equalTo: parent.leadingAnchor), webview.trailingAnchor.constraint(equalTo: parent.trailingAnchor),
                          webview.topAnchor.constraint(equalTo: parent.topAnchor), webview.bottomAnchor.constraint(equalTo: parent.bottomAnchor)]
+            for (index, edge) in edges.enumerated() {
+                edge.identifier = "webview-edge-\(index)"
+                edge.priority = NSLayoutConstraint.Priority(rawValue: 999 - Float(index))
+            }
             NSLayoutConstraint.activate(edges)
+            parent.layoutSubtreeIfNeeded()
             let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false))
             XCTAssertTrue(parent.subviews[0] === host.root)
             XCTAssertTrue(parent.subviews[1] === sibling)
             XCTAssertTrue(edges.allSatisfy { !$0.isActive })
+            for edge in edges {
+                let replacement = try XCTUnwrap(parent.constraints.first { $0.identifier == edge.identifier })
+                XCTAssertEqual(replacement.firstAttribute, edge.firstAttribute)
+                XCTAssertEqual(replacement.secondAttribute, edge.secondAttribute)
+                XCTAssertEqual(replacement.relation, edge.relation)
+                XCTAssertEqual(replacement.multiplier, edge.multiplier)
+                XCTAssertEqual(replacement.constant, edge.constant)
+                XCTAssertEqual(replacement.priority, edge.priority)
+            }
+            parent.layoutSubtreeIfNeeded()
+            XCTAssertEqual(host.root.frame.size, parent.bounds.size)
             host.detach()
+            parent.layoutSubtreeIfNeeded()
             XCTAssertTrue(parent.subviews[0] === webview)
             XCTAssertTrue(parent.subviews[1] === sibling)
             XCTAssertFalse(webview.translatesAutoresizingMaskIntoConstraints)
             XCTAssertTrue(edges.allSatisfy(\.isActive))
+            XCTAssertEqual(webview.frame.size, parent.bounds.size)
+        }
+    }
+
+    @MainActor
+    func testLaidOutAutoresizingConstraintsSurviveMaterialAttachmentAndTeardown() throws {
+        for allowLiquidGlass in [true, false] {
+            try withWindow { window, parent, webview in
+                window.orderFront(nil)
+                parent.updateConstraintsForSubtreeIfNeeded()
+                parent.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
+                let generated = parent.constraints.filter { ($0.firstItem as? NSView) === webview || ($0.secondItem as? NSView) === webview }
+                XCTAssertTrue(generated.contains { $0.secondItem == nil && ![NSLayoutConstraint.Attribute.width, .height].contains($0.firstAttribute) })
+                let host = try XCTUnwrap(DesktopMaterialHost.attach(to: webview, floating: false, label: "main", allowLiquidGlass: allowLiquidGlass))
+                XCTAssertTrue(window.contentView === parent)
+                XCTAssertTrue(webview.window === window)
+                window.setContentSize(NSSize(width: 810, height: 590))
+                parent.layoutSubtreeIfNeeded()
+                host.root.layoutSubtreeIfNeeded()
+                XCTAssertEqual(host.root.frame.size, parent.bounds.size)
+                XCTAssertEqual(webview.bounds.size, host.presentation.bounds.size)
+                host.detach()
+                parent.layoutSubtreeIfNeeded()
+                XCTAssertTrue(webview.superview === parent)
+                XCTAssertTrue(webview.translatesAutoresizingMaskIntoConstraints)
+                XCTAssertEqual(webview.autoresizingMask, [.width, .height])
+                XCTAssertEqual(webview.frame.size, parent.bounds.size)
+            }
         }
     }
 
@@ -287,6 +421,11 @@ final class DesktopEnvironmentTests: XCTestCase {
                 XCTAssertEqual(window.toolbarStyle, style)
             }
         }
+    }
+
+    @MainActor
+    private func drainDesktopEnvironmentEvents() {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
     }
 
     @MainActor
