@@ -1,0 +1,4762 @@
+{
+  "billing_reconciled": true,
+  "completed_at": "2026-10-28T18:25:13.337623+00:00",
+  "continuation_audit": {
+    "completed_provider_timings_repeated": false,
+    "flash_failed_sample_replaced": false,
+    "flash_unsent_samples": 19,
+    "frozen_full_panel_hash": "aa145c186b85662c0fad3e7f0f0bce451e6c060f3644966be3787a7c2ab71f96",
+    "initial_timing_records": 1979,
+    "mercury_remaining_unmeasured_reason": "Second gateway error during its timing workload; no further inference planned.",
+    "remaining_provider_ids": [
+      "openrouter-clef-flash",
+      "openrouter-mercury"
+    ],
+    "remaining_provider_panel_hash": "87bee4f355b8771cf71b3fab4fe64159ebaf88de419d6130bd48873f5ea68d2d"
+  },
+  "generation_commit": "d3c18bcd67e15617552d0e4f783139514940a4b8",
+  "incomplete_policy": "Service errors remain failed samples; unsent Mercury timing cells remain unmeasured. No further inference is scheduled.",
+  "latency_concurrency": 1,
+  "ledger": {
+    "attempt_count": 30162,
+    "known_billed_usd": "0.313064388",
+    "limit_usd": "2.00",
+    "pending_reservations": {},
+    "reserved_usd": "0",
+    "unresolved_charge": false
+  },
+  "limitations": [
+    "Cold-client samples are first inference requests after fresh-client metadata preflight; not server/model-cold samples.",
+    "Provider server load time, memory and model/native artifact size are unmeasured."
+  ],
+  "models": [
+    {
+      "bound_usd": "0.210831348",
+      "cases": [
+        {
+          "bound_per_invocation_usd": "0.000112938",
+          "case_id": "en-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 463.139625,
+            "min_ms": 248.574,
+            "n": 30,
+            "p50_ms": 309.1175415,
+            "p95_ms": 402.27831280000004,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000169050",
+          "case_id": "en-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 622.064,
+            "min_ms": 254.068917,
+            "n": 30,
+            "p50_ms": 318.58691650000003,
+            "p95_ms": 513.7306687500002,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000113022",
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 1109.2044999822974,
+            "min_ms": 234.39541598781943,
+            "n": 5,
+            "p50_ms": 258.0300419940613,
+            "p95_ms": 959.8943249788134,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 385.5565,
+            "min_ms": 255.515041,
+            "n": 5,
+            "p50_ms": 350.773542,
+            "p95_ms": 385.25005000000004,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 531.414917,
+            "min_ms": 253.473,
+            "n": 30,
+            "p50_ms": 342.2551665,
+            "p95_ms": 475.47551250000004,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000167412",
+          "case_id": "en-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 703.267708,
+            "min_ms": 393.841958,
+            "n": 30,
+            "p50_ms": 507.7724585,
+            "p95_ms": 634.71739605,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.001395282",
+          "case_id": "en-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 8249.85474999994,
+            "min_ms": 4156.852958956733,
+            "n": 30,
+            "p50_ms": 4439.621291530784,
+            "p95_ms": 7699.824645626359,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000168210",
+          "case_id": "en-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 644.080625,
+            "min_ms": 241.079917,
+            "n": 30,
+            "p50_ms": 326.0859165,
+            "p95_ms": 593.60505365,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000111006",
+          "case_id": "en-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 396.554084,
+            "min_ms": 255.116583,
+            "n": 30,
+            "p50_ms": 308.5370625,
+            "p95_ms": 382.94898995,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000113232",
+          "case_id": "mixed-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 1656.823459,
+            "min_ms": 243.728958,
+            "n": 30,
+            "p50_ms": 293.14058350000005,
+            "p95_ms": 436.59818140000004,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000167790",
+          "case_id": "mixed-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 380.39725,
+            "min_ms": 244.100792,
+            "n": 30,
+            "p50_ms": 292.5936875,
+            "p95_ms": 366.52562065,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000113526",
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 377.9719159938395,
+            "min_ms": 261.10137498471886,
+            "n": 5,
+            "p50_ms": 269.8263750062324,
+            "p95_ms": 363.673799589742,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 406.011709,
+            "min_ms": 289.57975,
+            "n": 5,
+            "p50_ms": 338.178875,
+            "p95_ms": 395.0390672,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 403.442708,
+            "min_ms": 235.819458,
+            "n": 30,
+            "p50_ms": 292.96172950000005,
+            "p95_ms": 384.3981125,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000166236",
+          "case_id": "mixed-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 430.431625,
+            "min_ms": 251.233833,
+            "n": 30,
+            "p50_ms": 310.9863335,
+            "p95_ms": 400.6743769,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.001402086",
+          "case_id": "mixed-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 7892.891250026878,
+            "min_ms": 4258.8808329892345,
+            "n": 30,
+            "p50_ms": 4556.337999994867,
+            "p95_ms": 4904.9282981141005,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000167034",
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 449.874042,
+            "min_ms": 249.099667,
+            "n": 30,
+            "p50_ms": 340.694458,
+            "p95_ms": 414.91940465,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000111006",
+          "case_id": "mixed-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 421.320542,
+            "min_ms": 256.189875,
+            "n": 30,
+            "p50_ms": 339.347667,
+            "p95_ms": 419.07016455,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000115122",
+          "case_id": "nl-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 436.808,
+            "min_ms": 251.631791,
+            "n": 30,
+            "p50_ms": 292.25,
+            "p95_ms": 391.07241030000006,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000173334",
+          "case_id": "nl-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 432.332708,
+            "min_ms": 251.956167,
+            "n": 30,
+            "p50_ms": 312.099,
+            "p95_ms": 411.67764185000004,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000113232",
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 538.6164999799803,
+            "min_ms": 276.189207972493,
+            "n": 5,
+            "p50_ms": 368.6389169888571,
+            "p95_ms": 504.85054998425767,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 501.996167,
+            "min_ms": 270.552708,
+            "n": 5,
+            "p50_ms": 382.238458,
+            "p95_ms": 486.3528668,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 384.012667,
+            "min_ms": 242.769417,
+            "n": 30,
+            "p50_ms": 305.16575,
+            "p95_ms": 379.4949503,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000172704",
+          "case_id": "nl-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 467.91275,
+            "min_ms": 258.129708,
+            "n": 30,
+            "p50_ms": 300.76493800000003,
+            "p95_ms": 412.26915640000004,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.001409016",
+          "case_id": "nl-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 7181.924749980681,
+            "min_ms": 4155.334917013533,
+            "n": 30,
+            "p50_ms": 4416.113187500741,
+            "p95_ms": 6054.281700006687,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000172746",
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 444.334792,
+            "min_ms": 253.228875,
+            "n": 30,
+            "p50_ms": 296.66002100000003,
+            "p95_ms": 396.01283315,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000112224",
+          "case_id": "nl-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 388.520833,
+            "min_ms": 239.55425,
+            "n": 30,
+            "p50_ms": 291.90364550000004,
+            "p95_ms": 349.7714897,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        }
+      ],
+      "client_setup": {
+        "max_ms": 1109.2044999822974,
+        "min_ms": 234.39541598781943,
+        "n": 15,
+        "p50_ms": 306.48133397335187,
+        "p95_ms": 709.7928999806759,
+        "percentile_method": "linear_type_7"
+      },
+      "cost_complete": true,
+      "download_bytes": null,
+      "known_billed_usd": "0.032600568",
+      "measurement": "measured_openrouter_end_to_end",
+      "model": "typesafe/jev-1.14",
+      "native_binary_size_bytes": null,
+      "planned_paid_requests": 1689,
+      "planning_setup_ms": 647.6753749884665,
+      "preflight": {
+        "catalog": {
+          "architecture": {
+            "input_modalities": [
+              "text",
+              "image"
+            ],
+            "instruct_type": null,
+            "modality": "text+image->decisions",
+            "output_modalities": [
+              "decisions"
+            ],
+            "tokenizer": "Other"
+          },
+          "canonical_slug": "typesafe/jev-1.14-20261014",
+          "context_length": 262144,
+          "created": 1792021417,
+          "default_parameters": {},
+          "description": "Jev 1.14 is the latest version of Jev, TypeSafe's structured decision model and the first of its System One models. System One models make fast, structured decisions for software, returning...",
+          "expiration_date": null,
+          "hugging_face_id": null,
+          "id": "typesafe/jev-1.14",
+          "knowledge_cutoff": null,
+          "links": {
+            "details": "/api/v1/models/typesafe/jev-1.14-20261014/endpoints"
+          },
+          "name": "TypeSafe: Jev 1.14",
+          "per_request_limits": null,
+          "pricing": {
+            "completion": "0",
+            "prompt": "0.000000042"
+          },
+          "supported_parameters": [],
+          "supported_voices": null,
+          "top_provider": {
+            "context_length": 262144,
+            "is_moderated": false,
+            "max_completion_tokens": 235929
+          }
+        },
+        "endpoints": [
+          {
+            "context_length": 262144,
+            "latency_last_30m": {
+              "p50": 138,
+              "p75": 161,
+              "p90": 205,
+              "p99": 366.1800000000003
+            },
+            "max_completion_tokens": 235929,
+            "max_prompt_tokens": 262144,
+            "model_id": "typesafe/jev-1.14",
+            "model_name": "TypeSafe: Jev 1.14",
+            "name": "TypeSafe | typesafe/jev-1.14-20261014",
+            "native_tools": {},
+            "perf_last_30m_by_workload": {
+              "decisions": {
+                "latency": {
+                  "p50": 138,
+                  "p75": 161,
+                  "p90": 205,
+                  "p99": 366.1800000000003
+                },
+                "request_count": 1874410,
+                "throughput": null
+              }
+            },
+            "pricing": {
+              "completion": "0",
+              "discount": 0,
+              "prompt": "0.000000042"
+            },
+            "provider_name": "TypeSafe",
+            "quantization": "unknown",
+            "service_tier": null,
+            "status": 0,
+            "supported_parameters": [],
+            "supports_diarization": false,
+            "supports_image_reference": false,
+            "supports_implicit_caching": false,
+            "supports_multiple_audio_references": false,
+            "supports_tool_choice": {
+              "auto": true,
+              "function": true,
+              "none": true,
+              "required": true
+            },
+            "supports_voice_cloning": false,
+            "tag": "typesafe",
+            "throughput_last_30m": {
+              "p50": 0,
+              "p75": 0,
+              "p90": 0,
+              "p99": 0
+            },
+            "uptime_last_1d": 100,
+            "uptime_last_30m": 100,
+            "uptime_last_5m": 100
+          }
+        ],
+        "limitations": [],
+        "model": "typesafe/jev-1.14",
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.000000042"
+        },
+        "pricing_source": "pinned_endpoint",
+        "status": "ok",
+        "transport": "openrouter"
+      },
+      "record_count": 666,
+      "runner_id": "openrouter-jev",
+      "server_load_ms": null,
+      "server_memory_bytes": null,
+      "status": "ok"
+    },
+    {
+      "bound_usd": "0.10080124",
+      "cases": [
+        {
+          "bound_per_invocation_usd": "0.00005402",
+          "case_id": "en-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 454.180333,
+            "min_ms": 308.324334,
+            "n": 30,
+            "p50_ms": 355.289958,
+            "p95_ms": 435.9426897,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00008074",
+          "case_id": "en-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 1046.425042,
+            "min_ms": 309.387708,
+            "n": 30,
+            "p50_ms": 399.71054200000003,
+            "p95_ms": 453.7085144,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005406",
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 847.3660000017844,
+            "min_ms": 228.45408302964643,
+            "n": 5,
+            "p50_ms": 324.7519160504453,
+            "p95_ms": 799.2591168032959,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 436.532583,
+            "min_ms": 277.053292,
+            "n": 5,
+            "p50_ms": 367.037833,
+            "p95_ms": 424.88984139999997,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 807.96425,
+            "min_ms": 282.144416,
+            "n": 30,
+            "p50_ms": 413.9505,
+            "p95_ms": 568.3111163,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00007996",
+          "case_id": "en-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 6423.345167,
+            "min_ms": 305.558166,
+            "n": 30,
+            "p50_ms": 408.7546255,
+            "p95_ms": 595.25105625,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00066730",
+          "case_id": "en-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 12988.525375025347,
+            "min_ms": 4996.330916997977,
+            "n": 30,
+            "p50_ms": 5405.674937501317,
+            "p95_ms": 8428.160787801608,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00008034",
+          "case_id": "en-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 5530.900709,
+            "min_ms": 321.581459,
+            "n": 30,
+            "p50_ms": 382.24939600000005,
+            "p95_ms": 717.2045231000001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005310",
+          "case_id": "en-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 637.91125,
+            "min_ms": 303.745333,
+            "n": 30,
+            "p50_ms": 372.770042,
+            "p95_ms": 566.322066,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005416",
+          "case_id": "mixed-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 1340.365416,
+            "min_ms": 293.486,
+            "n": 30,
+            "p50_ms": 380.240313,
+            "p95_ms": 573.2154937500002,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00008014",
+          "case_id": "mixed-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 740.5725,
+            "min_ms": 316.415792,
+            "n": 30,
+            "p50_ms": 399.85552099999995,
+            "p95_ms": 487.91955160000003,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005430",
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 312.8370000049472,
+            "min_ms": 214.01479199994355,
+            "n": 5,
+            "p50_ms": 238.7738329707645,
+            "p95_ms": 301.2633918086067,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 801.917084,
+            "min_ms": 321.565375,
+            "n": 5,
+            "p50_ms": 367.496958,
+            "p95_ms": 726.882509,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 1191.706834,
+            "min_ms": 297.4715,
+            "n": 30,
+            "p50_ms": 390.4766875,
+            "p95_ms": 515.9914356,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00007940",
+          "case_id": "mixed-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 523.088167,
+            "min_ms": 306.47,
+            "n": 30,
+            "p50_ms": 409.32187550000003,
+            "p95_ms": 502.4512875,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00067054",
+          "case_id": "mixed-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 7512.219582975376,
+            "min_ms": 5133.992917020805,
+            "n": 30,
+            "p50_ms": 5664.494666503742,
+            "p95_ms": 7285.0535171543015,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00007978",
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 1857.475625,
+            "min_ms": 326.009291,
+            "n": 30,
+            "p50_ms": 397.52691649999997,
+            "p95_ms": 1039.0546333000002,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005310",
+          "case_id": "mixed-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 1939.0385,
+            "min_ms": 313.941625,
+            "n": 30,
+            "p50_ms": 401.56514549999997,
+            "p95_ms": 513.11296425,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005506",
+          "case_id": "nl-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 1096.969875,
+            "min_ms": 311.7335,
+            "n": 30,
+            "p50_ms": 391.832354,
+            "p95_ms": 806.7674144000002,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00008278",
+          "case_id": "nl-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 4855.732333,
+            "min_ms": 320.501583,
+            "n": 30,
+            "p50_ms": 427.13320799999997,
+            "p95_ms": 2295.049856250002,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005416",
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 305.37387501681224,
+            "min_ms": 231.1967500136234,
+            "n": 5,
+            "p50_ms": 297.1720829955302,
+            "p95_ms": 304.40950001357123,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 474.869333,
+            "min_ms": 309.030041,
+            "n": 5,
+            "p50_ms": 363.94725,
+            "p95_ms": 456.44924979999996,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 2915.233083,
+            "min_ms": 310.232208,
+            "n": 30,
+            "p50_ms": 409.3255205,
+            "p95_ms": 1252.20890815,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00008248",
+          "case_id": "nl-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 482.718542,
+            "min_ms": 319.639208,
+            "n": 30,
+            "p50_ms": 386.3747085,
+            "p95_ms": 448.1574109,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00067384",
+          "case_id": "nl-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 9861.927833990194,
+            "min_ms": 5126.962166978046,
+            "n": 30,
+            "p50_ms": 5626.6985415131785,
+            "p95_ms": 8810.197860188782,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00008250",
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 1888.352042,
+            "min_ms": 324.53975,
+            "n": 30,
+            "p50_ms": 406.145437,
+            "p95_ms": 713.9113128000002,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005368",
+          "case_id": "nl-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 613.852583,
+            "min_ms": 308.898833,
+            "n": 30,
+            "p50_ms": 365.290875,
+            "p95_ms": 545.5382934500001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        }
+      ],
+      "client_setup": {
+        "max_ms": 847.3660000017844,
+        "min_ms": 214.01479199994355,
+        "n": 15,
+        "p50_ms": 297.1720829955302,
+        "p95_ms": 678.9919088070749,
+        "percentile_method": "linear_type_7"
+      },
+      "cost_complete": true,
+      "download_bytes": null,
+      "known_billed_usd": "0.00818688",
+      "measurement": "measured_openrouter_end_to_end",
+      "model": "perplexity/pplx-decider-v1.2",
+      "native_binary_size_bytes": null,
+      "planned_paid_requests": 1689,
+      "planning_setup_ms": 349.366916983854,
+      "preflight": {
+        "catalog": {
+          "architecture": {
+            "input_modalities": [
+              "text",
+              "image"
+            ],
+            "instruct_type": null,
+            "modality": "text+image->decisions",
+            "output_modalities": [
+              "decisions"
+            ],
+            "tokenizer": "Other"
+          },
+          "canonical_slug": "perplexity/pplx-decider-v1.2-20261016",
+          "context_length": 262144,
+          "created": 1792183495,
+          "default_parameters": {},
+          "description": "Decider V1.2 is a new 27B checkpoint of Perplexity's decision model, succeeding [Decider V1.1 27B](/perplexity/pplx-decider-v1.1-27b) with the same API contract. Instead of generating text, it reads content passed as `state`...",
+          "expiration_date": null,
+          "hugging_face_id": null,
+          "id": "perplexity/pplx-decider-v1.2",
+          "knowledge_cutoff": null,
+          "links": {
+            "details": "/api/v1/models/perplexity/pplx-decider-v1.2-20261016/endpoints"
+          },
+          "name": "Perplexity: Decider V1.2",
+          "per_request_limits": null,
+          "pricing": {
+            "completion": "0",
+            "prompt": "0.00000002"
+          },
+          "supported_parameters": [],
+          "supported_voices": null,
+          "top_provider": {
+            "context_length": 262144,
+            "is_moderated": false,
+            "max_completion_tokens": 235929
+          }
+        },
+        "endpoints": [
+          {
+            "context_length": 262144,
+            "latency_last_30m": {
+              "p50": 197,
+              "p75": 245,
+              "p90": 369,
+              "p99": 1775.320000000007
+            },
+            "max_completion_tokens": 235929,
+            "max_prompt_tokens": null,
+            "model_id": "perplexity/pplx-decider-v1.2",
+            "model_name": "Perplexity: Decider V1.2",
+            "name": "Perplexity | perplexity/pplx-decider-v1.2-20261016",
+            "native_tools": {},
+            "perf_last_30m_by_workload": {
+              "decisions": {
+                "latency": {
+                  "p50": 197,
+                  "p75": 245,
+                  "p90": 369,
+                  "p99": 1775.320000000007
+                },
+                "request_count": 464530,
+                "throughput": null
+              }
+            },
+            "pricing": {
+              "completion": "0",
+              "discount": 0,
+              "prompt": "0.00000002"
+            },
+            "provider_name": "Perplexity",
+            "quantization": "unknown",
+            "service_tier": null,
+            "status": 0,
+            "supported_parameters": [],
+            "supports_diarization": false,
+            "supports_image_reference": false,
+            "supports_implicit_caching": false,
+            "supports_multiple_audio_references": false,
+            "supports_tool_choice": {
+              "auto": true,
+              "function": true,
+              "none": true,
+              "required": true
+            },
+            "supports_voice_cloning": false,
+            "tag": "perplexity",
+            "throughput_last_30m": {
+              "p50": 0,
+              "p75": 0,
+              "p90": 0,
+              "p99": 0
+            },
+            "uptime_last_1d": 100,
+            "uptime_last_30m": 100,
+            "uptime_last_5m": 100
+          }
+        ],
+        "limitations": [],
+        "model": "perplexity/pplx-decider-v1.2",
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.00000002"
+        },
+        "pricing_source": "pinned_endpoint",
+        "status": "ok",
+        "transport": "openrouter"
+      },
+      "record_count": 666,
+      "runner_id": "openrouter-decider",
+      "server_load_ms": null,
+      "server_memory_bytes": null,
+      "status": "ok"
+    },
+    {
+      "bound_usd": "0.05050196",
+      "cases": [
+        {
+          "bound_per_invocation_usd": "0.00002707",
+          "case_id": "en-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 388.870167,
+            "min_ms": 238.577666,
+            "n": 30,
+            "p50_ms": 273.09941649999996,
+            "p95_ms": 366.52693955,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00004043",
+          "case_id": "en-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 484.578375,
+            "min_ms": 245.430041,
+            "n": 30,
+            "p50_ms": 289.1423755,
+            "p95_ms": 446.0781603500001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00002709",
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 665.3260409948416,
+            "min_ms": 218.02629198646173,
+            "n": 5,
+            "p50_ms": 289.3966249539517,
+            "p95_ms": 648.5670495894738,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 382.730625,
+            "min_ms": 245.483584,
+            "n": 5,
+            "p50_ms": 320.549833,
+            "p95_ms": 370.6894,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "en",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 373.203542,
+            "min_ms": 232.811167,
+            "n": 30,
+            "p50_ms": 265.548,
+            "p95_ms": 368.8140875,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00004004",
+          "case_id": "en-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 452.540334,
+            "min_ms": 253.929709,
+            "n": 30,
+            "p50_ms": 292.9591875,
+            "p95_ms": 392.536733,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00033437",
+          "case_id": "en-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 4818.237040948588,
+            "min_ms": 4129.8231249675155,
+            "n": 30,
+            "p50_ms": 4391.667833493557,
+            "p95_ms": 4744.6422661305405,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00004023",
+          "case_id": "en-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 411.483584,
+            "min_ms": 236.8205,
+            "n": 30,
+            "p50_ms": 277.07820849999996,
+            "p95_ms": 398.71179375,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00002661",
+          "case_id": "en-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 346.005125,
+            "min_ms": 233.226417,
+            "n": 30,
+            "p50_ms": 272.5835415,
+            "p95_ms": 333.06235625,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00002714",
+          "case_id": "mixed-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 442.313459,
+            "min_ms": 232.732125,
+            "n": 30,
+            "p50_ms": 283.6875,
+            "p95_ms": 391.56580420000006,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00004013",
+          "case_id": "mixed-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 504.573666,
+            "min_ms": 238.076,
+            "n": 30,
+            "p50_ms": 286.5817295,
+            "p95_ms": 375.60855000000004,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00002721",
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 3333.5267920047045,
+            "min_ms": 222.29412500746548,
+            "n": 5,
+            "p50_ms": 309.5035000005737,
+            "p95_ms": 2735.6841169996183,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 354.265417,
+            "min_ms": 243.255958,
+            "n": 5,
+            "p50_ms": 309.941875,
+            "p95_ms": 351.5285502,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "mixed",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 369.026,
+            "min_ms": 233.592583,
+            "n": 30,
+            "p50_ms": 274.03222949999997,
+            "p95_ms": 354.30915435000003,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00003976",
+          "case_id": "mixed-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 473.334542,
+            "min_ms": 241.532875,
+            "n": 30,
+            "p50_ms": 279.496437,
+            "p95_ms": 407.86498940000007,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00033599",
+          "case_id": "mixed-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 4722.607665986288,
+            "min_ms": 4159.098792006262,
+            "n": 30,
+            "p50_ms": 4346.057438000571,
+            "p95_ms": 4698.4127395786345,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00003995",
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 778.463208,
+            "min_ms": 237.346584,
+            "n": 30,
+            "p50_ms": 290.6063755,
+            "p95_ms": 551.1274651000001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00002661",
+          "case_id": "mixed-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 445.519792,
+            "min_ms": 229.960834,
+            "n": 30,
+            "p50_ms": 269.2215,
+            "p95_ms": 382.86381495,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00002759",
+          "case_id": "nl-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 606.113709,
+            "min_ms": 238.168667,
+            "n": 30,
+            "p50_ms": 276.2261045,
+            "p95_ms": 385.8801250000001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00004145",
+          "case_id": "nl-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 538.167417,
+            "min_ms": 251.119167,
+            "n": 30,
+            "p50_ms": 291.283104,
+            "p95_ms": 398.06533750000006,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00002714",
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 538.7207500170916,
+            "min_ms": 245.34179200418293,
+            "n": 5,
+            "p50_ms": 346.112750004977,
+            "p95_ms": 500.9134916123003,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 464.014084,
+            "min_ms": 259.47125,
+            "n": 5,
+            "p50_ms": 324.162208,
+            "p95_ms": 439.64852559999997,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "nl",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 356.736708,
+            "min_ms": 238.107667,
+            "n": 30,
+            "p50_ms": 270.294312,
+            "p95_ms": 347.7955397,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00004130",
+          "case_id": "nl-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 488.559292,
+            "min_ms": 252.120209,
+            "n": 30,
+            "p50_ms": 304.4551455,
+            "p95_ms": 404.7891167,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00033764",
+          "case_id": "nl-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 6920.61837494839,
+            "min_ms": 4180.481417046394,
+            "n": 30,
+            "p50_ms": 4470.134708506521,
+            "p95_ms": 5206.462795494008,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00004131",
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 2305.928083,
+            "min_ms": 234.563625,
+            "n": 30,
+            "p50_ms": 304.447729,
+            "p95_ms": 420.04753735,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00002690",
+          "case_id": "nl-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "planned_warm_attempts": 30,
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 432.817584,
+            "min_ms": 245.444167,
+            "n": 29,
+            "p50_ms": 291.497041,
+            "p95_ms": 416.326808,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "error": 1,
+            "ok": 29
+          }
+        }
+      ],
+      "client_setup": {
+        "max_ms": 3333.5267920047045,
+        "min_ms": 218.02629198646173,
+        "n": 15,
+        "p50_ms": 312.62316700303927,
+        "p95_ms": 1465.7862662978023,
+        "percentile_method": "linear_type_7"
+      },
+      "continuation": "Only previously unsent warm sample slots 12..30 plus an excluded fresh-client warmup; original timeout remains.",
+      "cost_complete": false,
+      "download_bytes": null,
+      "failed_sample_max_ms": 60140.478791,
+      "known_billed_usd": "0.00409344",
+      "measurement": "measured_openrouter_end_to_end",
+      "model": "perplexity/pplx-decider-flash-v1.2",
+      "native_binary_size_bytes": null,
+      "planned_paid_requests": 1689,
+      "planning_setup_ms": 372.0880839973688,
+      "preflight": {
+        "catalog": {
+          "architecture": {
+            "input_modalities": [
+              "text",
+              "image"
+            ],
+            "instruct_type": null,
+            "modality": "text+image->decisions",
+            "output_modalities": [
+              "decisions"
+            ],
+            "tokenizer": "Other"
+          },
+          "canonical_slug": "perplexity/pplx-decider-flash-v1.2-20261016",
+          "context_length": 262144,
+          "created": 1792183496,
+          "default_parameters": {},
+          "description": "Decider Flash V1.2 is a 4B-parameter decision model from Perplexity, a smaller, lower-cost sibling of [Decider V1.2](/perplexity/pplx-decider-v1.2) with the same API contract. Instead of generating text, it reads content passed...",
+          "expiration_date": null,
+          "hugging_face_id": null,
+          "id": "perplexity/pplx-decider-flash-v1.2",
+          "knowledge_cutoff": null,
+          "links": {
+            "details": "/api/v1/models/perplexity/pplx-decider-flash-v1.2-20261016/endpoints"
+          },
+          "name": "Perplexity: Decider Flash V1.2",
+          "per_request_limits": null,
+          "pricing": {
+            "completion": "0",
+            "prompt": "0.00000001"
+          },
+          "supported_parameters": [],
+          "supported_voices": null,
+          "top_provider": {
+            "context_length": 262144,
+            "is_moderated": false,
+            "max_completion_tokens": 235929
+          }
+        },
+        "endpoints": [
+          {
+            "context_length": 262144,
+            "latency_last_30m": {
+              "p50": 173,
+              "p75": 231,
+              "p90": 288,
+              "p99": 632.0900000000001
+            },
+            "max_completion_tokens": 235929,
+            "max_prompt_tokens": null,
+            "model_id": "perplexity/pplx-decider-flash-v1.2",
+            "model_name": "Perplexity: Decider Flash V1.2",
+            "name": "Perplexity | perplexity/pplx-decider-flash-v1.2-20261016",
+            "native_tools": {},
+            "perf_last_30m_by_workload": {
+              "decisions": {
+                "latency": {
+                  "p50": 173,
+                  "p75": 231,
+                  "p90": 288,
+                  "p99": 632.0900000000001
+                },
+                "request_count": 22456,
+                "throughput": null
+              }
+            },
+            "pricing": {
+              "completion": "0",
+              "discount": 0,
+              "prompt": "0.00000001"
+            },
+            "provider_name": "Perplexity",
+            "quantization": "unknown",
+            "service_tier": null,
+            "status": 0,
+            "supported_parameters": [],
+            "supports_diarization": false,
+            "supports_image_reference": false,
+            "supports_implicit_caching": false,
+            "supports_multiple_audio_references": false,
+            "supports_tool_choice": {
+              "auto": true,
+              "function": true,
+              "none": true,
+              "required": true
+            },
+            "supports_voice_cloning": false,
+            "tag": "perplexity",
+            "throughput_last_30m": {
+              "p50": 0,
+              "p75": 0,
+              "p90": 0,
+              "p99": 0
+            },
+            "uptime_last_1d": 100,
+            "uptime_last_30m": 100,
+            "uptime_last_5m": 100
+          }
+        ],
+        "limitations": [],
+        "model": "perplexity/pplx-decider-flash-v1.2",
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.00000001"
+        },
+        "pricing_source": "pinned_endpoint",
+        "status": "ok",
+        "transport": "openrouter"
+      },
+      "record_count": 667,
+      "runner_id": "openrouter-decider-flash",
+      "server_load_ms": null,
+      "server_memory_bytes": null,
+      "status": "partial_one_timeout_preserved"
+    },
+    {
+      "bound_usd": "0.191137264",
+      "cases": [
+        {
+          "bound_per_invocation_usd": "0.000102410",
+          "case_id": "en-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 641.479792,
+            "min_ms": 338.021709,
+            "n": 30,
+            "p50_ms": 453.51412500000004,
+            "p95_ms": 631.10935,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000153178",
+          "case_id": "en-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 922.96375,
+            "min_ms": 336.159708,
+            "n": 30,
+            "p50_ms": 510.03795849999995,
+            "p95_ms": 748.3762898,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000102486",
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 334.24825000111014,
+            "min_ms": 245.13924994971603,
+            "n": 5,
+            "p50_ms": 308.8560840114951,
+            "p95_ms": 331.627691606991,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 784.256292,
+            "min_ms": 498.895417,
+            "n": 5,
+            "p50_ms": 561.586791,
+            "p95_ms": 746.1817917999999,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 872.493792,
+            "min_ms": 293.535542,
+            "n": 30,
+            "p50_ms": 506.9711665,
+            "p95_ms": 648.8465231,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000151696",
+          "case_id": "en-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 4591.020375,
+            "min_ms": 348.101084,
+            "n": 30,
+            "p50_ms": 533.4589579999999,
+            "p95_ms": 1006.5488436,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.001265134",
+          "case_id": "en-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 8040.828917000908,
+            "min_ms": 5832.367166993208,
+            "n": 30,
+            "p50_ms": 6759.100895986194,
+            "p95_ms": 7835.996927597444,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000152418",
+          "case_id": "en-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 1016.246833,
+            "min_ms": 376.783,
+            "n": 30,
+            "p50_ms": 552.774583,
+            "p95_ms": 969.1311042,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000100662",
+          "case_id": "en-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 973.795458,
+            "min_ms": 308.597875,
+            "n": 30,
+            "p50_ms": 465.0525625,
+            "p95_ms": 670.2704462000002,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000102676",
+          "case_id": "mixed-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 756.55025,
+            "min_ms": 311.537209,
+            "n": 30,
+            "p50_ms": 455.588604,
+            "p95_ms": 703.43048125,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000152038",
+          "case_id": "mixed-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 871.614375,
+            "min_ms": 356.520792,
+            "n": 30,
+            "p50_ms": 520.54625,
+            "p95_ms": 703.70876265,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000102942",
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 314.3903750460595,
+            "min_ms": 213.3987090201117,
+            "n": 5,
+            "p50_ms": 232.27779095759615,
+            "p95_ms": 298.55363343376666,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 905.748792,
+            "min_ms": 320.171542,
+            "n": 5,
+            "p50_ms": 456.08575,
+            "p95_ms": 859.9176752,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 765.854084,
+            "min_ms": 302.431917,
+            "n": 30,
+            "p50_ms": 489.90131199999996,
+            "p95_ms": 720.4341167,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000150632",
+          "case_id": "mixed-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 779.600083,
+            "min_ms": 335.2555,
+            "n": 30,
+            "p50_ms": 503.306063,
+            "p95_ms": 645.71459635,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.001271290",
+          "case_id": "mixed-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 11519.486374978442,
+            "min_ms": 6217.002791992854,
+            "n": 30,
+            "p50_ms": 7054.913812491577,
+            "p95_ms": 10318.10740417859,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000151354",
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 778.376708,
+            "min_ms": 352.926709,
+            "n": 30,
+            "p50_ms": 539.0320835,
+            "p95_ms": 697.4697917000001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000100662",
+          "case_id": "mixed-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 720.0355,
+            "min_ms": 317.649708,
+            "n": 30,
+            "p50_ms": 446.63797950000003,
+            "p95_ms": 635.73919825,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000104386",
+          "case_id": "nl-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 644.951875,
+            "min_ms": 291.636458,
+            "n": 30,
+            "p50_ms": 453.811687,
+            "p95_ms": 611.2394937500001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000157054",
+          "case_id": "nl-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 1055.995875,
+            "min_ms": 350.518458,
+            "n": 30,
+            "p50_ms": 541.6415830000001,
+            "p95_ms": 788.3968439,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000102676",
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 317.83016701228917,
+            "min_ms": 226.85679199639708,
+            "n": 5,
+            "p50_ms": 259.2291669570841,
+            "p95_ms": 311.87320020981133,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 666.87975,
+            "min_ms": 320.391625,
+            "n": 5,
+            "p50_ms": 359.176792,
+            "p95_ms": 621.0082499999999,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": 884.902834,
+            "min_ms": 313.508917,
+            "n": 30,
+            "p50_ms": 453.434146,
+            "p95_ms": 721.3196043500001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000156484",
+          "case_id": "nl-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": 991.328333,
+            "min_ms": 353.026958,
+            "n": 30,
+            "p50_ms": 540.5624585,
+            "p95_ms": 800.1762061,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.001277560",
+          "case_id": "nl-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": 9013.991499959957,
+            "min_ms": 6300.076582992915,
+            "n": 30,
+            "p50_ms": 7106.950354005676,
+            "p95_ms": 8687.675756233511,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000156522",
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": 1162.74275,
+            "min_ms": 346.134209,
+            "n": 30,
+            "p50_ms": 548.7783545,
+            "p95_ms": 763.0476288,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.000101764",
+          "case_id": "nl-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": 996.929834,
+            "min_ms": 312.392417,
+            "n": 30,
+            "p50_ms": 552.1583335,
+            "p95_ms": 785.4807152500001,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        }
+      ],
+      "client_setup": {
+        "max_ms": 334.24825000111014,
+        "min_ms": 213.3987090201117,
+        "n": 15,
+        "p50_ms": 259.2291669570841,
+        "p95_ms": 325.07629562169313,
+        "percentile_method": "linear_type_7"
+      },
+      "cost_complete": true,
+      "download_bytes": null,
+      "known_billed_usd": "0.018737116",
+      "measurement": "measured_openrouter_end_to_end",
+      "model": "cloudflare/clef-flash",
+      "native_binary_size_bytes": null,
+      "planned_paid_requests": 1689,
+      "planning_setup_ms": 477.6309169828892,
+      "preflight": {
+        "catalog": {
+          "architecture": {
+            "input_modalities": [
+              "text",
+              "image"
+            ],
+            "instruct_type": null,
+            "modality": "text+image->decisions",
+            "output_modalities": [
+              "decisions"
+            ],
+            "tokenizer": "Qwen"
+          },
+          "canonical_slug": "cloudflare/clef-flash",
+          "context_length": 24576,
+          "created": 1790870973,
+          "default_parameters": {},
+          "description": "Clef-flash is the fast 9B member of Cloudflare's open-source Clef decision model family, a fine-tune of Qwen3.5-9B served on Workers AI. It turns a state (text or structured JSON) plus...",
+          "expiration_date": null,
+          "hugging_face_id": "Cloudflare/clef-flash",
+          "id": "cloudflare/clef-flash",
+          "knowledge_cutoff": null,
+          "links": {
+            "details": "/api/v1/models/cloudflare/clef-flash/endpoints"
+          },
+          "name": "Cloudflare: Clef Flash",
+          "per_request_limits": null,
+          "pricing": {
+            "completion": "0",
+            "prompt": "0.000000038"
+          },
+          "supported_parameters": [],
+          "supported_voices": null,
+          "top_provider": {
+            "context_length": 24576,
+            "is_moderated": false,
+            "max_completion_tokens": 22118
+          }
+        },
+        "endpoints": [
+          {
+            "context_length": 16384,
+            "latency_last_30m": {
+              "p50": 442,
+              "p75": 607,
+              "p90": 807.6999999999998,
+              "p99": 1833.9400000000005
+            },
+            "max_completion_tokens": 14745,
+            "max_prompt_tokens": null,
+            "model_id": "cloudflare/clef-flash",
+            "model_name": "Cloudflare: Clef Flash",
+            "name": "Makora | cloudflare/clef-flash",
+            "native_tools": {},
+            "perf_last_30m_by_workload": {
+              "decisions": {
+                "latency": {
+                  "p50": 442,
+                  "p75": 607,
+                  "p90": 807.6999999999998,
+                  "p99": 1833.9400000000005
+                },
+                "request_count": 4904,
+                "throughput": null
+              }
+            },
+            "pricing": {
+              "completion": "0",
+              "discount": 0,
+              "prompt": "0.000000018"
+            },
+            "provider_name": "Makora",
+            "quantization": "bf16",
+            "service_tier": null,
+            "status": 0,
+            "supported_parameters": [],
+            "supports_diarization": false,
+            "supports_image_reference": false,
+            "supports_implicit_caching": false,
+            "supports_multiple_audio_references": false,
+            "supports_tool_choice": {
+              "auto": true,
+              "function": true,
+              "none": true,
+              "required": true
+            },
+            "supports_voice_cloning": false,
+            "tag": "makora/bf16",
+            "throughput_last_30m": {
+              "p50": 0,
+              "p75": 0,
+              "p90": 0,
+              "p99": 0
+            },
+            "uptime_last_1d": 99.92663242846662,
+            "uptime_last_30m": 100,
+            "uptime_last_5m": 100
+          },
+          {
+            "context_length": 24576,
+            "latency_last_30m": {
+              "p50": 193,
+              "p75": 302,
+              "p90": 536,
+              "p99": 1090.4399999999987
+            },
+            "max_completion_tokens": 22118,
+            "max_prompt_tokens": null,
+            "model_id": "cloudflare/clef-flash",
+            "model_name": "Cloudflare: Clef Flash",
+            "name": "DeepInfra | cloudflare/clef-flash",
+            "native_tools": {},
+            "perf_last_30m_by_workload": {
+              "decisions": {
+                "latency": {
+                  "p50": 193,
+                  "p75": 302,
+                  "p90": 536,
+                  "p99": 1090.4399999999987
+                },
+                "request_count": 4640,
+                "throughput": null
+              }
+            },
+            "pricing": {
+              "completion": "0",
+              "discount": 0.5,
+              "prompt": "0.000000019"
+            },
+            "provider_name": "DeepInfra",
+            "quantization": "fp8",
+            "service_tier": null,
+            "status": 0,
+            "supported_parameters": [],
+            "supports_diarization": false,
+            "supports_image_reference": false,
+            "supports_implicit_caching": false,
+            "supports_multiple_audio_references": false,
+            "supports_tool_choice": {
+              "auto": true,
+              "function": true,
+              "none": true,
+              "required": true
+            },
+            "supports_voice_cloning": false,
+            "tag": "deepinfra/fp8",
+            "throughput_last_30m": {
+              "p50": 0,
+              "p75": 0,
+              "p90": 0,
+              "p99": 0
+            },
+            "uptime_last_1d": 100,
+            "uptime_last_30m": 100,
+            "uptime_last_5m": 100
+          },
+          {
+            "context_length": 24576,
+            "latency_last_30m": {
+              "p50": 324,
+              "p75": 667,
+              "p90": 1294.4000000000005,
+              "p99": 4424.919999999998
+            },
+            "max_completion_tokens": 22118,
+            "max_prompt_tokens": null,
+            "model_id": "cloudflare/clef-flash",
+            "model_name": "Cloudflare: Clef Flash",
+            "name": "PrimeIntellect | cloudflare/clef-flash",
+            "native_tools": {},
+            "perf_last_30m_by_workload": {
+              "decisions": {
+                "latency": {
+                  "p50": 324,
+                  "p75": 667,
+                  "p90": 1294.4000000000005,
+                  "p99": 4424.919999999998
+                },
+                "request_count": 2993,
+                "throughput": null
+              }
+            },
+            "pricing": {
+              "completion": "0",
+              "discount": 0,
+              "prompt": "0.000000038"
+            },
+            "provider_name": "PrimeIntellect",
+            "quantization": "unknown",
+            "service_tier": null,
+            "status": 0,
+            "supported_parameters": [],
+            "supports_diarization": false,
+            "supports_image_reference": false,
+            "supports_implicit_caching": false,
+            "supports_multiple_audio_references": false,
+            "supports_tool_choice": {
+              "auto": true,
+              "function": true,
+              "none": true,
+              "required": true
+            },
+            "supports_voice_cloning": false,
+            "tag": "primeintellect",
+            "throughput_last_30m": {
+              "p50": 0,
+              "p75": 0,
+              "p90": 0,
+              "p99": 0
+            },
+            "uptime_last_1d": 100,
+            "uptime_last_30m": 100,
+            "uptime_last_5m": 100
+          },
+          {
+            "context_length": 24576,
+            "latency_last_30m": {
+              "p50": 567,
+              "p75": 670,
+              "p90": 1011,
+              "p99": 3828.09
+            },
+            "max_completion_tokens": 22118,
+            "max_prompt_tokens": null,
+            "model_id": "cloudflare/clef-flash",
+            "model_name": "Cloudflare: Clef Flash",
+            "name": "Cloudflare | cloudflare/clef-flash",
+            "native_tools": {},
+            "perf_last_30m_by_workload": {
+              "decisions": {
+                "latency": {
+                  "p50": 567,
+                  "p75": 670,
+                  "p90": 1011,
+                  "p99": 3828.09
+                },
+                "request_count": 45285,
+                "throughput": null
+              }
+            },
+            "pricing": {
+              "completion": "0",
+              "discount": 0,
+              "prompt": "0.000000038"
+            },
+            "provider_name": "Cloudflare",
+            "quantization": "unknown",
+            "service_tier": null,
+            "status": 0,
+            "supported_parameters": [],
+            "supports_diarization": false,
+            "supports_image_reference": false,
+            "supports_implicit_caching": false,
+            "supports_multiple_audio_references": false,
+            "supports_tool_choice": {
+              "auto": true,
+              "function": true,
+              "none": true,
+              "required": true
+            },
+            "supports_voice_cloning": false,
+            "tag": "cloudflare",
+            "throughput_last_30m": {
+              "p50": 0,
+              "p75": 0,
+              "p90": 0,
+              "p99": 0
+            },
+            "uptime_last_1d": 100,
+            "uptime_last_30m": 100,
+            "uptime_last_5m": 100
+          }
+        ],
+        "limitations": [],
+        "model": "cloudflare/clef-flash",
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.000000038"
+        },
+        "pricing_source": "pinned_endpoint",
+        "status": "ok",
+        "transport": "openrouter"
+      },
+      "record_count": 666,
+      "runner_id": "openrouter-clef-flash",
+      "server_load_ms": null,
+      "server_memory_bytes": null,
+      "status": "ok"
+    },
+    {
+      "bound_usd": "0.10063234",
+      "cases": [
+        {
+          "bound_per_invocation_usd": "0.00005392",
+          "case_id": "en-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": 758.463125,
+            "min_ms": 291.406041,
+            "n": 30,
+            "p50_ms": 419.44416650000005,
+            "p95_ms": 736.88147065,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "ok": 30
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00008064",
+          "case_id": "en-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": 754.856875,
+            "min_ms": 403.622041,
+            "n": 7,
+            "p50_ms": 471.6955,
+            "p95_ms": 721.6434874,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {
+            "error": 1,
+            "ok": 7
+          }
+        },
+        {
+          "bound_per_invocation_usd": "0.00005396",
+          "case_id": "en-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 746.3926249765791,
+            "min_ms": 224.7676249826327,
+            "n": 5,
+            "p50_ms": 311.21891597285867,
+            "p95_ms": 692.1746249892749,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 939.5905,
+            "min_ms": 473.404833,
+            "n": 5,
+            "p50_ms": 731.429125,
+            "p95_ms": 916.277675,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00007986",
+          "case_id": "en-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00066610",
+          "case_id": "en-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00008024",
+          "case_id": "en-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00005300",
+          "case_id": "en-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "en",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00005406",
+          "case_id": "mixed-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00008004",
+          "case_id": "mixed-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00005420",
+          "case_id": "mixed-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 293.82687498582527,
+            "min_ms": 205.8854170027189,
+            "n": 5,
+            "p50_ms": 229.0098340017721,
+            "p95_ms": 288.1907333852723,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 824.951,
+            "min_ms": 463.34875,
+            "n": 5,
+            "p50_ms": 606.846791,
+            "p95_ms": 782.4675334,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00007930",
+          "case_id": "mixed-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00066934",
+          "case_id": "mixed-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00007968",
+          "case_id": "mixed-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00005300",
+          "case_id": "mixed-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "mixed",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00005496",
+          "case_id": "nl-heldout-00-missing-context",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "answerability",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00008268",
+          "case_id": "nl-heldout-01-claim-final",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "claim_support",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00005406",
+          "case_id": "nl-heldout-00-cleanup-amount-verification",
+          "client_setup": {
+            "max_ms": 332.0582499727607,
+            "min_ms": 220.2979169669561,
+            "n": 5,
+            "p50_ms": 237.11570899467915,
+            "p95_ms": 329.41653337329626,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": 619.717875,
+            "min_ms": 341.753583,
+            "n": 5,
+            "p50_ms": 460.202708,
+            "p95_ms": 591.5283834,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {
+            "ok": 5
+          },
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "cleanup",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00008238",
+          "case_id": "nl-heldout-01-action-owner",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "events",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00067264",
+          "case_id": "nl-heldout-00-q-library-ranking",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 12,
+          "task": "ranking",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00008240",
+          "case_id": "nl-heldout-01-name-ambiguous",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "speaker_names",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        },
+        {
+          "bound_per_invocation_usd": "0.00005358",
+          "case_id": "nl-heldout-00-template-missing",
+          "client_setup": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "cold_client_status_counts": {},
+          "language": "nl",
+          "requests_per_invocation": 1,
+          "task": "templates",
+          "warm": {
+            "max_ms": null,
+            "min_ms": null,
+            "n": 0,
+            "p50_ms": null,
+            "p95_ms": null,
+            "percentile_method": "linear_type_7"
+          },
+          "warm_status_counts": {}
+        }
+      ],
+      "client_setup": {
+        "max_ms": 746.3926249765791,
+        "min_ms": 205.8854170027189,
+        "n": 15,
+        "p50_ms": 237.11570899467915,
+        "p95_ms": 556.6296250210146,
+        "percentile_method": "linear_type_7"
+      },
+      "cost_complete": false,
+      "download_bytes": null,
+      "known_billed_usd": "0.00019518",
+      "measurement": "measured_openrouter_end_to_end",
+      "model": "inception/mercury-decide",
+      "native_binary_size_bytes": null,
+      "planned_paid_requests": 1689,
+      "planning_setup_ms": 271.5078330365941,
+      "preflight": {
+        "catalog": {
+          "architecture": {
+            "input_modalities": [
+              "text",
+              "image"
+            ],
+            "instruct_type": null,
+            "modality": "text+image->decisions",
+            "output_modalities": [
+              "decisions"
+            ],
+            "tokenizer": "Other"
+          },
+          "canonical_slug": "inception/mercury-decide-20260930",
+          "context_length": 65536,
+          "created": 1790789334,
+          "default_parameters": {},
+          "description": "Mercury Decide is Inception's structured decision model, served as a System One endpoint. Send a state along with typed questions, and it returns a choice, a score, or a yes/no...",
+          "expiration_date": null,
+          "hugging_face_id": null,
+          "id": "inception/mercury-decide",
+          "knowledge_cutoff": null,
+          "links": {
+            "details": "/api/v1/models/inception/mercury-decide-20260930/endpoints"
+          },
+          "name": "Inception: Mercury Decide",
+          "per_request_limits": null,
+          "pricing": {
+            "completion": "0",
+            "input_cache_read": "0",
+            "prompt": "0.00000002"
+          },
+          "supported_parameters": [],
+          "supported_voices": null,
+          "top_provider": {
+            "context_length": 65536,
+            "is_moderated": false,
+            "max_completion_tokens": 58982
+          }
+        },
+        "endpoints": [
+          {
+            "context_length": 65536,
+            "latency_last_30m": {
+              "p50": 261,
+              "p75": 299,
+              "p90": 373,
+              "p99": 858.1700000000019
+            },
+            "max_completion_tokens": 58982,
+            "max_prompt_tokens": null,
+            "model_id": "inception/mercury-decide",
+            "model_name": "Inception: Mercury Decide",
+            "name": "Inception | inception/mercury-decide-20260930",
+            "native_tools": {},
+            "perf_last_30m_by_workload": {
+              "decisions": {
+                "latency": {
+                  "p50": 261,
+                  "p75": 299,
+                  "p90": 373,
+                  "p99": 858.1700000000019
+                },
+                "request_count": 161034,
+                "throughput": null
+              }
+            },
+            "pricing": {
+              "completion": "0",
+              "discount": 0.5,
+              "input_cache_read": "0",
+              "prompt": "0.00000002"
+            },
+            "provider_name": "Inception",
+            "quantization": "unknown",
+            "service_tier": null,
+            "status": 0,
+            "supported_parameters": [],
+            "supports_diarization": false,
+            "supports_image_reference": false,
+            "supports_implicit_caching": true,
+            "supports_multiple_audio_references": false,
+            "supports_tool_choice": {
+              "auto": true,
+              "function": true,
+              "none": true,
+              "required": true
+            },
+            "supports_voice_cloning": false,
+            "tag": "inception",
+            "throughput_last_30m": {
+              "p50": 0,
+              "p75": 0,
+              "p90": 0,
+              "p99": 0
+            },
+            "uptime_last_1d": 100,
+            "uptime_last_30m": 100,
+            "uptime_last_5m": 100
+          }
+        ],
+        "limitations": [],
+        "model": "inception/mercury-decide",
+        "pricing": {
+          "completion": "0",
+          "discount": 0.5,
+          "input_cache_read": "0",
+          "prompt": "0.00000002"
+        },
+        "pricing_source": "pinned_endpoint",
+        "status": "ok",
+        "transport": "openrouter"
+      },
+      "record_count": 55,
+      "runner_id": "openrouter-mercury",
+      "server_load_ms": null,
+      "server_memory_bytes": null,
+      "status": "unmeasured_or_partial"
+    }
+  ],
+  "panel": {
+    "cases_sha256": "6c1564087005de1a255bcc77c038cf1ed8447307e7fb1293ae0c2566ede10657",
+    "cold_client_samples_per_language": 5,
+    "excluded_warmups_per_case": 1,
+    "latency_concurrency": 1,
+    "panel_hash": "aa145c186b85662c0fad3e7f0f0bce451e6c060f3644966be3787a7c2ab71f96",
+    "runners": [
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "openrouter-jev"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "openrouter-decider"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "openrouter-decider-flash"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "openrouter-clef-flash"
+      },
+      {
+        "case_ids": [
+          "en-heldout-00-missing-context",
+          "en-heldout-01-claim-final",
+          "en-heldout-00-cleanup-amount-verification",
+          "en-heldout-01-action-owner",
+          "en-heldout-00-q-library-ranking",
+          "en-heldout-01-name-ambiguous",
+          "en-heldout-00-template-missing",
+          "mixed-heldout-00-missing-context",
+          "mixed-heldout-01-claim-final",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-01-action-owner",
+          "mixed-heldout-00-q-library-ranking",
+          "mixed-heldout-01-name-ambiguous",
+          "mixed-heldout-00-template-missing",
+          "nl-heldout-00-missing-context",
+          "nl-heldout-01-claim-final",
+          "nl-heldout-00-cleanup-amount-verification",
+          "nl-heldout-01-action-owner",
+          "nl-heldout-00-q-library-ranking",
+          "nl-heldout-01-name-ambiguous",
+          "nl-heldout-00-template-missing"
+        ],
+        "cold_case_ids": [
+          "en-heldout-00-cleanup-amount-verification",
+          "mixed-heldout-00-cleanup-amount-verification",
+          "nl-heldout-00-cleanup-amount-verification"
+        ],
+        "runner_id": "openrouter-mercury"
+      }
+    ],
+    "split": "heldout",
+    "version": 1,
+    "warm_samples_per_case": 30
+  },
+  "planned_paid_requests": 8445,
+  "reason": "panel_fits_reconciled_budget",
+  "remaining_after_usd": "1.686935612",
+  "remaining_before_usd": "1.750748796",
+  "run_manifest_hash": "20f0a59b3caef84e33e12cf2a6fead8617ed80ca44e20f7e685d897a6b16a4ad",
+  "status": "partial_service_errors_preserved",
+  "total_bound_usd": "0.653904152"
+}

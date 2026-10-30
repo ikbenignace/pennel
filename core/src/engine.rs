@@ -20,7 +20,7 @@ use crate::live_dictation::{DictationPreviewObserver, LiveDictationSession};
 use crate::llm::Reasoning;
 use crate::local_engine::LocalEngine;
 use crate::meeting_chat::{ChatTurn, MeetingAnswer};
-use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
+use crate::meeting_index::{MeetingIndex, Passage};
 use crate::meetings::SpeakerName;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::models::{CancelFlag, DownloadListener, LocalModel, ModelState, ModelStore};
@@ -1036,49 +1036,17 @@ impl PennelEngine {
             return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
         let store = self.meeting_store();
-        let scope = meeting_id.as_deref();
-        let terms = search_terms(&question);
         let sources = self
             .with_index(&store, |index| {
-                if let Some(id) = scope {
-                    let all = index.recent(&store, Some(id), u32::MAX)?;
-                    let whole_fits = if account.kind == ProviderKind::AppleIntelligence {
-                        system_llm::input_bytes(&chat_messages(&question, &history, &all))
-                            <= system_llm::APPLE_INPUT_BYTES
-                    } else {
-                        all.iter().map(|p| p.text.len()).sum::<usize>() <= WHOLE_MEETING_CHARS
-                    };
-                    if whole_fits {
-                        return Ok(all);
-                    }
-                    let found = index.search_any(&store, &terms, Some(id), MEETING_PASSAGES)?;
-                    if account.kind == ProviderKind::AppleIntelligence {
-                        let mut picked = if found.is_empty() {
-                            index.recent(&store, Some(id), MEETING_PASSAGES)?
-                        } else {
-                            found
-                        };
-                        picked.extend(all.into_iter().filter(|p| p.kind == PassageKind::Summary));
-                        return Ok(picked);
-                    }
-                    let mut picked: Vec<Passage> = all
-                        .iter()
-                        .filter(|p| p.kind == PassageKind::Summary)
-                        .cloned()
-                        .collect();
-                    picked.extend(if found.is_empty() {
-                        index.recent(&store, Some(id), MEETING_PASSAGES)?
-                    } else {
-                        found
-                    });
-                    return Ok(picked);
-                }
-                let found = index.search_any(&store, &terms, None, ALL_MEETINGS_PASSAGES)?;
-                if found.is_empty() {
-                    index.recent(&store, None, ALL_MEETINGS_PASSAGES)
-                } else {
-                    Ok(found)
-                }
+                select_sources(
+                    index,
+                    &store,
+                    &question,
+                    &history,
+                    meeting_id.as_deref(),
+                    account.kind == ProviderKind::AppleIntelligence,
+                )
+                .map(|(sources, _)| sources)
             })
             .ok_or(PennelError::Storage {
                 message: "search index unavailable".into(),

@@ -1,0 +1,12 @@
+{
+  "credentials": "macOS Keychain; values omitted; benchmark subprocess environments only",
+  "live_binary_categorical_smoke_requests": 10,
+  "measured_vs_mocked": "Published prediction receipts are live API inference. Unit-test mocked requests are not included as measured inference.",
+  "offline_CI_platforms": [
+    "macOS",
+    "Windows",
+    "Linux"
+  ],
+  "offline_tests_passed": 174,
+  "production_data_settings_credentials_modified": false
+}

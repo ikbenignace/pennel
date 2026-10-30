@@ -1,0 +1,433 @@
+{
+  "experiment": "53-supplement-v2-local-2026-10-28",
+  "freeze_commit": "fbad0ff",
+  "manifest_sha256": "7a1946ebca426489b3aa2b051eef5bda763f6eedde7358518709872eb1cab25c",
+  "calibration_rows": 432,
+  "heldout_rows": 432,
+  "status_counts": {
+    "ok": 432
+  },
+  "hosted_requests": 0,
+  "hosted_cost_usd": "0",
+  "new_download_bytes": 0,
+  "total_existing_artifact_acquisition_bytes": 2770266421,
+  "calibration_contexts_fitted": 18,
+  "gliner_unsupported_distribution_calibration_rows": 216,
+  "offline_replay": "passed",
+  "resources": [
+    {
+      "runner_id": "gliclass-multilingual",
+      "load_ms": 2877.535292005632,
+      "process_start_ms": 2924.624582985416,
+      "peak_owned_rss_bytes": 1651933184,
+      "budget_bytes": 25769803776
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "load_ms": 6486.418750020675,
+      "process_start_ms": 6518.225417006761,
+      "peak_owned_rss_bytes": 3576463360,
+      "budget_bytes": 25769803776
+    }
+  ],
+  "groups": [
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "en",
+      "task": "events",
+      "subtask": "owner",
+      "raw_macro_f1": 0.16666666666666666,
+      "calibrated_macro_f1": 0.1839080459770115,
+      "calibrated_selective_accuracy": 0.38095238095238093,
+      "calibrated_coverage": 0.875,
+      "calibrated_suggestions": null,
+      "point_gates_pass": false,
+      "calibration_gates": []
+    },
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "en",
+      "task": "speaker_names",
+      "subtask": null,
+      "raw_macro_f1": 0.6666666666666666,
+      "calibrated_macro_f1": 0.39285714285714285,
+      "calibrated_selective_accuracy": 1.0,
+      "calibrated_coverage": 0.3333333333333333,
+      "calibrated_suggestions": {
+        "correct_count": 8,
+        "count": 24,
+        "coverage": 0.3333333333333333,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 18,
+        "forced_ambiguous_names": 0,
+        "precision": 1.0,
+        "recall": 0.4444444444444444,
+        "suggestion_count": 8
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "suggestion_coverage_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "en",
+      "task": "templates",
+      "subtask": null,
+      "raw_macro_f1": 0.31428571428571433,
+      "calibrated_macro_f1": 0.31428571428571433,
+      "calibrated_selective_accuracy": 0.5,
+      "calibrated_coverage": 1.0,
+      "calibrated_suggestions": {
+        "correct_count": 4,
+        "count": 24,
+        "coverage": 0.16666666666666666,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 16,
+        "forced_ambiguous_names": 0,
+        "precision": 1.0,
+        "recall": 0.25,
+        "suggestion_count": 4
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "suggestion_coverage_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "mixed",
+      "task": "events",
+      "subtask": "owner",
+      "raw_macro_f1": 0.16666666666666666,
+      "calibrated_macro_f1": 0.25925925925925924,
+      "calibrated_selective_accuracy": 0.7,
+      "calibrated_coverage": 0.4166666666666667,
+      "calibrated_suggestions": null,
+      "point_gates_pass": false,
+      "calibration_gates": []
+    },
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "mixed",
+      "task": "speaker_names",
+      "subtask": null,
+      "raw_macro_f1": 0.6572398190045249,
+      "calibrated_macro_f1": 0.7045454545454546,
+      "calibrated_selective_accuracy": 1.0,
+      "calibrated_coverage": 0.6666666666666666,
+      "calibrated_suggestions": {
+        "correct_count": 16,
+        "count": 24,
+        "coverage": 0.6666666666666666,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 18,
+        "forced_ambiguous_names": 0,
+        "precision": 1.0,
+        "recall": 0.8888888888888888,
+        "suggestion_count": 16
+      },
+      "point_gates_pass": true,
+      "calibration_gates": []
+    },
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "mixed",
+      "task": "templates",
+      "subtask": null,
+      "raw_macro_f1": 0.31428571428571433,
+      "calibrated_macro_f1": 0.22745098039215686,
+      "calibrated_selective_accuracy": 0.5454545454545454,
+      "calibrated_coverage": 0.4583333333333333,
+      "calibrated_suggestions": {
+        "correct_count": 2,
+        "count": 24,
+        "coverage": 0.08333333333333333,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 16,
+        "forced_ambiguous_names": 0,
+        "precision": 1.0,
+        "recall": 0.125,
+        "suggestion_count": 2
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "suggestion_coverage_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "nl",
+      "task": "events",
+      "subtask": "owner",
+      "raw_macro_f1": 0.16666666666666666,
+      "calibrated_macro_f1": 0.28070175438596495,
+      "calibrated_selective_accuracy": 0.7272727272727273,
+      "calibrated_coverage": 0.4583333333333333,
+      "calibrated_suggestions": null,
+      "point_gates_pass": false,
+      "calibration_gates": []
+    },
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "nl",
+      "task": "speaker_names",
+      "subtask": null,
+      "raw_macro_f1": 0.6666666666666666,
+      "calibrated_macro_f1": 0.65,
+      "calibrated_selective_accuracy": 1.0,
+      "calibrated_coverage": 0.5833333333333334,
+      "calibrated_suggestions": {
+        "correct_count": 14,
+        "count": 24,
+        "coverage": 0.5833333333333334,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 18,
+        "forced_ambiguous_names": 0,
+        "precision": 1.0,
+        "recall": 0.7777777777777778,
+        "suggestion_count": 14
+      },
+      "point_gates_pass": true,
+      "calibration_gates": []
+    },
+    {
+      "runner_id": "gliclass-multilingual",
+      "language": "nl",
+      "task": "templates",
+      "subtask": null,
+      "raw_macro_f1": 0.20728744939271254,
+      "calibrated_macro_f1": 0.2787878787878788,
+      "calibrated_selective_accuracy": 0.6666666666666666,
+      "calibrated_coverage": 0.375,
+      "calibrated_suggestions": {
+        "correct_count": 6,
+        "count": 24,
+        "coverage": 0.375,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 16,
+        "forced_ambiguous_names": 2,
+        "precision": 0.6666666666666666,
+        "recall": 0.375,
+        "suggestion_count": 9
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "suggestion_coverage_below_minimum",
+        "suggestion_precision_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "en",
+      "task": "events",
+      "subtask": "owner",
+      "raw_macro_f1": 0.45394112060778724,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": null,
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "en",
+      "task": "speaker_names",
+      "subtask": null,
+      "raw_macro_f1": 0.6666666666666666,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": {
+        "correct_count": 0,
+        "count": 24,
+        "coverage": 0.0,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 18,
+        "forced_ambiguous_names": 0,
+        "precision": null,
+        "recall": 0.0,
+        "suggestion_count": 0
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases",
+        "suggestion_coverage_below_minimum",
+        "suggestion_precision_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "en",
+      "task": "templates",
+      "subtask": null,
+      "raw_macro_f1": 0.14153846153846156,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": {
+        "correct_count": 0,
+        "count": 24,
+        "coverage": 0.0,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 16,
+        "forced_ambiguous_names": 0,
+        "precision": null,
+        "recall": 0.0,
+        "suggestion_count": 0
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases",
+        "suggestion_coverage_below_minimum",
+        "suggestion_precision_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "mixed",
+      "task": "events",
+      "subtask": "owner",
+      "raw_macro_f1": 0.4381926683716965,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": null,
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "mixed",
+      "task": "speaker_names",
+      "subtask": null,
+      "raw_macro_f1": 0.6166666666666667,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": {
+        "correct_count": 0,
+        "count": 24,
+        "coverage": 0.0,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 18,
+        "forced_ambiguous_names": 0,
+        "precision": null,
+        "recall": 0.0,
+        "suggestion_count": 0
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases",
+        "suggestion_coverage_below_minimum",
+        "suggestion_precision_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "mixed",
+      "task": "templates",
+      "subtask": null,
+      "raw_macro_f1": 0.06153846153846154,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": {
+        "correct_count": 0,
+        "count": 24,
+        "coverage": 0.0,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 16,
+        "forced_ambiguous_names": 0,
+        "precision": null,
+        "recall": 0.0,
+        "suggestion_count": 0
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases",
+        "suggestion_coverage_below_minimum",
+        "suggestion_precision_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "nl",
+      "task": "events",
+      "subtask": "owner",
+      "raw_macro_f1": 0.3111111111111111,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": null,
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "nl",
+      "task": "speaker_names",
+      "subtask": null,
+      "raw_macro_f1": 0.6439393939393939,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": {
+        "correct_count": 0,
+        "count": 24,
+        "coverage": 0.0,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 18,
+        "forced_ambiguous_names": 0,
+        "precision": null,
+        "recall": 0.0,
+        "suggestion_count": 0
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases",
+        "suggestion_coverage_below_minimum",
+        "suggestion_precision_below_minimum"
+      ]
+    },
+    {
+      "runner_id": "gliner-multilingual",
+      "language": "nl",
+      "task": "templates",
+      "subtask": null,
+      "raw_macro_f1": 0.1,
+      "calibrated_macro_f1": 0.0,
+      "calibrated_selective_accuracy": null,
+      "calibrated_coverage": 0.0,
+      "calibrated_suggestions": {
+        "correct_count": 0,
+        "count": 24,
+        "coverage": 0.0,
+        "definition": "Only accepted non-decline labels count as suggestions; coverage uses all task cases.",
+        "eligible_count": 16,
+        "forced_ambiguous_names": 0,
+        "precision": null,
+        "recall": 0.0,
+        "suggestion_count": 0
+      },
+      "point_gates_pass": false,
+      "calibration_gates": [
+        "uncalibrated_heldout_cases",
+        "suggestion_coverage_below_minimum",
+        "suggestion_precision_below_minimum"
+      ]
+    }
+  ],
+  "limitations": [
+    "Quality-run latency is one pass through each case, not a replacement for the original fixed 30-repeat local timing panel.",
+    "GLiNER selected labels/confidence are not complete distributions; no Brier/ECE or synthesized confidence calibration.",
+    "Fixed candidate names and short authored states do not establish open-vocabulary or acoustic speaker naming."
+  ]
+}

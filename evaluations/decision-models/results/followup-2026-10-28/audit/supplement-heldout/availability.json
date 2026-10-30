@@ -1,0 +1,739 @@
+[
+  {
+    "catalog": {
+      "architecture": {
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "instruct_type": null,
+        "modality": "text+image->decisions",
+        "output_modalities": [
+          "decisions"
+        ],
+        "tokenizer": "Other"
+      },
+      "canonical_slug": "typesafe/jev-1.14-20261014",
+      "context_length": 262144,
+      "created": 1792021417,
+      "default_parameters": {},
+      "description": "Jev 1.14 is the latest version of Jev, TypeSafe's structured decision model and the first of its System One models. System One models make fast, structured decisions for software, returning...",
+      "expiration_date": null,
+      "hugging_face_id": null,
+      "id": "typesafe/jev-1.14",
+      "knowledge_cutoff": null,
+      "links": {
+        "details": "/api/v1/models/typesafe/jev-1.14-20261014/endpoints"
+      },
+      "name": "TypeSafe: Jev 1.14",
+      "per_request_limits": null,
+      "pricing": {
+        "completion": "0",
+        "prompt": "0.000000042"
+      },
+      "supported_parameters": [],
+      "supported_voices": null,
+      "top_provider": {
+        "context_length": 262144,
+        "is_moderated": false,
+        "max_completion_tokens": 235929
+      }
+    },
+    "endpoints": [
+      {
+        "context_length": 262144,
+        "latency_last_30m": {
+          "p50": 114,
+          "p75": 170,
+          "p90": 239,
+          "p99": 347
+        },
+        "max_completion_tokens": 235929,
+        "max_prompt_tokens": 262144,
+        "model_id": "typesafe/jev-1.14",
+        "model_name": "TypeSafe: Jev 1.14",
+        "name": "TypeSafe | typesafe/jev-1.14-20261014",
+        "native_tools": {},
+        "perf_last_30m_by_workload": {
+          "decisions": {
+            "latency": {
+              "p50": 114,
+              "p75": 170,
+              "p90": 239,
+              "p99": 347
+            },
+            "request_count": 1528852,
+            "throughput": null
+          }
+        },
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.000000042"
+        },
+        "provider_name": "TypeSafe",
+        "quantization": "unknown",
+        "service_tier": null,
+        "status": 0,
+        "supported_parameters": [],
+        "supports_diarization": false,
+        "supports_image_reference": false,
+        "supports_implicit_caching": false,
+        "supports_multiple_audio_references": false,
+        "supports_tool_choice": {
+          "auto": true,
+          "function": true,
+          "none": true,
+          "required": true
+        },
+        "supports_voice_cloning": false,
+        "tag": "typesafe",
+        "throughput_last_30m": {
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "p99": 0
+        },
+        "uptime_last_1d": 100,
+        "uptime_last_30m": 100,
+        "uptime_last_5m": 100
+      }
+    ],
+    "id": "openrouter-jev",
+    "limitations": [],
+    "model": "typesafe/jev-1.14",
+    "pricing": {
+      "completion": "0",
+      "discount": 0,
+      "prompt": "0.000000042"
+    },
+    "pricing_source": "pinned_endpoint",
+    "status": "ok",
+    "transport": "openrouter"
+  },
+  {
+    "catalog": {
+      "architecture": {
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "instruct_type": null,
+        "modality": "text+image->decisions",
+        "output_modalities": [
+          "decisions"
+        ],
+        "tokenizer": "Other"
+      },
+      "canonical_slug": "perplexity/pplx-decider-v1.2-20261016",
+      "context_length": 262144,
+      "created": 1792183495,
+      "default_parameters": {},
+      "description": "Decider V1.2 is a new 27B checkpoint of Perplexity's decision model, succeeding [Decider V1.1 27B](/perplexity/pplx-decider-v1.1-27b) with the same API contract. Instead of generating text, it reads content passed as `state`...",
+      "expiration_date": null,
+      "hugging_face_id": null,
+      "id": "perplexity/pplx-decider-v1.2",
+      "knowledge_cutoff": null,
+      "links": {
+        "details": "/api/v1/models/perplexity/pplx-decider-v1.2-20261016/endpoints"
+      },
+      "name": "Perplexity: Decider V1.2",
+      "per_request_limits": null,
+      "pricing": {
+        "completion": "0",
+        "prompt": "0.00000002"
+      },
+      "supported_parameters": [],
+      "supported_voices": null,
+      "top_provider": {
+        "context_length": 262144,
+        "is_moderated": false,
+        "max_completion_tokens": 235929
+      }
+    },
+    "endpoints": [
+      {
+        "context_length": 262144,
+        "latency_last_30m": {
+          "p50": 195,
+          "p75": 256,
+          "p90": 365,
+          "p99": 905.0900000000001
+        },
+        "max_completion_tokens": 235929,
+        "max_prompt_tokens": null,
+        "model_id": "perplexity/pplx-decider-v1.2",
+        "model_name": "Perplexity: Decider V1.2",
+        "name": "Perplexity | perplexity/pplx-decider-v1.2-20261016",
+        "native_tools": {},
+        "perf_last_30m_by_workload": {
+          "decisions": {
+            "latency": {
+              "p50": 195,
+              "p75": 256,
+              "p90": 365,
+              "p99": 905.0900000000001
+            },
+            "request_count": 475112,
+            "throughput": null
+          }
+        },
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.00000002"
+        },
+        "provider_name": "Perplexity",
+        "quantization": "unknown",
+        "service_tier": null,
+        "status": 0,
+        "supported_parameters": [],
+        "supports_diarization": false,
+        "supports_image_reference": false,
+        "supports_implicit_caching": false,
+        "supports_multiple_audio_references": false,
+        "supports_tool_choice": {
+          "auto": true,
+          "function": true,
+          "none": true,
+          "required": true
+        },
+        "supports_voice_cloning": false,
+        "tag": "perplexity",
+        "throughput_last_30m": {
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "p99": 0
+        },
+        "uptime_last_1d": 100,
+        "uptime_last_30m": 100,
+        "uptime_last_5m": 100
+      }
+    ],
+    "id": "openrouter-decider",
+    "limitations": [],
+    "model": "perplexity/pplx-decider-v1.2",
+    "pricing": {
+      "completion": "0",
+      "discount": 0,
+      "prompt": "0.00000002"
+    },
+    "pricing_source": "pinned_endpoint",
+    "status": "ok",
+    "transport": "openrouter"
+  },
+  {
+    "catalog": {
+      "architecture": {
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "instruct_type": null,
+        "modality": "text+image->decisions",
+        "output_modalities": [
+          "decisions"
+        ],
+        "tokenizer": "Other"
+      },
+      "canonical_slug": "perplexity/pplx-decider-flash-v1.2-20261016",
+      "context_length": 262144,
+      "created": 1792183496,
+      "default_parameters": {},
+      "description": "Decider Flash V1.2 is a 4B-parameter decision model from Perplexity, a smaller, lower-cost sibling of [Decider V1.2](/perplexity/pplx-decider-v1.2) with the same API contract. Instead of generating text, it reads content passed...",
+      "expiration_date": null,
+      "hugging_face_id": null,
+      "id": "perplexity/pplx-decider-flash-v1.2",
+      "knowledge_cutoff": null,
+      "links": {
+        "details": "/api/v1/models/perplexity/pplx-decider-flash-v1.2-20261016/endpoints"
+      },
+      "name": "Perplexity: Decider Flash V1.2",
+      "per_request_limits": null,
+      "pricing": {
+        "completion": "0",
+        "prompt": "0.00000001"
+      },
+      "supported_parameters": [],
+      "supported_voices": null,
+      "top_provider": {
+        "context_length": 262144,
+        "is_moderated": false,
+        "max_completion_tokens": 235929
+      }
+    },
+    "endpoints": [
+      {
+        "context_length": 262144,
+        "latency_last_30m": {
+          "p50": 207,
+          "p75": 284,
+          "p90": 312,
+          "p99": 1553.1800000000003
+        },
+        "max_completion_tokens": 235929,
+        "max_prompt_tokens": null,
+        "model_id": "perplexity/pplx-decider-flash-v1.2",
+        "model_name": "Perplexity: Decider Flash V1.2",
+        "name": "Perplexity | perplexity/pplx-decider-flash-v1.2-20261016",
+        "native_tools": {},
+        "perf_last_30m_by_workload": {
+          "decisions": {
+            "latency": {
+              "p50": 207,
+              "p75": 284,
+              "p90": 312,
+              "p99": 1553.1800000000003
+            },
+            "request_count": 14816,
+            "throughput": null
+          }
+        },
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.00000001"
+        },
+        "provider_name": "Perplexity",
+        "quantization": "unknown",
+        "service_tier": null,
+        "status": 0,
+        "supported_parameters": [],
+        "supports_diarization": false,
+        "supports_image_reference": false,
+        "supports_implicit_caching": false,
+        "supports_multiple_audio_references": false,
+        "supports_tool_choice": {
+          "auto": true,
+          "function": true,
+          "none": true,
+          "required": true
+        },
+        "supports_voice_cloning": false,
+        "tag": "perplexity",
+        "throughput_last_30m": {
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "p99": 0
+        },
+        "uptime_last_1d": 100,
+        "uptime_last_30m": 100,
+        "uptime_last_5m": 100
+      }
+    ],
+    "id": "openrouter-decider-flash",
+    "limitations": [],
+    "model": "perplexity/pplx-decider-flash-v1.2",
+    "pricing": {
+      "completion": "0",
+      "discount": 0,
+      "prompt": "0.00000001"
+    },
+    "pricing_source": "pinned_endpoint",
+    "status": "ok",
+    "transport": "openrouter"
+  },
+  {
+    "catalog": {
+      "architecture": {
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "instruct_type": null,
+        "modality": "text+image->decisions",
+        "output_modalities": [
+          "decisions"
+        ],
+        "tokenizer": "Qwen"
+      },
+      "canonical_slug": "cloudflare/clef-flash",
+      "context_length": 24576,
+      "created": 1790870973,
+      "default_parameters": {},
+      "description": "Clef-flash is the fast 9B member of Cloudflare's open-source Clef decision model family, a fine-tune of Qwen3.5-9B served on Workers AI. It turns a state (text or structured JSON) plus...",
+      "expiration_date": null,
+      "hugging_face_id": "Cloudflare/clef-flash",
+      "id": "cloudflare/clef-flash",
+      "knowledge_cutoff": null,
+      "links": {
+        "details": "/api/v1/models/cloudflare/clef-flash/endpoints"
+      },
+      "name": "Cloudflare: Clef Flash",
+      "per_request_limits": null,
+      "pricing": {
+        "completion": "0",
+        "prompt": "0.000000038"
+      },
+      "supported_parameters": [],
+      "supported_voices": null,
+      "top_provider": {
+        "context_length": 24576,
+        "is_moderated": false,
+        "max_completion_tokens": 22118
+      }
+    },
+    "endpoints": [
+      {
+        "context_length": 16384,
+        "latency_last_30m": {
+          "p50": 716,
+          "p75": 1672,
+          "p90": 2384.8,
+          "p99": 3838.999999999992
+        },
+        "max_completion_tokens": 14745,
+        "max_prompt_tokens": null,
+        "model_id": "cloudflare/clef-flash",
+        "model_name": "Cloudflare: Clef Flash",
+        "name": "Makora | cloudflare/clef-flash",
+        "native_tools": {},
+        "perf_last_30m_by_workload": {
+          "decisions": {
+            "latency": {
+              "p50": 716,
+              "p75": 1672,
+              "p90": 2384.8,
+              "p99": 3838.999999999992
+            },
+            "request_count": 2533,
+            "throughput": null
+          }
+        },
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.000000018"
+        },
+        "provider_name": "Makora",
+        "quantization": "bf16",
+        "service_tier": null,
+        "status": 0,
+        "supported_parameters": [],
+        "supports_diarization": false,
+        "supports_image_reference": false,
+        "supports_implicit_caching": false,
+        "supports_multiple_audio_references": false,
+        "supports_tool_choice": {
+          "auto": true,
+          "function": true,
+          "none": true,
+          "required": true
+        },
+        "supports_voice_cloning": false,
+        "tag": "makora/bf16",
+        "throughput_last_30m": {
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "p99": 0
+        },
+        "uptime_last_1d": 99.92673992673993,
+        "uptime_last_30m": 100,
+        "uptime_last_5m": 100
+      },
+      {
+        "context_length": 24576,
+        "latency_last_30m": {
+          "p50": 260,
+          "p75": 348.75,
+          "p90": 589,
+          "p99": 1243
+        },
+        "max_completion_tokens": 22118,
+        "max_prompt_tokens": null,
+        "model_id": "cloudflare/clef-flash",
+        "model_name": "Cloudflare: Clef Flash",
+        "name": "DeepInfra | cloudflare/clef-flash",
+        "native_tools": {},
+        "perf_last_30m_by_workload": {
+          "decisions": {
+            "latency": {
+              "p50": 260,
+              "p75": 348.75,
+              "p90": 589,
+              "p99": 1243
+            },
+            "request_count": 4114,
+            "throughput": null
+          }
+        },
+        "pricing": {
+          "completion": "0",
+          "discount": 0.5,
+          "prompt": "0.000000019"
+        },
+        "provider_name": "DeepInfra",
+        "quantization": "fp8",
+        "service_tier": null,
+        "status": 0,
+        "supported_parameters": [],
+        "supports_diarization": false,
+        "supports_image_reference": false,
+        "supports_implicit_caching": false,
+        "supports_multiple_audio_references": false,
+        "supports_tool_choice": {
+          "auto": true,
+          "function": true,
+          "none": true,
+          "required": true
+        },
+        "supports_voice_cloning": false,
+        "tag": "deepinfra/fp8",
+        "throughput_last_30m": {
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "p99": 0
+        },
+        "uptime_last_1d": 100,
+        "uptime_last_30m": 100,
+        "uptime_last_5m": 100
+      },
+      {
+        "context_length": 24576,
+        "latency_last_30m": {
+          "p50": 232,
+          "p75": 282,
+          "p90": 343.4000000000001,
+          "p99": 793.1999999999989
+        },
+        "max_completion_tokens": 22118,
+        "max_prompt_tokens": null,
+        "model_id": "cloudflare/clef-flash",
+        "model_name": "Cloudflare: Clef Flash",
+        "name": "PrimeIntellect | cloudflare/clef-flash",
+        "native_tools": {},
+        "perf_last_30m_by_workload": {
+          "decisions": {
+            "latency": {
+              "p50": 232,
+              "p75": 282,
+              "p90": 343.4000000000001,
+              "p99": 793.1999999999989
+            },
+            "request_count": 1347,
+            "throughput": null
+          }
+        },
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.000000038"
+        },
+        "provider_name": "PrimeIntellect",
+        "quantization": "unknown",
+        "service_tier": null,
+        "status": 0,
+        "supported_parameters": [],
+        "supports_diarization": false,
+        "supports_image_reference": false,
+        "supports_implicit_caching": false,
+        "supports_multiple_audio_references": false,
+        "supports_tool_choice": {
+          "auto": true,
+          "function": true,
+          "none": true,
+          "required": true
+        },
+        "supports_voice_cloning": false,
+        "tag": "primeintellect",
+        "throughput_last_30m": {
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "p99": 0
+        },
+        "uptime_last_1d": 100,
+        "uptime_last_30m": 100,
+        "uptime_last_5m": 100
+      },
+      {
+        "context_length": 24576,
+        "latency_last_30m": {
+          "p50": 390,
+          "p75": 476,
+          "p90": 678.9000000000005,
+          "p99": 2712.1800000000003
+        },
+        "max_completion_tokens": 22118,
+        "max_prompt_tokens": null,
+        "model_id": "cloudflare/clef-flash",
+        "model_name": "Cloudflare: Clef Flash",
+        "name": "Cloudflare | cloudflare/clef-flash",
+        "native_tools": {},
+        "perf_last_30m_by_workload": {
+          "decisions": {
+            "latency": {
+              "p50": 390,
+              "p75": 476,
+              "p90": 678.9000000000005,
+              "p99": 2712.1800000000003
+            },
+            "request_count": 67311,
+            "throughput": null
+          }
+        },
+        "pricing": {
+          "completion": "0",
+          "discount": 0,
+          "prompt": "0.000000038"
+        },
+        "provider_name": "Cloudflare",
+        "quantization": "unknown",
+        "service_tier": null,
+        "status": 0,
+        "supported_parameters": [],
+        "supports_diarization": false,
+        "supports_image_reference": false,
+        "supports_implicit_caching": false,
+        "supports_multiple_audio_references": false,
+        "supports_tool_choice": {
+          "auto": true,
+          "function": true,
+          "none": true,
+          "required": true
+        },
+        "supports_voice_cloning": false,
+        "tag": "cloudflare",
+        "throughput_last_30m": {
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "p99": 0
+        },
+        "uptime_last_1d": 100,
+        "uptime_last_30m": 100,
+        "uptime_last_5m": 100
+      }
+    ],
+    "id": "openrouter-clef-flash",
+    "limitations": [],
+    "model": "cloudflare/clef-flash",
+    "pricing": {
+      "completion": "0",
+      "discount": 0,
+      "prompt": "0.000000038"
+    },
+    "pricing_source": "pinned_endpoint",
+    "status": "ok",
+    "transport": "openrouter"
+  },
+  {
+    "catalog": {
+      "architecture": {
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "instruct_type": null,
+        "modality": "text+image->decisions",
+        "output_modalities": [
+          "decisions"
+        ],
+        "tokenizer": "Other"
+      },
+      "canonical_slug": "inception/mercury-decide-20260930",
+      "context_length": 65536,
+      "created": 1790789334,
+      "default_parameters": {},
+      "description": "Mercury Decide is Inception's structured decision model, served as a System One endpoint. Send a state along with typed questions, and it returns a choice, a score, or a yes/no...",
+      "expiration_date": null,
+      "hugging_face_id": null,
+      "id": "inception/mercury-decide",
+      "knowledge_cutoff": null,
+      "links": {
+        "details": "/api/v1/models/inception/mercury-decide-20260930/endpoints"
+      },
+      "name": "Inception: Mercury Decide",
+      "per_request_limits": null,
+      "pricing": {
+        "completion": "0",
+        "input_cache_read": "0",
+        "prompt": "0.00000002"
+      },
+      "supported_parameters": [],
+      "supported_voices": null,
+      "top_provider": {
+        "context_length": 65536,
+        "is_moderated": false,
+        "max_completion_tokens": 58982
+      }
+    },
+    "endpoints": [
+      {
+        "context_length": 65536,
+        "latency_last_30m": {
+          "p50": 262,
+          "p75": 304,
+          "p90": 442,
+          "p99": 1298.8800000000047
+        },
+        "max_completion_tokens": 58982,
+        "max_prompt_tokens": null,
+        "model_id": "inception/mercury-decide",
+        "model_name": "Inception: Mercury Decide",
+        "name": "Inception | inception/mercury-decide-20260930",
+        "native_tools": {},
+        "perf_last_30m_by_workload": {
+          "decisions": {
+            "latency": {
+              "p50": 262,
+              "p75": 304,
+              "p90": 442,
+              "p99": 1298.8800000000047
+            },
+            "request_count": 160140,
+            "throughput": null
+          }
+        },
+        "pricing": {
+          "completion": "0",
+          "discount": 0.5,
+          "input_cache_read": "0",
+          "prompt": "0.00000002"
+        },
+        "provider_name": "Inception",
+        "quantization": "unknown",
+        "service_tier": null,
+        "status": 0,
+        "supported_parameters": [],
+        "supports_diarization": false,
+        "supports_image_reference": false,
+        "supports_implicit_caching": true,
+        "supports_multiple_audio_references": false,
+        "supports_tool_choice": {
+          "auto": true,
+          "function": true,
+          "none": true,
+          "required": true
+        },
+        "supports_voice_cloning": false,
+        "tag": "inception",
+        "throughput_last_30m": {
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "p99": 0
+        },
+        "uptime_last_1d": 100,
+        "uptime_last_30m": 100,
+        "uptime_last_5m": 100
+      }
+    ],
+    "id": "openrouter-mercury",
+    "limitations": [],
+    "model": "inception/mercury-decide",
+    "pricing": {
+      "completion": "0",
+      "discount": 0.5,
+      "input_cache_read": "0",
+      "prompt": "0.00000002"
+    },
+    "pricing_source": "pinned_endpoint",
+    "status": "ok",
+    "transport": "openrouter"
+  }
+]

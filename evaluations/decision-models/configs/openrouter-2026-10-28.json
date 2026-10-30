@@ -1,0 +1,238 @@
+{
+  "runners": [
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "typesafe/jev-1.14-20261014",
+      "id": "openrouter-jev",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 32768,
+      "max_request_cost_usd": "0.10",
+      "model": "typesafe/jev-1.14",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T16:11:35.401640+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "transport": "openrouter",
+      "upstream_tag": "typesafe",
+      "concurrency": 4,
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup",
+        "ranking"
+      ]
+    },
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "perplexity/pplx-decider-v1.2-20261016",
+      "id": "openrouter-decider",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 32768,
+      "max_request_cost_usd": "0.10",
+      "model": "perplexity/pplx-decider-v1.2",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T16:11:35.401640+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "transport": "openrouter",
+      "upstream_tag": "perplexity",
+      "concurrency": 4,
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup",
+        "ranking"
+      ]
+    },
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "perplexity/pplx-decider-flash-v1.2-20261016",
+      "id": "openrouter-decider-flash",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 32768,
+      "max_request_cost_usd": "0.10",
+      "model": "perplexity/pplx-decider-flash-v1.2",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T16:11:35.401640+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "transport": "openrouter",
+      "upstream_tag": "perplexity",
+      "concurrency": 4,
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup",
+        "ranking"
+      ]
+    },
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "cloudflare/clef-flash",
+      "id": "openrouter-clef-flash",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 24576,
+      "max_request_cost_usd": "0.10",
+      "max_state_bytes": 2000,
+      "model": "cloudflare/clef-flash",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T16:11:35.401640+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "transport": "openrouter",
+      "upstream_tag": "cloudflare",
+      "concurrency": 4,
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup",
+        "ranking"
+      ]
+    },
+    {
+      "api_surface": "decisions",
+      "base_url": "https://openrouter.ai",
+      "billing_overhead_tokens": 2048,
+      "capabilities": [
+        "noul",
+        "choice",
+        "score"
+      ],
+      "credential_env": "OPENROUTER_API_KEY",
+      "enabled": true,
+      "expected_returned_model": "inception/mercury-decide-20260930",
+      "id": "openrouter-mercury",
+      "max_cost_usd": "2.00",
+      "max_input_tokens": 32768,
+      "max_request_cost_usd": "0.10",
+      "model": "inception/mercury-decide",
+      "privacy": {
+        "data_collection": "deny",
+        "observed_at": "2026-10-28T16:11:35.401640+00:00",
+        "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+        "policy_verified": true,
+        "processing_region": "global",
+        "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+        "zdr": true
+      },
+      "question_grouping": "one_case_per_request",
+      "retries": 0,
+      "transport": "openrouter",
+      "upstream_tag": "inception",
+      "concurrency": 4,
+      "tasks": [
+        "answerability",
+        "claim_support",
+        "events",
+        "templates",
+        "speaker_names",
+        "cleanup",
+        "ranking"
+      ]
+    }
+  ],
+  "experiment": "53-2026-10-28-openrouter",
+  "ledger_path": "build/decision-model-evaluation/spend-ledger.json",
+  "description": "Synthetic-only hosted follow-up. Original corpus, task criteria and calibration rules retained; local results remain separate.",
+  "credential_source": {
+    "kind": "os_credential_store",
+    "service": "dev.pennel.evaluation.openrouter",
+    "account": "OPENROUTER_API_KEY",
+    "export": "benchmark subprocess environment only"
+  },
+  "route_evidence": {
+    "path": "evaluations/decision-models/evidence/openrouter-2026-10-28.json",
+    "sha256": "1916c385769fffc31f1cd8a3b29043f1b3b096aafa79681333bb638b36710e41"
+  },
+  "stage_order": [
+    "development_smoke_completed",
+    "full_calibration",
+    "fit_calibration_only",
+    "full_heldout",
+    "conditional_fixed_latency_panel"
+  ],
+  "latency_admission": "Run the complete frozen serial panel only when reconciled remaining US$2 budget covers its entire conservative bound; otherwise report unavailable. This condition depends only on spend, not quality.",
+  "hosted_latency": {
+    "cold_client_samples_per_language": 5,
+    "warm_samples_per_case": 30,
+    "excluded_warmups_per_case": 1,
+    "concurrency": 1,
+    "server_cold_load_memory": "unmeasured"
+  }
+}

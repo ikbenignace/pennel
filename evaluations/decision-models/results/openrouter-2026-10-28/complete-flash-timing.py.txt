@@ -1,0 +1,34 @@
+import sys,json,datetime
+from decimal import Decimal
+from pathlib import Path
+sys.path.insert(0,str(Path('evaluations/decision-models').resolve()))
+import run
+from corpus import build_corpus
+from measurements import _panel
+from runners import DecisionRunner,SpendLedger
+root=Path('build/decision-model-evaluation/openrouter')
+config=run.read_json('evaluations/decision-models/configs/openrouter-2026-10-28.json')
+frozen=run.read_json('evaluations/decision-models/locks/openrouter-2026-10-28.json')
+original=run.read_json(root/'latency/report.json')
+item=next(x for x in config['runners'] if x['id']=='openrouter-decider-flash')
+old=next(x for x in original['models'] if x['runner_id']==item['id'])
+corpus=build_corpus();bridge=run.read_json(root/'prepared/core-artifacts.json')
+cases=_panel(corpus,run.ranking_cases(corpus,bridge,'heldout'))
+case=next(c for c in cases if c['id']=='nl-heldout-00-template-missing')
+observed=[r for r in old['records'] if r['case_id']==case['id'] and r['phase']=='warm']
+assert len(observed)==11 and sum(r['status']=='error' for r in observed)==1
+ledger_path=Path(config['ledger_path'])
+def checkpoint(state):
+ tmp=ledger_path.with_suffix('.tmp');run.save_json(tmp,state);tmp.replace(ledger_path)
+records=[]
+with run.experiment_lock(ledger_path):
+ ledger=SpendLedger.from_dict(run.read_json(ledger_path),checkpoint=checkpoint)
+ runner=DecisionRunner(item,ledger=ledger);assert runner.preflight()['status']=='ok'
+ bound=runner._payload(case,runner._questions(case))[1]*runner._price*20
+ assert not ledger.unresolved and bound<=ledger.limit-ledger.spent
+ for index in [None,*range(12,31)]:
+  result=runner.predict(case)
+  records.append({'runner_id':item['id'],'case_id':case['id'],'task':case['task'],'language':case['language'],'phase':'continuation_warmup' if index is None else 'warm','planned_sample_index':index,**result})
+  run.save_json(root/'latency/flash-continuation.json',{'frozen':run.digest(frozen),'failed_original_sample_preserved':True,'sample_indices_completed':list(range(12,31)),'records':records})
+  if ledger.unresolved or result['status']!='ok':break
+ print(json.dumps({'phase':'flash_timing_continuation','records':len(records),'known_billed_usd':str(ledger.spent),'unresolved':ledger.unresolved}),flush=True)

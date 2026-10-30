@@ -1,0 +1,28 @@
+{
+  "enabled": false,
+  "provider": "openrouter",
+  "base_url": "https://openrouter.ai",
+  "credential_env": "OPENROUTER_API_KEY",
+  "model": "openai/gpt-4.1-mini-2025-04-14",
+  "expected_returned_model": "openai/gpt-4.1-mini",
+  "expected_canonical_model": "openai/gpt-4.1-mini-2025-04-14",
+  "upstream_tag": "azure/swedencentral",
+  "tasks": ["meeting_qa", "cleanup", "summary"],
+  "max_input_tokens": 32000,
+  "max_input_chars": 24000,
+  "max_completion_tokens": 1024,
+  "output_limit_parameter": "max_completion_tokens",
+  "billing_overhead_tokens": 2048,
+  "max_request_cost_usd": "0.02",
+  "max_cost_usd": "2.00",
+  "timeout_secs": 90,
+  "retries": 0,
+  "privacy": {
+    "processing_region": "global",
+    "policy_verified": false,
+    "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+    "data_collection": "deny",
+    "zdr": true
+  },
+  "notes": "Separate generative baseline, never a typed decision fallback. Verify and freeze exact catalog/endpoint/ZDR evidence and expected returned identity before enabling. Caller must pass the existing persistent shared SpendLedger. Use current core prompts with explicit synthetic fixtures only. No credentials are stored here."
+}

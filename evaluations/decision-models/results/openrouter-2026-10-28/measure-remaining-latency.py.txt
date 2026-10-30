@@ -1,0 +1,41 @@
+import json,sys,datetime
+from pathlib import Path
+sys.path.insert(0,str(Path('evaluations/decision-models').resolve()))
+import run
+from corpus import build_corpus
+from hosted_measurements import measure_hosted,panel_manifest
+from runners import SpendLedger
+root=Path('build/decision-model-evaluation/openrouter')
+config=run.read_json('evaluations/decision-models/configs/openrouter-2026-10-28.json')
+frozen=run.read_json('evaluations/decision-models/locks/openrouter-2026-10-28.json')
+corpus=build_corpus(); bridge=run.read_json(root/'prepared/core-artifacts.json')
+binary=Path('build/evaluation-core-target/release/pennel-eval')
+manifest=run.prepare_manifest(corpus,bridge,binary,config)
+run.verify_frozen(frozen,manifest)
+rank=run.ranking_cases(corpus,bridge,'heldout')
+assert panel_manifest(config,corpus,rank)==frozen['hosted_latency_panel']
+prior=run.read_json(root/'latency/report.json')
+missing={item['runner_id'] for item in prior['models'] if not item['records']}
+assert missing=={'openrouter-clef-flash','openrouter-mercury'}
+config={**config,'runners':[item for item in config['runners'] if item['id'] in missing]}
+ledger_path=Path(config['ledger_path'])
+def checkpoint(state):
+    tmp=ledger_path.with_suffix('.tmp');run.save_json(tmp,state);tmp.replace(ledger_path)
+folder=root/'latency-continuation'; folder.mkdir(exist_ok=True)
+with run.experiment_lock(ledger_path):
+    ledger=SpendLedger.from_dict(run.read_json(ledger_path),checkpoint=checkpoint)
+    count=0
+    with (folder/'receipts.jsonl').open('a',encoding='utf-8') as stream:
+        def capture(record):
+            global count
+            stream.write(json.dumps(record,ensure_ascii=False)+'\n');stream.flush()
+            count+=1
+            if count%100==0: print(json.dumps({'phase':'hosted_latency','records':count,'known_billed_usd':ledger.to_dict()['known_billed_usd']}),flush=True)
+        report=measure_hosted(config,corpus,rank,ledger,checkpoint=capture)
+        report['run_manifest_hash']=run.digest(frozen)
+        report['frozen_full_panel_hash']=frozen['hosted_latency_panel']['panel_hash']
+        report['continuation_scope']='Only providers with zero previous timing requests; completed providers not repeated.'
+        report['generation_commit']=run.git('rev-parse','HEAD')
+        report['completed_at']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+        run.save_json(folder/'report.json',report)
+        print(json.dumps({'phase':'hosted_latency','status':report['status'],'reason':report.get('reason'),'remaining_after_usd':report['remaining_after_usd'],'records':count}),flush=True)
