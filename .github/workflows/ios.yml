@@ -62,3 +62,15 @@ jobs:
         run: make ios-test
       - name: Unsigned device build
         run: make ios
+      - name: Package unsigned IPA
+        run: |
+          app=apps/ios/build/DerivedData/Build/Products/Release-iphoneos/Pennel.app
+          test -d "$app"
+          mkdir -p build/ios-ipa/Payload
+          ditto "$app" build/ios-ipa/Payload/Pennel.app
+          ditto -c -k --norsrc --keepParent build/ios-ipa/Payload build/ios-ipa/Pennel.ipa
+      - uses: actions/upload-artifact@v5
+        with:
+          name: Pennel-iOS-${{ github.sha }}
+          path: build/ios-ipa/Pennel.ipa
+          if-no-files-found: error
