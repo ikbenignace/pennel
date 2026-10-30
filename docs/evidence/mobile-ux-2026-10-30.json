@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-30",
+  "issue": "https://github.com/pennel-app/pennel/issues/77",
+  "pull_request": "https://github.com/pennel-app/pennel/pull/80",
+  "app_code_revision": "c5f69ad21cbdbdd000beb7dbad5a89f7d9efa436",
+  "integrated_main": "abe3de27a1f9a7f594a5896875cfcdaf8eb3e06b",
+  "local_checks": {
+    "core_default": {
+      "passed": 703,
+      "ignored": 7
+    },
+    "core_cloud_lean": {
+      "passed": 142
+    },
+    "desktop_frontend": {
+      "passed": 231
+    },
+    "desktop_backend": {
+      "passed": 224
+    },
+    "mobile_controller": {
+      "passed": 94
+    },
+    "mobile_plugins": {
+      "passed": 6
+    },
+    "mobile_widgets": {
+      "passed": 7
+    },
+    "mobile_helpers": {
+      "passed": 76
+    },
+    "hosted_runtime_setup": {
+      "passed": 40
+    },
+    "hosted_keyboard": {
+      "passed": 2
+    },
+    "retained_native_service": {
+      "passed": 67
+    },
+    "retained_keyboard": {
+      "passed": 2
+    },
+    "format_clippy": true,
+    "clean_repeated_prebuild": true,
+    "pod_ownership": true,
+    "mac_build": true,
+    "release_simulator": true,
+    "release_device": true
+  },
+  "preview": {
+    "bundle": "app.pennel.ios.preview",
+    "ipa_bytes": 19317102,
+    "ipa_sha256": "5cf8464857219c9f90480c03c82de858464b1d2fc1a61c82ce9f9b9c4d7c59bc",
+    "javascript_sha256": "e7e8739f208ff8942b667e35ddc345f9b9772f3e572d987e5965cac81d292eab",
+    "signatures_verified": true,
+    "identities_preserved": true,
+    "physical_initial_candidate_installed_and_launched": true,
+    "final_package_device_automated": false
+  },
+  "visual_checks": {
+    "owned_simulator": "iPhone17/iOS26.5",
+    "interface_cases": [
+      "English/dark",
+      "Dutch/light"
+    ],
+    "cold_sync_callback": "pennel-preview://sync",
+    "cold_callback_has_back_destination": true,
+    "synthetic_files_preserved": 3,
+    "haptics_default_on": true,
+    "typing_haptics_default_off": true,
+    "text_size_selector_exercised_and_restored": true
+  },
+  "logs": "build/mobile/ux-2026-10-30 (ignored, retained)",
+  "open_acceptance": [
+    "Hosted CI at final PR head",
+    "Independent cryptographic acceptance before production admission",
+    "Deployed two-device connection and camera scan",
+    "Signed final-candidate physical keyboard, VoiceOver and tactile behavior",
+    "Maximum accessibility text/adaptivity and installed Windows/Linux acceptance",
+    "Keyboard-only cold or expired-session start (#39)",
+    "Latency, memory, battery and App Review"
+  ],
+  "privacy": {
+    "real_login_mail_sent": false,
+    "provider_inference": false,
+    "microphone_capture_initiated": false,
+    "production_deployment": false,
+    "credentials_replaced": false
+  }
+}

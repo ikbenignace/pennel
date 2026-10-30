@@ -301,3 +301,33 @@ swift test --package-path apps/ios/PennelMobileKit
 Clean/repeated generation and pod ownership, matched simulator and unsigned-device builds, and native runtime/keyboard tests remain required on the integrated candidate through the mobile workflow (`make mobile-ios`, unsigned `npm run build:ios`, and `make mobile-native-test`). Signed physical-device, keyboard cold-start, provider/model qualification, live latency, deployment and release acceptance remain open; earlier simulator evidence does not establish those gates.
 
 Synthetic/mock quality and timing do not establish semantic model qualification or live stop-to-result latency. Physical iPhone behavior, signed upgrades, keyboard cold start, installed Windows/Linux workflows, Cloud deployment and App Review remain separate gates. No paid inference, model download, real dictation or production credential change was performed.
+
+## Mobile workflows, device connection and feedback — 30 October 2026
+
+Implementation: [app #77](https://github.com/pennel-app/pennel/issues/77), [draft PR #80](https://github.com/pennel-app/pennel/pull/80), [product contract](mobile-ux-implementation.md), and [machine-readable receipt](evidence/mobile-ux-2026-10-30.json). The shared core owns setup/provisioning and cryptography, native code owns capture, QR scanning and haptics, and Expo/Tauri own their product interfaces. Existing local use, providers, notes, transcripts, recovery and keyboard destination guards are retained.
+
+The candidate adds task-led resumable first use, an outcome-first meeting view, native pickers/actions, preserved reading/question drafts, virtualized library/history, truthful interruption state, and native feedback. App haptics default on; typing feedback is separately optional and defaults off. The keyboard keeps typing reachable during setup/error guidance, previews retained results, supports accented input and announces its actual action.
+
+Sync setup distinguishes a first library, an existing locked library, backup acknowledgment and a validated retained key. Trusted-device connection supports QR/manual input, explicit approval and sign-in plus access to the existing encrypted library. Device provisioning journals verified local writes and handles cancellation, identity changes, token rotation and process restart. Recovery confirmation binds the displayed code to the account/library revision. Production admission remains disabled pending protocol, deployment and device acceptance.
+
+| Validation | Local result |
+| --- | --- |
+| `make core && make test && make app` | Current-main integration passes: 703 Rust tests, seven existing ignored; Mac smoke tests and reference build pass |
+| Desktop `npm ci`, `npm run build`, `npm test`; desktop Rust tests | 231 frontend and 224 backend tests pass on the integrated candidate |
+| Core Rust formatting/Clippy; lean Cloud tests and examples | Pass with warnings denied; 142 focused Cloud tests pass |
+| `make mobile-test` and final `npm run test:ui` | Typecheck, six plugin, seven widget, 94 final controller and 76 Swift helper tests pass |
+| `make mobile-prebuild` | Actual clean/repeated non-clean generation and six pod/source ownership checks pass |
+| `npm --prefix apps/mobile run native:prepare` | Matched device/simulator libraries and Swift bindings; Core source/binding hashes recorded |
+| `npm --prefix apps/mobile run build:ios`, with simulator and `PENNEL_IOS_DESTINATION='generic/platform=iOS'` | Both unsigned Release builds pass, including the final callback-route correction |
+| `make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=7B0CD7FD-879B-49FF-BCD0-DA64090BD209'` | 40 hosted runtime/setup tests and two keyboard tests pass, including actual PNG QR decode/opaque quiet zone and practice ownership |
+| `make ios-test` on that same assigned test simulator | 67 retained native-service and two keyboard integration tests pass |
+
+Owned iOS 26.5 simulator checks show English/dark and Dutch/light setup, native settings/feedback controls and read-first synthetic meeting content. The real completion URL initially exposed an Expo Router unmatched route; the final native-intent mapping and workspace anchor were then verified by a cold `pennel-preview://sync` launch with a back destination. The three synthetic meeting/notes/transcript file hashes survive in-place simulator updates. The Hub text-size selector was exercised and restored; maximum accessibility sizing, full VoiceOver traversal and physical keyboard gestures remain acceptance work.
+
+![Dutch sync setup after cold return](evidence/mobile-ux-2026-10-30/sync-nl-light.png)
+
+![Native feedback preferences](evidence/mobile-ux-2026-10-30/feedback-en-dark.png)
+
+The signed Preview package for app/UI revision `c5f69ad` is retained under ignored `build/mobile/ux-2026-10-30/verified/`, with exact package/signature/Core manifests. Its IPA is 19,317,102 bytes, SHA-256 `5cf8464857219c9f90480c03c82de858464b1d2fc1a61c82ce9f9b9c4d7c59bc`. Existing Preview app/keyboard/widget identities and App Group are preserved; nested signatures pass individual and deep/strict checks after package extraction. Earlier artifact sets, unsigned products, symbols, Xcode build trees, logs and QA remain retained.
+
+An earlier candidate was installed and launched in place on the physical iPhone 16 Pro/iOS 27.0.1. Argent rejected UI automation because that connection was wireless rather than USB. This establishes install/launch only: the final package, physical haptics, cold keyboard start, gesture/VoiceOver behavior, latency/memory/battery, actual camera-based two-device connection, Cloud deployment and App Review are not accepted by this receipt. No microphone recording, real login email, provider inference, production deployment or credential replacement was initiated for these checks. The private Cloud repository retains its server/protocol/source-matched local interoperability evidence.

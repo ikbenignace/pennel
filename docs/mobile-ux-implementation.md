@@ -23,3 +23,11 @@ Required validation includes core and desktop regressions, mobile type/controlle
 Physical acceptance covers QR and manual linking in both phone/computer directions, Full Access transitions, large text/VoiceOver, recording and microphone/haptic interaction, interruption/recovery, and the exact signed candidate. A passing simulator, scripted service or compiler check does not establish those outcomes.
 
 Exact completed commands, results and unresolved gates will be recorded with the final implementation receipt in `docs/mobile.md`.
+
+## Review findings addressed
+
+Two independent engineering reviews checked the implementation. Provisioning now keeps credentials private until server activation, journals recoverable state in the OS credential store, verifies writes, serializes cancellation and rechecks identity while holding mutation locks. Recovery acknowledgment binds the exact displayed code to its account, library generation and wrapping revision. Practice uses a fresh native session/result identity, so unrelated capture cannot be adopted or stopped by onboarding.
+
+The Cloud admission flag stops new connections while existing admitted requests can complete or cancel. This prevents a rollout change from stranding an acknowledged or partially provisioned device. These checks are engineering evidence, not an independent cryptographic audit.
+
+The native QR renderer includes an opaque four-module quiet zone. A hosted test decodes the actual generated PNG and verifies its border in dark appearance. Camera scanning, physical typing/gestures, perceived haptic strength and VoiceOver comprehension still require separate device acceptance.
