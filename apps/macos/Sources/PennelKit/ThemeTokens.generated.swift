@@ -114,6 +114,7 @@ public enum ThemeDesktop {
     public static let toolbarGlyphSize: CGFloat = 18
     public static let toolbarGroupGap: CGFloat = 12
     public static let controlHeight: CGFloat = 28
+    public static let searchFieldHeight: CGFloat = 36
     public static let sidebarRowHeight: CGFloat = 32
 }
 
