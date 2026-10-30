@@ -32,9 +32,9 @@ Native captures use a separate app identity and only owned window IDs. Browser f
 
 ### Reviewed desktop candidate
 
-Desktop code revision: `3b4fc0b47ec2e093cb86df59bfb2fee9ffb8dc06`. The development capture executable's SHA-256 is `7ab0bea411b99282a2867061b54ead02aa5a32846c57744f2c5c53dc55c7a542`; its ad-hoc bundle passed `codesign --verify --deep --strict`. Later evidence-only commits do not change desktop code.
+Desktop code revision: `ad4a4b1b388e2e6aa40d14f1a3f3a36860c98367`. The development capture executable's SHA-256 is `89275b1916dffa4e4c987157f5b8d63c89b362353d4956a30ee1a42756727b9f`; its ad-hoc bundle passed `codesign --verify --deep --strict`. Later evidence-only commits do not change desktop code.
 
-The [machine-readable receipt](evidence/macos-liquid-glass-2026-10-29/receipt.json) records eight final native EN/NL light/dark captures and separates historical checks from the final padding candidate. This candidate also exercised circular sidebar/search activation, fullscreen, the maximum sidebar at minimum window size, and real transparency/contrast preferences. Native and frontend states matched; the controls stayed visible with opaque fallbacks. Original settings and the original System Settings page were restored.
+The [machine-readable receipt](evidence/macos-liquid-glass-2026-10-29/receipt.json) records four current native EN/NL light/dark captures and separates historical checks from the current search-spacing candidate. The retained padding candidate also exercised circular sidebar/search activation, fullscreen, the maximum sidebar at minimum window size, and real transparency/contrast preferences. Native and frontend states matched; the controls stayed visible with opaque fallbacks. Original settings and the original System Settings page were restored.
 
 The requested minimum fixture size is 760×520. Native toolbar/layout adjustment can raise the measured viewport height; receipts retain the actual dimensions instead of assuming a fixed OS result. Footer actions remain contained and reachable.
 
@@ -67,3 +67,7 @@ The later Notes reference clarified that a compressed 32 point row and bare icon
 An empty public `NSToolbar` with `.unified` style provides native titlebar geometry and traffic-light placement without moving any action into native UI. AppKit reports a 52 point band with a 79 point control exclusion on the current Mac. The retained WKWebView still receives header hits. The material host owns and restores this toolbar, preserving later replacements by another owner; prompts, the pill and other windows are unaffected.
 
 Button shapes use translucent semantic fills, a hairline edge and a restrained highlight above the existing native material. Their appearance is frontend styling; each button does not acquire an independent native refraction effect. Foreground contrast is checked through both the control fill and navigation backing over black and white extremes. The supplied reference image and its contents are not part of the repository or review artifacts.
+
+### Search-field spacing — 30 October 2026
+
+The sidebar search field has a shared 36 point minimum height, 12 point leading icon inset and 8 point gap before text. A centered canonical SVG replaces the manually positioned pseudo-elements. The input and its existing search/focus handlers remain the same node. Frontend build/tests, EN/NL light/dark and minimum-width fixtures, required core/native checks and the packaged app passed. Actual typing/filtering and focus were checked with the sidebar at its 200 point minimum.
