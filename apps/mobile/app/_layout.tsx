@@ -4,6 +4,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RuntimeProvider, useRuntime } from '../src/runtime';
 
+export const unstable_settings = { anchor: '(tabs)' };
+
 function Navigation() {
   const { snapshot, theme, t, run } = useRuntime();
   const router = useRouter();
