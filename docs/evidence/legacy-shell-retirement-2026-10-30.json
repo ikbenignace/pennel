@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "date": "2026-10-30",
+  "issue": "https://github.com/pennel-app/pennel/issues/75",
+  "candidate_commit": "b69003591b9e23c711515dbdae4072ac84636924",
+  "base_commit": "e6f02b2cd178b541dcbfcdb46125336c762dbf07",
+  "evidence_kind": "Local automated checks and owned simulator UI; hosted CI is recorded separately in the PR.",
+  "toolchain": {
+    "xcode": "27.0 (27A266a)",
+    "ios_sdk": "27.0",
+    "rust": "1.99.1"
+  },
+  "tests": {
+    "core_default": {
+      "passed": 683,
+      "ignored": 7
+    },
+    "core_lean": {
+      "passed": 672,
+      "ignored": 5
+    },
+    "speakers": {
+      "passed": 15,
+      "ignored": 1
+    },
+    "desktop_frontend": 222,
+    "desktop_backend": 224,
+    "macos_platform": 121,
+    "python": 105,
+    "theme": 13,
+    "mobile_ui": 65,
+    "mobile_helpers": 64,
+    "mobile_plugins": 10,
+    "mobile_widgets": 7,
+    "prebuild_integration": 1,
+    "pod_ownership": 6,
+    "hosted_native_runtime": 93,
+    "hosted_keyboard": 2
+  },
+  "generation": {
+    "sequence": [
+      "clean",
+      "legacy keyboard graph injection",
+      "non-clean",
+      "non-clean",
+      "clean"
+    ],
+    "retired_trees_recreated": false,
+    "services_preserved_byte_for_byte": 26
+  },
+  "core_preparation": {
+    "schema": 1,
+    "revision": "e6f02b2cd178b541dcbfcdb46125336c762dbf07",
+    "core_sha256": "3f0f442946c8fe6349f111fb222c01cc1229b962ba815d10b5c8a1daa27a1427",
+    "bindings_sha256": "810dce899a507c46d9a2e333a1fdf1e743c8b57780779dadc960d8cdf2256576",
+    "features": [],
+    "targets": [
+      "aarch64-apple-ios",
+      "aarch64-apple-ios-sim"
+    ]
+  },
+  "mobile_release_products": [
+    {
+      "platform": "iphonesimulator",
+      "identifier": "app.pennel.ios.preview",
+      "app_group": "group.app.pennel.preview",
+      "keychain_service": "app.pennel.ios.preview",
+      "bytes": 71518161,
+      "executable_sha256": "6cfc17a8b7761c0bc45cb95e1b650f34c06f6336134ae1d5d381c02752a59d2a",
+      "js_sha256": "02fa1d8191bdcac1cba0652bf3ea0c08232591c37ef4d9ef999a7e369b02a723",
+      "manifest_sha256": "98772c383fe07d831344905cc9ef1515f0e86ee6f3ca72622d0eb6b1258e099e"
+    },
+    {
+      "platform": "iphoneos",
+      "identifier": "app.pennel.ios.preview",
+      "app_group": "group.app.pennel.preview",
+      "keychain_service": "app.pennel.ios.preview",
+      "bytes": 71145379,
+      "executable_sha256": "e0680aec980de558aa42e1e2c490ba05103e304d927cdcbcad0593e88ff1eacf",
+      "js_sha256": "4bc51df3f8d5a9a97eb2a3d68c648dbe803c04d78eead23f408c765a0f144400",
+      "manifest_sha256": "4872d9b169f46e67878ea09e372f30de3989c19cb2214fa1f631ab0c54b370f6"
+    }
+  ],
+  "macos_preview": {
+    "signature_valid": true,
+    "developer_id": false,
+    "dmg_integrity_valid": true
+  },
+  "owned_visual_checks": {
+    "desktop_captures": 12,
+    "desktop_locales": [
+      "en",
+      "nl"
+    ],
+    "desktop_appearances": [
+      "light",
+      "dark"
+    ],
+    "mobile_device": "iPhone 17 / iOS 26.5",
+    "mobile_app": "app.pennel.ios.preview",
+    "mobile_appearances": [
+      "light",
+      "dark"
+    ],
+    "original_mobile_appearance_restored": true
+  },
+  "remaining_acceptance": [
+    "physical-device capture and keyboard cold start",
+    "signed in-place upgrades and real Sparkle transition",
+    "deployed Cloud behavior",
+    "Windows/Linux installed-package acceptance",
+    "App Review and store acceptance"
+  ]
+}

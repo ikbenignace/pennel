@@ -4,6 +4,8 @@ Status: Expo is the mobile application UI. The legacy SwiftUI iPhone shell is re
 
 Tracking: [Expo migration #42](https://github.com/pennel-app/pennel/issues/42), [Cloud speaker recognition #38](https://github.com/pennel-app/pennel/issues/38), [keyboard experience #39](https://github.com/pennel-app/pennel/issues/39), [device acceptance #18](https://github.com/pennel-app/pennel/issues/18), and [signing/store readiness #20](https://github.com/pennel-app/pennel/issues/20).
 
+Current cleanup verification: [legacy shell retirement — 30 October 2026](#legacy-shell-retirement--30-october-2026).
+
 ## Confirmed decisions
 
 - Expo SDK 58, compatible React Native, TypeScript, Expo Router and development builds. iPhone first; Android follows iPhone acceptance.
@@ -306,3 +308,46 @@ swift test --package-path apps/ios/PennelMobileKit
 Clean/repeated generation and pod ownership, matched simulator and unsigned-device builds, and native runtime/keyboard tests remain required on the integrated candidate through the mobile workflow (`make mobile-ios`, unsigned `npm run build:ios`, and `make mobile-native-test`). Signed physical-device, keyboard cold-start, provider/model qualification, live latency, deployment and release acceptance remain open; earlier simulator evidence does not establish those gates.
 
 Synthetic/mock quality and timing do not establish semantic model qualification or live stop-to-result latency. Physical iPhone behavior, signed upgrades, keyboard cold start, installed Windows/Linux workflows, Cloud deployment and App Review remain separate gates. No paid inference, model download, real dictation or production credential change was performed.
+
+## Legacy shell retirement — 30 October 2026
+
+Code candidate [`b690035`](https://github.com/pennel-app/pennel/commit/b69003591b9e23c711515dbdae4072ac84636924), based on `e6f02b2`, removes both old product shells under [#75](https://github.com/pennel-app/pennel/issues/75). All 26 active service files, original MobileKit source files, keyboard sources and native widget layouts retain their previous bytes. The package now owns its ActivityKit attributes directly. Native service tests run in the generated Expo host; only assertions about retired SwiftUI screens and obsolete fake intent routing were removed. The generated host's actual intent modes, titles and shortcut extraction are tested.
+
+The [machine-readable local receipt](evidence/legacy-shell-retirement-2026-10-30.json) records test counts, toolchain, matching core-source/binding hashes and complete Release product manifests. Core source is unchanged from the base, which remains the core preparation manifest's revision. The artifact files and failed/passing logs remain under ignored `build/retirement-verification` and `apps/mobile/build` in the cleanup worktree; screenshots remain under `build/mobile/qa/device-hub`.
+
+Commands below ran from the repository root. Large native/non-Rust commands used the local `worktree-storage run --` guard. Rust used the existing portable toolchain and the personal managed-intermediate/packed-symbol defaults, without redirecting final target directories or reducing debug information.
+
+```sh
+make core && make test
+scripts/with-toolchain.sh cargo fmt --manifest-path core/Cargo.toml -- --check
+scripts/with-toolchain.sh cargo clippy --manifest-path core/Cargo.toml --lib --tests -- -D warnings
+scripts/with-toolchain.sh cargo test --manifest-path core/Cargo.toml --lib
+scripts/with-toolchain.sh cargo clippy --manifest-path core/Cargo.toml --lib --tests --no-default-features -- -D warnings
+scripts/with-toolchain.sh cargo test --manifest-path core/Cargo.toml --no-default-features --lib
+scripts/with-toolchain.sh cargo fmt --manifest-path core/speakers/Cargo.toml -- --check
+scripts/with-toolchain.sh cargo clippy --manifest-path core/speakers/Cargo.toml --all-targets --features onnx -- -D warnings
+scripts/with-toolchain.sh cargo test --manifest-path core/speakers/Cargo.toml --features onnx
+npm --prefix apps/desktop run build
+npm --prefix apps/desktop test
+scripts/with-toolchain.sh cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+scripts/with-toolchain.sh cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+scripts/with-toolchain.sh cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+swift test --package-path apps/macos-platform
+python3 -B -m unittest discover -s scripts/tests
+python3 scripts/generate-theme.py --self-test
+make theme-check
+make desktop-preview
+make mobile-test
+make mobile-prebuild
+npm --prefix apps/mobile run build:ios
+PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios
+make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=7B0CD7FD-879B-49FF-BCD0-DA64090BD209'
+```
+
+All passed: core 683 default / 672 lean (seven/five existing ignored), 15 speaker tests (one ignored), 222 desktop frontend / 224 backend, 121 Mac platform, 105 Python and 13 theme checks. Mobile passed typechecking, 65 UI, 64 helper, 10 plugin and seven widget tests. Clean generation, injected pre-retirement keyboard references followed by two non-clean generations, final clean generation and six actual pod/source/linker ownership checks passed. Native hosted tests passed **93 runtime/service plus two keyboard tests** on iPhone 17 / iOS 27.0. Both sequential unsigned ARM64 Release builds passed with Xcode 27.0 / iOS SDK 27.0.
+
+The checks exposed and verified fixes for the moved helper test's brand path, stale non-clean keyboard project references, and a missing explicit helper-module import in migrated test support. Existing local Rust `rust-objcopy` failed to strip debug info because its LLVM library could not be loaded; release compilation/linking succeeded and symbol data was retained. No toolchain files or debug settings were weakened to hide the warning.
+
+The Mac Preview app passed strict signature verification and its DMG passed integrity verification; it is not a notarized distribution. Actionlint 1.7.12 and current Markdown file-link checks passed. Twelve owned desktop captures covered EN/NL and light/dark with no fixture runtime errors. The actual mobile Release preview rendered its existing QA meeting and native tabs on iPhone 17 / iOS 26.5, including light/dark appearance; the original app preference was restored. Both app and extensions retain preview identities; actual product plists confirm `app.pennel.ios.preview`, `group.app.pennel.preview` and the independent preview Keychain service. Production configuration remains covered by variant tests. No retired source tree was recreated by generation or builds.
+
+Physical-phone capture, keyboard cold start/resources, signed upgrades, live Sparkle transition, deployed Cloud, Windows/Linux installed-package acceptance and App Review remain open in their owning issues. Local checks and screenshots do not satisfy those gates. Android remains gated on iPhone acceptance. Hosted CI and review/merge status are recorded in the cleanup PR and issue separately.
