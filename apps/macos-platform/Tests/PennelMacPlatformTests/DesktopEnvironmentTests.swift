@@ -425,7 +425,9 @@ final class DesktopEnvironmentTests: XCTestCase {
 
     @MainActor
     private func drainDesktopEnvironmentEvents() {
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        let drained = expectation(description: "queued desktop environment events drained")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 2)
     }
 
     @MainActor
