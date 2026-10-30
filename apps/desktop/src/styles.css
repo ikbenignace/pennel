@@ -150,9 +150,9 @@ details > summary { cursor: default; }
 .template-editor textarea { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 /* Main window: the meeting library */
-.workspace-shell { display: flex; flex: 1; min-width: 0; min-height: 0; }
-.workspace-body { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
-.library-sidebar { display: flex; flex: 0 0 var(--sidebar-width, var(--desktop-sidebar-width)); flex-direction: column; width: var(--sidebar-width, var(--desktop-sidebar-width)); min-height: 0; padding-top: var(--space-2); background: var(--navigation-surface, var(--sidebar)); }
+.workspace-shell { display: flex; flex: 1; min-width: 0; min-height: 0; background: var(--navigation-surface, var(--sidebar)); }
+.workspace-body { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-panel); background: var(--surface); }
+.library-sidebar { display: flex; flex: 0 0 var(--sidebar-width, var(--desktop-sidebar-width)); flex-direction: column; width: var(--sidebar-width, var(--desktop-sidebar-width)); min-height: 0; padding-top: var(--space-2); background: transparent; }
 .library-search { padding: var(--space-3); }
 .library-search-control { position: relative; display: flex; align-items: center; }
 .library-search-control > .ui-icon { position: absolute; left: var(--space-3); width: var(--space-4); height: var(--space-4); color: var(--muted); pointer-events: none; }
@@ -299,7 +299,7 @@ mark { background: none; color: inherit; font-weight: 600; }
 /* Settings keeps task readiness and advanced preferences in one predictable window. */
 .settings-workspace { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .settings-layout { display: flex; flex: 1; min-width: 0; min-height: 0; }
-.settings-categories { display: flex; flex: 0 0 var(--sidebar-width, var(--desktop-sidebar-width)); flex-direction: column; align-self: stretch; gap: var(--space-1); min-width: 0; margin: 0; padding: var(--space-3) var(--space-2); overflow-y: auto; overflow-x: hidden; scroll-padding: var(--space-3); background: var(--navigation-surface, var(--sidebar)); }
+.settings-categories { display: flex; flex: 0 0 var(--sidebar-width, var(--desktop-sidebar-width)); flex-direction: column; align-self: stretch; gap: var(--space-1); min-width: 0; margin: 0; padding: var(--space-3) var(--space-2); overflow-y: auto; overflow-x: hidden; scroll-padding: var(--space-3); background: transparent; }
 .settings-categories > button { display: block; flex-shrink: 0; width: 100%; min-height: var(--desktop-sidebar-row-height); padding: var(--space-1) var(--space-3); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--foreground); font: 400 var(--font-body)/1.4 var(--chrome-ui); text-align: left; overflow-wrap: anywhere; }
 .settings-categories > button:hover { background: var(--hover); }
 .settings-categories > button[aria-current="page"] { background: var(--selection); font-weight: 500; }
@@ -697,7 +697,8 @@ body[data-window="onboarding"] main { display: flex; overflow: hidden; }
 .workspace-toolbar .library-record-state { display: none; }
 .workspace-toolbar .library-live-title { white-space: nowrap; }
 .library-sidebar, .settings-categories, button, summary.btn, input, select, label, .menu-button, .segmented button, kbd, .preference-row { font-family: var(--chrome-ui); }
-.workspace-body:has(.settings-workspace) { background: transparent; }
+.workspace-body:has(.settings-workspace) { border-radius: 0; background: transparent; }
+.settings-layout > .settings-pane { border-radius: var(--radius-panel); }
 .settings-pane, .workspace-body:not(:has(.settings-workspace)) { background: var(--surface); }
 .sidebar-resize { position: relative; z-index: 2; flex: 0 0 var(--space-2); width: var(--space-2); margin-right: calc(var(--space-2) * -1); cursor: col-resize; touch-action: none; }
 .sidebar-resize::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 1px; background: transparent; }
@@ -723,7 +724,7 @@ button.btn.primary:active:not(:disabled) { opacity: .82; }
 :root:is([data-reduce-transparency="true"], [data-increase-contrast="true"]) :is(.menu-panel, .context-menu) { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-reduce-motion="true"] *, :root[data-reduce-motion="true"] *::before, :root[data-reduce-motion="true"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 @media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
-  .workspace-toolbar, .library-sidebar, .settings-categories, .record-prompt { background: var(--sidebar) !important; }
+  .workspace-toolbar, .workspace-shell, .library-sidebar, .settings-categories, .record-prompt { background: var(--sidebar) !important; }
   .menu-panel, .context-menu { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 @media (prefers-contrast: more) {
