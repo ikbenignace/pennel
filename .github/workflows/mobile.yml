@@ -106,13 +106,16 @@ jobs:
         id: restore-compiler-cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ steps.compiler-cache.outputs.directory }}
+          path: ${{ steps.compiler-cache.outputs.archive }}
           key: ${{ steps.compiler-cache.outputs.key }}
           lookup-only: ${{ env.PENNEL_XCODE_CACHE_MODE == 'cold' }}
       - name: Require a comparable cold or warm experiment
         env:
           EXACT_CACHE_HIT: ${{ steps.restore-compiler-cache.outputs.cache-hit }}
         run: python3 -B scripts/ci-xcode-cache.py verify-restore --mode "$PENNEL_XCODE_CACHE_MODE" --hit "$EXACT_CACHE_HIT"
+      - name: Unpack the exact compiler-cache seed
+        if: env.PENNEL_XCODE_CACHE_MODE == 'warm'
+        run: python3 -B scripts/ci-xcode-cache.py unpack --mode "$PENNEL_XCODE_CACHE_MODE"
       - name: Build the Release simulator application
         env:
           CI: "1"
@@ -141,6 +144,12 @@ jobs:
           PY
       - name: Native runtime and keyboard regression tests
         run: python3 -B scripts/ci-xcode-cache.py time --phase debug-runtime-and-keyboard -- make mobile-native-test
+      - name: Free completed native outputs before packing the seed
+        if: success() && env.PENNEL_XCODE_CACHE_MODE == 'cold'
+        run: rm -rf apps/mobile/build/DerivedData apps/mobile/build/TestDerivedData
+      - name: Compress the cold compiler-cache seed
+        if: success() && env.PENNEL_XCODE_CACHE_MODE == 'cold'
+        run: python3 -B scripts/ci-xcode-cache.py pack --mode "$PENNEL_XCODE_CACHE_MODE"
       - name: Check compiler-cache storage budget
         if: success() && env.PENNEL_XCODE_CACHE_MODE == 'cold'
         id: compiler-cache-budget
@@ -151,7 +160,7 @@ jobs:
         if: success() && env.PENNEL_XCODE_CACHE_MODE == 'cold' && steps.compiler-cache-budget.outputs.save == 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ steps.compiler-cache.outputs.directory }}
+          path: ${{ steps.compiler-cache.outputs.archive }}
           key: ${{ steps.compiler-cache.outputs.key }}
       - name: Report mobile phase and cache timings
         if: always()

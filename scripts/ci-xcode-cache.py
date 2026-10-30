@@ -6,11 +6,13 @@ from datetime import datetime
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import platform
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 import time
 from urllib.request import Request, urlopen
 
@@ -18,6 +20,7 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / 'build/ci-performance/mobile.json'
 CACHE_DIRECTORY = ROOT / 'build/xcode-compilation-cache'
+CACHE_ARCHIVE = ROOT / 'build/xcode-compilation-cache.tar.gz'
 CACHE_ALLOWANCE_BYTES = 10_000_000_000
 CACHE_RESERVE_BYTES = 100_000_000
 
@@ -36,7 +39,7 @@ def validate_inputs(mode, repetitions, generation):
 def cache_identity(metadata, generation):
     context = {key: value for key, value in metadata.items() if key != 'revision'}
     digest = hashlib.sha256(json.dumps(context, sort_keys=True).encode()).hexdigest()[:24]
-    prefix = f'pennel-xcode-cas-v1-{digest}-{generation}-'
+    prefix = f'pennel-xcode-cas-v2-{digest}-{generation}-'
     return {'key': prefix + metadata['revision'], 'restore_prefix': prefix}
 
 
@@ -55,6 +58,11 @@ def validate_restore(mode, hit):
         raise ValueError('Warm benchmark requires the exact cold seed for this SHA, Xcode, SDK and dependency graph')
     if mode == 'cold' and hit == 'true':
         raise ValueError('This immutable seed already exists; use a new cache_generation for another cold experiment')
+
+
+def validate_snapshot_mode(action, mode):
+    if (action, mode) not in (('pack', 'cold'), ('unpack', 'warm')):
+        raise ValueError('Only cold experiments pack a seed, and only warm experiments unpack one')
 
 
 def fits_budget(current_bytes, candidate_bytes):
@@ -124,6 +132,87 @@ def directory_bytes(directory):
     return sum(path.stat().st_size for path in directory.rglob('*') if path.is_file() and not path.is_symlink())
 
 
+def require_empty_cas(directory):
+    if directory.is_symlink() or directory.exists() and (not directory.is_dir() or any(directory.iterdir())):
+        raise ValueError('A comparable benchmark requires an empty local CAS directory')
+
+
+def pack_snapshot(directory, archive):
+    if not directory.is_dir() or directory.is_symlink():
+        raise ValueError('Cannot pack an empty or missing CAS directory')
+    paths = list(directory.rglob('*'))
+    if any(path.is_symlink() or not (path.is_file() or path.is_dir()) for path in paths):
+        raise ValueError('A CAS snapshot may contain only regular files and directories')
+    size = sum(path.stat().st_size for path in paths if path.is_file())
+    if not size:
+        raise ValueError('Cannot pack an empty CAS directory')
+    if archive.resolve().is_relative_to(directory.resolve()):
+        raise ValueError('The compressed snapshot must be outside the CAS directory')
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=archive.parent, prefix='.xcode-cas-', delete=False) as temporary:
+        staging = Path(temporary.name)
+    try:
+        with tarfile.open(staging, 'w:gz', compresslevel=1, dereference=True) as file:
+            file.add(directory, arcname='cas')
+        staging.replace(archive)
+    finally:
+        staging.unlink(missing_ok=True)
+    return size
+
+
+def unpack_snapshot(archive, directory):
+    require_empty_cas(directory)
+    if not archive.is_file() or archive.is_symlink():
+        raise ValueError('Warm benchmark requires a regular compressed seed archive')
+    directory.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(archive, 'r:gz') as file:
+        members = file.getmembers()
+        names = set()
+        roots = 0
+        size = 0
+        for member in members:
+            path = PurePosixPath(member.name)
+            if not path.parts or path.parts[0] != 'cas' or path.is_absolute() or '..' in path.parts or '\\' in member.name:
+                raise ValueError('Snapshot contains an unexpected CAS root or path traversal')
+            if not (member.isfile() or member.isdir()):
+                raise ValueError('A CAS snapshot may contain only regular files and directories')
+            if str(path) in names:
+                raise ValueError('Snapshot contains duplicate CAS paths')
+            names.add(str(path))
+            if path == PurePosixPath('cas'):
+                roots += int(member.isdir())
+            if member.isfile():
+                size += member.size
+        if roots != 1 or not size:
+            raise ValueError('Snapshot must contain one nonempty CAS directory')
+        with tempfile.TemporaryDirectory(dir=directory.parent, prefix='.xcode-cas-restore-') as staging:
+            file.extractall(staging, members=members, filter='data')
+            restored = Path(staging) / 'cas'
+            if directory.exists():
+                directory.rmdir()
+            restored.replace(directory)
+    return size
+
+
+def snapshot(action, mode):
+    validate_snapshot_mode(action, mode)
+    started = time.monotonic()
+    exit_code = 1
+    try:
+        operation = pack_snapshot if action == 'pack' else unpack_snapshot
+        size = operation(CACHE_DIRECTORY, CACHE_ARCHIVE) if action == 'pack' else operation(CACHE_ARCHIVE, CACHE_DIRECTORY)
+        data = read_report()
+        data['cache'].update(archive_bytes=CACHE_ARCHIVE.stat().st_size, uncompressed_bytes=size)
+        if action == 'unpack':
+            data['cache']['restored_uncompressed_bytes'] = size
+        write_report(data)
+        exit_code = 0
+    finally:
+        data = read_report()
+        data['phases'].append({'name': f'cache-{action}', 'seconds': round(time.monotonic() - started, 3), 'exit_code': exit_code})
+        write_report(data)
+
+
 def prepare(args):
     validate_inputs(args.mode, args.repetitions, args.generation)
     paths = command('git', 'ls-files', '-z', '--', 'apps/mobile/package-lock.json',
@@ -143,13 +232,13 @@ def prepare(args):
     }
     if metadata['architecture'] != 'arm64' or metadata['variant'] != 'preview':
         raise ValueError('The pilot is qualified only for ARM64 preview builds')
-    if args.mode == 'cold' and CACHE_DIRECTORY.exists() and any(CACHE_DIRECTORY.iterdir()):
-        raise ValueError('Cold benchmark requires an empty local CAS directory')
+    if args.mode != 'off':
+        require_empty_cas(CACHE_DIRECTORY)
     identity = cache_identity(metadata, args.generation)
     data = read_report()
     data.update(metadata=metadata, cache=data.get('cache', {}) | identity | {'mode': args.mode}, repetition=args.repetition)
     write_report(data)
-    output(identity | {'directory': str(CACHE_DIRECTORY)})
+    output(identity | {'directory': str(CACHE_DIRECTORY), 'archive': str(CACHE_ARCHIVE)})
 
 
 def timed(args):
@@ -166,16 +255,16 @@ def timed(args):
 
 def budget():
     data = read_report()
-    size = directory_bytes(CACHE_DIRECTORY)
+    size = CACHE_ARCHIVE.stat().st_size
     current = github_json('actions/cache/usage')['active_caches_size_in_bytes']
     fits = size > 0 and fits_budget(current, size)
-    data['cache'].update(uncompressed_bytes=size, repository_bytes_before_save=current,
+    data['cache'].update(archive_bytes=size, repository_bytes_before_save=current,
                          allowance_bytes=CACHE_ALLOWANCE_BYTES, reserve_bytes=CACHE_RESERVE_BYTES,
                          save_allowed=fits)
     write_report(data)
     output({'save': str(fits).lower()})
     if not fits:
-        raise ValueError(f'Cold seed was not saved: CAS {size} bytes + repository {current} bytes must fit the existing cache allowance with headroom')
+        raise ValueError(f'Cold seed was not saved: compressed archive {size} bytes + repository {current} bytes must fit the existing cache allowance with headroom')
 
 
 def preflight():
@@ -193,6 +282,7 @@ def report(args):
     cache = data.setdefault('cache', {'mode': os.environ.get('PENNEL_XCODE_CACHE_MODE', 'off')})
     cache['exact_hit'] = args.hit == 'true'
     cache['uncompressed_bytes'] = directory_bytes(CACHE_DIRECTORY)
+    cache['archive_bytes'] = CACHE_ARCHIVE.stat().st_size if CACHE_ARCHIVE.is_file() else 0
     if cache['mode'] != 'off' and os.environ.get('GH_TOKEN'):
         try:
             entries = github_json('actions/caches?per_page=100')['actions_caches']
@@ -218,7 +308,7 @@ def report(args):
             file.write('| Phase | Seconds | Exit code |\n| --- | ---: | ---: |\n')
             for phase in data['phases']:
                 file.write(f"| {phase['name']} | {phase['seconds']} | {phase['exit_code']} |\n")
-            file.write(f"\nExact seed hit: {cache['exact_hit']}. CAS bytes: {cache['uncompressed_bytes']}.\n")
+            file.write(f"\nExact seed hit: {cache['exact_hit']}. CAS bytes: {cache['uncompressed_bytes']}. Compressed archive bytes: {cache['archive_bytes']}.\n")
     print(json.dumps(data, indent=2))
 
 
@@ -238,6 +328,9 @@ def main():
     entry = commands.add_parser('time')
     entry.add_argument('--phase', required=True)
     entry.add_argument('arguments', nargs=argparse.REMAINDER)
+    for name in ('pack', 'unpack'):
+        entry = commands.add_parser(name)
+        entry.add_argument('--mode', choices=('off', 'cold', 'warm'), required=True)
     commands.add_parser('budget')
     commands.add_parser('preflight')
     entry = commands.add_parser('report')
@@ -254,6 +347,8 @@ def main():
             validate_restore(args.mode, args.hit)
         elif args.command == 'time':
             return timed(args)
+        elif args.command in ('pack', 'unpack'):
+            snapshot(args.command, args.mode)
         elif args.command == 'budget':
             budget()
         elif args.command == 'preflight':
@@ -265,7 +360,7 @@ def main():
             directory = Path(os.environ.get('PENNEL_XCODE_CACHE_DIR', str(CACHE_DIRECTORY)))
             arguments = xcode_arguments(args.arguments, mode, directory)
             os.execvp('xcodebuild', ['xcodebuild', *arguments])
-    except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:
+    except (ValueError, OSError, EOFError, tarfile.TarError, KeyError, subprocess.CalledProcessError) as error:
         print(f'::error::{error}', file=sys.stderr)
         return 1
     return 0
