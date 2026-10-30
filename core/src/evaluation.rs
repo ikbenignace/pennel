@@ -528,12 +528,7 @@ mod tests {
                 json!({}),
                 true,
             ),
-            (
-                "open ai bouwt dit",
-                "OpenAI bouwt dit.",
-                json!({}),
-                false,
-            ),
+            ("open ai bouwt dit", "OpenAI bouwt dit.", json!({}), false),
             (
                 "open ai bouwt dit",
                 "OpenAI bouwt dit.",
