@@ -16,6 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     userInterfaceStyle: 'automatic',
     icon: './artifacts/brand/app-icon.png',
     backgroundColor: tokens.colors.surface.light,
+    locales: { en: './locales/en.json', nl: './locales/nl.json' },
     ios: {
       bundleIdentifier,
       supportsTablet: true,
@@ -24,6 +25,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: {
         CFBundleDisplayName: production ? 'Pennel' : 'Pennel Preview',
         NSMicrophoneUsageDescription: 'Pennel uses your microphone for dictation and meeting recordings you start.',
+        NSCameraUsageDescription: 'Pennel uses your camera to scan a temporary device connection code. You can enter the code instead.',
         NSSpeechRecognitionUsageDescription: 'Pennel uses Apple speech recognition when you select the Apple provider.',
         UIBackgroundModes: ['audio'],
         BGTaskSchedulerPermittedIdentifiers: [`${bundleIdentifier}.sync`, `${bundleIdentifier}.finish`],

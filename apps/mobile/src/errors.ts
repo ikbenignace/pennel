@@ -53,6 +53,16 @@ const aliases: Record<string, string> = {
   no_speech: 'no_speech', missing_api_key: 'missing_api_key', model_not_downloaded: 'model_not_downloaded',
   recording_gaps: 'recording_gaps', recording_terminated: 'recording_terminated', recording_resume_failed: 'recording_resume_failed',
   recording_microphone_lost: 'recording_microphone_lost', recording_paused: 'recording_paused',
+  camera_denied: 'camera_denied', scanner_unavailable: 'scanner_unavailable', recovery_unconfirmed: 'recovery_unconfirmed',
+  pairing_code: 'pairing_code', pairing_invalid: 'pairing_invalid', pairing_expired: 'pairing_expired', pairing_restart: 'pairing_restart',
+  pairing_unavailable: 'pairing_unavailable', pairing_storage: 'pairing_storage', pairing_busy: 'overloaded',
+  pairing_unknown: 'pairing_used', pairing_claimed: 'pairing_used', pairing_used: 'pairing_used',
+  pairing_account: 'pairing_account', pairing_existing: 'pairing_existing', pairing_changed: 'pairing_invalid',
+  pairing_transcript: 'pairing_invalid', pairing_message: 'pairing_invalid', pairing_phase: 'pairing_invalid', pairing_approval: 'pairing_invalid',
+  pairing_retry: 'pairing_retry',
+  pairing_not_found: 'pairing_expired', device_limit: 'device_limit', generation: 'pairing_library_changed',
+  recovery_code: 'recovery_code', recovery_stale: 'recovery_unconfirmed', recovery_changed: 'recovery_unconfirmed', pairing_pending: 'pairing_pending',
+  dictation_session_changed: 'practice_changed', dictation_owned: 'practice_owned',
 };
 
 export function localizedFailure(language: InterfaceLanguage, error: NativeFailure): string {

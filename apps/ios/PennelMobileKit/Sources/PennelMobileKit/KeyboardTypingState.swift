@@ -74,6 +74,26 @@ public struct KeyboardTypingState: Sendable {
         layer == .letters && shift != .off ? key.uppercased() : key
     }
 
+    public func alternatives(for key: String) -> [String] {
+        guard layer == .letters else { return [] }
+        let letters: [String]
+        switch key.lowercased() {
+        case "a": letters = ["à", "á", "â", "ä", "ã", "å", "æ"]
+        case "e": letters = ["è", "é", "ê", "ë"]
+        case "i": letters = ["ì", "í", "î", "ï"]
+        case "o": letters = ["ò", "ó", "ô", "ö", "õ", "ø", "œ"]
+        case "u": letters = ["ù", "ú", "û", "ü"]
+        case "c": letters = ["ç"]
+        case "n": letters = ["ñ"]
+        case "s": letters = ["ß", "ś", "š"]
+        case "y": letters = ["ý", "ÿ"]
+        case "z": letters = ["ź", "ž", "ż"]
+        case "l": letters = ["ł"]
+        default: letters = []
+        }
+        return letters.map { text(for: $0) }
+    }
+
     public func rows(layout: KeyboardLayout) -> [[String]] {
         switch layer {
         case .letters: layout.rows
@@ -88,6 +108,14 @@ public struct KeyboardTypingState: Sendable {
             [".", ",", "?", "!", "'"],
         ]
         }
+    }
+}
+
+public enum KeyboardResultPreview {
+    public static func text(_ value: String) -> String {
+        let compact = value.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let prefix = compact.prefix(161)
+        return prefix.count > 160 ? String(prefix.prefix(160)) + "…" : String(prefix)
     }
 }
 

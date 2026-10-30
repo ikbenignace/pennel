@@ -27,18 +27,25 @@ public final class KeyboardSessionModel {
     private let now: () -> Date
     private let context: () -> KeyboardInsertionContext?
     private let onResult: (String) -> Void
+    private let onFeedback: (FeedbackEvent) -> Void
     public let copy: KeyboardCopy
 
     private var gesture = Gesture.none
     private var startedAt: Date?
     private var stoppedAt: Date?
     private var failure: String?
+    public private(set) var recoveryAction: KeyboardFailureRecovery = .recordAgain
     private var delivery = KeyboardDeliveryGuard()
+    private var awaitingStartFeedback = false
+    private var awaitingStopFeedback = false
+    private var awaitingCancelFeedback = false
+    private var observedSession: SessionPhase = .off
 
     public init(
         hasFullAccess: Bool, client: HandoffClient, now: @escaping () -> Date = Date.init,
         context: @escaping () -> KeyboardInsertionContext?,
-        copy: KeyboardCopy = KeyboardCopy(language: .english), onResult: @escaping (String) -> Void
+        copy: KeyboardCopy = KeyboardCopy(language: .english),
+        onFeedback: @escaping (FeedbackEvent) -> Void = { _ in }, onResult: @escaping (String) -> Void
     ) {
         self.hasFullAccess = hasFullAccess
         self.client = client
@@ -46,8 +53,28 @@ public final class KeyboardSessionModel {
         self.context = context
         self.copy = copy
         self.onResult = onResult
+        self.onFeedback = onFeedback
         pad = hasFullAccess ? .sessionOff : .needsFullAccess
     }
+
+    public var primaryActionLabel: String {
+        switch pad {
+        case .ready: copy.text(.ready)
+        case .listening: copy.text(.stopDictation)
+        case .processing: copy.text(.processing)
+        case .sessionOff, .needsFullAccess: copy.text(.setupDictation)
+        case .failed: copy.text(recoveryAction == .recordAgain ? .recordAgain : .checkAgain)
+        }
+    }
+
+    public var primaryActionEnabled: Bool {
+        switch pad {
+        case .ready, .listening, .failed: true
+        case .needsFullAccess, .sessionOff, .processing: false
+        }
+    }
+
+    public var lastResultPreview: String? { lastResult?.text.map(KeyboardResultPreview.text) }
 
     public func refresh() {
         guard hasFullAccess else {
@@ -55,15 +82,19 @@ public final class KeyboardSessionModel {
             return
         }
         let current = now()
+        let session = client.session(now: current)
+        acknowledgeFeedback(session)
         if let result = client.pendingResult(now: current) {
             if result.text == nil || delivery.permits(result.id, in: context()) {
-                if client.markInserted(result) { finish(result) }
+                if client.markInserted(result) {
+                    if awaitingStopFeedback { onFeedback(.recordingStopped) }
+                    finish(result)
+                }
             } else {
                 client.deferPendingResult(result)
                 reset()
             }
         }
-        let session = client.session(now: current)
         level = session == .listening ? client.level() : 0
         lastResult = isIdle ? client.lastUninserted(now: current) : nil
 
@@ -107,7 +138,7 @@ public final class KeyboardSessionModel {
         case .listening:
             if gesture != .hold { end() }
         case .failed:
-            retry()
+            if recoveryAction == .recordAgain { recordAgain() } else { retry() }
         case .needsFullAccess, .processing:
             break
         }
@@ -128,8 +159,10 @@ public final class KeyboardSessionModel {
 
     public func cancel() {
         guard hasFullAccess, pad == .listening || pad == .processing else { return }
-        _ = send(.cancel)
+        guard send(.cancel) != nil else { return }
+        let wasActive = observedSession == .listening || observedSession == .processing
         reset()
+        awaitingCancelFeedback = wasActive
         refresh()
     }
 
@@ -139,10 +172,19 @@ public final class KeyboardSessionModel {
         refresh()
     }
 
+    public func recordAgain() {
+        guard case .failed = pad, recoveryAction == .recordAgain else { return }
+        retry()
+        if pad == .ready { begin(.handsFree) }
+    }
+
     public func insertLast() {
         guard let result = lastResult, context() != nil else { return }
         lastResult = nil
-        if client.markInserted(result), let text = result.text { onResult(text) }
+        if client.markInserted(result), let text = result.text {
+            onResult(text)
+            onFeedback(.resultDelivered)
+        }
     }
 
     public func contextDidChange() {
@@ -159,6 +201,7 @@ public final class KeyboardSessionModel {
         gesture = new
         startedAt = now()
         stoppedAt = nil
+        awaitingStartFeedback = true
         pad = .listening
     }
 
@@ -168,6 +211,7 @@ public final class KeyboardSessionModel {
         delivery.awaitResult(id)
         gesture = .none
         stoppedAt = now()
+        awaitingStopFeedback = true
         pad = .processing
     }
 
@@ -177,7 +221,9 @@ public final class KeyboardSessionModel {
             return try client.send(action, now: now())
         } catch {
             failure = copy.text(.fullAccess)
+            recoveryAction = .checkSettings
             pad = .failed(copy.text(.fullAccess))
+            onFeedback(.error)
             return nil
         }
     }
@@ -186,9 +232,28 @@ public final class KeyboardSessionModel {
         reset()
         if let text = result.text {
             onResult(text)
+            onFeedback(.resultDelivered)
         } else {
             failure = copy.failure(code: result.errorCode, message: result.error)
+            recoveryAction = copy.recoveryAction(code: result.errorCode, message: result.error)
+            onFeedback(.error)
         }
+    }
+
+    private func acknowledgeFeedback(_ session: SessionPhase) {
+        if awaitingStartFeedback, session == .listening {
+            awaitingStartFeedback = false
+            onFeedback(.recordingStarted)
+        }
+        if awaitingStopFeedback, session == .processing || (session == .ready && (observedSession == .listening || observedSession == .processing)) {
+            awaitingStopFeedback = false
+            onFeedback(.recordingStopped)
+        }
+        if awaitingCancelFeedback, session == .ready || session == .off {
+            awaitingCancelFeedback = false
+            onFeedback(.recordingCancelled)
+        }
+        observedSession = session
     }
 
     private func reset() {
@@ -196,5 +261,8 @@ public final class KeyboardSessionModel {
         startedAt = nil
         stoppedAt = nil
         delivery.reset()
+        awaitingStartFeedback = false
+        awaitingStopFeedback = false
+        awaitingCancelFeedback = false
     }
 }

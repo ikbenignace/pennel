@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, type TextInputProps, type TextProps, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Host, Menu, Picker, Button as NativeButton, Text as NativeText } from '@expo/ui/swift-ui';
+import { accessibilityLabel, buttonStyle, disabled as nativeDisabled, font, frame, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 import { useRuntime } from '../runtime';
 import { localizedFailure } from '../errors';
 
@@ -10,14 +12,21 @@ export function Body({ children, muted = false, style, ...props }: TextProps & {
   return <Text {...props} style={[{ color: muted ? theme.colors.muted : theme.colors.foreground, fontFamily: theme.font.regular, fontSize: theme.size.section, lineHeight: theme.space[6] }, style]}>{children}</Text>;
 }
 
-export function Page({ title, subtitle, children, action, scroll = true, inset = true }: { title?: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode; scroll?: boolean; inset?: boolean }) {
+export function Page({ title, subtitle, children, action, scroll = true, inset = true, bottomInset = false, scrollKey }: { title?: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode; scroll?: boolean; inset?: boolean; bottomInset?: boolean; scrollKey?: string }) {
   const { theme, error, store, t, language } = useRuntime();
+  const scrollView = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const offsets = useRef(new Map<string, number>());
+  useEffect(() => {
+    if (!scroll || !scrollKey) return;
+    const frame = requestAnimationFrame(() => scrollView.current?.scrollTo({ y: offsets.current.get(scrollKey) ?? 0, animated: false }));
+    return () => cancelAnimationFrame(frame);
+  }, [scroll, scrollKey]);
   const content = <>
-    {title && <View style={{ paddingBottom: theme.space[6], flexDirection: 'row', alignItems: 'center', gap: theme.space[3] }}><View style={{ flex: 1 }}><Text accessibilityRole="header" style={{ fontFamily: theme.font.display, fontSize: theme.size['display-title'], color: theme.colors.foreground }}>{title}</Text>{subtitle && <Body muted style={{ marginTop: theme.space[2] }}>{subtitle}</Body>}</View>{action}</View>}
+    {(title || subtitle || action) && <View style={{ paddingBottom: theme.space[5], flexDirection: 'row', alignItems: 'center', gap: theme.space[3] }}><View style={{ flex: 1 }}>{title && <Text accessibilityRole="header" style={{ fontFamily: theme.font.display, fontSize: theme.size['display-title'], color: theme.colors.foreground }}>{title}</Text>}{subtitle && <Body muted style={{ marginTop: title ? theme.space[2] : 0 }}>{subtitle}</Body>}</View>{action}</View>}
     {error && <View accessibilityRole="alert" style={{ padding: theme.space[3], marginBottom: theme.space[4], backgroundColor: theme.colors.subtle, borderRadius: theme.radius.control }}><Body style={{ color: theme.colors.accent }}>{localizedFailure(language, error)}</Body><Button title={t('common.close')} subtle onPress={store.clearError} /></View>}
     {children}
   </>;
-  return <SafeAreaView edges={inset ? ['top', 'left', 'right'] : ['left', 'right']} style={{ flex: 1, backgroundColor: theme.colors.surface }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>{scroll ? <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: theme.space[5], paddingBottom: theme.space[10] }} automaticallyAdjustKeyboardInsets>{content}</ScrollView> : <View style={{ flex: 1, padding: theme.space[5] }}>{content}</View>}</KeyboardAvoidingView></SafeAreaView>;
+  return <SafeAreaView edges={[...(inset ? ['top' as const] : []), 'left', 'right', ...(bottomInset ? ['bottom' as const] : [])]} style={{ flex: 1, backgroundColor: theme.colors.surface }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>{scroll ? <ScrollView ref={scrollView} keyboardShouldPersistTaps="handled" onScroll={scrollKey ? (event) => { offsets.current.set(scrollKey, event.nativeEvent.contentOffset.y); } : undefined} scrollEventThrottle={32} contentContainerStyle={{ padding: theme.space[5], paddingBottom: theme.space[10] }} automaticallyAdjustKeyboardInsets>{content}</ScrollView> : <View style={{ flex: 1, padding: theme.space[5], paddingBottom: bottomInset ? theme.space[3] : 0 }}>{content}</View>}</KeyboardAvoidingView></SafeAreaView>;
 }
 
 export function Section({ title, description, children }: { title?: string; description?: string; children?: React.ReactNode }) {
@@ -56,6 +65,23 @@ export function Toggle({ title, value, onChange, description, disabled = false }
 export function Choice<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: readonly { value: T; label: string; disabled?: boolean }[]; onChange: (value: T) => void }) {
   const { theme } = useRuntime();
   return <View style={{ gap: theme.space[2] }}><Body muted style={{ fontSize: theme.size.content }}>{label}</Body><View accessibilityRole="radiogroup" style={{ gap: theme.space[1] }}>{options.map((option) => <Pressable key={option.value} accessible accessibilityRole="radio" accessibilityLabel={option.label} accessibilityState={{ checked: value === option.value, disabled: option.disabled }} disabled={option.disabled} onPress={() => onChange(option.value)} style={{ minHeight: 44, padding: theme.space[3], borderRadius: theme.radius.control, backgroundColor: value === option.value ? theme.colors.selection : 'transparent', flexDirection: 'row', alignItems: 'center', gap: theme.space[3] }}><Ionicons accessible={false} importantForAccessibility="no-hide-descendants" name={value === option.value ? 'radio-button-on' : 'radio-button-off'} size={20} color={option.disabled ? theme.colors['disabled-text'] : theme.colors.foreground} /><Body style={{ flex: 1, color: option.disabled ? theme.colors['disabled-text'] : theme.colors.foreground }}>{option.label}</Body></Pressable>)}</View></View>;
+}
+
+export function NativeChoice<T extends string | number>({ label, value, options, onChange, segmented = false }: { label: string; value: T; options: readonly { value: T; label: string; disabled?: boolean }[]; onChange: (value: T) => void; segmented?: boolean }) {
+  const { theme } = useRuntime();
+  if (Platform.OS !== 'ios') return <Choice label={label} value={value} options={options} onChange={onChange} />;
+  return <Host colorScheme={theme.mode} seedColor={theme.colors.foreground} matchContents={{ vertical: true }} style={{ minHeight: 44 }}>
+    <Picker label={label} selection={value} onSelectionChange={(next) => { if (options.some((option) => option.value === next && !option.disabled)) onChange(next); }} modifiers={[pickerStyle(segmented ? 'segmented' : 'menu'), frame({ minHeight: 44, maxWidth: Infinity }), font({ family: theme.font.medium, textStyle: 'body', size: theme.size.content })]}>
+      {options.map((option) => <NativeText key={option.value} modifiers={[tag(option.value), nativeDisabled(Boolean(option.disabled))]}>{option.label}</NativeText>)}
+    </Picker>
+  </Host>;
+}
+
+export interface MenuAction { label: string; onPress: () => void; disabled?: boolean; destructive?: boolean }
+export function ActionMenu({ label, actions }: { label: string; actions: readonly MenuAction[] }) {
+  const { theme, t } = useRuntime();
+  if (Platform.OS !== 'ios') return <Button title={label} subtle icon="ellipsis-horizontal" onPress={() => Alert.alert(label, undefined, [...actions.map((action) => ({ text: action.label, style: action.destructive ? 'destructive' as const : 'default' as const, onPress: action.disabled ? undefined : action.onPress })), { text: t('common.cancel'), style: 'cancel' }])} />;
+  return <Host colorScheme={theme.mode} seedColor={theme.colors.foreground} matchContents style={{ minHeight: 44, minWidth: 44 }}><Menu label={label} systemImage="ellipsis.circle" modifiers={[buttonStyle('plain'), frame({ minHeight: 44 }), font({ family: theme.font.medium, textStyle: 'body', size: theme.size.content }), accessibilityLabel(label)]}>{actions.map((action) => <NativeButton key={action.label} label={action.label} role={action.destructive ? 'destructive' : 'default'} onPress={action.onPress} modifiers={[nativeDisabled(Boolean(action.disabled))]} />)}</Menu></Host>;
 }
 
 export function Notice({ children, error = false }: { children: React.ReactNode; error?: boolean }) { const { theme } = useRuntime(); return <Body accessibilityRole={error ? 'alert' : undefined} muted={!error} style={{ fontSize: theme.size.content, color: error ? theme.colors.accent : theme.colors.muted }}>{children}</Body>; }

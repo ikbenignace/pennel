@@ -26,6 +26,7 @@ function Navigation() {
       if (finished && segments[segments.length - 1] !== 'recording') router.push({ pathname: '/meeting/[id]', params: { id: requested.meeting_id! } });
       else if (!finished) router.push('/recording');
     }
+    else if (requested.route === 'sync') router.navigate({ pathname: '/settings/[section]', params: { section: 'sync' } });
     else router.navigate('/(tabs)/dictation');
     void run('navigation-consume', 'navigation.consume', { sequence: requested.sequence });
   }, [router, run, segments, snapshot]);

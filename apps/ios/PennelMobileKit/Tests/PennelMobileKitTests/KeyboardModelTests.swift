@@ -2,7 +2,7 @@ import Foundation
 import PennelMobileKit
 import Testing
 
-private typealias KeyboardModel = KeyboardSessionModel
+typealias KeyboardModel = KeyboardSessionModel
 
 @MainActor
 final class Harness {
@@ -16,7 +16,7 @@ final class Harness {
 
     init() { now = start }
 
-    fileprivate func model(fullAccess: Bool = true, pending: PendingHandoff = PendingHandoff(), lifetime: UUID = UUID()) -> KeyboardModel {
+    func model(fullAccess: Bool = true, pending: PendingHandoff = PendingHandoff(), lifetime: UUID = UUID()) -> KeyboardModel {
         KeyboardModel(
             hasFullAccess: fullAccess,
             client: HandoffClient(store: store, pending: pending),

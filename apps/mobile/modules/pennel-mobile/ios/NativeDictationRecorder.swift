@@ -10,6 +10,9 @@ final class NativeDictationRecorder {
     private(set) var text = ""
     private(set) var error: String?
     private(set) var errorCode: String?
+    private(set) var sessionID: String?
+    private(set) var resultSessionID: String?
+    private(set) var isPractice = false
     var level: Float { buffer.level }
     var cleanupVerification: CleanupVerificationAvailability? { ownedSession?.cleanupVerificationAvailability() }
     var changed: (() -> Void)?
@@ -50,18 +53,28 @@ final class NativeDictationRecorder {
         })
     }
 
-    func start() async throws {
-        guard phase == .idle, pendingStart == nil else { return }
+    func start(practice: Bool = false) async throws {
+        guard phase == .idle, pendingStart == nil else {
+            if practice { throw PennelBridgeError("operation_busy", "Finish the current dictation before starting practice.") }
+            return
+        }
         let token = UUID()
         pendingStart = token
-        defer { if pendingStart == token { pendingStart = nil } }
+        sessionID = token.uuidString
+        resultSessionID = nil
+        isPractice = practice
+        text = ""
+        defer {
+            if pendingStart == token { pendingStart = nil }
+            if phase == .idle && sessionID == token.uuidString { sessionID = nil; isPractice = false }
+        }
         let allowed = await requestPermission()
         guard pendingStart == token, phase == .idle else { throw PennelError.Cancelled }
         guard allowed else {
             throw PennelBridgeError("microphone_denied", "Allow microphone access in Settings.")
         }
         let engine = engine
-        try await reserveHistory()
+        if !practice { try await reserveHistory() }
         guard pendingStart == token, phase == .idle else { throw PennelError.Cancelled }
         generation += 1
         error = nil
@@ -75,7 +88,7 @@ final class NativeDictationRecorder {
             self.changed?()
         }
         previewObserver = observer
-        let session = engine.beginDictationSession(observer: observer, practice: false)
+        let session = engine.beginDictationSession(observer: observer, practice: practice)
         ownedSession = session
         let meeting = MeetingRuntime.shared
         if meeting.isActive {
@@ -111,20 +124,24 @@ final class NativeDictationRecorder {
         session.stopPreview()
         let request = DictationRequest(samples: buffer.take(), sampleRate: 16_000, appBundleId: nil, keys: Keychain.apiKeys())
         let capturedGeneration = generation
+        let capturedPractice = isPractice
+        let capturedSessionID = sessionID
         phase = .processing
         changed?()
         let result = await Task.detached { () -> Result<DictationResult, Error> in
             Result { try session.finish(request: request) }
         }.value
-        guard generation == capturedGeneration else { return }
+        guard generation == capturedGeneration, sessionID == capturedSessionID else { return }
         phase = .idle
         ownedSession = nil
         previewObserver = nil
         switch result {
         case .success(let value):
             text = value.text
-            UIPasteboard.general.setItems([["public.utf8-plain-text": value.text]], options: [.localOnly: true])
+            resultSessionID = capturedSessionID
+            if !capturedPractice { UIPasteboard.general.setItems([["public.utf8-plain-text": value.text]], options: [.localOnly: true]) }
         case .failure(let value):
+            resultSessionID = nil
             error = ErrorText.message(value)
             errorCode = ErrorText.failureCode(value)
         }
@@ -134,6 +151,9 @@ final class NativeDictationRecorder {
     func cancel() {
         generation += 1
         pendingStart = nil
+        sessionID = nil
+        resultSessionID = nil
+        isPractice = false
         ownedSession?.cancel()
         ownedSession = nil
         previewObserver = nil
@@ -146,6 +166,23 @@ final class NativeDictationRecorder {
         error = nil
         errorCode = nil
         changed?()
+    }
+
+    func stopPractice(sessionID requested: String) async throws {
+        try requirePracticeSession(requested)
+        guard pendingStart == nil else { throw PennelBridgeError("operation_busy", "Practice is still starting.") }
+        await stop()
+    }
+
+    func cancelPractice(sessionID requested: String) throws {
+        try requirePracticeSession(requested)
+        cancel()
+    }
+
+    private func requirePracticeSession(_ requested: String) throws {
+        guard isPractice, !requested.isEmpty, sessionID == requested else {
+            throw PennelBridgeError("dictation_session_changed", "This practice session is no longer active. Start practice again.")
+        }
     }
 
     private func endMeetingInterval() {

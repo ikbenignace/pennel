@@ -26,7 +26,7 @@ export interface ProviderKindInfo { kind: ProviderKind; label: string; requires_
 export interface Settings {
   ui_language: 'system' | InterfaceLanguage;
   appearance: Appearance;
-  onboarding: { status: 'pending' | 'skipped' | 'completed'; version: number; resume_step?: string };
+  onboarding: { status: 'pending' | 'skipped' | 'completed'; version: number; goal?: 'dictation' | 'meeting'; resume_step?: 'language' | 'welcome' | 'engine' | 'permissions' | 'practice' | 'voice' };
   providers: ProviderAccount[];
   dictation_stt: ModelChoice;
   meeting_stt: ModelChoice;
@@ -44,6 +44,8 @@ export interface Settings {
   diarization: boolean;
   speaker_recognition: 'local' | 'cloud';
   cloud_sync?: boolean;
+  haptic_feedback?: boolean;
+  keyboard_haptics?: boolean;
   [key: string]: unknown;
 }
 export interface Segment { start_ms: number; end_ms: number; speaker: 'me' | 'others'; text: string; failed: boolean; voice: number | null }
@@ -59,7 +61,12 @@ export interface ChatTurn { question: string; answer: string }
 export interface CloudAccount { email: string; audio_seconds: number; tokens: number; storage_bytes: number; limit_audio_seconds: number; limit_tokens: number; limit_storage_bytes: number }
 export interface CloudDevice { id: string; name: string; platform: string; last_seen_iso: string; current: boolean }
 export interface LoginStart { user_code: string; verification_uri: string; interval_secs: number; expires_at_ms?: number }
-export interface CloudState { signed_in: boolean; account: CloudAccount | null; syncing: boolean; sync_enabled: boolean; status: string; recovery_confirmed: boolean; brake: boolean; device_name: string; notice: string | null; login?: { phase: 'idle' | 'code' | 'expired'; start?: LoginStart } }
+export interface CloudState { signed_in: boolean; account: CloudAccount | null; account_epoch?: string; recovery_display_token?: string | null; syncing: boolean; sync_enabled: boolean; status: string; report?: SyncReport; recovery_confirmed: boolean; brake: boolean; device_name: string; notice: string | null; login?: { phase: 'idle' | 'code' | 'expired'; start?: LoginStart } }
+export interface CloudRecoveryDisplay { recovery_code: string | null; confirmation_token: string | null; account_epoch: string }
+export interface CloudSyncSetup { phase: 'signed_out' | 'new_library' | 'locked' | 'ready' | 'paused' | 'active'; sync_enabled: boolean; generation: number | null; can_approve_devices: boolean; uploaded: number; downloaded: number; conflicts: number; last_success_ms: number | null }
+export type CloudLinkRole = 'new_device' | 'trusted_device';
+export type CloudLinkPhase = 'idle' | 'waiting_peer' | 'confirming' | 'awaiting_approval' | 'waiting_approval' | 'provisioning' | 'complete' | 'cancelled' | 'expired' | 'failed';
+export interface CloudLinkView { phase: CloudLinkPhase; role: CloudLinkRole | null; request_id: string | null; connection_code: string | null; qr_payload: string | null; qr_svg: string | null; qr_image?: string | null; verification_code: string | null; peer_name: string | null; peer_platform: string | null; account_email: string | null; expires_at_ms: number | null; error_code: string | null; error_message: string | null }
 export type RecognitionStage = 'preparing' | 'uploading' | 'recognizing' | 'response_unknown' | 'interrupted' | 'applying' | 'completed' | 'cancelled' | 'failed';
 export interface SpeakerJob { id: string; meeting_uid: string; meeting_id?: string; stage: RecognitionStage; decoded_frames: number; uploaded_bytes: number; total_bytes?: number; confirmed_chunks: number; total_chunks?: number; recoverable: boolean; error: { code: string; message: string } | null }
 export interface RuntimeSnapshot {
@@ -72,12 +79,12 @@ export interface RuntimeSnapshot {
   keys: Record<string, boolean>;
   inference_key_revisions?: Record<string, number>;
   cleanup_verification?: CleanupVerificationAvailability;
-  dictation: { phase: 'idle' | 'listening' | 'processing'; text: string | null; level: number; error: string | null; error_code?: string | null; cleanup_verification?: CleanupVerificationAvailability | null };
+  dictation: { phase: 'idle' | 'listening' | 'processing'; text: string | null; level: number; session_id: string | null; practice: boolean; result_session_id: string | null; error: string | null; error_code?: string | null; cleanup_verification?: CleanupVerificationAvailability | null };
   session: { phase: 'off' | 'ready' | 'listening' | 'processing'; expires_at_ms: number | null; full_access_seen: boolean; keyboard_enabled?: boolean; error: string | null; error_code?: string | null; cleanup_verification?: CleanupVerificationAvailability | null };
   meeting: { phase: 'idle' | 'starting' | 'recording' | 'interrupted' | 'finishing' | 'error'; id: string | null; retained_id?: string | null; last_finished_id?: string | null; title: string; elapsed_secs: number; notes: string; transcript: Segment[]; pending: number; error: string | null; error_code?: string | null };
   cloud: CloudState;
   recognition_jobs: SpeakerJob[];
-  navigation?: { sequence: number; route: 'dictation' | 'meeting'; meeting_id?: string } | null;
+  navigation?: { sequence: number; route: 'dictation' | 'meeting' | 'sync'; meeting_id?: string } | null;
 }
 export interface NativeFailure { code: string; message: string; recoverable?: boolean }
 export interface RuntimeClient { bootstrap(): Promise<RuntimeSnapshot>; getSnapshot(): Promise<RuntimeSnapshot>; invoke<T>(method: string, payload?: Record<string, unknown>): Promise<T>; subscribe(listener: (snapshot: RuntimeSnapshot) => void): () => void }
@@ -130,18 +137,31 @@ export interface MobileCommandResults {
   'providers.models': { id: string; name: string }[];
   'permissions.microphone': { granted: boolean };
   'system.openSettings': void;
+  'ui.feedback': void;
   'cloud.status': { signed_in: boolean; account: CloudAccount | null; report: SyncReport };
   'cloud.loginStart': LoginStart;
   'cloud.loginPoll': { status: 'pending' | 'slow_down' | 'done' | 'expired' };
   'cloud.loginCancel': void;
   'cloud.logout': void;
   'cloud.sync': SyncReport;
-  'cloud.setSync': { recovery_code: string | null };
+  'cloud.setup': CloudSyncSetup;
+  'cloud.prepareSync': CloudRecoveryDisplay;
+  'cloud.activateSync': void;
+  'cloud.resumeSync': void;
+  'cloud.pendingRecovery': CloudRecoveryDisplay;
+  'cloud.linkStart': CloudLinkView;
+  'cloud.linkView': CloudLinkView;
+  'cloud.linkJoin': CloudLinkView;
+  'cloud.linkPoll': CloudLinkView;
+  'cloud.linkApprove': CloudLinkView;
+  'cloud.linkCancel': CloudLinkView;
+  'cloud.scanConnectionCode': { code: string };
+  'cloud.setSync': CloudRecoveryDisplay;
   'cloud.devices': CloudDevice[];
   'cloud.renameDevice': void;
   'cloud.revoke': void;
-  'cloud.recoveryCreate': { recovery_code: string };
-  'cloud.recoveryReset': { recovery_code: string };
+  'cloud.recoveryCreate': CloudRecoveryDisplay;
+  'cloud.recoveryReset': CloudRecoveryDisplay;
   'cloud.recoveryPrint': void;
   'cloud.confirmDeletes': void;
   'navigation.consume': void;
