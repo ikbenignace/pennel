@@ -203,11 +203,11 @@ mod tests {
     #[test]
     fn presence_reports_saved_and_removed_keys_without_exposing_values() {
         let secrets = Secrets::in_memory();
-        assert_eq!(secrets.has("synthetic").unwrap(), false);
+        assert!(!secrets.has("synthetic").unwrap());
         secrets.set("synthetic", "synthetic-secret").unwrap();
-        assert_eq!(secrets.has("synthetic").unwrap(), true);
+        assert!(secrets.has("synthetic").unwrap());
         secrets.set("synthetic", "").unwrap();
-        assert_eq!(secrets.has("synthetic").unwrap(), false);
+        assert!(!secrets.has("synthetic").unwrap());
     }
 
     #[test]

@@ -1,0 +1,49 @@
+{
+  "quality_evaluation": false,
+  "stages": [
+    {
+      "journals": [
+        {
+          "file": "receipts.jsonl.gz",
+          "rows": 821
+        }
+      ],
+      "quality_evaluation": false,
+      "selected_cumulative_source": false,
+      "stage": "supplement-timing"
+    },
+    {
+      "journals": [
+        {
+          "file": "new-receipts.jsonl.gz",
+          "rows": 115
+        }
+      ],
+      "quality_evaluation": false,
+      "selected_cumulative_source": false,
+      "stage": "supplement-timing-continuation"
+    },
+    {
+      "journals": [
+        {
+          "file": "new-receipts.jsonl.gz",
+          "rows": 179
+        }
+      ],
+      "quality_evaluation": false,
+      "selected_cumulative_source": false,
+      "stage": "supplement-timing-mercury-independent"
+    },
+    {
+      "journals": [
+        {
+          "file": "new-receipts.jsonl.gz",
+          "rows": 116
+        }
+      ],
+      "quality_evaluation": false,
+      "selected_cumulative_source": true,
+      "stage": "supplement-timing-mercury-stage2"
+    }
+  ]
+}

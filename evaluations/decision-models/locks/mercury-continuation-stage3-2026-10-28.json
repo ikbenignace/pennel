@@ -1,0 +1,203 @@
+{
+  "cases": [
+    {
+      "case_id": "en-heldout-00-missing-context",
+      "language": "en",
+      "missing_indices": [],
+      "task": "answerability"
+    },
+    {
+      "case_id": "en-heldout-01-claim-final",
+      "language": "en",
+      "missing_indices": [],
+      "task": "claim_support"
+    },
+    {
+      "case_id": "en-heldout-00-cleanup-amount-verification",
+      "language": "en",
+      "missing_indices": [],
+      "task": "cleanup"
+    },
+    {
+      "case_id": "en-heldout-01-action-owner",
+      "language": "en",
+      "missing_indices": [],
+      "task": "events"
+    },
+    {
+      "case_id": "en-heldout-00-q-library-ranking",
+      "language": "en",
+      "missing_indices": [],
+      "task": "ranking"
+    },
+    {
+      "case_id": "en-heldout-01-name-ambiguous",
+      "language": "en",
+      "missing_indices": [],
+      "task": "speaker_names"
+    },
+    {
+      "case_id": "en-heldout-00-template-missing",
+      "language": "en",
+      "missing_indices": [],
+      "task": "templates"
+    },
+    {
+      "case_id": "mixed-heldout-00-missing-context",
+      "language": "mixed",
+      "missing_indices": [],
+      "task": "answerability"
+    },
+    {
+      "case_id": "mixed-heldout-01-claim-final",
+      "language": "mixed",
+      "missing_indices": [],
+      "task": "claim_support"
+    },
+    {
+      "case_id": "mixed-heldout-00-cleanup-amount-verification",
+      "language": "mixed",
+      "missing_indices": [],
+      "task": "cleanup"
+    },
+    {
+      "case_id": "mixed-heldout-01-action-owner",
+      "language": "mixed",
+      "missing_indices": [],
+      "task": "events"
+    },
+    {
+      "case_id": "mixed-heldout-00-q-library-ranking",
+      "language": "mixed",
+      "missing_indices": [],
+      "task": "ranking"
+    },
+    {
+      "case_id": "mixed-heldout-01-name-ambiguous",
+      "language": "mixed",
+      "missing_indices": [],
+      "task": "speaker_names"
+    },
+    {
+      "case_id": "mixed-heldout-00-template-missing",
+      "language": "mixed",
+      "missing_indices": [],
+      "task": "templates"
+    },
+    {
+      "case_id": "nl-heldout-00-missing-context",
+      "language": "nl",
+      "missing_indices": [],
+      "task": "answerability"
+    },
+    {
+      "case_id": "nl-heldout-01-claim-final",
+      "language": "nl",
+      "missing_indices": [],
+      "task": "claim_support"
+    },
+    {
+      "case_id": "nl-heldout-00-cleanup-amount-verification",
+      "language": "nl",
+      "missing_indices": [],
+      "task": "cleanup"
+    },
+    {
+      "case_id": "nl-heldout-01-action-owner",
+      "language": "nl",
+      "missing_indices": [],
+      "task": "events"
+    },
+    {
+      "case_id": "nl-heldout-00-q-library-ranking",
+      "language": "nl",
+      "missing_indices": [
+        28,
+        29
+      ],
+      "task": "ranking"
+    },
+    {
+      "case_id": "nl-heldout-01-name-ambiguous",
+      "language": "nl",
+      "missing_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29
+      ],
+      "task": "speaker_names"
+    },
+    {
+      "case_id": "nl-heldout-00-template-missing",
+      "language": "nl",
+      "missing_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29
+      ],
+      "task": "templates"
+    }
+  ],
+  "config_sha256": "335433cfe863cb00c877750973f539d6cf73eab96c798a85e183f2017dd380a7",
+  "experiment": "mercury-timing-continuation-v1",
+  "hosted_total_ceiling_usd": "2.00",
+  "latency_concurrency": 1,
+  "original_resources_sha256": "46a3e723e5326be32da7922fe314e21476974416b43c34768356c1c216030ffa",
+  "parent_manifest_sha256": "d723c96ecc9028fe7fdbf71db6678e877544e5d608f94904cd7934184d5eca98",
+  "plan_sha256": "bcd39a212015e26cb393dd6e7fe166773ecf0e0e510d94e832dbdf8a2c49b26a",
+  "policy": "Complete only unsent slots, preserve failed samples; excluded continuation warmups; no automatic retries."
+}

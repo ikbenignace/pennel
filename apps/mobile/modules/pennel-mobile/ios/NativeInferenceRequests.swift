@@ -1,0 +1,55 @@
+import Foundation
+
+@MainActor
+final class NativeInferenceRequests {
+    struct Ticket {
+        let id: String
+        let generation: UUID
+        let fingerprint: String
+        let cancellation: InferenceCancellation
+    }
+
+    private var active: [String: Ticket] = [:]
+    private var mutationDepth = 0
+
+    func begin(id: String, fingerprint: String) throws -> Ticket {
+        guard !id.isEmpty, id.utf8.count <= 96,
+              id.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) || [45, 46, 95].contains($0) }) else {
+            throw PennelBridgeError("invalid_request", "Use a short, unique request identifier.")
+        }
+        guard mutationDepth == 0 else { throw PennelBridgeError("operation_busy", "Wait for provider changes to finish.") }
+        guard active[id] == nil else { throw PennelBridgeError("operation_busy", "This request is already running.") }
+        guard active.count < 2 else { throw PennelBridgeError("operation_busy", "Wait for another model request to finish.") }
+        let ticket = Ticket(id: id, generation: UUID(), fingerprint: fingerprint, cancellation: InferenceCancellation())
+        active[id] = ticket
+        return ticket
+    }
+
+    func cancel(id: String) -> Bool {
+        guard let ticket = active[id] else { return false }
+        ticket.cancellation.cancel()
+        return true
+    }
+
+    func cancelAll() { for ticket in active.values { ticket.cancellation.cancel() } }
+
+    func changingCredentials<T>(_ mutation: () throws -> T) rethrows -> T {
+        mutationDepth += 1
+        defer { mutationDepth -= 1 }
+        cancelAll()
+        return try mutation()
+    }
+
+    func changingConfiguration<T>(_ mutation: @MainActor () async throws -> T) async rethrows -> T {
+        mutationDepth += 1
+        defer { mutationDepth -= 1 }
+        cancelAll()
+        return try await mutation()
+    }
+
+    func finish(_ ticket: Ticket, currentFingerprint: String) -> Bool {
+        guard active[ticket.id]?.generation == ticket.generation else { return false }
+        active[ticket.id] = nil
+        return !ticket.cancellation.isCancelled() && ticket.fingerprint == currentFingerprint
+    }
+}

@@ -1,0 +1,38 @@
+import json,sys,copy
+from pathlib import Path
+sys.path.insert(0,'evaluations/decision-models')
+import run,followup
+from supplement import build_supplement
+root=Path('build/decision-model-evaluation');original=root/'supplement-heldout-complete';output=root/'supplement-heldout-final'
+assert not output.exists()
+corpus=build_supplement();cases={c['id']:c for c in corpus['decisions']}
+config=run.read_json('evaluations/decision-models/configs/supplement-2026-10-28.json');frozen=run.read_json('evaluations/decision-models/locks/supplement-2026-10-28.json')
+policy=run.read_json('evaluations/decision-models/locks/supplement-heldout-continuation-2026-10-28.json')
+rows=[json.loads(x) for x in (original/'predictions.jsonl').read_text().splitlines()]
+artifact=run.read_json(root/'supplement-calibration-complete/calibration.json')
+assert policy['parent_manifest_sha256']==run.digest(frozen) and policy['original_predictions_sha256']==run.digest(rows) and policy['calibration_sha256']==run.digest(artifact)
+unsent=[(r['runner_id'],r['case_id']) for r in rows if not r.get('attempts') and r['status']=='unavailable'];assert [list(k) for k in unsent]==policy['only_unsent_cases']
+index={(r['runner_id'],r['case_id']):r for r in rows};availability=[]
+for item in config['runners']:
+ selected=[key for key in unsent if key[0]==item['id']]
+ if not selected:continue
+ ledger=run.read_json(config['ledger_path']);assert not ledger['unresolved_charge'] and not ledger['pending_reservations']
+ subset={**corpus,'decisions':[cases[key[1]] for key in selected]}
+ local=copy.deepcopy(item);local['concurrency']=policy['continuation_effective_concurrency'];assert 0<local['concurrency']<=item['concurrency']
+ settings={**config,'runners':[local]}
+ new,available=run.live_predictions(subset,{'queries':[],'passages':[]},settings,'heldout',root/('supplement-heldout-continuation-'+item['id']),frozen)
+ availability.extend(available)
+ for row in new:
+  key=(row['runner_id'],row['case_id']);assert key in unsent and not index[key].get('attempts')
+  row['continuation']={'policy_sha256':run.digest(policy),'frozen_maximum_concurrency':item['concurrency'],'effective_concurrency':local['concurrency'],'wire_inputs_and_calibration_unchanged':True}
+  index[key]=row
+ if run.read_json(config['ledger_path'])['unresolved_charge']:break
+merged=[index[(r['runner_id'],r['case_id'])] for r in rows]
+followup.validate_predictions(merged,frozen,corpus,'heldout')
+output.mkdir()
+run.save_json(output/'manifest.json',frozen);run.save_json(output/'predictions.json',{'frozen':run.digest(frozen),'rows':merged});run.save_json(output/'calibration.json',artifact)
+(output/'predictions.jsonl').write_text(''.join(json.dumps(r,ensure_ascii=False)+'\n' for r in merged),encoding='utf-8')
+run.save_json(output/'availability.json',run.read_json(original/'availability.json')+availability)
+run.save_json(output/'execution.json',{'split':'heldout','status':'complete','run_manifest_hash':run.digest(frozen),'calibration_sha256':run.digest(artifact),'predictions_sha256':run.digest(merged),'continuation_policy_sha256':run.digest(policy),'failed_and_completed_paid_cases_preserved':True})
+run.save_json(output/'report.json',followup._report(merged,artifact,frozen,corpus,'heldout',availability))
+print(json.dumps({'rows':len(merged),'status_counts':dict(__import__('collections').Counter(r['status'] for r in merged)),'attempted_rows':sum(bool(r.get('attempts')) for r in merged)}))

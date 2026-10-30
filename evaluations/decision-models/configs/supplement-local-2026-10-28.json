@@ -1,0 +1,35 @@
+{
+  "experiment": "53-supplement-v2-local-2026-10-28",
+  "description": "Separately frozen repaired suggestion corpus with verified cached local CPU artifacts. No downloads, credentials, paid runners, production settings or original result changes. GTE is ranking-only and Q8 parity remains unverified.",
+  "ledger_path": "build/decision-model-evaluation/spend-ledger.json",
+  "runners": [
+    {
+      "id": "gliclass-multilingual",
+      "enabled": true,
+      "transport": "local_worker",
+      "model": "gliclass-multilingual",
+      "model_dir": "build/evaluation-models/gliclass-multilingual/d16c08ef70547514081952104e6fc3d190d9ee39",
+      "tasks": [
+        "events",
+        "templates",
+        "speaker_names"
+      ],
+      "question_grouping": "one_case_per_request",
+      "concurrency": 1
+    },
+    {
+      "id": "gliner-multilingual",
+      "enabled": true,
+      "transport": "local_worker",
+      "model": "gliner-multilingual",
+      "model_dir": "build/evaluation-models/gliner-multilingual/e173bca1f0c4217d7a55b3b0c705d5ece8a0218d",
+      "tasks": [
+        "events",
+        "templates",
+        "speaker_names"
+      ],
+      "question_grouping": "one_case_per_request",
+      "concurrency": 1
+    }
+  ]
+}

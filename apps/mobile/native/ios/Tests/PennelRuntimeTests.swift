@@ -54,6 +54,125 @@ private final class PreflightGate {
 
 @Suite("Expo native runtime", .serialized)
 struct PennelRuntimeTests {
+    @MainActor @Test func inferenceRequestsRejectDuplicateAndOverCapacityWork() throws {
+        let requests = NativeInferenceRequests()
+        let first = try requests.begin(id: "first", fingerprint: "saved-config")
+        do { _ = try requests.begin(id: "first", fingerprint: "replacement"); Issue.record("Duplicate request accepted.") }
+        catch let error as PennelBridgeError { #expect(error.code == "operation_busy") }
+        let second = try requests.begin(id: "second", fingerprint: "saved-config")
+        do { _ = try requests.begin(id: "third", fingerprint: "saved-config"); Issue.record("Unbounded request accepted.") }
+        catch let error as PennelBridgeError { #expect(error.code == "operation_busy") }
+        #expect(requests.finish(first, currentFingerprint: "saved-config"))
+        #expect(requests.finish(second, currentFingerprint: "saved-config"))
+    }
+
+    @MainActor @Test func cancelledAndChangedInferenceRequestsNeverApplyLateResults() throws {
+        let requests = NativeInferenceRequests()
+        let old = try requests.begin(id: "example", fingerprint: "old-config")
+        #expect(requests.cancel(id: "example"))
+        #expect(old.cancellation.isCancelled())
+        #expect(!requests.finish(old, currentFingerprint: "old-config"))
+        let fresh = try requests.begin(id: "example", fingerprint: "new-config")
+        #expect(!requests.finish(old, currentFingerprint: "new-config"))
+        #expect(requests.finish(fresh, currentFingerprint: "new-config"))
+        let changed = try requests.begin(id: "changed", fingerprint: "one-key")
+        #expect(!requests.finish(changed, currentFingerprint: "replacement-key"))
+        #expect(!requests.cancel(id: "missing"))
+    }
+
+    @MainActor @Test func inferenceIdentifiersAndCapabilitiesFailClosed() throws {
+        let requests = NativeInferenceRequests()
+        for id in ["", "not an opaque id", String(repeating: "a", count: 97)] {
+            do { _ = try requests.begin(id: id, fingerprint: "config"); Issue.record("Invalid identifier accepted.") }
+            catch let error as PennelBridgeError { #expect(error.code == "invalid_request") }
+        }
+        #expect(try BridgeJSON.inferenceCapability("decision") == .decision)
+        #expect(try BridgeJSON.inferenceCapability("reranking") == .reranking)
+        do { _ = try BridgeJSON.inferenceCapability("dictation"); Issue.record("Unknown capability became speech.") }
+        catch let error as PennelBridgeError { #expect(error.code == "invalid_request") }
+    }
+
+    @MainActor @Test func inferenceIsCancelledBeforeCredentialMutationEvenWhenSavingFails() throws {
+        let requests = NativeInferenceRequests()
+        let first = try requests.begin(id: "queued", fingerprint: "old-key")
+        let second = try requests.begin(id: "running", fingerprint: "old-key")
+        let saved = requests.changingCredentials {
+            #expect(first.cancellation.isCancelled())
+            #expect(second.cancellation.isCancelled())
+            return false
+        }
+        #expect(!saved)
+        #expect(!requests.finish(first, currentFingerprint: "old-key"))
+        #expect(!requests.finish(second, currentFingerprint: "old-key"))
+    }
+
+    @MainActor @Test func inferenceAdmissionStaysClosedAcrossSuspendedAndFailedConfigurationChanges() async throws {
+        for shouldFail in [false, true] {
+            let requests = NativeInferenceRequests()
+            let old = try requests.begin(id: "old-request", fingerprint: "old-config")
+            let save = PreflightGate()
+            var workInvocations = 0
+            let expectBlocked: @MainActor (String) -> Void = { id in
+                do {
+                    let admitted = try requests.begin(id: id, fingerprint: "old-config")
+                    workInvocations += 1
+                    _ = requests.finish(admitted, currentFingerprint: "old-config")
+                    Issue.record("A provider operation was admitted during configuration mutation.")
+                } catch let error as PennelBridgeError { #expect(error.code == "operation_busy") }
+                catch { Issue.record("Unexpected inference admission error: \(error)") }
+            }
+            let mutation = Task { @MainActor in
+                try await requests.changingConfiguration {
+                    #expect(old.cancellation.isCancelled())
+                    _ = await save.request()
+                    requests.changingCredentials { expectBlocked("nested-key-change") }
+                    expectBlocked("model-reload")
+                    if shouldFail { throw PennelBridgeError("fixture_save", "Synthetic save failure.") }
+                }
+            }
+            await save.waitUntilEntered()
+            expectBlocked("queued-during-save")
+            #expect(workInvocations == 0)
+            save.resolve()
+            do { try await mutation.value; #expect(!shouldFail) }
+            catch let error as PennelBridgeError { #expect(shouldFail && error.code == "fixture_save") }
+            #expect(workInvocations == 0)
+            #expect(!requests.finish(old, currentFingerprint: "new-config"))
+            let fresh = try requests.begin(id: "after-save", fingerprint: "new-config")
+            #expect(requests.finish(fresh, currentFingerprint: "new-config"))
+        }
+    }
+
+    @MainActor @Test func inferenceFacadeReportsUnconfiguredCapabilitiesWithoutInference() async throws {
+        let runtime = PennelNativeRuntime.shared
+        _ = try runtime.bootstrap()
+        let model = AppModel.shared
+        let original = model.settings
+        var fixture = original
+        fixture.decision = nil
+        fixture.reranking = nil
+        try model.engine.updateSettings(settings: fixture)
+        model.reloadSettings()
+        defer { try? model.engine.updateSettings(settings: original); model.reloadSettings() }
+        let metadata = try await runtime.invoke(method: "inference.protocols", payload: "{}")
+        let protocols = try #require(try JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [[String: Any]])
+        #expect(protocols.count == 7)
+        #expect(protocols.contains { $0["protocol"] as? String == "open_router_decisions" && $0["decision"] as? Bool == true })
+        #expect(protocols.contains { $0["protocol"] as? String == "tei" && $0["reranking"] as? Bool == true })
+        for capability in ["decision", "reranking"] {
+            let availability = try BridgeJSON.object(await runtime.invoke(method: "inference.availability", payload: BridgeJSON.encode(["capability": capability])))
+            #expect(availability["configured"] as? Bool == false)
+            #expect(availability["available"] as? Bool == false)
+            let result = try BridgeJSON.object(await runtime.invoke(method: "inference.verify", payload: BridgeJSON.encode(["capability": capability, "request_id": "unconfigured-\(capability)"])))
+            #expect(result["verified"] as? Bool == false)
+            #expect(result["identity"] is NSNull)
+        }
+        do {
+            _ = try await runtime.invoke(method: "inference.verify", payload: "{\"capability\":\"speech\",\"request_id\":\"invalid-capability\"}")
+            Issue.record("An unknown inference capability was accepted by the native facade.")
+        } catch let error as PennelBridgeError { #expect(error.code == "invalid_request") }
+    }
+
     @MainActor @Test func nativeFailuresUseEnglishDiagnosticsAndStableCodes() throws {
         #expect(ErrorText.message(PennelError.NoSpeech) == "No speech recognized. Try again.")
         #expect(ErrorText.failureCode(PennelError.NoSpeech) == "no_speech")

@@ -1,0 +1,1940 @@
+{
+  "binary": {
+    "case_id": "en-development-00-cleanup-punctuation-verification",
+    "ledger": {
+      "attempt_count": 5,
+      "attempts": [
+        {
+          "billed_cost_usd": "0.00001512",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204058-oJ0c2Et1ZkzwvgSvFFcU"
+          },
+          "reservation_id": "1",
+          "reserved_usd": "0.000112686"
+        },
+        {
+          "billed_cost_usd": "0.00000286",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204059-kEYYBTJA0aDXjenOEuWo"
+          },
+          "reservation_id": "2",
+          "reserved_usd": "0.00005390"
+        },
+        {
+          "billed_cost_usd": "0.00000143",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204060-C165bw5M2Zy5D8W3qiRQ"
+          },
+          "reservation_id": "3",
+          "reserved_usd": "0.00002701"
+        },
+        {
+          "billed_cost_usd": "0.000007258",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204060-VziXIRFjDiJv8eMxPxgr"
+          },
+          "reservation_id": "4",
+          "reserved_usd": "0.000102182"
+        },
+        {
+          "billed_cost_usd": "0.00000242",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204061-fzy4GGXpXVM2bmmwJRm4"
+          },
+          "reservation_id": "5",
+          "reserved_usd": "0.00005380"
+        }
+      ],
+      "known_billed_usd": "0.000029088",
+      "limit_usd": "2.00",
+      "pending_reservations": {},
+      "reserved_usd": "0",
+      "unresolved_charge": false
+    },
+    "rows": [
+      {
+        "answers": {
+          "decision": {
+            "confidence": null,
+            "prediction": "true",
+            "probabilities": {
+              "false": 0.19999999999999996,
+              "true": 0.8
+            },
+            "raw_score": 0.8,
+            "raw_score_type": "binary_probability"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.00001512",
+            "finished_at": "2026-10-28T16:14:18.930194+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "3292e19885e7c97aca2b9050be31b5abcb0dd4609544672fd281bd2432dd43a7",
+              "configured_provider": "typesafe",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "78f3177dde785835ee6af41fb3413b7d50189ba30b9575dfde52900e2cbda8f3",
+              "label_order": {
+                "decision": [
+                  "false",
+                  "true"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0,
+                "prompt": "0.000000042"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "TypeSafe",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204058-oJ0c2Et1ZkzwvgSvFFcU",
+              "request_sha256": "bebc560e327a417621cc29076e17519580362ef4648db15a1ae1e3783a35d890",
+              "requested_model": "typesafe/jev-1.14",
+              "returned_model": "typesafe/jev-1.14-20261014",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.042
+                },
+                "only": [
+                  "typesafe"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Other",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2683,
+            "latency_ms": 352.197125,
+            "started_at": "2026-10-28T16:14:18.577877+00:00",
+            "usage": {
+              "cost": 1.512e-05,
+              "input_tokens": 360,
+              "output_tokens": 20
+            }
+          }
+        ],
+        "case_id": "en-development-00-cleanup-punctuation-verification",
+        "confidence": null,
+        "cost_usd": "0.00001512",
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "3292e19885e7c97aca2b9050be31b5abcb0dd4609544672fd281bd2432dd43a7",
+          "configured_provider": "typesafe",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "78f3177dde785835ee6af41fb3413b7d50189ba30b9575dfde52900e2cbda8f3",
+          "label_order": {
+            "decision": [
+              "false",
+              "true"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0,
+            "prompt": "0.000000042"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "TypeSafe",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204058-oJ0c2Et1ZkzwvgSvFFcU",
+          "request_sha256": "bebc560e327a417621cc29076e17519580362ef4648db15a1ae1e3783a35d890",
+          "requested_model": "typesafe/jev-1.14",
+          "returned_model": "typesafe/jev-1.14-20261014",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.042
+            },
+            "only": [
+              "typesafe"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Other",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 352.197125,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "true",
+        "probabilities": {
+          "false": 0.19999999999999996,
+          "true": 0.8
+        },
+        "raw_score": 0.8,
+        "raw_score_type": "binary_probability",
+        "reproducibility": "complete",
+        "runner": "openrouter-jev",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 1.512e-05,
+          "input_tokens": 360,
+          "output_tokens": 20
+        }
+      },
+      {
+        "answers": {
+          "decision": {
+            "confidence": null,
+            "prediction": "true",
+            "probabilities": {
+              "false": 0.0017500651412726276,
+              "true": 0.9982499348587274
+            },
+            "raw_score": 0.9982499348587274,
+            "raw_score_type": "binary_probability"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.00000286",
+            "finished_at": "2026-10-28T16:14:19.715901+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "ab589bd859dee498324c1d7f49894fbf2d44628a6c22bf87e0eb8a5854852608",
+              "configured_provider": "perplexity",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "5f7b134fa1b01c7052e3e4694f774571e769c44c759832aeb65347e3ae8038bb",
+              "label_order": {
+                "decision": [
+                  "false",
+                  "true"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0,
+                "prompt": "0.00000002"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "Perplexity",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204059-kEYYBTJA0aDXjenOEuWo",
+              "request_sha256": "ac9e37c29e42144c33f2cbef4e53e174f63d2adaf5d6901a7c64a906ae9bb937",
+              "requested_model": "perplexity/pplx-decider-v1.2",
+              "returned_model": "perplexity/pplx-decider-v1.2-20261016",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.02
+                },
+                "only": [
+                  "perplexity"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Other",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2695,
+            "latency_ms": 440.517958,
+            "started_at": "2026-10-28T16:14:19.275228+00:00",
+            "usage": {
+              "cost": 2.86e-06,
+              "input_tokens": 143,
+              "output_tokens": 1
+            }
+          }
+        ],
+        "case_id": "en-development-00-cleanup-punctuation-verification",
+        "confidence": null,
+        "cost_usd": "0.00000286",
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "ab589bd859dee498324c1d7f49894fbf2d44628a6c22bf87e0eb8a5854852608",
+          "configured_provider": "perplexity",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "5f7b134fa1b01c7052e3e4694f774571e769c44c759832aeb65347e3ae8038bb",
+          "label_order": {
+            "decision": [
+              "false",
+              "true"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0,
+            "prompt": "0.00000002"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "Perplexity",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204059-kEYYBTJA0aDXjenOEuWo",
+          "request_sha256": "ac9e37c29e42144c33f2cbef4e53e174f63d2adaf5d6901a7c64a906ae9bb937",
+          "requested_model": "perplexity/pplx-decider-v1.2",
+          "returned_model": "perplexity/pplx-decider-v1.2-20261016",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.02
+            },
+            "only": [
+              "perplexity"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Other",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 440.517958,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "true",
+        "probabilities": {
+          "false": 0.0017500651412726276,
+          "true": 0.9982499348587274
+        },
+        "raw_score": 0.9982499348587274,
+        "raw_score_type": "binary_probability",
+        "reproducibility": "complete",
+        "runner": "openrouter-decider",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 2.86e-06,
+          "input_tokens": 143,
+          "output_tokens": 1
+        }
+      },
+      {
+        "answers": {
+          "decision": {
+            "confidence": null,
+            "prediction": "true",
+            "probabilities": {
+              "false": 0.023789882609925983,
+              "true": 0.976210117390074
+            },
+            "raw_score": 0.976210117390074,
+            "raw_score_type": "binary_probability"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.00000143",
+            "finished_at": "2026-10-28T16:14:20.295878+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "749e1cdfe47fa41ffac2bcc24301db1aa1b8838db14b9a5b3ed3459c296f790c",
+              "configured_provider": "perplexity",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "a1823291562e721a834b7b8d97072eac8177c702f3a2e0915e067fe3fea301a1",
+              "label_order": {
+                "decision": [
+                  "false",
+                  "true"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0,
+                "prompt": "0.00000001"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "Perplexity",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204060-C165bw5M2Zy5D8W3qiRQ",
+              "request_sha256": "c691328d810977a45197720aad80bdc66ed7193a9ec690ca978e4026f3a417fa",
+              "requested_model": "perplexity/pplx-decider-flash-v1.2",
+              "returned_model": "perplexity/pplx-decider-flash-v1.2-20261016",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.01
+                },
+                "only": [
+                  "perplexity"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Other",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2701,
+            "latency_ms": 346.392667,
+            "started_at": "2026-10-28T16:14:19.949320+00:00",
+            "usage": {
+              "cost": 1.43e-06,
+              "input_tokens": 143,
+              "output_tokens": 1
+            }
+          }
+        ],
+        "case_id": "en-development-00-cleanup-punctuation-verification",
+        "confidence": null,
+        "cost_usd": "0.00000143",
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "749e1cdfe47fa41ffac2bcc24301db1aa1b8838db14b9a5b3ed3459c296f790c",
+          "configured_provider": "perplexity",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "a1823291562e721a834b7b8d97072eac8177c702f3a2e0915e067fe3fea301a1",
+          "label_order": {
+            "decision": [
+              "false",
+              "true"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0,
+            "prompt": "0.00000001"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "Perplexity",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204060-C165bw5M2Zy5D8W3qiRQ",
+          "request_sha256": "c691328d810977a45197720aad80bdc66ed7193a9ec690ca978e4026f3a417fa",
+          "requested_model": "perplexity/pplx-decider-flash-v1.2",
+          "returned_model": "perplexity/pplx-decider-flash-v1.2-20261016",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.01
+            },
+            "only": [
+              "perplexity"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Other",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 346.392667,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "true",
+        "probabilities": {
+          "false": 0.023789882609925983,
+          "true": 0.976210117390074
+        },
+        "raw_score": 0.976210117390074,
+        "raw_score_type": "binary_probability",
+        "reproducibility": "complete",
+        "runner": "openrouter-decider-flash",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 1.43e-06,
+          "input_tokens": 143,
+          "output_tokens": 1
+        }
+      },
+      {
+        "answers": {
+          "decision": {
+            "confidence": null,
+            "prediction": "true",
+            "probabilities": {
+              "false": 0.054300000000000015,
+              "true": 0.9457
+            },
+            "raw_score": 0.9457,
+            "raw_score_type": "binary_probability"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.000007258",
+            "finished_at": "2026-10-28T16:14:21.029704+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "c6f58015e65a36b03e69c014b5a94bd7cc93394139694511a0f8ddd2a628023c",
+              "configured_provider": "cloudflare",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "2e5d78717d67547c0426864e28275168ba58cc70ba33f59d927d67c69cfbe0c1",
+              "label_order": {
+                "decision": [
+                  "false",
+                  "true"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0,
+                "prompt": "0.000000038"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "Cloudflare",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204060-VziXIRFjDiJv8eMxPxgr",
+              "request_sha256": "a597543668d87390f74983d1ae4a4c41d22ee86645f03a527a3d4640e993e12c",
+              "requested_model": "cloudflare/clef-flash",
+              "returned_model": "cloudflare/clef-flash",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.038
+                },
+                "only": [
+                  "cloudflare"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Qwen",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2689,
+            "latency_ms": 477.854292,
+            "started_at": "2026-10-28T16:14:20.551742+00:00",
+            "usage": {
+              "cost": 7.258e-06,
+              "input_tokens": 191,
+              "output_tokens": 0
+            }
+          }
+        ],
+        "case_id": "en-development-00-cleanup-punctuation-verification",
+        "confidence": null,
+        "cost_usd": "0.000007258",
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "c6f58015e65a36b03e69c014b5a94bd7cc93394139694511a0f8ddd2a628023c",
+          "configured_provider": "cloudflare",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "2e5d78717d67547c0426864e28275168ba58cc70ba33f59d927d67c69cfbe0c1",
+          "label_order": {
+            "decision": [
+              "false",
+              "true"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0,
+            "prompt": "0.000000038"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "Cloudflare",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204060-VziXIRFjDiJv8eMxPxgr",
+          "request_sha256": "a597543668d87390f74983d1ae4a4c41d22ee86645f03a527a3d4640e993e12c",
+          "requested_model": "cloudflare/clef-flash",
+          "returned_model": "cloudflare/clef-flash",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.038
+            },
+            "only": [
+              "cloudflare"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Qwen",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 477.854292,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "true",
+        "probabilities": {
+          "false": 0.054300000000000015,
+          "true": 0.9457
+        },
+        "raw_score": 0.9457,
+        "raw_score_type": "binary_probability",
+        "reproducibility": "complete",
+        "runner": "openrouter-clef-flash",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 7.258e-06,
+          "input_tokens": 191,
+          "output_tokens": 0
+        }
+      },
+      {
+        "answers": {
+          "decision": {
+            "confidence": null,
+            "prediction": "true",
+            "probabilities": {
+              "false": 0.002472623142852126,
+              "true": 0.9975273768571479
+            },
+            "raw_score": 0.9975273768571479,
+            "raw_score_type": "binary_probability"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.00000242",
+            "finished_at": "2026-10-28T16:14:21.819378+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "6b894b72e4f8e6411725eabdf34cfd1a253857b792a9ad96261f009fc3466ba3",
+              "configured_provider": "inception",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "2540d9f6c5d174ba2d5b6d87de854cd40d1c3ff85c2103b81b92b84252ac1b38",
+              "label_order": {
+                "decision": [
+                  "false",
+                  "true"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0.5,
+                "input_cache_read": "0",
+                "prompt": "0.00000002"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "Inception",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204061-fzy4GGXpXVM2bmmwJRm4",
+              "request_sha256": "e04a887c73ec5642624285d38b7fcd0fb80cb5672e71893275ab237052654224",
+              "requested_model": "inception/mercury-decide",
+              "returned_model": "inception/mercury-decide-20260930",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.02
+                },
+                "only": [
+                  "inception"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Other",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2690,
+            "latency_ms": 530.386084,
+            "started_at": "2026-10-28T16:14:21.288773+00:00",
+            "usage": {
+              "cost": 2.42e-06,
+              "input_tokens": 121,
+              "output_tokens": 1
+            }
+          }
+        ],
+        "case_id": "en-development-00-cleanup-punctuation-verification",
+        "confidence": null,
+        "cost_usd": "0.00000242",
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "6b894b72e4f8e6411725eabdf34cfd1a253857b792a9ad96261f009fc3466ba3",
+          "configured_provider": "inception",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "2540d9f6c5d174ba2d5b6d87de854cd40d1c3ff85c2103b81b92b84252ac1b38",
+          "label_order": {
+            "decision": [
+              "false",
+              "true"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0.5,
+            "input_cache_read": "0",
+            "prompt": "0.00000002"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "Inception",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204061-fzy4GGXpXVM2bmmwJRm4",
+          "request_sha256": "e04a887c73ec5642624285d38b7fcd0fb80cb5672e71893275ab237052654224",
+          "requested_model": "inception/mercury-decide",
+          "returned_model": "inception/mercury-decide-20260930",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.02
+            },
+            "only": [
+              "inception"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Other",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 530.386084,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "true",
+        "probabilities": {
+          "false": 0.002472623142852126,
+          "true": 0.9975273768571479
+        },
+        "raw_score": 0.9975273768571479,
+        "raw_score_type": "binary_probability",
+        "reproducibility": "complete",
+        "runner": "openrouter-mercury",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 2.42e-06,
+          "input_tokens": 121,
+          "output_tokens": 1
+        }
+      }
+    ]
+  },
+  "categorical": {
+    "case_id": "en-development-00-template-missing",
+    "ledger": {
+      "attempt_count": 10,
+      "attempts": [
+        {
+          "billed_cost_usd": "0.00001512",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204058-oJ0c2Et1ZkzwvgSvFFcU"
+          },
+          "reservation_id": "1",
+          "reserved_usd": "0.000112686"
+        },
+        {
+          "billed_cost_usd": "0.00000286",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204059-kEYYBTJA0aDXjenOEuWo"
+          },
+          "reservation_id": "2",
+          "reserved_usd": "0.00005390"
+        },
+        {
+          "billed_cost_usd": "0.00000143",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204060-C165bw5M2Zy5D8W3qiRQ"
+          },
+          "reservation_id": "3",
+          "reserved_usd": "0.00002701"
+        },
+        {
+          "billed_cost_usd": "0.000007258",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204060-VziXIRFjDiJv8eMxPxgr"
+          },
+          "reservation_id": "4",
+          "reserved_usd": "0.000102182"
+        },
+        {
+          "billed_cost_usd": "0.00000242",
+          "metadata": {
+            "case_id": "en-development-00-cleanup-punctuation-verification",
+            "request_id": "gen-dec-1793204061-fzy4GGXpXVM2bmmwJRm4"
+          },
+          "reservation_id": "5",
+          "reserved_usd": "0.00005380"
+        },
+        {
+          "billed_cost_usd": "0.000016254",
+          "metadata": {
+            "case_id": "en-development-00-template-missing",
+            "request_id": "gen-dec-1793204378-ETuthqgu5MOlFK6MzZvc"
+          },
+          "reservation_id": "6",
+          "reserved_usd": "0.000111006"
+        },
+        {
+          "billed_cost_usd": "0.0000028",
+          "metadata": {
+            "case_id": "en-development-00-template-missing",
+            "request_id": "gen-dec-1793204379-BAAKw9RRdNV1vdfJyths"
+          },
+          "reservation_id": "7",
+          "reserved_usd": "0.00005310"
+        },
+        {
+          "billed_cost_usd": "0.0000014",
+          "metadata": {
+            "case_id": "en-development-00-template-missing",
+            "request_id": "gen-dec-1793204380-2IHwGtR5TjaARjoO2u61"
+          },
+          "reservation_id": "8",
+          "reserved_usd": "0.00002661"
+        },
+        {
+          "billed_cost_usd": "0.000008208",
+          "metadata": {
+            "case_id": "en-development-00-template-missing",
+            "request_id": "gen-dec-1793204380-fx1mJS4uNz3yBNjTJfCa"
+          },
+          "reservation_id": "9",
+          "reserved_usd": "0.000100662"
+        },
+        {
+          "billed_cost_usd": "0.00000296",
+          "metadata": {
+            "case_id": "en-development-00-template-missing",
+            "request_id": "gen-dec-1793204381-E3IJpb3geoQWLbPdRZj5"
+          },
+          "reservation_id": "10",
+          "reserved_usd": "0.00005300"
+        }
+      ],
+      "known_billed_usd": "0.000060710",
+      "limit_usd": "2.00",
+      "pending_reservations": {},
+      "reserved_usd": "0",
+      "unresolved_charge": false
+    },
+    "rows": [
+      {
+        "answers": {
+          "decision": {
+            "confidence": 1.0,
+            "prediction": "abstain",
+            "probabilities": {
+              "abstain": 1.0,
+              "algemeen": 0.0,
+              "een-op-een": 0.0,
+              "klantgesprek": 0.0,
+              "standup": 0.0
+            },
+            "raw_score": 1.0,
+            "raw_score_type": "categorical_probabilities"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.000016254",
+            "finished_at": "2026-10-28T16:19:38.851205+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "3292e19885e7c97aca2b9050be31b5abcb0dd4609544672fd281bd2432dd43a7",
+              "configured_provider": "typesafe",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "f7a3b57372c187aa35dcabc2f82639e5dbfc30aaf8e706a8f097815ea69e4a8a",
+              "label_order": {
+                "decision": [
+                  "algemeen",
+                  "een-op-een",
+                  "klantgesprek",
+                  "standup",
+                  "abstain"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0,
+                "prompt": "0.000000042"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "TypeSafe",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204378-ETuthqgu5MOlFK6MzZvc",
+              "request_sha256": "d459d6a55f85b153cae10c811ac45d79e9adc44e5e069c130340a91dccc78fd1",
+              "requested_model": "typesafe/jev-1.14",
+              "returned_model": "typesafe/jev-1.14-20261014",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.042
+                },
+                "only": [
+                  "typesafe"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Other",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2643,
+            "latency_ms": 305.22825,
+            "started_at": "2026-10-28T16:19:38.545884+00:00",
+            "usage": {
+              "cost": 1.6254e-05,
+              "input_tokens": 387,
+              "output_tokens": 65
+            }
+          }
+        ],
+        "case_id": "en-development-00-template-missing",
+        "confidence": 1.0,
+        "cost_usd": "0.000016254",
+        "expected": "abstain",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "3292e19885e7c97aca2b9050be31b5abcb0dd4609544672fd281bd2432dd43a7",
+          "configured_provider": "typesafe",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "f7a3b57372c187aa35dcabc2f82639e5dbfc30aaf8e706a8f097815ea69e4a8a",
+          "label_order": {
+            "decision": [
+              "algemeen",
+              "een-op-een",
+              "klantgesprek",
+              "standup",
+              "abstain"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0,
+            "prompt": "0.000000042"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "TypeSafe",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204378-ETuthqgu5MOlFK6MzZvc",
+          "request_sha256": "d459d6a55f85b153cae10c811ac45d79e9adc44e5e069c130340a91dccc78fd1",
+          "requested_model": "typesafe/jev-1.14",
+          "returned_model": "typesafe/jev-1.14-20261014",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.042
+            },
+            "only": [
+              "typesafe"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Other",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 305.22825,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "abstain",
+        "probabilities": {
+          "abstain": 1.0,
+          "algemeen": 0.0,
+          "een-op-een": 0.0,
+          "klantgesprek": 0.0,
+          "standup": 0.0
+        },
+        "raw_score": 1.0,
+        "raw_score_type": "categorical_probabilities",
+        "reproducibility": "complete",
+        "runner": "openrouter-jev",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 1.6254e-05,
+          "input_tokens": 387,
+          "output_tokens": 65
+        }
+      },
+      {
+        "answers": {
+          "decision": {
+            "confidence": 0.6236841795447782,
+            "prediction": "abstain",
+            "probabilities": {
+              "abstain": 0.6989473436358226,
+              "algemeen": 0.16074331751451687,
+              "een-op-een": 0.036312385229703904,
+              "klantgesprek": 0.044306508101695376,
+              "standup": 0.0596904455182613
+            },
+            "raw_score": 0.6989473436358226,
+            "raw_score_type": "categorical_probabilities"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.0000028",
+            "finished_at": "2026-10-28T16:19:39.530341+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "ab589bd859dee498324c1d7f49894fbf2d44628a6c22bf87e0eb8a5854852608",
+              "configured_provider": "perplexity",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "f49c5943db85d4dc2f46ffe956ea802fa4e48d9b80e333c3323ac86efe65e76c",
+              "label_order": {
+                "decision": [
+                  "algemeen",
+                  "een-op-een",
+                  "klantgesprek",
+                  "standup",
+                  "abstain"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0,
+                "prompt": "0.00000002"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "Perplexity",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204379-BAAKw9RRdNV1vdfJyths",
+              "request_sha256": "0fd277a315fa2ab08ea3c8ef17cbe2933e358cf728a509c596618a0462b8ca6b",
+              "requested_model": "perplexity/pplx-decider-v1.2",
+              "returned_model": "perplexity/pplx-decider-v1.2-20261016",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.02
+                },
+                "only": [
+                  "perplexity"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Other",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2655,
+            "latency_ms": 359.695208,
+            "started_at": "2026-10-28T16:19:39.170465+00:00",
+            "usage": {
+              "cost": 2.8e-06,
+              "input_tokens": 140,
+              "output_tokens": 1
+            }
+          }
+        ],
+        "case_id": "en-development-00-template-missing",
+        "confidence": 0.6236841795447782,
+        "cost_usd": "0.0000028",
+        "expected": "abstain",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "ab589bd859dee498324c1d7f49894fbf2d44628a6c22bf87e0eb8a5854852608",
+          "configured_provider": "perplexity",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "f49c5943db85d4dc2f46ffe956ea802fa4e48d9b80e333c3323ac86efe65e76c",
+          "label_order": {
+            "decision": [
+              "algemeen",
+              "een-op-een",
+              "klantgesprek",
+              "standup",
+              "abstain"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0,
+            "prompt": "0.00000002"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "Perplexity",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204379-BAAKw9RRdNV1vdfJyths",
+          "request_sha256": "0fd277a315fa2ab08ea3c8ef17cbe2933e358cf728a509c596618a0462b8ca6b",
+          "requested_model": "perplexity/pplx-decider-v1.2",
+          "returned_model": "perplexity/pplx-decider-v1.2-20261016",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.02
+            },
+            "only": [
+              "perplexity"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Other",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 359.695208,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "abstain",
+        "probabilities": {
+          "abstain": 0.6989473436358226,
+          "algemeen": 0.16074331751451687,
+          "een-op-een": 0.036312385229703904,
+          "klantgesprek": 0.044306508101695376,
+          "standup": 0.0596904455182613
+        },
+        "raw_score": 0.6989473436358226,
+        "raw_score_type": "categorical_probabilities",
+        "reproducibility": "complete",
+        "runner": "openrouter-decider",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 2.8e-06,
+          "input_tokens": 140,
+          "output_tokens": 1
+        }
+      },
+      {
+        "answers": {
+          "decision": {
+            "confidence": 0.8136826760177779,
+            "prediction": "abstain",
+            "probabilities": {
+              "abstain": 0.8509461408142223,
+              "algemeen": 0.047858759563536434,
+              "een-op-een": 0.027901793923892894,
+              "klantgesprek": 0.021927683766285067,
+              "standup": 0.05136562193206326
+            },
+            "raw_score": 0.8509461408142223,
+            "raw_score_type": "categorical_probabilities"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.0000014",
+            "finished_at": "2026-10-28T16:19:40.580828+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "749e1cdfe47fa41ffac2bcc24301db1aa1b8838db14b9a5b3ed3459c296f790c",
+              "configured_provider": "perplexity",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "e763744f7607d46a20aee2cf920563848ba1c8bc52ee6c7fc3fde8f01466d464",
+              "label_order": {
+                "decision": [
+                  "algemeen",
+                  "een-op-een",
+                  "klantgesprek",
+                  "standup",
+                  "abstain"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0,
+                "prompt": "0.00000001"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "Perplexity",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204380-2IHwGtR5TjaARjoO2u61",
+              "request_sha256": "b4ed4152c11d5ef34ea11472ed0378f6fb22dd51c1685c9bfd0b308382c6a004",
+              "requested_model": "perplexity/pplx-decider-flash-v1.2",
+              "returned_model": "perplexity/pplx-decider-flash-v1.2-20261016",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.01
+                },
+                "only": [
+                  "perplexity"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Other",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2661,
+            "latency_ms": 488.404042,
+            "started_at": "2026-10-28T16:19:40.092259+00:00",
+            "usage": {
+              "cost": 1.4e-06,
+              "input_tokens": 140,
+              "output_tokens": 1
+            }
+          }
+        ],
+        "case_id": "en-development-00-template-missing",
+        "confidence": 0.8136826760177779,
+        "cost_usd": "0.0000014",
+        "expected": "abstain",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "749e1cdfe47fa41ffac2bcc24301db1aa1b8838db14b9a5b3ed3459c296f790c",
+          "configured_provider": "perplexity",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "e763744f7607d46a20aee2cf920563848ba1c8bc52ee6c7fc3fde8f01466d464",
+          "label_order": {
+            "decision": [
+              "algemeen",
+              "een-op-een",
+              "klantgesprek",
+              "standup",
+              "abstain"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0,
+            "prompt": "0.00000001"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "Perplexity",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204380-2IHwGtR5TjaARjoO2u61",
+          "request_sha256": "b4ed4152c11d5ef34ea11472ed0378f6fb22dd51c1685c9bfd0b308382c6a004",
+          "requested_model": "perplexity/pplx-decider-flash-v1.2",
+          "returned_model": "perplexity/pplx-decider-flash-v1.2-20261016",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.01
+            },
+            "only": [
+              "perplexity"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Other",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 488.404042,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "abstain",
+        "probabilities": {
+          "abstain": 0.8509461408142223,
+          "algemeen": 0.047858759563536434,
+          "een-op-een": 0.027901793923892894,
+          "klantgesprek": 0.021927683766285067,
+          "standup": 0.05136562193206326
+        },
+        "raw_score": 0.8509461408142223,
+        "raw_score_type": "categorical_probabilities",
+        "reproducibility": "complete",
+        "runner": "openrouter-decider-flash",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 1.4e-06,
+          "input_tokens": 140,
+          "output_tokens": 1
+        }
+      },
+      {
+        "answers": {
+          "decision": {
+            "confidence": 0.5746,
+            "prediction": "abstain",
+            "probabilities": {
+              "abstain": 0.8059,
+              "algemeen": 0.0404,
+              "een-op-een": 0.0407,
+              "klantgesprek": 0.0399,
+              "standup": 0.0731
+            },
+            "raw_score": 0.8059,
+            "raw_score_type": "categorical_probabilities"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.000008208",
+            "finished_at": "2026-10-28T16:19:41.448598+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "c6f58015e65a36b03e69c014b5a94bd7cc93394139694511a0f8ddd2a628023c",
+              "configured_provider": "cloudflare",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "2e5d78717d67547c0426864e28275168ba58cc70ba33f59d927d67c69cfbe0c1",
+              "label_order": {
+                "decision": [
+                  "algemeen",
+                  "een-op-een",
+                  "klantgesprek",
+                  "standup",
+                  "abstain"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0,
+                "prompt": "0.000000038"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "Cloudflare",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204380-fx1mJS4uNz3yBNjTJfCa",
+              "request_sha256": "ee6e6927d0e0bb165d0fed0bb7cf2f25784888657f8925ce2e871773a47c6e7e",
+              "requested_model": "cloudflare/clef-flash",
+              "returned_model": "cloudflare/clef-flash",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.038
+                },
+                "only": [
+                  "cloudflare"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Qwen",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2649,
+            "latency_ms": 595.776,
+            "started_at": "2026-10-28T16:19:40.852733+00:00",
+            "usage": {
+              "cost": 8.208e-06,
+              "input_tokens": 216,
+              "output_tokens": 0
+            }
+          }
+        ],
+        "case_id": "en-development-00-template-missing",
+        "confidence": 0.5746,
+        "cost_usd": "0.000008208",
+        "expected": "abstain",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "c6f58015e65a36b03e69c014b5a94bd7cc93394139694511a0f8ddd2a628023c",
+          "configured_provider": "cloudflare",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "2e5d78717d67547c0426864e28275168ba58cc70ba33f59d927d67c69cfbe0c1",
+          "label_order": {
+            "decision": [
+              "algemeen",
+              "een-op-een",
+              "klantgesprek",
+              "standup",
+              "abstain"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0,
+            "prompt": "0.000000038"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "Cloudflare",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204380-fx1mJS4uNz3yBNjTJfCa",
+          "request_sha256": "ee6e6927d0e0bb165d0fed0bb7cf2f25784888657f8925ce2e871773a47c6e7e",
+          "requested_model": "cloudflare/clef-flash",
+          "returned_model": "cloudflare/clef-flash",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.038
+            },
+            "only": [
+              "cloudflare"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Qwen",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 595.776,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "abstain",
+        "probabilities": {
+          "abstain": 0.8059,
+          "algemeen": 0.0404,
+          "een-op-een": 0.0407,
+          "klantgesprek": 0.0399,
+          "standup": 0.0731
+        },
+        "raw_score": 0.8059,
+        "raw_score_type": "categorical_probabilities",
+        "reproducibility": "complete",
+        "runner": "openrouter-clef-flash",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 8.208e-06,
+          "input_tokens": 216,
+          "output_tokens": 0
+        }
+      },
+      {
+        "answers": {
+          "decision": {
+            "confidence": 0.7093576060840057,
+            "prediction": "abstain",
+            "probabilities": {
+              "abstain": 0.7674860848672045,
+              "algemeen": 0.0713873282877231,
+              "een-op-een": 0.049063745373683576,
+              "klantgesprek": 0.049063745373683576,
+              "standup": 0.0629990960977053
+            },
+            "raw_score": 0.7674860848672045,
+            "raw_score_type": "categorical_probabilities"
+          }
+        },
+        "attempts": [
+          {
+            "billed_cost_usd": "0.00000296",
+            "finished_at": "2026-10-28T16:19:42.265762+00:00",
+            "group_size": 1,
+            "http_status": 200,
+            "identity": {
+              "api_surface": "decisions",
+              "catalog_sha256": "6b894b72e4f8e6411725eabdf34cfd1a253857b792a9ad96261f009fc3466ba3",
+              "configured_provider": "inception",
+              "endpoint": "https://openrouter.ai/api/alpha/decisions",
+              "endpoint_sha256": "2540d9f6c5d174ba2d5b6d87de854cd40d1c3ff85c2103b81b92b84252ac1b38",
+              "label_order": {
+                "decision": [
+                  "algemeen",
+                  "een-op-een",
+                  "klantgesprek",
+                  "standup",
+                  "abstain"
+                ]
+              },
+              "pricing": {
+                "completion": "0",
+                "discount": 0.5,
+                "input_cache_read": "0",
+                "prompt": "0.00000002"
+              },
+              "pricing_source": "pinned_endpoint",
+              "privacy": {
+                "data_collection": "deny",
+                "observed_at": "2026-10-28T16:11:35.401640+00:00",
+                "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+                "policy_verified": true,
+                "processing_region": "global",
+                "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+                "zdr": true
+              },
+              "provider": "Inception",
+              "quantization": "unknown",
+              "question_grouping": "one_case_per_request",
+              "question_ids": [
+                "decision"
+              ],
+              "request_id": "gen-dec-1793204381-E3IJpb3geoQWLbPdRZj5",
+              "request_sha256": "ffb0808a4c631f311c0ba23112ffe918d0be69665cb4f836c3dd4b33e43011ff",
+              "requested_model": "inception/mercury-decide",
+              "returned_model": "inception/mercury-decide-20260930",
+              "routing": {
+                "allow_fallbacks": false,
+                "data_collection": "deny",
+                "max_price": {
+                  "completion": 0,
+                  "prompt": 0.02
+                },
+                "only": [
+                  "inception"
+                ],
+                "zdr": true
+              },
+              "tokenizer": "Other",
+              "transport": "openrouter",
+              "upstream_request_id": null
+            },
+            "input_token_upper_bound": 2650,
+            "latency_ms": 480.817334,
+            "started_at": "2026-10-28T16:19:41.784869+00:00",
+            "usage": {
+              "cost": 2.96e-06,
+              "input_tokens": 148,
+              "output_tokens": 1
+            }
+          }
+        ],
+        "case_id": "en-development-00-template-missing",
+        "confidence": 0.7093576060840057,
+        "cost_usd": "0.00000296",
+        "expected": "abstain",
+        "identity": {
+          "api_surface": "decisions",
+          "catalog_sha256": "6b894b72e4f8e6411725eabdf34cfd1a253857b792a9ad96261f009fc3466ba3",
+          "configured_provider": "inception",
+          "endpoint": "https://openrouter.ai/api/alpha/decisions",
+          "endpoint_sha256": "2540d9f6c5d174ba2d5b6d87de854cd40d1c3ff85c2103b81b92b84252ac1b38",
+          "label_order": {
+            "decision": [
+              "algemeen",
+              "een-op-een",
+              "klantgesprek",
+              "standup",
+              "abstain"
+            ]
+          },
+          "pricing": {
+            "completion": "0",
+            "discount": 0.5,
+            "input_cache_read": "0",
+            "prompt": "0.00000002"
+          },
+          "pricing_source": "pinned_endpoint",
+          "privacy": {
+            "data_collection": "deny",
+            "observed_at": "2026-10-28T16:11:35.401640+00:00",
+            "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+            "policy_verified": true,
+            "processing_region": "global",
+            "verification_scope": "Public exact model/tag ZDR eligibility plus request enforcement; account logging and opt-ins not inspected. Synthetic content only; no regional residency claim.",
+            "zdr": true
+          },
+          "provider": "Inception",
+          "quantization": "unknown",
+          "question_grouping": "one_case_per_request",
+          "question_ids": [
+            "decision"
+          ],
+          "request_id": "gen-dec-1793204381-E3IJpb3geoQWLbPdRZj5",
+          "request_sha256": "ffb0808a4c631f311c0ba23112ffe918d0be69665cb4f836c3dd4b33e43011ff",
+          "requested_model": "inception/mercury-decide",
+          "returned_model": "inception/mercury-decide-20260930",
+          "routing": {
+            "allow_fallbacks": false,
+            "data_collection": "deny",
+            "max_price": {
+              "completion": 0,
+              "prompt": 0.02
+            },
+            "only": [
+              "inception"
+            ],
+            "zdr": true
+          },
+          "tokenizer": "Other",
+          "transport": "openrouter",
+          "upstream_request_id": null
+        },
+        "latency_ms": 480.817334,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": "abstain",
+        "probabilities": {
+          "abstain": 0.7674860848672045,
+          "algemeen": 0.0713873282877231,
+          "een-op-een": 0.049063745373683576,
+          "klantgesprek": 0.049063745373683576,
+          "standup": 0.0629990960977053
+        },
+        "raw_score": 0.7674860848672045,
+        "raw_score_type": "categorical_probabilities",
+        "reproducibility": "complete",
+        "runner": "openrouter-mercury",
+        "split": "development",
+        "status": "ok",
+        "usage": {
+          "cost": 2.96e-06,
+          "input_tokens": 148,
+          "output_tokens": 1
+        }
+      }
+    ]
+  },
+  "refused_long_input": {
+    "case_id": "en-development-00-answerable",
+    "ledger": {
+      "attempt_count": 0,
+      "attempts": [],
+      "known_billed_usd": "0",
+      "limit_usd": "2.00",
+      "pending_reservations": {},
+      "reserved_usd": "0",
+      "unresolved_charge": false
+    },
+    "rows": [
+      {
+        "attempts": [],
+        "case_id": "en-development-00-answerable",
+        "cost_usd": null,
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "requested_model": "typesafe/jev-1.14",
+          "transport": "openrouter"
+        },
+        "latency_ms": null,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": null,
+        "probabilities": null,
+        "reason": "context_bound_exceeded_no_truncation",
+        "runner": "openrouter-jev",
+        "split": "development",
+        "status": "unavailable",
+        "usage": null
+      },
+      {
+        "attempts": [],
+        "case_id": "en-development-00-answerable",
+        "cost_usd": null,
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "requested_model": "perplexity/pplx-decider-v1.2",
+          "transport": "openrouter"
+        },
+        "latency_ms": null,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": null,
+        "probabilities": null,
+        "reason": "context_bound_exceeded_no_truncation",
+        "runner": "openrouter-decider",
+        "split": "development",
+        "status": "unavailable",
+        "usage": null
+      },
+      {
+        "attempts": [],
+        "case_id": "en-development-00-answerable",
+        "cost_usd": null,
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "requested_model": "perplexity/pplx-decider-flash-v1.2",
+          "transport": "openrouter"
+        },
+        "latency_ms": null,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": null,
+        "probabilities": null,
+        "reason": "context_bound_exceeded_no_truncation",
+        "runner": "openrouter-decider-flash",
+        "split": "development",
+        "status": "unavailable",
+        "usage": null
+      },
+      {
+        "attempts": [],
+        "case_id": "en-development-00-answerable",
+        "cost_usd": null,
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "requested_model": "cloudflare/clef-flash",
+          "transport": "openrouter"
+        },
+        "latency_ms": null,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": null,
+        "probabilities": null,
+        "reason": "state_byte_limit_exceeded_no_truncation",
+        "runner": "openrouter-clef-flash",
+        "split": "development",
+        "status": "unavailable",
+        "usage": null
+      },
+      {
+        "attempts": [],
+        "case_id": "en-development-00-answerable",
+        "cost_usd": null,
+        "expected": "true",
+        "identity": {
+          "api_surface": "decisions",
+          "requested_model": "inception/mercury-decide",
+          "transport": "openrouter"
+        },
+        "latency_ms": null,
+        "limitations": [],
+        "measurement": "measured_inference",
+        "prediction": null,
+        "probabilities": null,
+        "reason": "context_bound_exceeded_no_truncation",
+        "runner": "openrouter-mercury",
+        "split": "development",
+        "status": "unavailable",
+        "usage": null
+      }
+    ]
+  }
+}

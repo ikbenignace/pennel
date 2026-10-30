@@ -1,0 +1,259 @@
+{
+  "download_budget_bytes": 3221225472,
+  "metadata_date": "2026-10-28",
+  "models": {
+    "gliclass-multilingual": {
+      "backend": "gliclass",
+      "capabilities": [
+        "decision",
+        "ranking"
+      ],
+      "device": "cpu",
+      "download_bytes": 320418847,
+      "environment": "decisions",
+      "files": [
+        {
+          "git_blob_sha1": "b7c0a7ec1961a09503de54e800de584d22a3ed1e",
+          "path": "config.json",
+          "size": 2595
+        },
+        {
+          "git_blob_sha1": "46a074d6436c9647ed5e104a7c43de30e5f4b727",
+          "path": "model.safetensors",
+          "sha256": "2cafa4eced2630f1e949d46ded617f6bf70b702c60249b5fc487029099865a00",
+          "size": 286004020
+        },
+        {
+          "git_blob_sha1": "be4ad795f49075ac5e56d8108ef63be314a1e967",
+          "path": "special_tokens_map.json",
+          "size": 1051
+        },
+        {
+          "git_blob_sha1": "d23fd4b6f9430478a90de74411bd1d5dec35dd3a",
+          "path": "tokenizer.json",
+          "sha256": "c34bc875fad3336b9159ed3c24d64ce319a00d56edc9ff873c046a37e1c5e0de",
+          "size": 34364000
+        },
+        {
+          "git_blob_sha1": "2ac1cb6ac8ddcf3a4c9179856578567bcd874db7",
+          "path": "tokenizer_config.json",
+          "size": 47181
+        }
+      ],
+      "license": "Apache-2.0",
+      "max_input_tokens": 8192,
+      "precision": "float32",
+      "repo": "knowledgator/gliclass-multilang-edge",
+      "revision": "d16c08ef70547514081952104e6fc3d190d9ee39",
+      "source": "https://huggingface.co/knowledgator/gliclass-multilang-edge/tree/d16c08ef70547514081952104e6fc3d190d9ee39",
+      "threads": 4
+    },
+    "gliclass-v4-q8": {
+      "backend": "gliclass_onnx",
+      "capabilities": [
+        "decision",
+        "ranking"
+      ],
+      "device": "cpu",
+      "download_bytes": 655257408,
+      "environment": "onnx",
+      "files": [
+        {
+          "git_blob_sha1": "830220555b415fcac72231a0bc406b88ada64538",
+          "path": "config.json",
+          "size": 4406
+        },
+        {
+          "git_blob_sha1": "0bb8de5fe78b9d03fa59c14c16c680cfb8f276bf",
+          "path": "onnx/model_q8.onnx",
+          "sha256": "78e4bfd4e271417a79b95a9690109f54190bc70bd57453f715f9b06522591b42",
+          "size": 646912031
+        },
+        {
+          "git_blob_sha1": "1eb53a8fb2386315be6810da2158a802d9377f39",
+          "path": "onnx/tokenizer.json",
+          "size": 8340434
+        },
+        {
+          "git_blob_sha1": "dea6754cb345e3bfea5aa18311b49d2b7613b9c6",
+          "path": "onnx/tokenizer_config.json",
+          "size": 537
+        }
+      ],
+      "license": "Apache-2.0",
+      "limitations": [
+        "Quality inference requires an explicit ONNX graph/preprocessing and reference-parity receipt; the suite does not assume every graph uses the same inputs."
+      ],
+      "max_input_tokens": 2048,
+      "precision": "int8",
+      "repo": "knowledgator/gliclass-v4-edge",
+      "revision": "885af1af8a07edf4ed34df83ca0d995ed8201283",
+      "source": "https://huggingface.co/knowledgator/gliclass-v4-edge/tree/885af1af8a07edf4ed34df83ca0d995ed8201283",
+      "threads": 4
+    },
+    "gliner-multilingual": {
+      "backend": "gliner",
+      "capabilities": [
+        "decision"
+      ],
+      "device": "cpu",
+      "download_bytes": 1165502491,
+      "environment": "decisions",
+      "files": [
+        {
+          "git_blob_sha1": "9d7fae330e33f6899bf307446dbf030c4b2e51ca",
+          "path": "config.json",
+          "size": 4106
+        },
+        {
+          "git_blob_sha1": "ae565d60d4f7ad10642d35cf316991be88f2e252",
+          "path": "encoder_config/config.json",
+          "size": 858
+        },
+        {
+          "git_blob_sha1": "7ea86f649aeff6ae51c75425812046587369f36a",
+          "path": "model.safetensors",
+          "sha256": "9efe0f88c99f2aa794452e9559dc60e98d60d9fa2bf1b60cf2710411b6da5b4e",
+          "size": 1149461028
+        },
+        {
+          "git_blob_sha1": "68f13318410c91def2c27f608b69446f28254bf9",
+          "path": "tokenizer.json",
+          "sha256": "c62446df87ae18ec98b133f8f84fc449a07cc89bbf8ef192a4cb5f9c53777a7a",
+          "size": 16035853
+        },
+        {
+          "git_blob_sha1": "2459a5ca345937305b74ea277e6809f9ee2e26ea",
+          "path": "tokenizer_config.json",
+          "size": 646
+        }
+      ],
+      "license": "Apache-2.0",
+      "limitations": [
+        "The classify_text adapter returns a selected label and optional top-label confidence, not a verified complete probability distribution; Brier/ECE are unavailable."
+      ],
+      "max_input_tokens": 4096,
+      "precision": "float32",
+      "repo": "fastino/GLiNER2.5-multi-Decide",
+      "revision": "e173bca1f0c4217d7a55b3b0c705d5ece8a0218d",
+      "source": "https://huggingface.co/fastino/GLiNER2.5-multi-Decide/tree/e173bca1f0c4217d7a55b3b0c705d5ece8a0218d",
+      "threads": 4
+    },
+    "gte-reranker": {
+      "backend": "gte",
+      "capabilities": [
+        "ranking"
+      ],
+      "code_revision": "40ced75c3017eb27626c9d4ea981bde21a2662f4",
+      "device": "cpu",
+      "download_bytes": 629087675,
+      "environment": "legacy",
+      "files": [
+        {
+          "git_blob_sha1": "a925808a7f080b10b5f2aba4f0d192fc36a7c8f9",
+          "path": "config.json",
+          "size": 1494
+        },
+        {
+          "git_blob_sha1": "26063866c500a0942084a03297ae841bec5d2e73",
+          "path": "model.safetensors",
+          "sha256": "10ebaa49322dd7e01a13a91c49810939e3f91f231aceaa47fdf0cab3083954f6",
+          "size": 611934706
+        },
+        {
+          "git_blob_sha1": "b1879d702821e753ffe4245048eee415d54a9385",
+          "path": "special_tokens_map.json",
+          "size": 964
+        },
+        {
+          "git_blob_sha1": "043cd319dc92e1a728e36f7ec94f3e0861ca6a11",
+          "path": "tokenizer.json",
+          "sha256": "d6f76fe13d42f80dcee0cb86a1aeb5f14f8909bb8a8782f7a4a4ad76697ef164",
+          "size": 17083021
+        },
+        {
+          "git_blob_sha1": "ddf5350d3f7b2c0bf20ee2b10e3349dd6d8291bd",
+          "path": "tokenizer_config.json",
+          "size": 1340
+        },
+        {
+          "path": "custom_code/configuration.py",
+          "repo": "Alibaba-NLP/new-impl",
+          "revision": "40ced75c3017eb27626c9d4ea981bde21a2662f4",
+          "sha256": "3411088045ffb8a9a0aa9936eae275896b39983a2ee5b08f091b44e6289e4fe4",
+          "size": 7127,
+          "source": "configuration.py"
+        },
+        {
+          "path": "custom_code/modeling.py",
+          "repo": "Alibaba-NLP/new-impl",
+          "revision": "40ced75c3017eb27626c9d4ea981bde21a2662f4",
+          "sha256": "374670b416fcc82f081c9cd28b5fd61c2bd91bbe18eb4798fcc48a81f9c250a0",
+          "size": 59023,
+          "source": "modeling.py"
+        }
+      ],
+      "license": "Apache-2.0",
+      "max_input_tokens": 8192,
+      "precision": "float32",
+      "repo": "Alibaba-NLP/gte-multilingual-reranker-base",
+      "revision": "8215cf04918ba6f7b6a62bb44238ce2953d8831c",
+      "source": "https://huggingface.co/Alibaba-NLP/gte-multilingual-reranker-base/tree/8215cf04918ba6f7b6a62bb44238ce2953d8831c",
+      "threads": 4
+    },
+    "laya": {
+      "backend": "laya",
+      "capabilities": [
+        "decision"
+      ],
+      "device": "cpu",
+      "download_bytes": 678201774,
+      "environment": "legacy",
+      "files": [
+        {
+          "git_blob_sha1": "7b4305a11f6d6936882e99492abe8e34d8ae6e3a",
+          "path": "config.json",
+          "size": 160
+        },
+        {
+          "git_blob_sha1": "0de0e2d30638873790cf962def52e2acf4db3eef",
+          "path": "encoder/config.json",
+          "size": 1938
+        },
+        {
+          "git_blob_sha1": "b99c8bea239c53f6f6bce734557dc6c403fa6b3e",
+          "path": "model.safetensors",
+          "sha256": "9d628fd971b700382ac6f65920a86f149777b2e748e0c955fb3b19695aa8f204",
+          "size": 643835514
+        },
+        {
+          "git_blob_sha1": "00e35f88bb731bb9126a914666ab1cdac8a204c8",
+          "path": "rl_agent_config.json",
+          "size": 472
+        },
+        {
+          "git_blob_sha1": "56d765858ed38eaabd35cd90759cbb1f89b0baa4",
+          "path": "tokenizer/tokenizer.json",
+          "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f",
+          "size": 34363188
+        },
+        {
+          "git_blob_sha1": "eea1ed61121530d74c1722dc2aab6ec917a75909",
+          "path": "tokenizer/tokenizer_config.json",
+          "size": 502
+        }
+      ],
+      "license": "Apache-2.0",
+      "limitations": [
+        "Secondary comparison; owner documents uncalibrated outputs and option/order sensitivity."
+      ],
+      "max_input_tokens": 8192,
+      "precision": "float32",
+      "repo": "convaiinnovations/laya-multilingual",
+      "revision": "1720e3e3357cfe1e281542e223f8273b0890ca34",
+      "source": "https://huggingface.co/convaiinnovations/laya-multilingual/tree/1720e3e3357cfe1e281542e223f8273b0890ca34",
+      "threads": 4
+    }
+  },
+  "version": 1
+}

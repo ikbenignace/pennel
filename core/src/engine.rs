@@ -20,7 +20,7 @@ use crate::live_dictation::{DictationPreviewObserver, LiveDictationSession};
 use crate::llm::Reasoning;
 use crate::local_engine::LocalEngine;
 use crate::meeting_chat::{ChatTurn, MeetingAnswer};
-use crate::meeting_index::{MeetingIndex, Passage, PassageKind};
+use crate::meeting_index::{MeetingIndex, Passage};
 use crate::meetings::SpeakerName;
 use crate::meetings::{MeetingInfo, MeetingStore, Segment};
 use crate::models::{CancelFlag, DownloadListener, LocalModel, ModelState, ModelStore};
@@ -83,6 +83,7 @@ pub struct DictationResult {
 pub struct PennelEngine {
     settings_path: PathBuf,
     settings: RwLock<Settings>,
+    inference_requests: Mutex<Vec<Weak<crate::InferenceCancellation>>>,
     history: Mutex<HistoryStore>,
     unsaved_history: Mutex<RecoveryState>,
     dictation_pad: Mutex<DictationPad>,
@@ -1029,49 +1030,17 @@ impl PennelEngine {
             return Err(PennelError::MissingApiKey { task: "llm".into() });
         }
         let store = self.meeting_store();
-        let scope = meeting_id.as_deref();
-        let terms = search_terms(&question);
         let sources = self
             .with_index(&store, |index| {
-                if let Some(id) = scope {
-                    let all = index.recent(&store, Some(id), u32::MAX)?;
-                    let whole_fits = if account.kind == ProviderKind::AppleIntelligence {
-                        system_llm::input_bytes(&chat_messages(&question, &history, &all))
-                            <= system_llm::APPLE_INPUT_BYTES
-                    } else {
-                        all.iter().map(|p| p.text.len()).sum::<usize>() <= WHOLE_MEETING_CHARS
-                    };
-                    if whole_fits {
-                        return Ok(all);
-                    }
-                    let found = index.search_any(&store, &terms, Some(id), MEETING_PASSAGES)?;
-                    if account.kind == ProviderKind::AppleIntelligence {
-                        let mut picked = if found.is_empty() {
-                            index.recent(&store, Some(id), MEETING_PASSAGES)?
-                        } else {
-                            found
-                        };
-                        picked.extend(all.into_iter().filter(|p| p.kind == PassageKind::Summary));
-                        return Ok(picked);
-                    }
-                    let mut picked: Vec<Passage> = all
-                        .iter()
-                        .filter(|p| p.kind == PassageKind::Summary)
-                        .cloned()
-                        .collect();
-                    picked.extend(if found.is_empty() {
-                        index.recent(&store, Some(id), MEETING_PASSAGES)?
-                    } else {
-                        found
-                    });
-                    return Ok(picked);
-                }
-                let found = index.search_any(&store, &terms, None, ALL_MEETINGS_PASSAGES)?;
-                if found.is_empty() {
-                    index.recent(&store, None, ALL_MEETINGS_PASSAGES)
-                } else {
-                    Ok(found)
-                }
+                select_sources(
+                    index,
+                    &store,
+                    &question,
+                    &history,
+                    meeting_id.as_deref(),
+                    account.kind == ProviderKind::AppleIntelligence,
+                )
+                .map(|(sources, _)| sources)
             })
             .ok_or(PennelError::Storage {
                 message: "search index unavailable".into(),
@@ -1569,6 +1538,25 @@ impl PennelEngine {
 }
 
 impl PennelEngine {
+    pub(crate) fn register_inference(&self, cancellation: &Arc<crate::InferenceCancellation>) {
+        let _gate = self.meeting_gate.lock().unwrap();
+        let mut requests = self.inference_requests.lock().unwrap();
+        requests.retain(|request| request.strong_count() > 0);
+        requests.push(Arc::downgrade(cancellation));
+    }
+
+    pub(crate) fn finish_inference(&self, cancellation: &Arc<crate::InferenceCancellation>) {
+        let reference = Arc::downgrade(cancellation);
+        let mut requests = self.inference_requests.lock().unwrap();
+        requests.retain(|request| request.strong_count() > 0);
+        if let Some(index) = requests
+            .iter()
+            .position(|request| request.ptr_eq(&reference))
+        {
+            requests.swap_remove(index);
+        }
+    }
+
     pub(crate) fn update_settings_locked(&self, mut settings: Settings) -> Result<(), PennelError> {
         if self.preview {
             enforce_preview_library(
@@ -1607,6 +1595,18 @@ impl PennelEngine {
             None
         };
         let settings = settings.normalized_with(&self.models.downloaded());
+        let current = self.settings();
+        if current.decision != settings.decision
+            || current.reranking != settings.reranking
+            || current.providers != settings.providers
+        {
+            // Invalidate queued requests before their captured destination can be used.
+            for request in self.inference_requests.lock().unwrap().iter() {
+                if let Some(cancellation) = request.upgrade() {
+                    cancellation.cancel();
+                }
+            }
+        }
         settings.save(&self.settings_path)?;
         *self.settings.write().unwrap() = settings;
         if let Some(lease) = next_lease {
@@ -1885,6 +1885,7 @@ impl PennelEngine {
         let engine = Arc::new(Self {
             settings_path,
             settings: RwLock::new(settings),
+            inference_requests: Mutex::new(Vec::new()),
             history: Mutex::new(history),
             unsaved_history: Mutex::new(RecoveryState::default()),
             dictation_pad: Mutex::new(dictation_pad),

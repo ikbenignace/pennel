@@ -5,6 +5,7 @@ import { controlButton, textField, errorText, field, formatBytes, h, isCancellat
 import type { Context } from "../main";
 import { processingSummary, providerDestination } from "../processing-state";
 import { ModelCatalogCache, providerFingerprint, providerVerification, taskFingerprint, type ProviderSlot } from "../provider-verification";
+import { inferenceModelsView } from "./inference";
 
 type Slot = ProviderSlot;
 
@@ -19,6 +20,7 @@ export async function modelsView(ctx: Context): Promise<HTMLElement> {
       slot(ctx, "llm", l("providers.models.text"), l("providers.models.text_help"), true),
       slot(ctx, "meeting_stt", l("providers.models.meetings"), l("providers.models.meetings_help"), false),
     ]),
+    ...await inferenceModelsView(ctx),
   );
 }
 

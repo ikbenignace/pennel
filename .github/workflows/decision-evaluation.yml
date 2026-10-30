@@ -1,0 +1,49 @@
+name: decision evaluation
+
+on:
+  pull_request:
+    paths:
+      - 'core/**'
+      - 'evaluations/decision-models/**'
+      - '.github/workflows/decision-evaluation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'core/**'
+      - 'evaluations/decision-models/**'
+      - '.github/workflows/decision-evaluation.yml'
+
+jobs:
+  offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/build/evaluation-core-target
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core -> ../build/evaluation-core-target
+      - name: Build evaluation-only bridge without native models
+        run: cargo build --locked --manifest-path core/Cargo.toml --no-default-features --features evaluation --bin pennel-eval
+      - name: Evaluation Rust checks
+        run: cargo test --locked --manifest-path core/Cargo.toml --no-default-features --features evaluation --lib evaluation
+      - name: Offline corpus, metrics and mocked transports
+        run: python -B -m unittest discover -s evaluations/decision-models/tests -v
+      - name: Real deterministic baselines and reproducible report
+        run: python -B evaluations/decision-models/run.py --offline
+      - uses: actions/upload-artifact@v4
+        with:
+          name: decision-evaluation-${{ matrix.os }}
+          path: build/decision-model-evaluation/offline/

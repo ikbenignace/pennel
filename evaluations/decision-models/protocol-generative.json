@@ -1,0 +1,53 @@
+{
+  "version": "current-core-generative-v1",
+  "purpose": "Measure current prompt, source selection, citation parser and cleanup guard with one explicitly selected hosted generative model.",
+  "original_protocol": "protocol.json",
+  "selection_before_results": {
+    "development": "Meeting index 01 per language, q0 plus unique raw cleanup and summary: 9 cases.",
+    "heldout": "Meeting indices 01 and 02 per language, all seven questions plus one unique raw cleanup and summary: 54 cases.",
+    "rationale": "Two bounded meetings per language include retraction, paraphrase, missing answers, injection and library-scope retrieval. Original long-input decision results remain separate.",
+    "calibration": "No probability or threshold fitting for this free-text baseline; existing core prompts/guard remain fixed. No held-out prompt selection or regeneration."
+  },
+  "rubric": "grounding.RUBRIC bilingual-grounding-v1; commit hash before held-out inference; store exact Unicode generated/source spans and response/source hashes.",
+  "review": "Native agent evidence review with leader verification is AI adjudication, not independent human acceptance. Disclose reviewer and limitations. Every substantive claim and cleanup is terminally judged; unresolved judgments block adoption.",
+  "acceptance": {
+    "language_scope": "en, nl and mixed independently; no averaged winner",
+    "answer_claim_precision_min": 0.98,
+    "answer_coverage_min": 0.5,
+    "citation_support_min": 0.98,
+    "citation_coverage_min": 0.98,
+    "cleanup_accepted_critical_corruptions_max": 0,
+    "cleanup_valid_acceptance_min": 0.9,
+    "summary": "Audit the original six marked event statements per selected meeting, including omitted positive events, retracted/tentative statements and injection negatives; report event-kind macro-F1, positive-event precision/recall and owner/final-status correctness. This target inventory is scoped, not exhaustive natural-meeting extraction.",
+    "summary_event_macro_f1_min": 0.9,
+    "summary_event_precision_min": 0.95,
+    "summary_owner_or_final_status_errors_max": 0,
+    "unresolved_judgments_max": 0
+  },
+  "budgets": {
+    "hosted_total_usd": "2.00",
+    "shared_existing_ledger_required": true,
+    "automatic_retries": 0,
+    "output_tokens_per_request_max": 1024,
+    "synthetic_content_only": true,
+    "processing_region": "global",
+    "provider_zdr_required": true,
+    "data_collection": "deny"
+  },
+  "timing": {
+    "panel": "First selected q0, unique raw cleanup and short non-map-reduce summary per language; hash exact IDs/messages before inference.",
+    "cold_client_samples_per_language_on_qa": 5,
+    "warm_samples_per_task_language": 30,
+    "excluded_warmups_per_task_language": 1,
+    "planned_requests": 294,
+    "concurrency": 1,
+    "admission": "Run only when the entire conservative remaining panel bound fits the reconciled cumulative US$2 ledger. Include all warmups, repeated prompts and prior charges.",
+    "continuation": "Explicitly resume only unsent slots after reconciliation; preserve failed consumed slots and exclude continuation warmups.",
+    "scope": "OpenRouter end-to-end round trips; fresh-client metadata setup separate. No server/model-cold, opaque memory or hardware claim. Quality-workload one-shot timings are reported separately."
+  },
+  "limitations": [
+    "The evaluation-selected model with current core prompts is not a measurement of the user's saved provider/model.",
+    "Small authored synthetic sample and AI adjudication are not natural-meeting, human, packaging or device acceptance.",
+    "Free-text generations supply no typed decision probabilities; Brier/ECE are not applicable."
+  ]
+}
