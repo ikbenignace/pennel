@@ -5,7 +5,9 @@ pub mod account;
 pub mod crypto;
 pub mod diarize;
 pub mod http;
+pub mod link;
 pub mod relay;
+pub mod setup;
 pub mod sync;
 
 const RELEASE_URL: &str = "https://api.pennel.app";
@@ -13,6 +15,23 @@ const STAGING_URL: &str = "https://api-staging.pennel.app";
 
 pub const REFRESH_ACCOUNT: &str = "pennel-cloud-refresh";
 pub const VAULT_KEY_ACCOUNT: &str = "pennel-cloud-vault-key";
+pub(crate) const VAULT_OWNER_ACCOUNT: &str = "pennel-cloud-vault-owner";
+pub(crate) const BACKUP_PENDING_ACCOUNT: &str = "pennel-cloud-backup-pending";
+pub(crate) const VAULT_VALIDATION_ACCOUNT: &str = "pennel-cloud-vault-validation";
+
+pub(crate) fn store_verified(
+    store: &dyn SecretStore,
+    account: &str,
+    value: &str,
+) -> Result<(), crate::PennelError> {
+    let old = zeroize::Zeroizing::new(store.get(account.into()));
+    store.set(account.into(), Some(value.into()));
+    if store.get(account.into()).as_deref() != Some(value) {
+        store.set(account.into(), (*old).clone());
+        return Err(crate::PennelError::Storage { message: "The device credential store could not save sync access. Try again after unlocking this device.".into() });
+    }
+    Ok(())
+}
 
 /// Host credential store. `set` with `None` deletes the entry.
 #[uniffi::export(with_foreign)]

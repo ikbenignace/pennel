@@ -110,6 +110,252 @@ fn enable_unlock_and_sync_between_two_engines() {
 }
 
 #[test]
+fn setup_reports_a_locked_existing_library_even_while_sync_is_off() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    let b = host(&api, "Phone");
+    assert_eq!(
+        a.engine.cloud_sync_setup().unwrap().phase,
+        crate::CloudSyncSetupPhase::NewLibrary
+    );
+    a.engine.cloud_sync_enable().unwrap();
+    assert_eq!(
+        b.engine.cloud_sync_setup().unwrap().phase,
+        crate::CloudSyncSetupPhase::Locked
+    );
+    assert!(!b.engine.settings().cloud_sync);
+}
+
+#[test]
+fn a_prepared_library_waits_for_activation_and_a_paused_device_can_resume() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    let code = a.engine.cloud_sync_prepare().unwrap().unwrap();
+    assert!(!code.is_empty());
+    assert!(!a.engine.settings().cloud_sync);
+    assert_eq!(
+        a.engine.cloud_sync_setup().unwrap().phase,
+        crate::CloudSyncSetupPhase::Ready
+    );
+    a.engine.cloud_sync_activate().unwrap();
+    assert!(a.engine.settings().cloud_sync);
+    a.engine.cloud_sync_disable().unwrap();
+    assert_eq!(
+        a.engine.cloud_sync_setup().unwrap().phase,
+        crate::CloudSyncSetupPhase::Paused
+    );
+    a.engine.cloud_sync_resume().unwrap();
+    assert!(a.engine.settings().cloud_sync);
+}
+
+#[test]
+fn a_paused_device_cannot_resume_after_another_device_reset_the_library() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    let b = host(&api, "Phone");
+    let code = a.engine.cloud_sync_enable().unwrap();
+    b.engine.cloud_sync_unlock(code).unwrap();
+    b.engine.cloud_sync_disable().unwrap();
+    a.engine.cloud_sync_reset().unwrap();
+    assert_eq!(b.engine.cloud_sync_resume(), Err(PennelError::VaultLocked));
+    assert!(!b.engine.settings().cloud_sync);
+}
+
+#[test]
+fn failed_credential_write_does_not_create_a_vault_or_enable_sync() {
+    #[derive(Default)]
+    struct UnwritableKey(MemorySecrets);
+    impl SecretStore for UnwritableKey {
+        fn get(&self, account: String) -> Option<String> {
+            self.0.get(account)
+        }
+        fn set(&self, account: String, value: Option<String>) {
+            if account != VAULT_KEY_ACCOUNT {
+                self.0.set(account, value);
+            }
+        }
+    }
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Phone");
+    let secrets = Arc::new(UnwritableKey::default());
+    secrets.set(REFRESH_ACCOUNT.into(), Some("fixture-refresh".into()));
+    a.engine.set_secret_store(secrets.clone()).unwrap();
+    a.engine
+        .use_cloud_session(Session::new("http://127.0.0.1:1".into(), secrets));
+    assert!(matches!(
+        a.engine.cloud_sync_prepare(),
+        Err(PennelError::Storage { .. })
+    ));
+    assert!(!a.engine.settings().cloud_sync);
+    assert!(api.vault().unwrap().wrapped.is_none());
+}
+
+#[test]
+fn preparation_restores_both_previous_entries_after_the_second_write_fails() {
+    struct MarkerFailure(MemorySecrets);
+    impl SecretStore for MarkerFailure {
+        fn get(&self, account: String) -> Option<String> {
+            self.0.get(account)
+        }
+        fn set(&self, account: String, value: Option<String>) {
+            if account != crate::cloud::BACKUP_PENDING_ACCOUNT {
+                self.0.set(account, value);
+            }
+        }
+    }
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Phone");
+    let inner = MemorySecrets::default();
+    inner.set(REFRESH_ACCOUNT.into(), Some("fixture-refresh".into()));
+    inner.set(
+        VAULT_KEY_ACCOUNT.into(),
+        Some("previous retained key".into()),
+    );
+    inner.set(
+        crate::cloud::BACKUP_PENDING_ACCOUNT.into(),
+        Some("previous backup marker".into()),
+    );
+    let secrets = Arc::new(MarkerFailure(inner));
+    a.engine.set_secret_store(secrets.clone()).unwrap();
+    a.engine
+        .use_cloud_session(Session::new("http://127.0.0.1:1".into(), secrets.clone()));
+    assert!(matches!(
+        a.engine.cloud_sync_prepare(),
+        Err(PennelError::Storage { .. })
+    ));
+    assert_eq!(
+        secrets.get(VAULT_KEY_ACCOUNT.into()).as_deref(),
+        Some("previous retained key")
+    );
+    assert_eq!(
+        secrets
+            .get(crate::cloud::BACKUP_PENDING_ACCOUNT.into())
+            .as_deref(),
+        Some("previous backup marker")
+    );
+    assert!(api.vault().unwrap().wrapped.is_none());
+}
+
+#[test]
+fn preparation_restores_previous_entries_after_a_failed_vault_request() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Phone");
+    a.secrets.set(
+        VAULT_KEY_ACCOUNT.into(),
+        Some("previous retained key".into()),
+    );
+    a.secrets.set(
+        crate::cloud::BACKUP_PENDING_ACCOUNT.into(),
+        Some("previous backup marker".into()),
+    );
+    api.fail_vault_puts(true);
+    assert!(matches!(
+        a.engine.cloud_sync_prepare(),
+        Err(PennelError::Network { .. })
+    ));
+    assert_eq!(
+        a.secrets.get(VAULT_KEY_ACCOUNT.into()).as_deref(),
+        Some("previous retained key")
+    );
+    assert_eq!(
+        a.secrets
+            .get(crate::cloud::BACKUP_PENDING_ACCOUNT.into())
+            .as_deref(),
+        Some("previous backup marker")
+    );
+    assert!(!a.engine.settings().cloud_sync);
+}
+
+#[test]
+fn legacy_vault_without_a_fingerprint_can_resume_after_verified_unlock() {
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Mac");
+    let b = host(&api, "Phone");
+    let code = a.engine.cloud_sync_enable().unwrap();
+    let vault = api.vault().unwrap();
+    let mut kdf = vault.kdf.unwrap();
+    kdf.key_check = None;
+    api.put_vault(vault.generation, &vault.wrapped.unwrap(), &kdf, false)
+        .unwrap();
+    b.engine.cloud_sync_unlock(code).unwrap();
+    b.engine.cloud_sync_disable().unwrap();
+    assert_eq!(
+        b.engine.cloud_sync_setup().unwrap().phase,
+        crate::CloudSyncSetupPhase::Paused
+    );
+    b.engine.cloud_sync_resume().unwrap();
+    assert!(b.engine.settings().cloud_sync);
+}
+
+#[test]
+fn recovery_acknowledgment_is_bound_to_account_generation_and_current_wrapping() {
+    let mut server = mockito::Server::new();
+    let api = Arc::new(FakeApi::new());
+    let a = host(&api, "Phone");
+    a.secrets.set(REFRESH_ACCOUNT.into(), None);
+    let session = Session::new(server.url(), a.secrets.clone());
+    session.install_link_tokens(session.generation(),&serde_json::json!({"access_token":"fixture-access","refresh_token":"fixture-refresh","expires_in":900})).unwrap();
+    a.engine.use_cloud_session(session);
+    let account_a = "00000000-0000-4000-8000-000000000001";
+    let account_b = "00000000-0000-4000-8000-000000000002";
+    let identity = server
+        .mock("GET", "/v1/whoami")
+        .with_body(
+            serde_json::json!({"user_id":account_a,"device_id":"fixture-device"}).to_string(),
+        )
+        .expect(1)
+        .create();
+    let code = a.engine.cloud_sync_prepare().unwrap().unwrap();
+    let context = a.engine.cloud_recovery_code_context(code.clone()).unwrap();
+    identity.assert();
+    identity.remove();
+    let changed = server
+        .mock("GET", "/v1/whoami")
+        .with_body(
+            serde_json::json!({"user_id":account_b,"device_id":"fixture-device"}).to_string(),
+        )
+        .expect(1)
+        .create();
+    assert!(
+        a.engine
+            .cloud_recovery_confirm(code.clone(), context.clone())
+            .is_err()
+    );
+    assert!(!a.engine.settings().cloud_sync);
+    changed.assert();
+    changed.remove();
+    let identity = server
+        .mock("GET", "/v1/whoami")
+        .with_body(
+            serde_json::json!({"user_id":account_a,"device_id":"fixture-device"}).to_string(),
+        )
+        .expect(4)
+        .create();
+    let replacement = a.engine.cloud_sync_new_recovery_code().unwrap();
+    assert!(
+        a.engine
+            .cloud_recovery_confirm(code, context.clone())
+            .is_err()
+    );
+    let current = a
+        .engine
+        .cloud_recovery_code_context(replacement.clone())
+        .unwrap();
+    assert_ne!(context, current);
+    assert!(
+        a.engine
+            .cloud_recovery_confirm(replacement.clone(), context)
+            .is_err()
+    );
+    assert!(!a.engine.settings().cloud_sync);
+    a.engine
+        .cloud_recovery_confirm(replacement, current)
+        .unwrap();
+    assert!(a.engine.settings().cloud_sync);
+    identity.assert();
+}
+
+#[test]
 fn reset_on_one_engine_makes_the_other_ask_for_the_new_code() {
     let api = Arc::new(FakeApi::new());
     let a = host(&api, "Mac");
