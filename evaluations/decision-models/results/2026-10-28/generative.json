@@ -1,0 +1,45 @@
+{
+  "availability": [
+    {
+      "error": "generative_endpoint_unavailable",
+      "identity": {
+        "configured_artifact_digest": null,
+        "observed_artifact_digest": null,
+        "provider": "ollama",
+        "requested_model": "gemma3:12b",
+        "returned_model": null,
+        "transport": "local_generative_endpoint"
+      },
+      "limitations": [
+        "Evaluation-selected model with current core prompts; this is not the user's saved provider selection.",
+        "Loopback endpoint usage tokens are local inference counts, not billed hosted tokens.",
+        "Endpoint inventory does not establish an immutable artifact revision."
+      ],
+      "split": "heldout",
+      "status": "unavailable",
+      "task": "generative_availability"
+    },
+    {
+      "error": "generative_endpoint_unavailable",
+      "identity": {
+        "configured_artifact_digest": null,
+        "observed_artifact_digest": null,
+        "provider": "ollama",
+        "requested_model": "qwen3:14b",
+        "returned_model": null,
+        "transport": "local_generative_endpoint"
+      },
+      "limitations": [
+        "Evaluation-selected model with current core prompts; this is not the user's saved provider selection.",
+        "Loopback endpoint usage tokens are local inference counts, not billed hosted tokens.",
+        "Endpoint inventory does not establish an immutable artifact revision."
+      ],
+      "split": "heldout",
+      "status": "unavailable",
+      "task": "generative_availability"
+    }
+  ],
+  "measured": 0,
+  "pending_judgments": 0,
+  "rows": 2
+}

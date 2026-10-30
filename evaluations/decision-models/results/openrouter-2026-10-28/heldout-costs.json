@@ -1,0 +1,141 @@
+{
+  "rows": [
+    {
+      "input_tokens": 278177,
+      "known_cost_usd": "0.010570726",
+      "language": "en",
+      "output_tokens": 0,
+      "requests": 778,
+      "runner_id": "openrouter-clef-flash",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 282583,
+      "known_cost_usd": "0.010738154",
+      "language": "mixed",
+      "output_tokens": 0,
+      "requests": 778,
+      "runner_id": "openrouter-clef-flash",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 323602,
+      "known_cost_usd": "0.012296876",
+      "language": "nl",
+      "output_tokens": 0,
+      "requests": 778,
+      "runner_id": "openrouter-clef-flash",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 238167,
+      "known_cost_usd": "0.00476334",
+      "language": "en",
+      "output_tokens": 778,
+      "requests": 778,
+      "runner_id": "openrouter-decider",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 242605,
+      "known_cost_usd": "0.00485210",
+      "language": "mixed",
+      "output_tokens": 778,
+      "requests": 778,
+      "runner_id": "openrouter-decider",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 283114,
+      "known_cost_usd": "0.00566228",
+      "language": "nl",
+      "output_tokens": 778,
+      "requests": 778,
+      "runner_id": "openrouter-decider",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 238167,
+      "known_cost_usd": "0.00238167",
+      "language": "en",
+      "output_tokens": 778,
+      "requests": 778,
+      "runner_id": "openrouter-decider-flash",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 242605,
+      "known_cost_usd": "0.00242605",
+      "language": "mixed",
+      "output_tokens": 778,
+      "requests": 778,
+      "runner_id": "openrouter-decider-flash",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 283114,
+      "known_cost_usd": "0.00283114",
+      "language": "nl",
+      "output_tokens": 778,
+      "requests": 778,
+      "runner_id": "openrouter-decider-flash",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 405944,
+      "known_cost_usd": "0.017049648",
+      "language": "en",
+      "output_tokens": 21934,
+      "requests": 778,
+      "runner_id": "openrouter-jev",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 412181,
+      "known_cost_usd": "0.017311602",
+      "language": "mixed",
+      "output_tokens": 21938,
+      "requests": 778,
+      "runner_id": "openrouter-jev",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 464410,
+      "known_cost_usd": "0.019505220",
+      "language": "nl",
+      "output_tokens": 21936,
+      "requests": 778,
+      "runner_id": "openrouter-jev",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 222683,
+      "known_cost_usd": "0.00445366",
+      "language": "en",
+      "output_tokens": 778,
+      "requests": 778,
+      "runner_id": "openrouter-mercury",
+      "unknown_cost_requests": 0
+    },
+    {
+      "input_tokens": 226844,
+      "known_cost_usd": "0.00453688",
+      "language": "mixed",
+      "output_tokens": 777,
+      "requests": 778,
+      "runner_id": "openrouter-mercury",
+      "unknown_cost_requests": 1
+    },
+    {
+      "input_tokens": 266897,
+      "known_cost_usd": "0.00533794",
+      "language": "nl",
+      "output_tokens": 778,
+      "requests": 778,
+      "runner_id": "openrouter-mercury",
+      "unknown_cost_requests": 0
+    }
+  ],
+  "token_semantics": "Provider-reported input/output tokens; cache/billing detail is retained in individual usage records. Counts are not invented for failed responses.",
+  "workload": "Frozen held-out corpus and ranking fanout, including state repetition and declared label-order variants; no automatic retries. One Mercury HTTP502 has no inline cost and is separately reconciled to zero in the experiment ledger."
+}

@@ -1,0 +1,145 @@
+{
+  "repository": "pennel-app/pennel",
+  "source_commit": "8e693d98ca475ec86b7fe524416356f494c3c771",
+  "observed_at": "2026-10-28T21:28:36.165726+00:00",
+  "all_completed": true,
+  "all_success_or_expected_skipped": true,
+  "checks": [
+    {
+      "name": "release",
+      "status": "completed",
+      "conclusion": "skipped",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123070155435",
+      "started_at": "2026-10-28T20:06:42Z",
+      "completed_at": "2026-10-28T20:06:41Z"
+    },
+    {
+      "name": "app (ubuntu-22.04, ubuntu-22.04, x86_64-unknown-linux-gnu, deb,appimage)",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123061271560",
+      "started_at": "2026-10-28T19:49:50Z",
+      "completed_at": "2026-10-28T20:06:41Z"
+    },
+    {
+      "name": "app (macos-15, macos-15, aarch64-apple-darwin, app,dmg)",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123061271275",
+      "started_at": "2026-10-28T19:50:16Z",
+      "completed_at": "2026-10-28T19:57:22Z"
+    },
+    {
+      "name": "app (windows-latest, windows-latest, x86_64-pc-windows-msvc, nsis,msi)",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123061271263",
+      "started_at": "2026-10-28T19:49:50Z",
+      "completed_at": "2026-10-28T20:03:08Z"
+    },
+    {
+      "name": "core (windows-latest, windows-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123061204381",
+      "started_at": "2026-10-28T19:49:43Z",
+      "completed_at": "2026-10-28T19:56:27Z"
+    },
+    {
+      "name": "packaging-tools",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123061204295",
+      "started_at": "2026-10-28T19:49:43Z",
+      "completed_at": "2026-10-28T19:49:50Z"
+    },
+    {
+      "name": "version",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123061204260",
+      "started_at": "2026-10-28T19:49:43Z",
+      "completed_at": "2026-10-28T19:49:48Z"
+    },
+    {
+      "name": "core (ubuntu-latest, ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123061204248",
+      "started_at": "2026-10-28T19:49:43Z",
+      "completed_at": "2026-10-28T19:57:02Z"
+    },
+    {
+      "name": "changes / changes",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598019/job/123061129906",
+      "started_at": "2026-10-28T19:49:34Z",
+      "completed_at": "2026-10-28T19:49:40Z"
+    },
+    {
+      "name": "ios-generated-build",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757597787/job/123061047768",
+      "started_at": "2026-10-28T19:49:25Z",
+      "completed_at": "2026-10-28T21:01:19Z"
+    },
+    {
+      "name": "platform",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598203/job/123060680222",
+      "started_at": "2026-10-28T19:53:53Z",
+      "completed_at": "2026-10-28T19:55:03Z"
+    },
+    {
+      "name": "build-and-test",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598203/job/123060680202",
+      "started_at": "2026-10-28T19:48:45Z",
+      "completed_at": "2026-10-28T19:56:02Z"
+    },
+    {
+      "name": "changes / changes",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598203/job/123060591073",
+      "started_at": "2026-10-28T19:48:33Z",
+      "completed_at": "2026-10-28T19:48:41Z"
+    },
+    {
+      "name": "build-and-test",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598187/job/123060590738",
+      "started_at": "2026-10-28T19:48:59Z",
+      "completed_at": "2026-10-28T20:02:11Z"
+    },
+    {
+      "name": "offline (windows-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598085/job/123060590534",
+      "started_at": "2026-10-28T19:48:33Z",
+      "completed_at": "2026-10-28T19:50:50Z"
+    },
+    {
+      "name": "offline (macos-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598085/job/123060590496",
+      "started_at": "2026-10-28T19:48:55Z",
+      "completed_at": "2026-10-28T19:50:13Z"
+    },
+    {
+      "name": "offline (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/pennel-app/pennel/actions/runs/40757598085/job/123060590216",
+      "started_at": "2026-10-28T19:48:33Z",
+      "completed_at": "2026-10-28T19:50:24Z"
+    }
+  ]
+}

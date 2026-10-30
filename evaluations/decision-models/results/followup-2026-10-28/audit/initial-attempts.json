@@ -1,0 +1,26 @@
+{
+  "quality_evaluation": false,
+  "sources": [
+    {
+      "canonical-predictions.jsonl.gz_rows": 1080,
+      "journal.jsonl.gz_rows": 1080,
+      "quality_evaluation": false,
+      "scope": "Preserved interrupted or budget-blocked journal; not the completed experiment's metric denominator.",
+      "source": "supplement-calibration"
+    },
+    {
+      "canonical-predictions.jsonl.gz_rows": 1080,
+      "journal.jsonl.gz_rows": 1080,
+      "quality_evaluation": false,
+      "scope": "Preserved interrupted or budget-blocked journal; not the completed experiment's metric denominator.",
+      "source": "supplement-heldout"
+    },
+    {
+      "canonical-predictions.jsonl.gz_rows": 1080,
+      "journal.jsonl.gz_rows": 1080,
+      "quality_evaluation": false,
+      "scope": "Preserved interrupted or budget-blocked journal; not the completed experiment's metric denominator.",
+      "source": "supplement-heldout-complete"
+    }
+  ]
+}

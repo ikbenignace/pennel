@@ -1,0 +1,41 @@
+{
+  "experiment": "53-current-core-generative-v1",
+  "generative": {
+    "base_url": "https://openrouter.ai",
+    "billing_overhead_tokens": 2048,
+    "credential_env": "OPENROUTER_API_KEY",
+    "enabled": true,
+    "expected_returned_model": "openai/gpt-4.1-mini",
+    "max_completion_tokens": 1024,
+    "max_cost_usd": "2.00",
+    "max_input_chars": 24000,
+    "max_input_tokens": 32000,
+    "max_request_cost_usd": "0.02",
+    "model": "openai/gpt-4.1-mini-2025-04-14",
+    "notes": "Evaluation-only current-core prompt baseline with exact Azure Sweden Central tag; no regional residency claim.",
+    "output_limit_parameter": "max_completion_tokens",
+    "privacy": {
+      "data_collection": "deny",
+      "observed_at": "2026-10-28T19:22:53.096934+00:00",
+      "policy_url": "https://openrouter.ai/docs/guides/features/zdr",
+      "policy_verified": true,
+      "processing_region": "global",
+      "zdr": true
+    },
+    "provider": "openrouter",
+    "retries": 0,
+    "tasks": [
+      "meeting_qa",
+      "cleanup",
+      "summary"
+    ],
+    "timeout_secs": 90,
+    "upstream_tag": "azure/swedencentral",
+    "expected_canonical_model": "openai/gpt-4.1-mini-2025-04-14"
+  },
+  "ledger_path": "build/decision-model-evaluation/spend-ledger.json",
+  "route_evidence": {
+    "path": "evaluations/decision-models/evidence/followup-2026-10-28.json",
+    "sha256": "3bd72ded26d142e25af945c7779e0a99244eea67a7d877222c4acfa38c64c043"
+  }
+}

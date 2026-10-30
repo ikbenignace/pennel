@@ -1,0 +1,25 @@
+{
+  "enabled": false,
+  "transport": "direct",
+  "provider": "jev",
+  "endpoint": "https://api.typesafe.ai/v1/systemone",
+  "credential_env": "TYPESAFE_API_KEY",
+  "model": "jev-1.14.0",
+  "accepted_models": ["jev-1.14.0"],
+  "capabilities": ["noul", "choice", "score"],
+  "question_grouping": "one_case_per_request",
+  "max_input_tokens": 32768,
+  "billing_overhead_tokens": 2048,
+  "input_usd_per_million": "0.042",
+  "timeout_seconds": 60,
+  "retries": 0,
+  "max_cost_usd": "2.00",
+  "max_request_cost_usd": "0.10",
+  "privacy": {
+    "processing_region": "global",
+    "data_collection": "allow",
+    "policy_verified": false,
+    "policy_url": "https://docs.typesafe.ai/models",
+    "note": "Explicit comparison configuration only; this is never a runtime fallback. Missing returned billed cost is unknown and halts further paid work."
+  }
+}

@@ -1,0 +1,147 @@
+"""Frozen one-shot independent Mercury timing; Clef quota diagnostics stay separate."""
+
+import argparse
+import copy
+import importlib.util
+import json
+from decimal import Decimal
+from pathlib import Path
+import sys
+import threading
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "evaluations/decision-models"))
+import run
+from hosted_measurements import _budget, measure_hosted
+from metrics import timing_metrics
+from runners import DecisionRunner, SpendLedger
+from supplement import build_supplement
+from timing_continuation import _route, _summarize, plan_continuation
+
+PREVIOUS_HELPER = ROOT / "build/decision-model-evaluation/continue-supplement-timing.py"
+SPEC = importlib.util.spec_from_file_location("previous_v2_timing_driver", PREVIOUS_HELPER)
+previous = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(previous)
+REPORT = ROOT / "build/decision-model-evaluation/supplement-timing-continuation/report.json"
+OUTPUT = ROOT / "build/decision-model-evaluation/supplement-timing-mercury-independent"
+
+
+def prepare(report_path=REPORT):
+    plan = previous.build_plan(report_path)
+    original = run.read_json(report_path)
+    mercury = next(row for row in plan["models"] if row["runner_id"] == "openrouter-mercury")
+    assert mercury["mode"] == "fresh_standard_panel" and mercury["original_record_count"] == 0
+    for row in plan["models"]:
+        if row["runner_id"] == "openrouter-clef-flash":
+            source = next(model for model in original["models"] if model["runner_id"] == row["runner_id"])
+            errors = [record for record in source["records"] if record.get("reason") == "http_429"]
+            assert len(errors) >= 2
+            row.update(mode="deferred_unavailable_repeated_http_429", observed_429_stops=len(errors),
+                       new_requests_authorized_by_this_plan=0)
+        elif row["runner_id"] != mercury["runner_id"]:
+            assert row["mode"] == "complete_no_requests"
+    plan.update(experiment="suggestions-v2-independent-mercury-timing", execution_order=[mercury["runner_id"]],
+                total_remaining_bound_usd=mercury["bound_usd"],
+                independent_helper_file_sha256=previous.sha(__file__),
+                execution_output_path=str(OUTPUT.relative_to(ROOT)),
+                clef_policy="No Clef request or probe in this plan; preserve all outcomes and mark remaining slots unavailable.")
+    return plan
+
+
+def execute(plan, output):
+    assert plan == prepare(ROOT / plan["original_report_path"])
+    assert output.resolve() == (ROOT / plan["execution_output_path"]).resolve() and not output.exists()
+    settings = run.read_json(previous.CONFIG)
+    corpus = build_supplement()
+    original = run.read_json(ROOT / plan["original_report_path"])
+    mercury_plan = next(row for row in plan["models"] if row["runner_id"] == "openrouter-mercury")
+    item = next(row for row in settings["runners"] if row["id"] == "openrouter-mercury")
+    ledger_path = ROOT / settings["ledger_path"]
+    assert ledger_path.resolve() == (ROOT / "build/decision-model-evaluation/spend-ledger.json").resolve()
+    def save_ledger(state):
+        temporary = ledger_path.with_suffix(".tmp")
+        run.save_json(temporary, state)
+        temporary.replace(ledger_path)
+    cancelled = threading.Event()
+    with run.experiment_lock(ledger_path):
+        ledger = SpendLedger.from_dict(run.read_json(ledger_path), checkpoint=save_ledger)
+        remaining = _budget(ledger)
+        assert remaining is not None and Decimal(plan["total_remaining_bound_usd"]) <= remaining
+        def checked_factory(config, ledger, cancel_event=None):
+            client = DecisionRunner(config, ledger=ledger, cancel_event=cancel_event)
+            ready = client.preflight()
+            assert ready.get("status") == "ok" and _route(config, ready) == mercury_plan["expected_route"]
+            return client
+        checked_factory(item, ledger, cancelled)
+        output.mkdir(parents=True)
+        captured = []
+        with (output / "new-receipts.jsonl").open("x", encoding="utf-8") as stream:
+            def capture(row):
+                row = {**row, "quality_evaluation": False, "idle_after_ms": 0,
+                       "pacing_stratum": "independent_mercury_unpaced"}
+                captured.append(row)
+                stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+                stream.flush()
+            measured = measure_hosted([item], corpus, [], ledger, runner_factory=checked_factory,
+                                      cancel_event=cancelled, checkpoint=capture)
+        merged = copy.deepcopy(original)
+        mercury = next(row for row in merged["models"] if row["runner_id"] == item["id"])
+        mercury.update(measured["models"][0])
+        mercury.update(records=captured, record_count=len(captured), measurement="measured_openrouter_end_to_end",
+                       measurement_factory="Live DecisionRunner with frozen route validation")
+        normalized = plan_continuation(merged, settings, corpus, [])
+        for row in normalized["models"]:
+            _summarize(row)
+            model = next(value for value in merged["models"] if value["runner_id"] == row["runner_id"])
+            model.update(row)
+            strata = {}
+            for record in row["records"]:
+                if record["phase"] == "warm":
+                    key = (record.get("pacing_stratum", "original_unpaced"), record["language"], record["task"])
+                    strata.setdefault(key, []).append(record)
+            model["pacing_strata"] = [{"stratum": key[0], "language": key[1], "task": key[2], "consumed_slots": len(rows),
+                                       "status_counts": {status: sum(record["status"] == status for record in rows) for status in sorted({record["status"] for record in rows})},
+                                       "successful_request_latency": timing_metrics([record["latency_ms"] for record in rows if record["status"] == "ok" and isinstance(record.get("latency_ms"), (int, float))])}
+                                      for key, rows in sorted(strata.items())]
+            if row["runner_id"] == "openrouter-clef-flash":
+                model.update(status="unavailable_repeated_http_429", availability_reason=plan["clef_policy"],
+                             remaining_slots_unavailable=True, complete_coverage=False)
+                for cell in model["cases"]:
+                    if cell["consumed_slots"] < 30:
+                        cell.update(unavailable_slots=30-cell["consumed_slots"], unmeasured_reason="repeated_http_429_no_new_probe")
+        complete = all(row.get("complete_coverage") for row in merged["models"])
+        mercury_complete = next(row for row in merged["models"] if row["runner_id"] == item["id"])["complete_coverage"]
+        merged.update(continuation_plan_sha256=run.digest(plan), ledger=ledger.snapshot(),
+                      complete_coverage=complete, independent_mercury_scope_complete=mercury_complete,
+                      all_passed=False, status="mercury_complete_clef_unavailable" if mercury_complete else "partial",
+                      quality_evaluation=False, measured_subset_panel=measured["panel"],
+                      clef_policy=plan["clef_policy"], execution_order=plan["execution_order"])
+        run.save_json(output / "report.json", merged)
+        print(json.dumps({"status":merged["status"],"new_records":len(captured),"ledger_unresolved":ledger.unresolved,
+                          "known_billed_usd":str(ledger.spent)}),flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--prepare", action="store_true")
+    mode.add_argument("--execute", action="store_true")
+    parser.add_argument("--frozenPath", "--frozen-path", type=Path)
+    parser.add_argument("--outputPath", "--output-path", type=Path, required=True)
+    args = parser.parse_args()
+    if args.prepare:
+        assert not args.outputPath.exists()
+        plan = prepare()
+        run.save_json(args.outputPath, plan)
+        print(json.dumps({"status":"prepared_no_requests","plan_sha256":run.digest(plan),
+                          "mercury_bound_usd":plan["total_remaining_bound_usd"],"execution_order":plan["execution_order"]}))
+        return
+    if args.frozenPath is None:
+        parser.error("Reviewed, committed --frozenPath required")
+    relative = str(args.frozenPath.resolve().relative_to(ROOT))
+    assert run.git("ls-files","--",relative)and not run.git("status","--porcelain","--",relative,"evaluations/decision-models","core/src")
+    execute(run.read_json(args.frozenPath), args.outputPath)
+
+
+if __name__ == "__main__":
+    main()

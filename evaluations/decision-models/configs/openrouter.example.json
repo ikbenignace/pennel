@@ -1,0 +1,26 @@
+{
+  "enabled": false,
+  "transport": "openrouter",
+  "base_url": "https://openrouter.ai",
+  "api_surface": "decisions",
+  "credential_env": "OPENROUTER_API_KEY",
+  "model": "typesafe/jev-1.14",
+  "expected_returned_model": "typesafe/jev-1.14-20261014",
+  "upstream_tag": "typesafe",
+  "capabilities": ["noul", "choice", "score"],
+  "question_grouping": "one_case_per_request",
+  "max_input_tokens": 32768,
+  "billing_overhead_tokens": 2048,
+  "timeout_seconds": 60,
+  "retries": 0,
+  "max_cost_usd": "2.00",
+  "max_request_cost_usd": "0.10",
+  "privacy": {
+    "processing_region": "global",
+    "data_collection": "deny",
+    "zdr": false,
+    "policy_verified": false,
+    "policy_url": "https://openrouter.ai/typesafe/jev-1.14",
+    "note": "Verify the exact account/route policy before enabling. Global is not an EU processing claim. Jev is currently unavailable through EU in-region routing."
+  }
+}
