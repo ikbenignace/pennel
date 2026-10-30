@@ -6,29 +6,27 @@ from pathlib import PurePosixPath
 import subprocess
 
 
-JOBS = ('core', 'legacy', 'platform', 'app', 'packaging')
+JOBS = ('core', 'platform', 'app', 'packaging')
 
 
 def classify(paths):
     selected = set()
     for path in paths:
         if path.startswith('core/'):
-            selected.update(('core', 'legacy', 'app'))
+            selected.update(('core', 'app'))
         elif path.startswith('apps/desktop/'):
             selected.add('app')
             if path.startswith('apps/desktop/src-tauri/tauri.'):
                 selected.add('packaging')
         elif path.startswith('apps/macos-platform/'):
             selected.update(('platform', 'app'))
-        elif path.startswith('apps/macos/'):
-            selected.add('legacy')
-        elif path.startswith(('apps/mobile/', 'apps/ios/')):
+        elif path.startswith('apps/mobile/'):
             # Their own workflows validate native/mobile inputs; desktop does not consume them.
             continue
         elif path.startswith('assets/locales/'):
-            selected.update(('core', 'legacy', 'app'))
+            selected.update(('core', 'app'))
         elif path.startswith('assets/'):
-            selected.update(('legacy', 'app'))
+            selected.add('app')
         elif path.startswith(('.github/workflows/', '.cargo/', 'scripts/')) or path == 'Makefile':
             selected.update(JOBS)
         elif path.startswith('docs/') or PurePosixPath(path).suffix == '.md' or path in (

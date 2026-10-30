@@ -8,7 +8,7 @@ The [usability and adoption study kit](ux-adoption.md) adds two separate formati
 
 Use the isolated **Pennel Preview** application, not canonical settings, credentials or meeting folders. Record the candidate commit, macOS version, CPU, input/output devices, selected models/providers and artifact SHA-256. Never put dictated text, meeting content, API keys or recovery codes into the checklist or diagnostic logs.
 
-Build with `make desktop-preview`. `scripts/verify-desktop-bundle.py` checks the preview identity and signature without launching it; the preview image helper verifies its disk image. A valid development signature is not production notarization or release certification. Keep the native reference available until the shared packages pass the existing release gates.
+Build with `make desktop-preview`. `scripts/verify-desktop-bundle.py` checks the preview identity and signature without launching it; the preview image helper verifies its disk image. A valid development signature is not production notarization or release certification. The retired native source remains in Git; preserve actual previously installed packages and recovery data when testing upgrades. Retirement does not close the existing release gates.
 
 Automated evidence uses owned temporary databases, synthetic audio/HTTP responses and loopback-only UI fixtures. A fixture screenshot or injected persistence fault is not proof of a real microphone, receiving application, Cloud service, installer or update.
 

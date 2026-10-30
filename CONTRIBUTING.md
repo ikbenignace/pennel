@@ -13,15 +13,17 @@ Thanks for helping. Pennel aims to stay small, fast and private, so a few ground
 - `core/` owns shared product behavior, providers, models, recording, storage and processing.
 - `apps/desktop/` is the Tauri 2 application for macOS, Windows and Linux. Keep its interface and copy consistent across platforms; explain unavailable platform features visibly.
 - `apps/macos-platform/` provides Apple system integrations through an embedded Swift library.
-- `apps/macos/` is the frozen native reference and recovery app. Keep it buildable; add product features to the shared application.
+- `apps/mobile/` is the Expo/React Native application. Keep owned native services, MobileKit, keyboard, widget sources and native tests under `apps/mobile/native/ios/`; generated `ios/` and `android/` projects are not edited or committed.
 
-See [desktop development](docs/desktop.md#build-and-test) for prerequisites, hot reload, previews and platform-specific setup. Shared design assets and writing guidance live in the [brand guide](assets/brand/brand.md).
+The old SwiftUI shells have been retired; their historical source is available in Git. Device, signed-upgrade, keyboard, Cloud and store acceptance remain separate work.
+
+See [desktop development](docs/desktop.md#build-and-test) and [mobile development](docs/mobile.md#build-and-verification) for prerequisites, previews, generation and platform-specific setup. Shared design assets and writing guidance live in the [brand guide](assets/brand/brand.md).
 
 ## Workflow
 
 1. Fork, create a branch from `main`.
 2. Verify the parts your change affects. Add tests for new logic in the shared Rust core, Tauri host, frontend or Swift platform library.
-3. Run the relevant checks below. Keep the native reference working when changing its shared core or bindings.
+3. Run the relevant checks below. Verify every active consumer affected by shared core, bindings or native-service changes.
 4. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:` …).
 5. Open a pull request describing what changed and how you tested it. Include OS version, devices and package revision for audio, permission or installer changes; keep private meeting content and credentials out of reports.
 
@@ -39,12 +41,24 @@ cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- 
 make packaging-test
 ```
 
-On macOS, also check affected Apple integrations and the native reference:
+On macOS, also check affected Apple integrations:
 
 ```sh
 swift test --package-path apps/macos-platform
-make core && make test && make app
 ```
+
+For mobile changes, run the generated-app workflow and preserve preview/production isolation:
+
+```sh
+npm --prefix apps/mobile ci
+make mobile-test
+make mobile-prebuild
+npm --prefix apps/mobile run build:ios
+PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios
+make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=<assigned-simulator-UUID>'
+```
+
+See [mobile verification](docs/mobile.md#build-and-verification) for generation ownership and sequential native-build requirements.
 
 Documentation-only changes need link and rendering checks. UI changes need light/dark app-window captures or owned headless renders. Installed-package and real-device evidence are separate from unit tests and screenshots; use the [pilot checklist](docs/improvement-pilot.md) when recording that evidence.
 
@@ -52,11 +66,13 @@ Documentation-only changes need link and rendering checks. UI changes need light
 
 PR jobs run only for affected components. README and documentation changes run
 lightweight change-selection tests without building apps. Desktop changes build
-the shared app on all three platforms; core changes also test the core and build
-its legacy macOS consumer. macOS platform changes run platform tests and desktop
-builds. Shared assets build both apps; Tauri bundle configuration also runs
-packaging tests. Build scripts, workflows, the Makefile, Cargo configuration, and
-unrecognized inputs conservatively run all checks.
+the shared app on all three platforms; core changes also run default/lean and
+speaker checks and validate the generated mobile consumer. macOS platform changes
+run platform tests and desktop builds. Mobile changes run the generated mobile
+workflow, including native service and keyboard tests. Shared assets validate their
+active consumers; Tauri bundle configuration also runs packaging tests. Build
+scripts, workflows, the Makefile, Cargo configuration, and unrecognized inputs
+conservatively run all checks.
 
 Selection uses the complete merge-base diff, including deleted and renamed files.
 Jobs are skipped within workflows so checks still report a result. Branch pushes

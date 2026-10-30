@@ -1,6 +1,6 @@
 # Redesign acceptance
 
-This record separates deterministic UI evidence from packaged-app and real-device acceptance.
+This record separates deterministic UI evidence from packaged-app and real-device acceptance. The dated native comparisons below predate [shell retirement #75](https://github.com/pennel-app/pennel/issues/75). Their old commands, products and availability statements are historical; the original visual reference remains commit `91775c1` and retained captures. Current reproduction uses the active shared-app tools below.
 
 ## Reproduce the UI fixtures
 
@@ -9,16 +9,22 @@ The shared app runs its production development entry with a local, injected plat
 ```sh
 node --test scripts/fixtures/desktop-platform.test.mjs
 node scripts/capture-desktop-reference.mjs
+scripts/capture-desktop-windows.sh
+```
+
+The desktop capture requires the existing Vite installation and a local Chromium executable. Set `PENNEL_CHROME` or pass `--browser` when its path differs. It creates a temporary browser profile and captures the page through CDP; it never uses the user's browser profile or screen. `--serve` exposes the same fixtures for an existing browser tool. `--case NAME` and `--appearance light|dark` select a smaller matrix.
+
+The removed [native runner](https://github.com/pennel-app/pennel/blob/e6f02b2cd178b541dcbfcdb46125336c762dbf07/scripts/capture-native-reference.sh) compiled the production SwiftUI views in an isolated snapshot module. Its platform replacements were inert, its core data was stored in an owned temporary directory, and a filesystem/network sandbox protected the regular Pennel library, settings, logs and Keychain. Its images came from `NSHostingView.cacheDisplay` on owned offscreen windows. The historical comparison commands were:
+
+```sh
 scripts/capture-native-reference.sh
 node scripts/fixtures/compare.mjs --require-all
 swift scripts/fixtures/compose.swift
 ```
 
-The desktop capture requires the existing Vite installation and a local Chromium executable. Set `PENNEL_CHROME` or pass `--browser` when its path differs. It creates a temporary browser profile and captures the page through CDP; it never uses the user's browser profile or screen. `--serve` exposes the same fixtures for an existing browser tool. `--case NAME` and `--appearance light|dark` select a smaller matrix.
+The [comparison gallery helper](https://github.com/pennel-app/pennel/blob/e6f02b2cd178b541dcbfcdb46125336c762dbf07/scripts/fixtures/compare.mjs) and [composition helper](https://github.com/pennel-app/pennel/blob/e6f02b2cd178b541dcbfcdb46125336c762dbf07/scripts/fixtures/compose.swift) are retained in Git, not the active checkout.
 
-The native runner compiles the production SwiftUI views in an isolated snapshot module. Its platform replacements are inert, its core data is stored in an owned temporary directory, and a filesystem/network sandbox protects the regular Pennel library, settings, logs and Keychain. Images come from `NSHostingView.cacheDisplay` on owned offscreen windows, not a display capture.
-
-Both sets use the same meeting, notes and transcript, a fixed fixture clock where supported, and matching logical sizes: 1040×740 for the workspace and 850×690 for onboarding. Manifests record the actual dimensions, fixture state and capture method.
+The historical native/shared sets used the same meeting, notes and transcript, a fixed fixture clock where supported, and matching logical sizes: 1040×740 for the workspace and 850×690 for onboarding. Manifests record the actual dimensions, fixture state and capture method.
 
 ## Evidence collected
 

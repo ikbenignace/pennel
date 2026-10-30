@@ -1,6 +1,6 @@
 # Expo mobile implementation
 
-Status: Expo development candidate implemented; integration and simulator verification are recorded below. The existing native iPhone application remains the acceptance comparison. Signed-device, upgrade, Cloud deployment and store acceptance remain open.
+Status: Expo is the mobile application UI. The legacy SwiftUI iPhone shell is retired under [cleanup #75](https://github.com/pennel-app/pennel/issues/75); its reusable native services and regression tests now belong to the mobile workspace. Signed-device, upgrade, keyboard, Cloud deployment and store acceptance remain open.
 
 Tracking: [Expo migration #42](https://github.com/pennel-app/pennel/issues/42), [Cloud speaker recognition #38](https://github.com/pennel-app/pennel/issues/38), [keyboard experience #39](https://github.com/pennel-app/pennel/issues/39), [device acceptance #18](https://github.com/pennel-app/pennel/issues/18), and [signing/store readiness #20](https://github.com/pennel-app/pennel/issues/20).
 
@@ -15,17 +15,18 @@ Tracking: [Expo migration #42](https://github.com/pennel-app/pennel/issues/42), 
 
 - iOS uses Expo Router's native system tabs with Liquid Glass on iOS 26+, localized accessibility labels and system appearance. Keep native materials and system tab behavior.
 - Use [Expo Device Hub](mobile-device-hub.md) for simulator interaction, accessibility inspection and app-owned screenshots. It is a pinned development dependency, separate from the application runtime.
-- Desktop remains Tauri. Preserve the native SwiftUI iPhone shell until Expo parity and signed upgrade acceptance are established.
+- Desktop remains Tauri. The user-approved retirement of both SwiftUI shells replaces the old retain-until-acceptance requirement; physical-device and signed-upgrade acceptance still require their own evidence.
 
 ## Native ownership
 
-The mobile workspace owns routes, a local `PennelMobile` Expo module and CNG plugins. Existing reusable iPhone services and the lightweight MobileKit source remain outside generated mobile projects.
+The mobile workspace owns routes, a local `PennelMobile` Expo module and CNG plugins. `apps/mobile/native/ios/` is the canonical home of reusable native code: `Services/`, the `MobileKit/` Swift package, `Keyboard/` (including its guarded feasibility probe), `KeyboardTests/`, native `Widgets/` helpers and hosted `Tests/`. Generated mobile projects contain target membership, not owned source.
 
 | Artifact | Owner |
 | --- | --- |
 | Main application/navigation | Expo/Router; native boot runs before JavaScript |
-| Rust XCFramework and UniFFI Swift bindings | Explicit native preparation, matched core revision, under ignored mobile artifacts |
-| MobileKit | Local static CocoaPod over shared sources; retain Swift Package tests |
+| Rust XCFramework and UniFFI Swift bindings | Explicit native preparation writes matched `PennelCoreFFI.xcframework`, `PennelCore/pennel_core.swift` and `manifest.json` directly under ignored `apps/mobile/artifacts/ios/` |
+| Native app services and tests | `native/ios/Services/` compiles into `PennelMobile`; `native/ios/Tests/` exercises services in the generated hosted runtime target |
+| MobileKit | Local static CocoaPod over `native/ios/MobileKit/Sources/`, including ActivityKit attributes; retain the package's Swift tests |
 | Keyboard target/resources/embedding/tests | Pennel config plugin; helpers only, no Rust/Expo runtime |
 | Widget target | Expo Widgets plugin, followed by Pennel's source/intent/Control Center addon |
 | Permissions, fonts, background tasks and entitlements | App configuration and Pennel plugin |
@@ -42,7 +43,7 @@ PCM, upload bodies, embeddings, refresh tokens and vault keys stay native. Provi
 
 ### Interface inventory
 
-This is the implementation inventory for comparison with the retained native iPhone shell. It records available surfaces; simulator and signed-device results remain separate.
+This inventory records the active Expo surfaces and native ownership. Historical SwiftUI source remains in Git; simulator and signed-device results remain separate.
 
 | Surface | Expo implementation and native ownership |
 | --- | --- |
@@ -106,11 +107,15 @@ make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=<assigned-sim
 
 `mobile-prebuild` prepares matched lean Rust artifacts/bindings, compares clean/non-clean generation, restores a clean generated project, installs pods and checks actual dependency/source/linker ownership. Never place owned sources in `apps/mobile/ios` or `android`. SDK 58's repeated generation command explicitly uses `--no-clean`.
 
-`build:ios` produces an unsigned ARM64 Release candidate in `apps/mobile/build/DerivedData/Build/Products`; it does not create a signed distribution archive. Native hosted tests use a separate Debug build directory and simulator ad-hoc signing. Run these builds sequentially: some Expo pod scripts switch shared precompiled SDK frameworks by configuration.
+`build:ios` produces an unsigned ARM64 Release candidate in `apps/mobile/build/DerivedData/Build/Products`; it does not create a signed distribution archive. Native hosted tests use a separate Debug build directory and simulator ad-hoc signing. `mobile-native-test` runs the generated runtime, migrated native service suites and keyboard tests. `mobile-test` also runs the MobileKit Swift package tests. Run these builds sequentially: some Expo pod scripts switch shared precompiled SDK frameworks by configuration.
 
 CI runs these same three configurations sequentially and publishes phase timing receipts. The [compiler-cache pilot](ci-performance.md) is opt-in through manual workflow inputs; normal pull-request and main checks keep it off. It caches only Xcode compiler outputs outside the generated project, requires an exact compatible seed for warm measurements, and retains all clean/repeated generation, pod ownership and native test gates. The documented build commands above use the same wrapper and forward the original Xcode arguments when the pilot is off.
 
 For development, use `npm start` from `apps/mobile` and an installed development build. `npm run device:hub` also runs without Metro for Release-candidate QA; follow the [assigned-device workflow](mobile-device-hub.md). Default configuration uses preview identifiers and credentials. Production identity requires explicit `PENNEL_VARIANT=production`; its signed in-place upgrade has not been accepted.
+
+## Historical verification receipts
+
+The dated records below preserve the commands and paths used before shell retirement. Removed targets and legacy paths are historical, not current reproduction instructions; use [Build and verification](#build-and-verification) above. The [pre-retirement iOS sources](https://github.com/pennel-app/pennel/tree/e6f02b2cd178b541dcbfcdb46125336c762dbf07/apps/ios) and [Mac sources](https://github.com/pennel-app/pennel/tree/e6f02b2cd178b541dcbfcdb46125336c762dbf07/apps/macos) remain available at the recorded base revision. Counts and outcomes below apply only to their stated candidates.
 
 Local checks on 27–28 October 2026 include mobile typechecking, 42 UI regressions, six plugin checks, seven widget probes, six real pod ownership checks, 61 Swift helper tests, and **21 hosted native runtime plus two keyboard tests**. The hosted suite now executes assertions: it exposed and verified repairs for early ActivityKit initialization during Objective-C framework loading and exact-EOF archive reads. Runtime startup remains in the app launch callback before scene/JavaScript creation.
 
@@ -158,11 +163,11 @@ Matched Rust preparation records core commit `41a13dac1683a94386caba1da4f06a3122
 
 The earlier failing runs are retained locally under ignored `build/mobile`: they led to fixes for CNG source ownership, strict Swift isolation, launch-time ActivityKit deadlock, exact-EOF decoding, stale model selection, note-save/rename recovery and native tab accessibility labels. CI with Xcode 26.6 additionally exposed an ambiguous native upload-task declaration; `1f79730` makes its property reference explicit while preserving strict Swift 6. Local native tests/builds pass again; subsequent remote results remain separately visible in [PR #46](https://github.com/pennel-app/pennel/pull/46). Final passing commands and products above supersede those intermediate candidates.
 
-Signed upgrades, locked-screen controls/JS suspension, actual meeting capture, keyboard cold start and resource measurements, real Dutch/long-recording recognition, deployed Cloud behavior and store acceptance remain open in the linked issues. The native SwiftUI shell remains available; Android remains gated on iPhone acceptance.
+Signed upgrades, locked-screen controls/JS suspension, actual meeting capture, keyboard cold start and resource measurements, real Dutch/long-recording recognition, deployed Cloud behavior and store acceptance remain open in the linked issues. At that time the native SwiftUI shell remained available; it has since been retired. Android remains gated on iPhone acceptance.
 
 ## Inspected local environment — 27 October 2026
 
-Node 22.23.2, npm 12.2.1, CocoaPods 1.16.2, Xcode 27.0, Swift 6.4. Use `scripts/with-toolchain.sh` for Rust/CMake; bare cargo/rustup are absent from the default PATH. Rust 1.99.1 has Apple device/simulator targets installed. Existing native checks are `make ios-core`, `make ios`, `make ios-test`, and `swift test --package-path apps/ios/PennelMobileKit`.
+Node 22.23.2, npm 12.2.1, CocoaPods 1.16.2, Xcode 27.0, Swift 6.4. Use `scripts/with-toolchain.sh` for Rust/CMake; bare cargo/rustup are absent from the default PATH. Rust 1.99.1 has Apple device/simulator targets installed. At that inspection the legacy native checks were `make ios-core`, `make ios`, `make ios-test`, and `swift test --package-path apps/ios/PennelMobileKit`.
 
 Available stock simulators include iPhone 17 on iOS 27 and 26.5; do not repurpose other projects' named QA simulators. No Metro listener was present at inspection. A paired physical iPhone's network tunnel was disconnected; pairing is not connected-device acceptance. Production signing/EAS are not configured. No credentials or physical-device recording were changed by environment inspection.
 

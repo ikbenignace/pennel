@@ -257,9 +257,12 @@ def sign_detached(npx, artifact, version, env):
 
 
 def prepare_sparkle(app, version, output):
-    generator = Path(os.environ.get("PENNEL_SPARKLE_BIN", str(ROOT / "apps" / "macos" / ".build" / "artifacts" / "sparkle" / "Sparkle" / "bin"))) / "generate_appcast"
+    directory = os.environ.get("PENNEL_SPARKLE_BIN")
+    if not directory:
+        raise ValueError("PENNEL_SPARKLE_BIN is required for the legacy upgrade; point it to existing Sparkle tools")
+    generator = Path(directory) / "generate_appcast"
     if not generator.is_file():
-        raise ValueError("Sparkle generate_appcast is required for the legacy upgrade; resolve the native Swift package or set PENNEL_SPARKLE_BIN")
+        raise ValueError("PENNEL_SPARKLE_BIN must contain the existing Sparkle generate_appcast tool")
     archive = output / f"Pennel-{version}.zip"
     run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", app, archive)
     updates = output / "legacy-sparkle"

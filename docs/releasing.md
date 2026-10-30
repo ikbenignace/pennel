@@ -11,45 +11,23 @@ The `release` job in `.github/workflows/desktop.yml` publishes the shared Tauri 
 - **Release certificate.** Stored as the secrets `APPLE_CERTIFICATE` (base64 `.p12`) and `APPLE_CERTIFICATE_PASSWORD` and the variable `APPLE_SIGNING_IDENTITY` (`Pennel Release Signing`); valid until 2046. No copy exists outside GitHub. `scripts/import-mac-signing-cert.sh` imports it into a throwaway keychain on the runner, because Tauri's own `APPLE_CERTIFICATE` import only accepts Apple-issued identities. The bundle inspection fails when the designated requirement differs from `PENNEL_RELEASE_CERT_SHA1` in `desktop.yml`. Runs without the secret (forks) sign ad hoc. Replacing the certificate resets every user's approvals: create it like `scripts/create-dev-cert.sh` does, update the secrets and `PENNEL_RELEASE_CERT_SHA1` together, and say so in the release notes.
 - Main runs queue instead of cancelling each other, so a release is never interrupted halfway.
 
-## Native reference app (frozen)
+## Signed shared candidates and legacy Mac upgrades
 
-Releases of the legacy Swift app were signed with a Developer ID, notarized by Apple, published as a GitHub release and announced to existing installs through [Sparkle](https://sparkle-project.org) (the app checks `https://pennel.app/appcast.xml` once a day and installs signed updates).
+`scripts/desktop-release.py` prepares signed Tauri candidates without publishing or rewriting tracked versions. It requires the existing Tauri updater key/public key and platform signing configuration. Mac candidates also require an existing Developer ID identity, notarization credentials, and a build number greater than the last distributed native or shared build. See [candidate and update artifact gates](linux-packaging.md#candidate-and-update-artifacts).
 
-## One-time setup
+Existing native Mac installs still need their Sparkle-to-Tauri transition. Keep the existing Sparkle signing key in Keychain account `pennel`; `SUPublicEDKey` remains in `apps/desktop/src-tauri/Info.plist`. The shared release helper's `--legacy-sparkle` option creates the replacement app archive and appcast using that existing identity.
 
-1. **Developer ID certificate.** Join the Apple Developer Program, then in Xcode → Settings → Accounts → Manage Certificates add a *Developer ID Application* certificate. Check it with:
-   ```sh
-   security find-identity -v -p codesigning | grep "Developer ID Application"
-   ```
-2. **Notarization credentials** stored in the keychain under the profile name the script uses:
-   ```sh
-   xcrun notarytool store-credentials pennel-notary --apple-id <apple-id> --team-id <TEAMID>
-   ```
-   (uses an app-specific password from appleid.apple.com).
-3. **Sparkle update key.** The EdDSA private key lives in the login keychain (account `pennel`); its public half is `SUPublicEDKey` in `apps/macos/Resources/Info.plist`. Back it up once — losing it means existing installs can no longer verify updates:
-   ```sh
-   apps/macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account pennel -x pennel-sparkle-key.txt
-   ```
-   Store that file in a password manager and delete it from disk.
-
-## Cutting a release
+Set `PENNEL_SPARKLE_BIN` to the directory containing an independently available Sparkle `generate_appcast` executable. The helper requires this explicit path; it no longer resolves tools from the deleted Mac Swift package. For example, after supplying the required existing signing/notarization/updater configuration:
 
 ```sh
-export PENNEL_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-scripts/release.sh 0.2.0
+export PENNEL_SPARKLE_BIN=/absolute/path/to/Sparkle/bin
+python3 scripts/desktop-release.py <version> \
+  --build-number <new-build-number> --previous-build-number <last-distributed-build-number> \
+  --legacy-sparkle
 ```
 
-The script sets the version in `Info.plist` (build number = commit count), builds, signs inside-out (Sparkle helpers first), notarizes and staples both the `.zip` (used by Sparkle) and the `.dmg` (for first downloads), writes `appcast.xml`, and creates a **draft** GitHub release with both files.
+The command prepares artifacts; publication and deployment remain separate. Validate the exact candidate archives, previous-installation upgrade/recovery, signature/identity and appcast before promoting them. Preserve the existing key, bundle identity, credential relationships and migration handling. The retired SwiftUI shell is not needed to generate a transition archive.
 
-Then:
+## Historical native releases
 
-1. Review and publish the draft release on GitHub.
-2. Copy `build/release/<version>/appcast.xml` to the website (`pennel-cloud`, `apps/web/public/appcast.xml`) and deploy.
-3. Commit the version bump in `Info.plist`.
-
-`scripts/release.sh <version> --dry-run` runs everything locally with your development certificate, without notarization or GitHub, to check the pipeline.
-
-## Notes
-
-- GitHub release downloads only work for everyone once the repository is public. Until then, host the `.zip`/`.dmg` on pennel.app and change `download_prefix` in the script.
-- Sparkle adds ~3 MB to the app.
+The old `scripts/release.sh` flow built and published the frozen SwiftUI app and has been removed with [cleanup #75](https://github.com/pennel-app/pennel/issues/75). Its [pre-retirement instructions](https://github.com/pennel-app/pennel/blob/e6f02b2cd178b541dcbfcdb46125336c762dbf07/docs/releasing.md) and [source](https://github.com/pennel-app/pennel/blob/e6f02b2cd178b541dcbfcdb46125336c762dbf07/scripts/release.sh) remain historical records. Current desktop releases use the shared workflows above; source retirement does not establish device, signed-update or release acceptance.
