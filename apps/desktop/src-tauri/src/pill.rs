@@ -1,7 +1,7 @@
 //! The floating status pill: transparent, always on top, click-through, never takes focus,
 //! bottom-center on the screen that holds the mouse.
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
 use pennel_core::DictationPreviewUpdate;
@@ -20,6 +20,16 @@ pub struct PillSnapshot {
     pub state: PillState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview: Option<DictationPreviewUpdate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleanup_verification: Option<pennel_core::CleanupVerificationAvailability>,
+}
+
+#[derive(Clone, Serialize)]
+struct ProcessingSnapshot<'a> {
+    #[serde(flatten)]
+    state: &'a PillState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cleanup_verification: &'a Option<pennel_core::CleanupVerificationAvailability>,
 }
 
 impl Default for PillSnapshot {
@@ -27,16 +37,25 @@ impl Default for PillSnapshot {
         Self {
             state: PillState::Hidden,
             preview: None,
+            cleanup_verification: None,
         }
     }
 }
 
 impl PillSnapshot {
+    fn processing_snapshot(&self) -> ProcessingSnapshot<'_> {
+        ProcessingSnapshot {
+            state: &self.state,
+            cleanup_verification: &self.cleanup_verification,
+        }
+    }
+
     fn set_state(&mut self, state: PillState) -> bool {
         let changed = self.state != state || (state == PillState::Hidden && self.preview.is_some());
         self.state = state;
         if self.state == PillState::Hidden {
             self.preview = None;
+            self.cleanup_verification = None;
         }
         changed
     }
@@ -80,14 +99,21 @@ impl PillSnapshot {
             return false;
         }
         self.preview = None;
+        self.cleanup_verification = None;
         true
     }
 }
 
-pub struct Snapshot(pub Arc<Mutex<PillSnapshot>>);
+pub struct Snapshot {
+    content: Arc<Mutex<PillSnapshot>>,
+    session: Arc<Mutex<Option<Weak<pennel_core::LiveDictationSession>>>>,
+}
 impl Default for Snapshot {
     fn default() -> Self {
-        Self(Arc::new(Mutex::new(PillSnapshot::default())))
+        Self {
+            content: Arc::new(Mutex::new(PillSnapshot::default())),
+            session: Arc::new(Mutex::new(None)),
+        }
     }
 }
 
@@ -97,8 +123,32 @@ pub fn snapshot(app: &AppHandle) -> PillState {
 
 pub fn content_snapshot(app: &AppHandle) -> PillSnapshot {
     app.try_state::<Snapshot>()
-        .map(|state| state.0.lock().unwrap().clone())
+        .map(|state| {
+            let mut content = state.content.lock().unwrap().clone();
+            let session = state
+                .session
+                .lock()
+                .unwrap()
+                .as_ref()
+                .and_then(Weak::upgrade);
+            if content.state != PillState::Hidden
+                && let Some(session) = session.filter(|session| {
+                    content
+                        .preview
+                        .as_ref()
+                        .is_some_and(|preview| preview.session_id == session.id())
+                })
+            {
+                content.cleanup_verification = Some(session.cleanup_verification_availability());
+            }
+            content
+        })
         .unwrap_or_default()
+}
+
+pub fn refresh_verification(app: &AppHandle) {
+    let snapshot = content_snapshot(app);
+    let _ = app.emit("dictation-state", snapshot.processing_snapshot());
 }
 
 #[derive(Deserialize)]
@@ -182,6 +232,34 @@ mod tests {
         assert_eq!(json["preview"]["session_id"], "first");
         assert_eq!(json["preview"]["revision"], 2);
         assert_eq!(json["preview"]["text"], "Een voorlopige zin");
+    }
+
+    #[test]
+    fn frozen_verification_metadata_survives_processing_and_clears_with_its_preview() {
+        let mut content = listening();
+        content.cleanup_verification = Some(pennel_core::CleanupVerificationAvailability {
+            enabled: true,
+            available: false,
+            reason_code: "unqualified".into(),
+            provider_id: Some("frozen-provider".into()),
+            model: Some("frozen-model".into()),
+            endpoint: Some("https://frozen.example/v1/decisions".into()),
+        });
+        content.set_state(PillState::Working);
+        let json = serde_json::to_value(&content).unwrap();
+        assert_eq!(
+            json["cleanup_verification"]["endpoint"],
+            "https://frozen.example/v1/decisions"
+        );
+        assert_eq!(json["cleanup_verification"]["reason_code"], "unqualified");
+        let metadata = serde_json::to_value(content.processing_snapshot()).unwrap();
+        assert!(metadata.get("preview").is_none());
+        assert!(metadata.get("text").is_none());
+        assert_eq!(metadata["state"], "working");
+        assert!(!content.clear_preview(Some("different-session")));
+        assert!(content.cleanup_verification.is_some());
+        assert!(content.clear_preview(Some("first")));
+        assert!(content.cleanup_verification.is_none());
     }
 
     #[test]
@@ -290,15 +368,18 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
 pub struct Pill {
     app: AppHandle,
     content: Arc<Mutex<PillSnapshot>>,
+    session: Arc<Mutex<Option<Weak<pennel_core::LiveDictationSession>>>>,
     last_level: Mutex<Instant>,
 }
 
 impl Pill {
     pub fn new(app: AppHandle) -> Self {
-        let content = app.state::<Snapshot>().0.clone();
+        let content = app.state::<Snapshot>().content.clone();
+        let session = app.state::<Snapshot>().session.clone();
         Self {
             app,
             content,
+            session,
             last_level: Mutex::new(Instant::now()),
         }
     }
@@ -310,7 +391,26 @@ impl Pill {
             if !content.set_state(state.clone()) {
                 return;
             }
-            let _ = self.app.emit("dictation-state", &state);
+            if state != PillState::Hidden {
+                let session = self
+                    .session
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .and_then(Weak::upgrade);
+                if let Some(session) = session.filter(|session| {
+                    content
+                        .preview
+                        .as_ref()
+                        .is_some_and(|preview| preview.session_id == session.id())
+                }) {
+                    content.cleanup_verification =
+                        Some(session.cleanup_verification_availability());
+                }
+            }
+            let _ = self
+                .app
+                .emit("dictation-state", content.processing_snapshot());
             let _ = self.app.emit_to(LABEL, "pill-state", &*content);
             if state == PillState::Hidden {
                 self.emit_preview(&content);
@@ -320,10 +420,19 @@ impl Pill {
         self.sync_visibility(was_hidden);
     }
 
-    pub fn begin_preview(&self, id: impl Into<String>) {
+    pub fn begin_preview(
+        &self,
+        id: impl Into<String>,
+        session: &Arc<pennel_core::LiveDictationSession>,
+    ) {
         let mut content = self.content.lock().unwrap();
         if content.begin_preview(id.into()) {
+            content.cleanup_verification = Some(session.cleanup_verification_availability());
+            *self.session.lock().unwrap() = Some(Arc::downgrade(session));
             self.emit_preview(&content);
+            let _ = self
+                .app
+                .emit("dictation-state", content.processing_snapshot());
         }
     }
 

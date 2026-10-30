@@ -1,0 +1,666 @@
+{
+  "artifacts_sha256": {
+    "frozen-manifest.json": "93098066ef01ebc8c11712f2d479592c206142a0ee761afc4dbf8200d3b3deaa",
+    "quality.json": "585f93b6667a50c5f7392ab0f9504dfa3d0c5248c75c3e7d73bb0de2ef356dc0",
+    "report.md": "4213f21e4e21b4960ca542161671097dbaafb876d24cc4219c83e0e1aa323129",
+    "timing.json": "80322b99c0d51afa87ecdc4fa7f95eaf6d8ef0f25e62353c3cc7909f44ad0d46"
+  },
+  "candidate_commit": "b4347e4479dd5944591962aebef2eeb62ef5f6ad",
+  "candidate_tree": "c4a998324f4885caecbbabae2aae2e91c1f5dc39",
+  "concurrent_load": "uncontrolled",
+  "control_calls": {
+    "generation_calls": 24,
+    "verification_calls": 15
+  },
+  "desktop_preview": {
+    "app_launched": false,
+    "bundle": {
+      "architectures": [
+        "arm64"
+      ],
+      "executable_bytes": 34783360,
+      "executable_path": "apps/desktop/src-tauri/target/release/bundle/macos/Pennel Preview.app/Contents/MacOS/pennel",
+      "executable_sha256": "38989f7efc5b5d681803e6c0b48ba90ffbd5da16790a82cd0257e36337043c0b",
+      "identifier": "dev.pennel.Pennel.preview",
+      "manifest_method": "Sorted regular-file relative UTF-8 path + NUL + raw SHA-256; symlinks excluded.",
+      "path": "apps/desktop/src-tauri/target/release/bundle/macos/Pennel Preview.app",
+      "regular_file_bytes": 34952396,
+      "regular_file_count": 6,
+      "regular_file_manifest_sha256": "747700006f99b83fb1d46c44197a76e72154bc8075f8ed80cb067d6d861e045a"
+    },
+    "candidate_revision": "b4347e4479dd5944591962aebef2eeb62ef5f6ad",
+    "command": "scripts/build-desktop-preview.sh",
+    "device_acceptance": false,
+    "disk_image": {
+      "bytes": 14908235,
+      "integrity_valid": true,
+      "path": "build/Pennel Preview.dmg",
+      "sha256": "36b9a2f7616f5035b86b913a9f63898e3f4825ee9faec18fb4c80fcf3a1297b2"
+    },
+    "log": "build/cleanup-fidelity/checks/desktop-preview-package-numeric.log",
+    "permission_prompts_requested": false,
+    "production_deployment": false,
+    "signature": {
+      "developer_id": false,
+      "existing_selected_certificate_matches": true,
+      "valid": true
+    }
+  },
+  "environment": {
+    "machine": "arm64",
+    "python": "3.14.2",
+    "release": "27.0.0",
+    "system": "Darwin"
+  },
+  "evidence": "Synthetic fixtures and actual offline mock requests; no production model qualification.",
+  "excluded_warmup_calls": {
+    "generation_calls": 6,
+    "verification_calls": 3
+  },
+  "fixture_sha256": "58472711682e991a9fe6094f033b242aae7255a5dfade60f63e38907a2a77e03",
+  "languages": {
+    "en": {
+      "added_cpu_latency_ms": {
+        "p50_ms": 0.1276245,
+        "p95_ms": 0.2113896,
+        "samples": 360
+      },
+      "added_mock_verifier_latency_ms": {
+        "p50_ms": 1.6744165,
+        "p95_ms": 1.8710626499999998,
+        "samples": 30
+      },
+      "control_abstention": {
+        "denominator": 9,
+        "numerator": 5
+      },
+      "deterministic_guard": {
+        "abstention": {
+          "denominator": 84,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "benign_rejection": {
+          "denominator": 36,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "harmful_acceptance": {
+          "denominator": 48,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "reason_counts": {
+          "preserved": 36,
+          "unsupported_content_change": 48
+        }
+      },
+      "historical_overlap": {
+        "abstention": {
+          "denominator": 84,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "benign_rejection": {
+          "denominator": 36,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "harmful_acceptance": {
+          "denominator": 48,
+          "numerator": 48,
+          "rate": 1.0
+        },
+        "reason_counts": {
+          "legacy_accepted": 84
+        }
+      },
+      "mock_timing_calls": {
+        "baseline_generation": 30,
+        "baseline_verification": 0,
+        "candidate_generation": 30,
+        "candidate_verification": 30
+      }
+    },
+    "mixed": {
+      "added_cpu_latency_ms": {
+        "p50_ms": 0.110625,
+        "p95_ms": 0.1840431,
+        "samples": 360
+      },
+      "added_mock_verifier_latency_ms": {
+        "p50_ms": 1.6461875,
+        "p95_ms": 2.9901068499999965,
+        "samples": 30
+      },
+      "control_abstention": {
+        "denominator": 9,
+        "numerator": 5
+      },
+      "deterministic_guard": {
+        "abstention": {
+          "denominator": 84,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "benign_rejection": {
+          "denominator": 36,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "harmful_acceptance": {
+          "denominator": 48,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "reason_counts": {
+          "preserved": 36,
+          "unsupported_content_change": 48
+        }
+      },
+      "historical_overlap": {
+        "abstention": {
+          "denominator": 84,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "benign_rejection": {
+          "denominator": 36,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "harmful_acceptance": {
+          "denominator": 48,
+          "numerator": 42,
+          "rate": 0.875
+        },
+        "reason_counts": {
+          "legacy_accepted": 78,
+          "legacy_rejected": 6
+        }
+      },
+      "mock_timing_calls": {
+        "baseline_generation": 30,
+        "baseline_verification": 0,
+        "candidate_generation": 30,
+        "candidate_verification": 30
+      }
+    },
+    "nl": {
+      "added_cpu_latency_ms": {
+        "p50_ms": 0.1168125,
+        "p95_ms": 0.2283024,
+        "samples": 360
+      },
+      "added_mock_verifier_latency_ms": {
+        "p50_ms": 1.660167,
+        "p95_ms": 3.5250607499999953,
+        "samples": 30
+      },
+      "control_abstention": {
+        "denominator": 9,
+        "numerator": 5
+      },
+      "deterministic_guard": {
+        "abstention": {
+          "denominator": 84,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "benign_rejection": {
+          "denominator": 36,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "harmful_acceptance": {
+          "denominator": 48,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "reason_counts": {
+          "preserved": 36,
+          "unsupported_content_change": 48
+        }
+      },
+      "historical_overlap": {
+        "abstention": {
+          "denominator": 84,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "benign_rejection": {
+          "denominator": 36,
+          "numerator": 0,
+          "rate": 0.0
+        },
+        "harmful_acceptance": {
+          "denominator": 48,
+          "numerator": 42,
+          "rate": 0.875
+        },
+        "reason_counts": {
+          "legacy_accepted": 78,
+          "legacy_rejected": 6
+        }
+      },
+      "mock_timing_calls": {
+        "baseline_generation": 30,
+        "baseline_verification": 0,
+        "candidate_generation": 30,
+        "candidate_verification": 30
+      }
+    }
+  },
+  "local_checks": {
+    "core_default_ignored": 7,
+    "core_default_passed": 681,
+    "core_lean_ignored": 5,
+    "core_lean_passed": 670,
+    "desktop_backend_passed": 216,
+    "desktop_capture_languages": [
+      "en",
+      "nl"
+    ],
+    "desktop_capture_themes": [
+      "light",
+      "dark"
+    ],
+    "desktop_captures": 8,
+    "desktop_fixture_passed": 23,
+    "desktop_frontend_passed": 217,
+    "language_policy_passed": 2,
+    "mac_swift_passed": 53,
+    "mobile_helpers_passed": 64,
+    "mobile_ui_passed": 65,
+    "numeric_refinement": "b4347e4479dd5944591962aebef2eeb62ef5f6ad protects leading decimals, spaced numeric punctuation, unit case and numeric-leading identifiers",
+    "packaging_python_passed": 39,
+    "post_core_change": "016f376eae7ffefad34da011fca68374f966a637 changes only desktop loopback display validation and its tests"
+  },
+  "measured_timing_calls": {
+    "baseline_generation": 90,
+    "baseline_verification": 0,
+    "candidate_generation": 90,
+    "candidate_verification": 90
+  },
+  "mobile": {
+    "artifacts": {
+      "binding_manifest": {
+        "bindings_sha256": "810dce899a507c46d9a2e333a1fdf1e743c8b57780779dadc960d8cdf2256576",
+        "core_sha256": "9cbde627fbfca589412875bbff5c8bf5569fcb4d4c2650ec5033f3b09e9eaf07",
+        "features": [],
+        "revision": "b4347e4479dd5944591962aebef2eeb62ef5f6ad",
+        "schema": 1,
+        "targets": [
+          "aarch64-apple-ios",
+          "aarch64-apple-ios-sim"
+        ]
+      },
+      "native_candidate": "b4347e4479dd5944591962aebef2eeb62ef5f6ad",
+      "products": {
+        "iphoneos": {
+          "bundle_id": "app.pennel.ios.preview",
+          "bytes": 71115186,
+          "executable_sha256": "5a0b52baef7ef71d2835d5ddd59ebe7fbf35198f5ded5b719cf28fedc1e04d27",
+          "file_manifest_sha256": "b2bbef17b2ae59fe4d79fa05671340943f32858f7a697e8ae4858ad0c266b7e2",
+          "files": 183,
+          "jsbundle_sha256": "1b9155abc8d2d93c33e6e9b6252947feeb374b8844eb33b39f988959a8980e46",
+          "path": "apps/mobile/build/DerivedData/Build/Products/Release-iphoneos/Pennel.app"
+        },
+        "iphonesimulator": {
+          "bundle_id": "app.pennel.ios.preview",
+          "bytes": 71487762,
+          "executable_sha256": "40cba33a7b4e97ad625892bb4d0cb5379077fd8e05fc421fd9805fc15370fb83",
+          "file_manifest_sha256": "a37bd796a23ac6f4d64301f3d97913ccf57a644ff8fae1747cda61ae8d4415c4",
+          "files": 214,
+          "jsbundle_sha256": "ec1fceab2c6bff4245b08e4a0edea37bccdf36c3332792f73b02cef0c4ec3492",
+          "path": "apps/mobile/build/DerivedData/Build/Products/Release-iphonesimulator/Pennel.app"
+        }
+      }
+    },
+    "checks": {
+      "commands": [
+        {
+          "command": "make mobile-core",
+          "log": "mobile-core-numeric.log",
+          "result": "passed"
+        },
+        {
+          "command": "npm --prefix apps/mobile run build:ios",
+          "log": "mobile-ios-simulator-numeric.log",
+          "result": "passed"
+        },
+        {
+          "command": "PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios",
+          "log": "mobile-ios-device-numeric.log",
+          "result": "passed"
+        },
+        {
+          "command": "make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0-F1F19690D2E4'",
+          "keyboard_tests": 2,
+          "log": "mobile-native-test-numeric.log",
+          "result": "passed",
+          "runtime_tests": 33
+        },
+        {
+          "app_tests": 67,
+          "command": "make ios-test IOS_DESTINATION='platform=iOS Simulator,id=64C462E2-0904-4E38-98C0-F1F19690D2E4'",
+          "helper_tests": 64,
+          "keyboard_tests": 2,
+          "log": "mobile-ios-comparison-test-numeric.log",
+          "result": "passed"
+        }
+      ],
+      "environment": {
+        "sdk": "iOS 27.0",
+        "simulator": "iPhone 17 / iOS 26.5",
+        "simulator_id": "64C462E2-0904-4E38-98C0-F1F19690D2E4",
+        "xcode": "27.0 (27A266a)"
+      },
+      "head_at_verification": "b4347e4479dd5944591962aebef2eeb62ef5f6ad",
+      "model_downloads": 0,
+      "native_source_commit": "b4347e4479dd5944591962aebef2eeb62ef5f6ad",
+      "new_native_scenarios": [
+        "saved enablement versus qualification through native facade",
+        "shared cleanup admission across suspended/nested settings and credential mutations",
+        "frozen recorder preference after settings mutation",
+        "keyboard runner frozen at recording start and cancelled before recognition",
+        "retained runner freezes verification before recognition"
+      ],
+      "paid_provider_calls": 0,
+      "prebuild_graph_note": "Clean/repeated generation and six pod ownership checks passed before the Rust-only numeric fix; native configuration and source graph are unchanged.",
+      "prebuild_graph_source_commit": "5fb37469c90e804186920d8c3937747c317b0fed",
+      "remaining_gates": [
+        "production semantic model/language qualification",
+        "physical iPhone and signed upgrade",
+        "keyboard cold start/background lifecycle on physical device",
+        "Cloud deployment",
+        "App Review"
+      ],
+      "source_repairs": []
+    },
+    "ui": {
+      "application": "Expo/React Native preview",
+      "bundle_id": "app.pennel.ios.preview",
+      "captures": [
+        {
+          "appearance": "dark",
+          "language": "en",
+          "path": "build/mobile/qa/device-hub/cleanup-verification-expo-en.png",
+          "sha256": "a1ef839d967fc342ce51e6da50411f8d8ddb1bfbe18df164d631f70e1aaeceb7"
+        },
+        {
+          "appearance": "dark",
+          "language": "nl",
+          "path": "build/mobile/qa/device-hub/cleanup-verification-expo-nl.png",
+          "sha256": "e02dc8ccd8d38c09930bee217210e39201e83dc6c83a0424b4d3ccc1a4e26d60"
+        }
+      ],
+      "checks": [
+        "EN/NL control title, saved-disabled preference, qualification reason, configured destination and raw fallback visually reviewed",
+        "Disabled switch remained off after tap; saved setting checked false",
+        "Interface language restored to en; original appearance/mode/verification preference verified"
+      ],
+      "inference_actions_requested": 0,
+      "native_source_commit": "5fb37469c90e804186920d8c3937747c317b0fed",
+      "refreshed_native_source_commit": "b4347e4479dd5944591962aebef2eeb62ef5f6ad",
+      "refreshed_simulator_executable_sha256": "40cba33a7b4e97ad625892bb4d0cb5379077fd8e05fc421fd9805fc15370fb83",
+      "scope": "EN/NL captures cover the unchanged Expo JavaScript; the Rust-only numeric refinement is validated through refreshed core/native tests and installed product hashes.",
+      "simulator": "iPhone 17 / iOS 26.5",
+      "simulator_id": "64C462E2-0904-4E38-98C0-F1F19690D2E4",
+      "unchanged_jsbundle_sha256": "ec1fceab2c6bff4245b08e4a0edea37bccdf36c3332792f73b02cef0c4ec3492"
+    }
+  },
+  "mock_controls": [
+    {
+      "elapsed_ms": 1.7164579999999998,
+      "generation_calls": 1,
+      "id": "disabled",
+      "language": "en",
+      "outcome": "accepted",
+      "reason_code": "accepted",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 0.008624999999999999,
+      "generation_calls": 0,
+      "id": "unqualified",
+      "language": "en",
+      "outcome": "raw",
+      "reason_code": "unqualified",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.6942500000000003,
+      "generation_calls": 1,
+      "id": "accepted",
+      "language": "en",
+      "outcome": "accepted",
+      "reason_code": "accepted",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 1.637125,
+      "generation_calls": 1,
+      "id": "guard_rejected",
+      "language": "en",
+      "outcome": "raw",
+      "reason_code": "unsupported_content_change",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.028292,
+      "generation_calls": 1,
+      "id": "changed",
+      "language": "en",
+      "outcome": "raw",
+      "reason_code": "verification_rejected",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 3.2026250000000003,
+      "generation_calls": 1,
+      "id": "abstained",
+      "language": "en",
+      "outcome": "raw",
+      "reason_code": "verification_abstained",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 5.103375000000001,
+      "generation_calls": 1,
+      "id": "mutation_during_generation",
+      "language": "en",
+      "outcome": "raw",
+      "reason_code": "cancelled",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.579208,
+      "generation_calls": 1,
+      "id": "mutation_during_verification",
+      "language": "en",
+      "outcome": "raw",
+      "reason_code": "configuration_changed",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 3000.116625,
+      "generation_calls": 1,
+      "id": "timeout",
+      "language": "en",
+      "outcome": "raw",
+      "reason_code": "deadline_exceeded",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 465.43816599999997,
+      "generation_calls": 1,
+      "id": "disabled",
+      "language": "nl",
+      "outcome": "accepted",
+      "reason_code": "accepted",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 0.010292,
+      "generation_calls": 0,
+      "id": "unqualified",
+      "language": "nl",
+      "outcome": "raw",
+      "reason_code": "unqualified",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.163916,
+      "generation_calls": 1,
+      "id": "accepted",
+      "language": "nl",
+      "outcome": "accepted",
+      "reason_code": "accepted",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 1.513833,
+      "generation_calls": 1,
+      "id": "guard_rejected",
+      "language": "nl",
+      "outcome": "raw",
+      "reason_code": "unsupported_content_change",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.475375,
+      "generation_calls": 1,
+      "id": "changed",
+      "language": "nl",
+      "outcome": "raw",
+      "reason_code": "verification_rejected",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 3.503791,
+      "generation_calls": 1,
+      "id": "abstained",
+      "language": "nl",
+      "outcome": "raw",
+      "reason_code": "verification_abstained",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 5.0592500000000005,
+      "generation_calls": 1,
+      "id": "mutation_during_generation",
+      "language": "nl",
+      "outcome": "raw",
+      "reason_code": "cancelled",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.302416,
+      "generation_calls": 1,
+      "id": "mutation_during_verification",
+      "language": "nl",
+      "outcome": "raw",
+      "reason_code": "configuration_changed",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 3002.134709,
+      "generation_calls": 1,
+      "id": "timeout",
+      "language": "nl",
+      "outcome": "raw",
+      "reason_code": "deadline_exceeded",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 395.47775,
+      "generation_calls": 1,
+      "id": "disabled",
+      "language": "mixed",
+      "outcome": "accepted",
+      "reason_code": "accepted",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 0.009415999999999999,
+      "generation_calls": 0,
+      "id": "unqualified",
+      "language": "mixed",
+      "outcome": "raw",
+      "reason_code": "unqualified",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.282417,
+      "generation_calls": 1,
+      "id": "accepted",
+      "language": "mixed",
+      "outcome": "accepted",
+      "reason_code": "accepted",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 1.78525,
+      "generation_calls": 1,
+      "id": "guard_rejected",
+      "language": "mixed",
+      "outcome": "raw",
+      "reason_code": "unsupported_content_change",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.366458,
+      "generation_calls": 1,
+      "id": "changed",
+      "language": "mixed",
+      "outcome": "raw",
+      "reason_code": "verification_rejected",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 3.1927499999999998,
+      "generation_calls": 1,
+      "id": "abstained",
+      "language": "mixed",
+      "outcome": "raw",
+      "reason_code": "verification_abstained",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 25.985500000000002,
+      "generation_calls": 1,
+      "id": "mutation_during_generation",
+      "language": "mixed",
+      "outcome": "raw",
+      "reason_code": "cancelled",
+      "verification_calls": 0
+    },
+    {
+      "elapsed_ms": 3.217625,
+      "generation_calls": 1,
+      "id": "mutation_during_verification",
+      "language": "mixed",
+      "outcome": "raw",
+      "reason_code": "configuration_changed",
+      "verification_calls": 1
+    },
+    {
+      "elapsed_ms": 3002.148666,
+      "generation_calls": 1,
+      "id": "timeout",
+      "language": "mixed",
+      "outcome": "raw",
+      "reason_code": "deadline_exceeded",
+      "verification_calls": 1
+    }
+  ],
+  "profile": "cargo test debug, unoptimized",
+  "schema": 1,
+  "unmeasured": [
+    "live semantic accuracy and qualification",
+    "live added stop-to-result latency",
+    "physical-device acceptance",
+    "installed Windows/Linux workflows"
+  ]
+}

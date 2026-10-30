@@ -147,6 +147,10 @@ Meeting answers can open the exact transcript, summary or personal-note passage 
 
 ### Optional decision and passage-ranking connections
 
+Cleaned-up dictation uses conservative ordered-content safeguards before accepting generated text. Changed values, negation, question intent, language or unsupported wording retain the original dictation through the existing History and delivery workflow. Dictionary spelling permits clear case/accent/spacing correspondence rather than guessed names. See [cleanup fidelity and offline evidence](cleanup-fidelity.md) for the supported normalization limits.
+
+Dictation settings expose **Verify cleanup meaning**, independently from the optional Decision processing connection. It starts off and remains unavailable until the exact pipeline and content-language policy are qualified. No production model is qualified in this version; a connection sample does not enable verification. The settings explain saved enablement and the configured destination, while active sessions retain their original destination. Requested but unavailable verification keeps raw text, with no retry or alternate provider.
+
 Advanced Models settings expose **Decision processing** and **Passage ranking**. Both
 start disabled, including on existing profiles. They reuse explicitly selected OpenRouter
 or Custom server accounts and their OS-stored keys. Custom accounts can have an optional

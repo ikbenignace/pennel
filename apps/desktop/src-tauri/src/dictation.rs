@@ -111,9 +111,9 @@ fn notice_for_cleanup_destination(cleanup: &CleanupStatus, available: bool) -> O
         ),
         CleanupStatus::Rejected => Some(
             if available {
-                "The model answered instead of cleaning up — original text available"
+                "Cleanup could not preserve the wording and meaning — original text available"
             } else {
-                "The model answered instead of cleaning up — original text pasted"
+                "Cleanup could not preserve the wording and meaning — original text pasted"
             }
             .into(),
         ),
@@ -171,7 +171,7 @@ fn describe(cleanup: &CleanupStatus) -> String {
     match cleanup {
         CleanupStatus::Applied => "applied".into(),
         CleanupStatus::Skipped => "skipped (fast mode)".into(),
-        CleanupStatus::Rejected => "rejected (model answered instead of cleaning up)".into(),
+        CleanupStatus::Rejected => "rejected".into(),
         CleanupStatus::Failed { .. } => "failed".into(),
     }
 }
@@ -1204,7 +1204,10 @@ impl Controller {
             self.status.mark_command();
         }
         self.render();
-        self.pill.begin_preview(preview_id);
+        self.pill.begin_preview(preview_id, &session);
+        if let Some(capture) = &self.recording_owned {
+            owned_dictation::verification(&self.app, capture, &session);
+        }
 
         #[cfg(target_os = "macos")]
         let apple_preview = {
@@ -1954,7 +1957,7 @@ mod tests {
             ),
             (
                 CleanupStatus::Rejected,
-                "The model answered instead of cleaning up — original text available",
+                "Cleanup could not preserve the wording and meaning — original text available",
             ),
         ] {
             assert_eq!(

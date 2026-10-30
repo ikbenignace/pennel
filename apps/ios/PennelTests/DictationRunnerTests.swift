@@ -27,6 +27,19 @@ private func tone(seconds: Double) -> [Float] {
 }
 
 struct DictationRunnerTests {
+    @Test func runner_freezes_cleanup_verification_before_recognition() throws {
+        let engine = try tempEngine()
+        let runner = DictationRunner(engine: engine, keys: { ApiKeys(byProvider: [:]) })
+        #expect(runner.cleanupVerificationAvailability()?.enabled == false)
+        var settings = engine.settings()
+        settings.cleanupVerificationEnabled = true
+        try engine.updateSettings(settings: settings)
+        #expect(engine.cleanupVerificationAvailability().enabled)
+        #expect(runner.cleanupVerificationAvailability()?.enabled == false)
+        runner.cancel()
+        #expect(try engine.history(limit: 10).isEmpty)
+    }
+
     @Test func runner_passes_16k_and_no_bundle_id() async throws {
         let engine = try tempEngine()
         let fake = FakeTranscriber()

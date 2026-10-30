@@ -664,5 +664,9 @@
   "backend.inference_request_failed": "The inference request could not be completed.",
   "backend.inference_request_unique": "Use a short, unique request identifier.",
   "backend.inference_request_running": "This request is already running.",
-  "backend.inference_request_wait": "Wait for another model request to finish."
+  "backend.inference_request_wait": "Wait for another model request to finish.",
+  "backend.cleanup_meaning_rejected_available": "Cleanup could not preserve the wording and meaning — original text available",
+  "backend.cleanup_meaning_rejected_pasted": "Cleanup could not preserve the wording and meaning — original text pasted",
+  "backend.cleanup_verification_failed_raw_retained": "Cleanup could not be verified. The original dictation was kept.",
+  "backend.cleanup_processing_failed_raw_retained": "Cleanup processing failed. The original dictation was kept."
 }

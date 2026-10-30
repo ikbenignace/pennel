@@ -566,6 +566,14 @@ fn run_cancelled<T: Send + 'static>(
     operation: impl FnOnce(std::time::Instant) -> Result<T, PennelError> + Send + 'static,
 ) -> Result<T, PennelError> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.into());
+    run_cancelled_before(cancellation, deadline, operation)
+}
+
+pub(crate) fn run_cancelled_before<T: Send + 'static>(
+    cancellation: Arc<InferenceCancellation>,
+    deadline: std::time::Instant,
+    operation: impl FnOnce(std::time::Instant) -> Result<T, PennelError> + Send + 'static,
+) -> Result<T, PennelError> {
     loop {
         if cancellation.is_cancelled() {
             return Err(PennelError::Cancelled);
@@ -581,7 +589,11 @@ fn run_cancelled<T: Send + 'static>(
         {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(
+            deadline
+                .saturating_duration_since(std::time::Instant::now())
+                .min(std::time::Duration::from_millis(20)),
+        );
     }
     let permit = WorkerPermit;
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
@@ -605,10 +617,16 @@ fn run_cancelled<T: Send + 'static>(
         if std::time::Instant::now() >= deadline {
             return Err(network());
         }
-        match receiver.recv_timeout(std::time::Duration::from_millis(20)) {
+        match receiver.recv_timeout(
+            deadline
+                .saturating_duration_since(std::time::Instant::now())
+                .min(std::time::Duration::from_millis(20)),
+        ) {
             Ok(result) => {
                 return if cancellation.is_cancelled() {
                     Err(PennelError::Cancelled)
+                } else if std::time::Instant::now() >= deadline {
+                    Err(network())
                 } else {
                     result
                 };
@@ -993,6 +1011,27 @@ pub(crate) fn decide(
     request: DecisionRequest,
     cancellation: Arc<InferenceCancellation>,
 ) -> Result<DecisionResult, PennelError> {
+    decide_before(
+        config,
+        base_url,
+        key,
+        request,
+        cancellation,
+        std::time::Instant::now() + std::time::Duration::from_secs(config.timeout_secs.into()),
+    )
+}
+
+pub(crate) fn decide_before(
+    config: &InferenceConfig,
+    base_url: &str,
+    key: Option<&str>,
+    request: DecisionRequest,
+    cancellation: Arc<InferenceCancellation>,
+    deadline: std::time::Instant,
+) -> Result<DecisionResult, PennelError> {
+    let deadline = deadline.min(
+        std::time::Instant::now() + std::time::Duration::from_secs(config.timeout_secs.into()),
+    );
     if cancellation.is_cancelled() {
         return Err(PennelError::Cancelled);
     }
@@ -1009,7 +1048,7 @@ pub(crate) fn decide(
     }
     let config = config.clone();
     let key = key.map(str::to_owned);
-    run_cancelled(cancellation, config.timeout_secs, move |deadline| {
+    run_cancelled_before(cancellation, deadline, move |deadline| {
         let response = send_json(&endpoint, key.as_deref(), Some(&body), deadline)?;
         let answers = response["answers"]
             .as_object()

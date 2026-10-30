@@ -29,6 +29,7 @@ struct Job {
 #[must_use = "Keep this guard alive until the connection update and publication finish"]
 pub(crate) struct JobMutation {
     owner: Arc<Jobs>,
+    core_mutation: Option<Arc<pennel_core::InferenceMutation>>,
 }
 
 impl Jobs {
@@ -82,6 +83,7 @@ impl Jobs {
         }
         JobMutation {
             owner: self.clone(),
+            core_mutation: None,
         }
     }
 }
@@ -101,6 +103,9 @@ impl Drop for Job {
 
 impl Drop for JobMutation {
     fn drop(&mut self) {
+        if let Some(core_mutation) = self.core_mutation.take() {
+            core_mutation.release();
+        }
         self.owner.0.lock().unwrap().mutation_depth -= 1;
     }
 }
@@ -110,8 +115,10 @@ fn jobs() -> &'static Arc<Jobs> {
     JOBS.get_or_init(|| Arc::new(Jobs::default()))
 }
 
-pub(crate) fn mutation() -> JobMutation {
-    jobs().mutation()
+pub(crate) fn mutation(engine: &Arc<pennel_core::PennelEngine>) -> JobMutation {
+    let mut guard = jobs().mutation();
+    guard.core_mutation = Some(engine.begin_inference_mutation());
+    guard
 }
 
 fn error(value: impl std::fmt::Display) -> String {
@@ -143,6 +150,13 @@ pub fn inference_availability(
     capability: InferenceCapability,
 ) -> InferenceAvailability {
     shared.engine.inference_availability(capability)
+}
+
+#[tauri::command]
+pub fn cleanup_verification_availability(
+    shared: State<'_, Arc<Shared>>,
+) -> pennel_core::CleanupVerificationAvailability {
+    shared.engine.cleanup_verification_availability()
 }
 
 #[tauri::command]
@@ -201,6 +215,62 @@ pub fn cancel_inference(request_id: String) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct NoPreview;
+    impl pennel_core::DictationPreviewObserver for NoPreview {
+        fn changed(&self, _update: pennel_core::DictationPreviewUpdate) {}
+    }
+
+    #[test]
+    fn native_credential_mutations_invalidate_recording_verification_without_changing_destination()
+    {
+        let root = tempfile::tempdir().unwrap();
+        let shared = Shared::testing(root.path().to_path_buf());
+        let mut settings = shared.settings();
+        settings.mode = pennel_core::DictationMode::Clean;
+        settings.cleanup_verification_enabled = true;
+        let mut provider = pennel_core::new_account(
+            pennel_core::ProviderKind::Custom,
+            settings.providers.clone(),
+        );
+        provider.base_url = "https://frozen.example/v1".into();
+        let mut connection = pennel_core::new_inference_config(
+            provider.id.clone(),
+            pennel_core::InferenceProtocol::Mercury,
+        );
+        connection.model = "synthetic-verifier".into();
+        settings.providers.push(provider.clone());
+        settings.decision = Some(connection);
+        shared.engine.update_settings(settings).unwrap();
+        let session = shared
+            .engine
+            .clone()
+            .begin_dictation_session(Arc::new(NoPreview), false);
+        let frozen = session.cleanup_verification_availability();
+        assert_eq!(frozen.reason_code, "unqualified");
+        {
+            let _mutation = mutation(&shared.engine);
+            shared
+                .secrets
+                .set(&provider.id, "synthetic-replacement-key")
+                .unwrap();
+            let during = shared.engine.cleanup_verification_availability();
+            assert!(!during.available);
+            assert_ne!(during.reason_code, "unqualified");
+        }
+        let invalidated = session.cleanup_verification_availability();
+        assert_eq!(invalidated.reason_code, "configuration_changed");
+        assert_eq!(invalidated.endpoint, frozen.endpoint);
+        assert_eq!(invalidated.provider_id, frozen.provider_id);
+        assert_eq!(
+            shared
+                .engine
+                .cleanup_verification_availability()
+                .reason_code,
+            "unqualified"
+        );
+        session.cancel();
+    }
 
     #[test]
     fn jobs_are_bounded_cancelled_and_release_their_owned_slots() {

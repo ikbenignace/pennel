@@ -1,5 +1,6 @@
-import type { ModelChoice, ProviderAccount, Settings } from "./api";
+import type { CleanupVerificationAvailability, ModelChoice, ProviderAccount, Settings } from "./api";
 import { t } from "./i18n.ts";
+import { cleanupVerificationStage } from "./cleanup-verification-state.ts";
 
 export type ProcessingTask = "dictation" | "meeting";
 export interface ProcessingStage { label: string; destination: string }
@@ -23,10 +24,13 @@ export function choiceDestination(settings: Settings, choice: ModelChoice): stri
   return providerDestination(settings.providers.find((account) => account.id === choice.provider_id));
 }
 
-export function processingSummary(settings: Settings, task: ProcessingTask): ProcessingStage[] {
-  return [
+export function processingSummary(settings: Settings, task: ProcessingTask, verification?: CleanupVerificationAvailability | null, frozen = false): ProcessingStage[] {
+  const stages = [
     { label: t("dictation.processing.audio"), destination: choiceDestination(settings, task === "meeting" ? settings.meeting_stt : settings.dictation_stt) },
     { label: task === "meeting" ? t("dictation.processing.summary_questions") : t("dictation.processing.text"), destination: task === "dictation" && settings.mode === "fast"
       ? t("dictation.processing.fast") : choiceDestination(settings, settings.llm) },
   ];
+  const stage = task === "dictation" ? cleanupVerificationStage(settings, verification, frozen) : null;
+  if (stage) stages.push(stage);
+  return stages;
 }

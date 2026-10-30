@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
@@ -36,6 +36,7 @@ pub struct DictationSessionSnapshot {
     pub target_name: Option<String>,
     pub external_paste_available: bool,
     pub external_paste_reason: Option<String>,
+    pub cleanup_verification: Option<pennel_core::CleanupVerificationAvailability>,
 }
 
 impl DictationSessionSnapshot {
@@ -53,6 +54,17 @@ struct Session {
     live: Arc<AtomicBool>,
     capture: Option<Arc<AtomicBool>>,
     external: Vec<ExternalTarget>,
+    verification_session: Option<Weak<pennel_core::LiveDictationSession>>,
+}
+
+impl Session {
+    fn snapshot(&self) -> DictationSessionSnapshot {
+        let mut snapshot = self.snapshot.clone();
+        if let Some(session) = self.verification_session.as_ref().and_then(Weak::upgrade) {
+            snapshot.cleanup_verification = Some(session.cleanup_verification_availability());
+        }
+        snapshot
+    }
 }
 
 #[derive(Default)]
@@ -89,7 +101,7 @@ fn update(app: &AppHandle, id: &str, change: impl FnOnce(&mut DictationSessionSn
         entries.get_mut(id).map(|session| {
             session.metadata_query = session.metadata_query.wrapping_add(1);
             change(&mut session.snapshot);
-            (session.owner.clone(), session.snapshot.clone())
+            (session.owner.clone(), session.snapshot())
         })
     };
     if let Some((owner, snapshot)) = updated {
@@ -231,6 +243,48 @@ pub fn phase(app: &AppHandle, capture: &OwnedCapture, phase: SessionPhase) {
             snapshot.phase = phase;
             snapshot.error = None;
         });
+    }
+}
+
+pub fn verification(
+    app: &AppHandle,
+    capture: &OwnedCapture,
+    source: &Arc<pennel_core::LiveDictationSession>,
+) {
+    if capture.valid() {
+        let updated = {
+            let sessions = app.state::<Sessions>();
+            let mut entries = sessions.entries.lock().unwrap();
+            entries.get_mut(&capture.id).map(|session| {
+                session.verification_session = Some(Arc::downgrade(source));
+                session.snapshot.cleanup_verification =
+                    Some(source.cleanup_verification_availability());
+                (session.owner.clone(), session.snapshot())
+            })
+        };
+        if let Some((owner, snapshot)) = updated {
+            emit(app, &owner, &snapshot);
+        }
+    }
+}
+
+pub fn refresh_verification(app: &AppHandle) {
+    let snapshots: Vec<_> = app
+        .state::<Sessions>()
+        .entries
+        .lock()
+        .unwrap()
+        .values()
+        .filter(|session| {
+            matches!(
+                session.snapshot.phase,
+                SessionPhase::Listening | SessionPhase::Working
+            )
+        })
+        .map(|session| (session.owner.clone(), session.snapshot()))
+        .collect();
+    for (owner, snapshot) in snapshots {
+        emit(app, &owner, &snapshot);
     }
 }
 
@@ -530,7 +584,7 @@ pub fn refresh_idle_pads(app: &AppHandle, shared: &Shared) {
                             .into(),
                     );
                 }
-                (session.owner.clone(), session.snapshot.clone())
+                (session.owner.clone(), session.snapshot())
             })
             .collect()
     };
@@ -646,7 +700,7 @@ fn sync_pad_snapshots(sessions: &Sessions, text: &str) -> Vec<(String, Dictation
                 session.snapshot.phase = SessionPhase::Idle;
                 session.snapshot.error = None;
             }
-            (session.owner.clone(), session.snapshot.clone())
+            (session.owner.clone(), session.snapshot())
         })
         .collect()
 }
@@ -677,6 +731,7 @@ pub fn open_dictation_session(
             .unwrap()
             .is_some();
     let snapshot = DictationSessionSnapshot {
+        cleanup_verification: None,
         session_id: id.clone(),
         kind,
         phase: if kind == SessionKind::Pad && shared.dictation_jobs.load(Ordering::SeqCst) > 0 {
@@ -710,6 +765,7 @@ pub fn open_dictation_session(
             live: Arc::new(AtomicBool::new(true)),
             capture: None,
             external: Vec::new(),
+            verification_session: None,
         },
     );
     Ok(snapshot.localized())
@@ -729,7 +785,7 @@ pub fn get_dictation_session(
             .filter(|session| session.owner == window.label())
             .ok_or("This dictation session is closed")?;
         let Some(query) = begin_target_refresh(session) else {
-            return Ok(session.snapshot.clone().localized());
+            return Ok(session.snapshot().localized());
         };
         query
     };
@@ -742,7 +798,7 @@ pub fn get_dictation_session(
         .filter(|session| session.owner == window.label())
         .ok_or("This dictation session is closed")?;
     apply_target_refresh(session, query, target_name, availability);
-    Ok(session.snapshot.clone().localized())
+    Ok(session.snapshot().localized())
 }
 
 fn idle_pad(session: &Session) -> bool {
@@ -873,6 +929,7 @@ mod tests {
     fn localization_changes_owned_messages_but_never_dictated_text_or_app_names() {
         let content = "Geef Pennel toegang tot de microfoon.";
         let snapshot = DictationSessionSnapshot {
+            cleanup_verification: None,
             session_id: "synthetic-owned-session".into(),
             kind: SessionKind::Pad,
             phase: SessionPhase::Error,
@@ -991,6 +1048,14 @@ mod tests {
     #[test]
     fn session_contract_has_no_arbitrary_process_or_credential_fields() {
         let snapshot = DictationSessionSnapshot {
+            cleanup_verification: Some(pennel_core::CleanupVerificationAvailability {
+                enabled: false,
+                available: false,
+                reason_code: "unqualified".into(),
+                provider_id: Some("synthetic-provider".into()),
+                model: Some("synthetic-model".into()),
+                endpoint: Some("https://synthetic.example/v1/decisions".into()),
+            }),
             session_id: "example".into(),
             kind: SessionKind::Practice,
             phase: SessionPhase::Done,
@@ -1005,7 +1070,44 @@ mod tests {
         assert_eq!(value["phase"], "done");
         assert!(value.get("pid").is_none());
         assert!(value.get("keys").is_none());
-        assert_eq!(value.as_object().unwrap().len(), 8);
+        let fields: std::collections::BTreeSet<_> = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            fields,
+            std::collections::BTreeSet::from([
+                "session_id",
+                "kind",
+                "phase",
+                "text",
+                "error",
+                "target_name",
+                "external_paste_available",
+                "external_paste_reason",
+                "cleanup_verification",
+            ])
+        );
+        let verification = value["cleanup_verification"].as_object().unwrap();
+        let fields: std::collections::BTreeSet<_> =
+            verification.keys().map(String::as_str).collect();
+        assert_eq!(
+            fields,
+            std::collections::BTreeSet::from([
+                "enabled",
+                "available",
+                "reason_code",
+                "provider_id",
+                "model",
+                "endpoint"
+            ])
+        );
+        assert_eq!(
+            verification["endpoint"],
+            "https://synthetic.example/v1/decisions"
+        );
     }
 
     #[test]
@@ -1034,6 +1136,7 @@ mod tests {
                 owner: "dictation".into(),
                 metadata_query: 0,
                 snapshot: DictationSessionSnapshot {
+                    cleanup_verification: None,
                     session_id: "pad".into(),
                     kind: SessionKind::Pad,
                     phase: SessionPhase::Idle,
@@ -1046,6 +1149,7 @@ mod tests {
                 live: Arc::new(AtomicBool::new(true)),
                 capture: None,
                 external: Vec::new(),
+                verification_session: None,
             },
         );
         let updates = sync_pad_snapshots(&sessions, "handmatige wijziging");
@@ -1060,6 +1164,7 @@ mod tests {
         Session {
             owner: "dictation".into(),
             snapshot: DictationSessionSnapshot {
+                cleanup_verification: None,
                 session_id: "pad-metadata".into(),
                 kind,
                 phase,
@@ -1073,6 +1178,7 @@ mod tests {
             live: Arc::new(AtomicBool::new(true)),
             capture: None,
             external: Vec::new(),
+            verification_session: None,
         }
     }
 

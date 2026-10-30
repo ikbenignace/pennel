@@ -159,6 +159,7 @@ pub struct AppInfo {
     settings: Settings,
     keys: HashMap<String, bool>,
     provider_revisions: HashMap<String, u64>,
+    cleanup_verification: pennel_core::CleanupVerificationAvailability,
     active_model_downloads: Vec<String>,
     unsaved_history_count: u32,
     kinds: Vec<KindInfo>,
@@ -213,6 +214,7 @@ pub(crate) fn info(shared: &Shared) -> Result<AppInfo> {
             .iter()
             .map(|provider| (provider.id.clone(), shared.secrets.revision()))
             .collect(),
+        cleanup_verification: shared.engine.cleanup_verification_availability(),
         active_model_downloads: shared.engine.active_model_downloads(),
         unsaved_history_count: shared.engine.unsaved_history_count(),
         settings,
@@ -257,7 +259,7 @@ pub async fn save_settings(
 }
 
 fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> Result<AppInfo> {
-    let _inference_mutation = crate::inference::mutation();
+    let _inference_mutation = crate::inference::mutation(&shared.engine);
     let old_settings = shared.settings();
     crate::cloud::keep_stored_cloud_sync(&mut settings, &old_settings);
     if shared.preview && old_settings.meetings_dir != settings.meetings_dir {
@@ -300,11 +302,22 @@ fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> R
         crate::owned_dictation::invalidate_external(app);
     }
     let _ = app.emit("settings-changed", ());
+    drop(_inference_mutation);
+    refresh_cleanup_verification(app);
     info(shared)
 }
 
+fn refresh_cleanup_verification(app: &AppHandle) {
+    crate::pill::refresh_verification(app);
+    crate::owned_dictation::refresh_verification(app);
+}
+
 #[tauri::command]
-pub async fn add_provider(kind: ProviderKind, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
+pub async fn add_provider(
+    kind: ProviderKind,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<AppInfo> {
     let shared = shared.inner().clone();
     blocking(move || {
         let executable = if kind.is_cli_agent() {
@@ -315,7 +328,7 @@ pub async fn add_provider(kind: ProviderKind, shared: State<'_, Arc<Shared>>) ->
         } else {
             None
         };
-        let _inference_mutation = crate::inference::mutation();
+        let _inference_mutation = crate::inference::mutation(&shared.engine);
         let mut settings = shared.settings();
         let mut account = pennel_core::new_account(kind, settings.providers.clone());
         if let Some(path) = executable {
@@ -323,20 +336,28 @@ pub async fn add_provider(kind: ProviderKind, shared: State<'_, Arc<Shared>>) ->
         }
         settings.providers.push(account);
         shared.engine.update_settings(settings).map_err(err)?;
+        drop(_inference_mutation);
+        refresh_cleanup_verification(&app);
         info(&shared)
     })
     .await
 }
 
 #[tauri::command]
-pub async fn remove_provider(id: String, shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
+pub async fn remove_provider(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<AppInfo> {
     let shared = shared.inner().clone();
     off_main("remove_provider", move || {
-        let _inference_mutation = crate::inference::mutation();
+        let _inference_mutation = crate::inference::mutation(&shared.engine);
         let mut settings = shared.settings();
         settings.providers.retain(|p| p.id != id);
         shared.engine.update_settings(settings).map_err(err)?;
         let _ = shared.secrets.set(&id, "");
+        drop(_inference_mutation);
+        refresh_cleanup_verification(&app);
         info(&shared)
     })
     .await
@@ -351,9 +372,11 @@ pub async fn set_key(
 ) -> Result<AppInfo> {
     let shared = shared.inner().clone();
     off_main("set_key", move || {
-        let _inference_mutation = crate::inference::mutation();
+        let _inference_mutation = crate::inference::mutation(&shared.engine);
         shared.secrets.set(&account, &key)?;
         let _ = app.emit("settings-changed", ());
+        drop(_inference_mutation);
+        refresh_cleanup_verification(&app);
         info(&shared)
     })
     .await

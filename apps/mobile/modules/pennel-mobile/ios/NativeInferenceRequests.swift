@@ -11,6 +11,9 @@ final class NativeInferenceRequests {
 
     private var active: [String: Ticket] = [:]
     private var mutationDepth = 0
+    private let engine: PennelEngine?
+
+    init(engine: PennelEngine? = nil) { self.engine = engine }
 
     func begin(id: String, fingerprint: String) throws -> Ticket {
         guard !id.isEmpty, id.utf8.count <= 96,
@@ -35,14 +38,16 @@ final class NativeInferenceRequests {
 
     func changingCredentials<T>(_ mutation: () throws -> T) rethrows -> T {
         mutationDepth += 1
-        defer { mutationDepth -= 1 }
+        let coreMutation = engine?.beginInferenceMutation()
+        defer { coreMutation?.release(); mutationDepth -= 1 }
         cancelAll()
         return try mutation()
     }
 
     func changingConfiguration<T>(_ mutation: @MainActor () async throws -> T) async rethrows -> T {
         mutationDepth += 1
-        defer { mutationDepth -= 1 }
+        let coreMutation = engine?.beginInferenceMutation()
+        defer { coreMutation?.release(); mutationDepth -= 1 }
         cancelAll()
         return try await mutation()
     }

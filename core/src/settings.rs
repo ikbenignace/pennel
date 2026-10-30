@@ -143,6 +143,8 @@ pub struct Settings {
     pub decision: Option<crate::InferenceConfig>,
     #[serde(default)]
     pub reranking: Option<crate::InferenceConfig>,
+    #[serde(default)]
+    pub cleanup_verification_enabled: bool,
     pub mode: DictationMode,
     pub language: Option<String>,
     #[serde(default)]
@@ -235,6 +237,7 @@ pub fn default_settings() -> Settings {
         llm: choice(&groq, ProviderTask::Llm),
         decision: None,
         reranking: None,
+        cleanup_verification_enabled: false,
         providers: vec![groq, local],
         mode: DictationMode::Fast,
         language: None,

@@ -11,6 +11,7 @@ final class NativeDictationRecorder {
     private(set) var error: String?
     private(set) var errorCode: String?
     var level: Float { buffer.level }
+    var cleanupVerification: CleanupVerificationAvailability? { ownedSession?.cleanupVerificationAvailability() }
     var changed: (() -> Void)?
 
     private let engine: PennelEngine

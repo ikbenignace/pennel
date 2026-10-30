@@ -30,6 +30,7 @@ final class DictationSession {
     private(set) var expiresAt: Date?
     private(set) var startError: String?
     private(set) var startErrorCode: String?
+    var cleanupVerificationAvailability: CleanupVerificationAvailability? { processingRunner?.cleanupVerificationAvailability() }
 
     @ObservationIgnored private let capture: AudioCapturing
     @ObservationIgnored private let audioSession: AudioSessionControlling
@@ -209,6 +210,7 @@ final class DictationSession {
         switch command.action {
         case .start:
             guard phase == .ready else { return }
+            processingRunner = runner()
             // The meeting hears the same microphone: it goes silent before the dictation starts keeping samples.
             if let meeting = meeting(), meeting.isActive {
                 meeting.setDictating(true)
@@ -222,9 +224,9 @@ final class DictationSession {
             guard phase == .listening || phase == .processing else { return }
             if phase == .processing {
                 generation += 1
-                processingRunner?.cancel()
-                processingRunner = nil
             }
+            processingRunner?.cancel()
+            processingRunner = nil
             _ = gate.close()
             endMeetingDictation()
             stopLevel()
@@ -243,6 +245,17 @@ final class DictationSession {
     }
 
     private func finish(_ command: HandoffCommand) async {
+        guard let processing = processingRunner else {
+            _ = gate.close()
+            endMeetingDictation()
+            stopLevel()
+            phase = .ready
+            answerMissedStart(command)
+            extendClock()
+            publish(at: now())
+            activity.update(activityState)
+            return
+        }
         let samples = gate.close()
         endMeetingDictation()
         stopLevel()
@@ -252,8 +265,6 @@ final class DictationSession {
 
         let generation = generation
         let started = now()
-        let processing = runner()
-        processingRunner = processing
         let outcome = await processing.run(samples: samples)
         guard generation == self.generation, phase == .processing else { return }
         processingRunner = nil

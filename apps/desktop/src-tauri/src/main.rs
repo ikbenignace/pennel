@@ -1131,6 +1131,7 @@ fn main() {
             commands::test_provider_task,
             inference::inference_protocols,
             inference::inference_availability,
+            inference::cleanup_verification_availability,
             inference::inference_decide,
             inference::inference_rerank,
             inference::verify_inference,

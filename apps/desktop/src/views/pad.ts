@@ -1,5 +1,5 @@
 import { bindLocalization, l, t, localizeBackendText } from "../i18n.ts";
-import { api, type DictationSessionSnapshot, type SetupReadiness } from "../api";
+import { api, listen, type DictationSessionSnapshot, type PillState, type SetupReadiness } from "../api";
 import { SerialQueue } from "../async";
 import { controlButton, errorText, h } from "../dom";
 import { OwnedDictationSession } from "../dictation-session";
@@ -10,6 +10,7 @@ import { hotkeyLabel } from "../presentation";
 import { shortcutAccessHint } from "../pad-shortcut-state";
 import { processingSummary } from "../processing-state";
 import { processingLabel } from "../recording-processing";
+import { cleanupVerificationCurrent } from "../cleanup-verification-state.ts";
 
 const draft = new PadDraftState();
 const saves = new SerialQueue();
@@ -44,7 +45,8 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   const shortcutKey = h("kbd", {}, hotkeyLabel(ctx.info.settings.hotkey, ctx.info.platform));
   const shortcutInstruction = h("span", {}, l("dictation.pad.shortcut_help"));
   const processing = h("p", { class: "help processing-path" });
-  const refreshProcessing = () => { processing.textContent = t("dictation.pad.next_processing", { path: processingLabel(processingSummary(ctx.info.settings, "dictation")) }); };
+  const currentVerification = h("p", { class: "help", role: "status", hidden: true });
+  const refreshProcessing = () => { processing.textContent = t("dictation.pad.next_processing", { path: processingLabel(processingSummary(ctx.info.settings, "dictation", ctx.info.cleanup_verification)) }); };
   refreshProcessing();
 
   const flush = async () => {
@@ -62,6 +64,8 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   const apply = (snapshot: DictationSessionSnapshot) => {
     if (!mounted) return;
     const busy = snapshot.phase === "listening" || snapshot.phase === "working";
+    currentVerification.hidden = !busy || !snapshot.cleanup_verification;
+    currentVerification.textContent = snapshot.cleanup_verification ? cleanupVerificationCurrent(snapshot.cleanup_verification) : "";
     if (!busy && !transition) navigationNotice = false;
     back.disabled = busy;
     textarea.disabled = busy;
@@ -137,7 +141,7 @@ export async function padView(ctx: Context): Promise<HTMLElement> {
   ctx.onVisibilityChange((visible) => { if (visible) void restoreSession().catch(showError); });
   const root = h("div", { class: "pad-workspace" }, back, setup,
     h("div", { class: "page-heading" }, h("div", {}, h("h1", {}, l("dictation.pad.title")), h("p", { class: "muted" }, l("dictation.pad.intro"))), start),
-    h("div", { class: "shortcut-instruction" }, shortcutKey, shortcutInstruction), shortcutHelp, processing,
+    h("div", { class: "shortcut-instruction" }, shortcutKey, shortcutInstruction), shortcutHelp, processing, currentVerification,
     textarea, h("div", { class: "row pad-actions" }, copy, cancel, h("span", { class: "grow" }),
       h("button", { class: "text-button", onclick: () => ctx.navigate("dictation") }, icon("settings"), l("dictation.pad.settings"))), status, target);
   bindLocalization(root, () => {
@@ -168,6 +172,13 @@ function dictationHome(ctx: Context): HTMLElement {
     finally { practice.disabled = false; }
   } }, icon("mic"), l("dictation.home.try_here"));
   const processing = h("p", { class: "help processing-path" });
+  const currentVerification = h("p", { class: "help", role: "status", hidden: true });
+  let activeDictation: PillState | null = null;
+  const updateVerification = () => {
+    const active = activeDictation && !["hidden", "error"].includes(activeDictation.state);
+    currentVerification.hidden = !active || !activeDictation?.cleanup_verification;
+    currentVerification.textContent = activeDictation?.cleanup_verification ? cleanupVerificationCurrent(activeDictation.cleanup_verification) : "";
+  };
   const root = h("div", { class: "pad-workspace dictation-home" },
     h("h1", {}, l("dictation.home.title")),
     introduction,
@@ -175,16 +186,23 @@ function dictationHome(ctx: Context): HTMLElement {
     readiness, detail, repair,
     h("div", { class: "dictation-home-actions row" }, practice,
       h("button", { class: "text-button dictation-home-settings", onclick: () => ctx.navigate("dictation") }, l("dictation.pad.settings"))),
-    h("p", { class: "help" }, l("dictation.home.practice_help")), processing,
+    h("p", { class: "help" }, l("dictation.home.practice_help")), processing, currentVerification,
     h("div", { class: "dictation-pad-option" }, h("button", { class: "text-button", onclick: () => ctx.navigate("dictation-pad") }, l("dictation.home.open_pad")),
       h("p", { class: "help" }, l("dictation.home.pad_help"))));
   let disposed = false;
   let revision = 0;
   ctx.onDispose(() => { disposed = true; });
+  void listen<PillState>("dictation-state", (event) => {
+    if (!disposed) { activeDictation = event.payload; updateVerification(); }
+  }).then((unlisten) => { if (disposed) unlisten(); else ctx.onDispose(unlisten); }).catch(ctx.report);
+  void api.dictationState().then((value) => {
+    if (!disposed) { activeDictation = value; updateVerification(); }
+  }).catch(ctx.report);
   const refresh = async () => {
     const mine = ++revision;
     key.textContent = hotkeyLabel(ctx.info.settings.hotkey, ctx.info.platform);
-    processing.textContent = t("dictation.pad.next_processing", { path: processingLabel(processingSummary(ctx.info.settings, "dictation")) });
+    processing.textContent = t("dictation.pad.next_processing", { path: processingLabel(processingSummary(ctx.info.settings, "dictation", ctx.info.cleanup_verification)) });
+    updateVerification();
     try {
       const ready = await api.onboardingReadiness("dictation_pad");
       if (disposed || mine !== revision) return;

@@ -664,5 +664,9 @@
   "backend.inference_request_failed": "De verwerkingsaanvraag kon niet worden afgerond.",
   "backend.inference_request_unique": "Gebruik een kort, uniek aanvraagnummer.",
   "backend.inference_request_running": "Deze aanvraag loopt al.",
-  "backend.inference_request_wait": "Wacht tot een andere modelaanvraag klaar is."
+  "backend.inference_request_wait": "Wacht tot een andere modelaanvraag klaar is.",
+  "backend.cleanup_meaning_rejected_available": "Opschonen kon de bewoording en betekenis niet behouden — oorspronkelijke tekst beschikbaar",
+  "backend.cleanup_meaning_rejected_pasted": "Opschonen kon de bewoording en betekenis niet behouden — oorspronkelijke tekst geplakt",
+  "backend.cleanup_verification_failed_raw_retained": "De opschoning kon niet worden gecontroleerd. Het oorspronkelijke dictaat is behouden.",
+  "backend.cleanup_processing_failed_raw_retained": "Opschonen is mislukt. Het oorspronkelijke dictaat is behouden."
 }

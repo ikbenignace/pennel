@@ -67,6 +67,8 @@
   {"name":"settings-models","window":"settings","section":"settings","tab":"models"},
   {"name":"settings-models-mixed","window":"settings","section":"settings","tab":"models","configured_text_provider":true,"mode":"clean"},
   {"name":"settings-dictation","window":"settings","section":"settings","tab":"dictation"},
+  {"name":"cleanup-verification-unqualified","window":"settings","section":"settings","tab":"dictation","mode":"clean","cleanup_connection":true,"steps":[{"eval":"import('/tests/cleanup-verification.interactions.mjs').then(module => module.checkCleanupVerification())"}]},
+  {"name":"cleanup-verification-saved-enabled","window":"settings","section":"settings","tab":"dictation","mode":"clean","cleanup_connection":true,"cleanup_verification_enabled":true,"steps":[{"eval":"import('/tests/cleanup-verification.interactions.mjs').then(module => module.checkCleanupVerification())"}]},
   {"name":"settings-meetings","window":"settings","section":"settings","tab":"meeting-settings"},
   {"name":"english-template-editor","window":"settings","section":"settings","tab":"meeting-settings","steps":[{"eval":"import('/tests/english-defaults.interactions.mjs').then(module => module.checkEnglishTemplateDefaults())"}]},
   {"name":"english-model-metadata","window":"settings","section":"settings","tab":"providers","steps":[{"eval":"import('/tests/english-defaults.interactions.mjs').then(module => module.checkEnglishModelMetadata())"}]},

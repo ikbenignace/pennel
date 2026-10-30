@@ -4,7 +4,7 @@ use std::sync::{Arc, Condvar, Mutex, OnceLock, RwLock, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::cleanup::{
-    accept_cleanup, cleanup_messages, cleanup_timeout_secs, resolve_style, strip_wrapping,
+    assess_cleanup, cleanup_messages, cleanup_timeout_secs, resolve_style, strip_wrapping,
 };
 use crate::cloud::account::{CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart, Session};
 use crate::cloud::crypto::{self, VaultKey};
@@ -83,7 +83,13 @@ pub struct DictationResult {
 pub struct PennelEngine {
     settings_path: PathBuf,
     settings: RwLock<Settings>,
-    inference_requests: Mutex<Vec<Weak<crate::InferenceCancellation>>>,
+    pub(crate) inference_requests: Arc<Mutex<crate::inference_engine::InferenceState>>,
+    #[cfg(test)]
+    pub(crate) cleanup_qualification: Mutex<Option<crate::cleanup_verification::Qualification>>,
+    #[cfg(test)]
+    pub(crate) cleanup_reason_codes: Mutex<Vec<String>>,
+    #[cfg(test)]
+    pub(crate) cleanup_language_evidence: Mutex<Option<String>>,
     history: Mutex<HistoryStore>,
     unsaved_history: Mutex<RecoveryState>,
     dictation_pad: Mutex<DictationPad>,
@@ -1538,22 +1544,34 @@ impl PennelEngine {
 }
 
 impl PennelEngine {
+    pub(crate) fn inference_capture_gate(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.meeting_gate.lock().unwrap()
+    }
+
     pub(crate) fn register_inference(&self, cancellation: &Arc<crate::InferenceCancellation>) {
         let _gate = self.meeting_gate.lock().unwrap();
         let mut requests = self.inference_requests.lock().unwrap();
-        requests.retain(|request| request.strong_count() > 0);
-        requests.push(Arc::downgrade(cancellation));
+        requests
+            .requests
+            .retain(|request| request.strong_count() > 0);
+        if requests.mutation_depth > 0 {
+            cancellation.cancel();
+        }
+        requests.requests.push(Arc::downgrade(cancellation));
     }
 
     pub(crate) fn finish_inference(&self, cancellation: &Arc<crate::InferenceCancellation>) {
         let reference = Arc::downgrade(cancellation);
         let mut requests = self.inference_requests.lock().unwrap();
-        requests.retain(|request| request.strong_count() > 0);
+        requests
+            .requests
+            .retain(|request| request.strong_count() > 0);
         if let Some(index) = requests
+            .requests
             .iter()
             .position(|request| request.ptr_eq(&reference))
         {
-            requests.swap_remove(index);
+            requests.requests.swap_remove(index);
         }
     }
 
@@ -1599,9 +1617,10 @@ impl PennelEngine {
         if current.decision != settings.decision
             || current.reranking != settings.reranking
             || current.providers != settings.providers
+            || current.cleanup_verification_enabled != settings.cleanup_verification_enabled
         {
             // Invalidate queued requests before their captured destination can be used.
-            for request in self.inference_requests.lock().unwrap().iter() {
+            for request in &self.inference_requests.lock().unwrap().requests {
                 if let Some(cancellation) = request.upgrade() {
                     cancellation.cancel();
                 }
@@ -1885,7 +1904,15 @@ impl PennelEngine {
         let engine = Arc::new(Self {
             settings_path,
             settings: RwLock::new(settings),
-            inference_requests: Mutex::new(Vec::new()),
+            inference_requests: Arc::new(Mutex::new(
+                crate::inference_engine::InferenceState::default(),
+            )),
+            #[cfg(test)]
+            cleanup_qualification: Mutex::new(None),
+            #[cfg(test)]
+            cleanup_reason_codes: Mutex::new(Vec::new()),
+            #[cfg(test)]
+            cleanup_language_evidence: Mutex::new(None),
             history: Mutex::new(history),
             unsaved_history: Mutex::new(RecoveryState::default()),
             dictation_pad: Mutex::new(dictation_pad),
@@ -2026,6 +2053,13 @@ impl PennelEngine {
         keys: &ApiKeys,
         progress: Option<&LiveDictationSession>,
     ) -> Result<Transcript, PennelError> {
+        let frozen = progress.map(LiveDictationSession::cleanup_verification);
+        let captured = frozen.is_none().then(|| {
+            crate::cleanup_verification::FrozenCleanupVerification::capture(self, settings)
+        });
+        let verification = frozen
+            .or(captured.as_ref())
+            .expect("captured cleanup context");
         let raw = self.stt(settings, &settings.dictation_stt, wav, keys)?;
         if is_hallucination(&raw) {
             return Err(PennelError::NoSpeech);
@@ -2035,7 +2069,7 @@ impl PennelEngine {
         }
         let (text, cleanup) = match settings.mode {
             DictationMode::Fast => (raw.clone(), CleanupStatus::Skipped),
-            DictationMode::Clean => clean(self, settings, &raw, app, keys),
+            DictationMode::Clean => clean(self, settings, &raw, app, keys, verification),
         };
         Ok(Transcript { raw, text, cleanup })
     }
@@ -2058,6 +2092,75 @@ impl PennelEngine {
             return system_llm::complete(model.as_deref(), messages, timeout_secs);
         }
         crate::llm::chat_complete_within(provider, key, messages, timeout_secs, reasoning)
+    }
+
+    fn record_cleanup_reason(
+        &self,
+        reason: &str,
+        elapsed: std::time::Duration,
+        raw_chars: usize,
+        output_chars: usize,
+    ) {
+        eprintln!(
+            "cleanup reason={reason} elapsed_ms={} raw_chars={raw_chars} output_chars={output_chars}",
+            elapsed.as_millis()
+        );
+        #[cfg(test)]
+        self.cleanup_reason_codes
+            .lock()
+            .unwrap()
+            .push(reason.into());
+    }
+
+    fn complete_cleanup(
+        &self,
+        provider: ProviderConfig,
+        key: Option<String>,
+        messages: Vec<crate::llm::ChatMessage>,
+        deadline: std::time::Instant,
+        cancellation: Arc<crate::InferenceCancellation>,
+    ) -> Result<String, PennelError> {
+        if !supports(provider.kind, ProviderTask::Llm) {
+            return Err(PennelError::InvalidResponse {
+                message: "This provider does not support text processing.".into(),
+            });
+        }
+        let system = self.system_llm.read().unwrap().clone();
+        let cloud = (provider.kind == ProviderKind::PennelCloud)
+            .then(|| self.cloud_session())
+            .transpose()?;
+        crate::inference::run_cancelled_before(cancellation, deadline, move |deadline| {
+            let key = match cloud {
+                Some(session) => Some(session.access_token()?),
+                None => key,
+            };
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                return Err(PennelError::Network {
+                    message: "Cleanup deadline exceeded.".into(),
+                });
+            }
+            let seconds = remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0);
+            if provider.kind == ProviderKind::AppleIntelligence {
+                return system_llm::complete(system.as_deref(), &messages, seconds);
+            }
+            if provider.kind.is_cli_agent() {
+                return crate::cli_agent::complete(
+                    provider.kind,
+                    &provider.base_url,
+                    &provider.model,
+                    &messages,
+                    seconds,
+                );
+            }
+            crate::llm::chat_complete_before(
+                &provider,
+                key.as_deref(),
+                &messages,
+                deadline,
+                Reasoning::Off,
+            )
+        })
     }
 
     pub(crate) fn preview_local(
@@ -2183,7 +2286,33 @@ fn clean(
     raw: &str,
     app: Option<&str>,
     keys: &ApiKeys,
+    verification: &crate::cleanup_verification::FrozenCleanupVerification,
 ) -> (String, CleanupStatus) {
+    let started = std::time::Instant::now();
+    let deadline = started + std::time::Duration::from_secs(cleanup_timeout_secs(raw));
+    clean_before(engine, settings, raw, app, keys, verification, deadline)
+}
+
+pub(crate) fn clean_before(
+    engine: &PennelEngine,
+    settings: &Settings,
+    raw: &str,
+    app: Option<&str>,
+    keys: &ApiKeys,
+    verification: &crate::cleanup_verification::FrozenCleanupVerification,
+    deadline: std::time::Instant,
+) -> (String, CleanupStatus) {
+    let started = std::time::Instant::now();
+    let style = resolve_style(app, &settings.style_rules);
+    let rejected = |reason: &str, output_chars: usize| {
+        engine.record_cleanup_reason(reason, started.elapsed(), raw.chars().count(), output_chars);
+        (raw.to_owned(), CleanupStatus::Rejected)
+    };
+    if settings.cleanup_verification_enabled
+        && let Err(reason) = verification.ready(settings, style)
+    {
+        return rejected(reason, 0);
+    }
     let Some((account, model)) = settings.resolve(&settings.llm) else {
         return (
             raw.to_owned(),
@@ -2192,18 +2321,23 @@ fn clean(
             },
         );
     };
-    let key = match engine.credential(&account, keys) {
-        Ok(key) => key,
-        Err(e) => {
-            return (
-                raw.to_owned(),
-                CleanupStatus::Failed {
-                    message: e.to_string(),
-                },
-            );
+    let key = if account.kind == ProviderKind::PennelCloud {
+        None
+    } else {
+        match engine.credential(&account, keys) {
+            Ok(key) => key,
+            Err(_) => {
+                return (
+                    raw.to_owned(),
+                    CleanupStatus::Failed {
+                        message: "Cleanup processing failed. The original dictation was kept."
+                            .into(),
+                    },
+                );
+            }
         }
     };
-    if requires_key(account.kind) && key.is_none() {
+    if requires_key(account.kind) && account.kind != ProviderKind::PennelCloud && key.is_none() {
         return (
             raw.to_owned(),
             CleanupStatus::Failed {
@@ -2211,29 +2345,59 @@ fn clean(
             },
         );
     }
-    let style = resolve_style(app, &settings.style_rules);
     let messages = cleanup_messages(raw, style, &settings.dictionary);
-    match engine.complete_llm(
-        &engine.endpoint(&account, model),
-        key.as_deref(),
-        &messages,
-        cleanup_timeout_secs(raw),
-        Reasoning::Off,
-    ) {
+    let result = engine.complete_cleanup(
+        engine.endpoint(&account, model),
+        key,
+        messages,
+        deadline,
+        verification.cancellation(),
+    );
+    if std::time::Instant::now() >= deadline {
+        return rejected("deadline_exceeded", 0);
+    }
+    match result {
         Ok(output) => {
             let cleaned = strip_wrapping(&output);
-            if accept_cleanup(raw, &cleaned) {
-                (cleaned, CleanupStatus::Applied)
-            } else {
-                (raw.to_owned(), CleanupStatus::Rejected)
+            let assessment = assess_cleanup(raw, &cleaned, style, &settings.dictionary);
+            if !assessment.accepted {
+                return rejected(assessment.reason_code, cleaned.chars().count());
             }
+            if settings.cleanup_verification_enabled
+                && let Err(reason) =
+                    verification.verify(engine, settings, raw, &cleaned, style, keys, deadline)
+            {
+                return rejected(reason, cleaned.chars().count());
+            }
+            if std::time::Instant::now() >= deadline {
+                return rejected("deadline_exceeded", cleaned.chars().count());
+            }
+            if verification.cancellation().is_cancelled() {
+                return rejected("cancelled", cleaned.chars().count());
+            }
+            engine.record_cleanup_reason(
+                "accepted",
+                started.elapsed(),
+                raw.chars().count(),
+                cleaned.chars().count(),
+            );
+            (cleaned, CleanupStatus::Applied)
         }
-        Err(e) => (
-            raw.to_owned(),
-            CleanupStatus::Failed {
-                message: e.to_string(),
-            },
-        ),
+        Err(crate::PennelError::Cancelled) => rejected("cancelled", 0),
+        Err(error) => {
+            engine.record_cleanup_reason(
+                "generation_failed",
+                started.elapsed(),
+                raw.chars().count(),
+                0,
+            );
+            let message = if error == crate::system_llm::length_error() {
+                crate::system_llm::length_error().to_string()
+            } else {
+                "Cleanup processing failed. The original dictation was kept.".into()
+            };
+            (raw.to_owned(), CleanupStatus::Failed { message })
+        }
     }
 }
 

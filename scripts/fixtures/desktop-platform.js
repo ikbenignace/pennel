@@ -69,7 +69,7 @@
   const model = selectedProvider === "apple-speech" ? "dictation" : selectedProvider === "openai" ? "gpt-4o-mini-transcribe" : "whisper-large-v3-turbo";
   let settings = {
     providers, dictation_stt: { provider_id: selectedProvider, model }, meeting_stt: { provider_id: "local", model: "whisper-large-v3-turbo" },
-    llm: { provider_id: "groq", model: "llama-3.3-70b-versatile" }, mode: options.mode || "fast", language: "nl", ui_language: options.ui_language || "system", dictionary: ["Pennel", "Studio Noord"],
+    llm: { provider_id: "groq", model: "llama-3.3-70b-versatile" }, decision: null, reranking: null, cleanup_verification_enabled: Boolean(options.cleanup_verification_enabled), mode: options.mode || "fast", language: "nl", ui_language: options.ui_language || "system", dictionary: ["Pennel", "Studio Noord"],
     style_rules: [{ bundle_id: "com.tinyspeck.slackmacgap", style: "casual" }, { bundle_id: "com.apple.MobileSMS", style: "casual" }, { bundle_id: "com.apple.mail", style: "formal" }, { bundle_id: "com.microsoft.Word", style: "formal" }, { bundle_id: "com.apple.Terminal", style: "literal" }, { bundle_id: "com.microsoft.VSCode", style: "literal" }], history_retention_days: 30, hotkey: "fn", local_unload_minutes: 5,
     meetings_dir: "/QA/Pennel Preview/Meetings", default_template: "algemeen", meeting_audio_retention_days: 30,
     app_rules: [], calendar_rules: [], event_rules: [], calendar_enabled: false, echo_cancellation: true,
@@ -77,6 +77,10 @@
     appearance: options.appearance, dictation_pad_auto_paste: false, cloud_sync: Boolean(options.cloud), claude_access: Boolean(options.claude),
     onboarding: { version: 1, status: options.onboarding_status || (options.window === "onboarding" ? "pending" : options.shortcut_denied ? "skipped" : "completed"), resume_step: options.step || "welcome", goal: options.goal || "dictation" },
   };
+  if (options.cleanup_connection) {
+    settings.providers.push({ id: "qa-verifier", kind: "custom", name: "Synthetic verifier", base_url: "https://verifier.example.invalid/v1" });
+    settings.decision = { provider_id: "qa-verifier", protocol: "perplexity", model: "synthetic-unqualified", expected_model: null, upstream: null, max_input_bytes: 16000, timeout_secs: 3 };
+  }
   if (persistedSettings && typeof persistedSettings === "object") settings = { ...settings, ...persistedSettings };
   const interfaceLanguage = () => settings.ui_language === "nl" || settings.ui_language === "en" ? settings.ui_language : systemInterfaceLanguage;
   const capabilities = Object.fromEntries(["pad_external_paste", "global_hotkey", "record_shortcut", "microphone", "system_audio", "echo_cancellation", "call_detection", "calendar", "apple_speech", "apple_intelligence", "selection", "rich_clipboard", "audio_playback", "diarization", "local_models"].map(name => [name, available()]));
@@ -141,7 +145,14 @@
     return true;
   };
   const shortcutDenied = () => permissions.find(permission => permission.kind === "accessibility")?.status !== "granted";
-  const info = () => ({ interface_language: interfaceLanguage(), system_interface_language: systemInterfaceLanguage, settings: clone(settings), keys: clone(keys), provider_revisions: clone(providerRevisions), active_model_downloads: [...activeDownloads],
+  const cleanupVerification = () => {
+    const config = settings.decision;
+    const account = settings.providers.find(provider => provider.id === config?.provider_id);
+    return { enabled: settings.cleanup_verification_enabled === true, available: false,
+      reason_code: settings.cleanup_verification_enabled && settings.mode === "clean" ? config ? "unqualified" : "unconfigured" : "disabled",
+      provider_id: config?.provider_id ?? null, model: config?.model ?? null, endpoint: account ? `${account.base_url}/decisions` : null };
+  };
+  const info = () => ({ interface_language: interfaceLanguage(), system_interface_language: systemInterfaceLanguage, settings: clone(settings), keys: clone(keys), provider_revisions: clone(providerRevisions), active_model_downloads: [...activeDownloads], cleanup_verification: cleanupVerification(),
     unsaved_history_count: history.filter(entry => entry.status === "unsaved").length,
     kinds: clone(kinds), platform: "macos", version: "0.1.0", hotkey_error: shortcutDenied() ? capabilities.global_hotkey.reason : null,
     log_path: "/QA/Pennel Preview/pennel.log", data_dir: "/QA/Pennel Preview", capabilities: clone(capabilities), recording_app_ids: options.recording_app_ids || [], diarizer_model_id: diarizer.id, preview: true, migration_warning: null });
@@ -316,6 +327,7 @@
         ["tei", "TEI reranking", "http://127.0.0.1:8080"],
       ].map(([protocol, name, default_base_url]) => ({ protocol, name, default_base_url, decision: protocol !== "tei", reranking: protocol === "tei", extraction: protocol === "mercury", requires_key: !["tei", "local_decider"].includes(protocol) }));
       case "inference_availability": return { capability: args.capability, configured: false, available: false, reason: "Configure this optional connection first.", provider_id: null, model: null, protocol: null, endpoint: null };
+      case "cleanup_verification_availability": return cleanupVerification();
       case "provider_models": return [{ id: "gpt-4o-mini-transcribe", name: "GPT-4o mini Transcribe", audio_input: true, is_router: false }, { id: "llama-3.3-70b-versatile", name: "Llama 3.3", audio_input: false, is_router: false }];
       case "test_provider_task": {
         if (!["dictation_stt", "meeting_stt", "llm"].includes(args.slot)) throw new Error("Onbekende QA-taak");

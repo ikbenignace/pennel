@@ -27,6 +27,19 @@ private struct QuietDictationRunner: DictationRunning {
     func run(samples: [Float]) async -> Result<DictationResult, PennelError> { .failure(.NoSpeech) }
 }
 
+private final class PreparedDictationRunner: DictationRunning, @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    private var invocations = 0
+    var isCancelled: Bool { lock.withLock { cancelled } }
+    var calls: Int { lock.withLock { invocations } }
+    func run(samples: [Float]) async -> Result<DictationResult, PennelError> {
+        lock.withLock { invocations += 1 }
+        return .failure(.NoSpeech)
+    }
+    func cancel() { lock.withLock { cancelled = true } }
+}
+
 @MainActor
 private final class FixtureSessionActivity: SessionActivityControlling {
     func start(_ state: SessionActivityState) {}
@@ -54,6 +67,86 @@ private final class PreflightGate {
 
 @Suite("Expo native runtime", .serialized)
 struct PennelRuntimeTests {
+    @MainActor @Test func keyboardPreparesItsRunnerAtRecordingStartAndCancelsBeforeRecognition() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("pennel-cleanup-keyboard-\(UUID().uuidString)")
+        let store = HandoffStore(directory: directory)
+        let runner = PreparedDictationRunner()
+        var factoryCalls = 0
+        let session = DictationSession(capture: FixtureCapture(), audioSession: FixtureAudioSession(), runner: { factoryCalls += 1; return runner }, store: store, activity: FixtureSessionActivity(), observeCommands: false, requestPermission: { true })
+        #expect(await session.start())
+        #expect(factoryCalls == 0)
+        let client = HandoffClient(store: store, pending: PendingHandoff())
+        _ = try client.send(.start, now: Date())
+        await session.receiveCommand()
+        #expect(session.phase == .listening)
+        #expect(factoryCalls == 1)
+        #expect(runner.calls == 0)
+        _ = try client.send(.cancel, now: Date())
+        await session.receiveCommand()
+        #expect(runner.isCancelled)
+        #expect(runner.calls == 0)
+        #expect(store.read(HandoffResult.self, as: .result) == nil)
+        session.stop()
+    }
+
+    @MainActor @Test func cleanupVerificationFacadeSeparatesSavedPreferenceFromQualification() async throws {
+        let runtime = PennelNativeRuntime.shared
+        _ = try runtime.bootstrap()
+        let engine = AppModel.shared.engine
+        let original = engine.settings()
+        defer { try? engine.updateSettings(settings: original); AppModel.shared.reloadSettings() }
+        for enabled in [false, true] {
+            _ = try await runtime.invoke(method: "settings.update", payload: BridgeJSON.encode(["patch": ["cleanup_verification_enabled": enabled]]))
+            let status = try BridgeJSON.object(await runtime.invoke(method: "dictation.verificationAvailability", payload: "{}"))
+            #expect(status["enabled"] as? Bool == enabled)
+            #expect(status["available"] as? Bool == false)
+            #expect(status["reason_code"] is String)
+            let snapshot = try BridgeJSON.object(runtime.getSnapshot())
+            let projected = try #require(snapshot["cleanup_verification"] as? [String: Any])
+            #expect(projected["enabled"] as? Bool == enabled)
+            #expect(projected["available"] as? Bool == false)
+        }
+    }
+
+    @MainActor @Test func cleanupVerificationAdmissionSharesSuspendedNativeMutationScope() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("pennel-cleanup-mutation-\(UUID().uuidString)")
+        let engine = try PennelEngine.newPreview(dataDir: directory.path)
+        var settings = engine.settings()
+        settings.cleanupVerificationEnabled = true
+        settings.mode = .clean
+        try engine.updateSettings(settings: settings)
+        let requests = NativeInferenceRequests(engine: engine)
+        let save = PreflightGate()
+        let mutation = Task { @MainActor in
+            await requests.changingConfiguration { _ = await save.request() }
+        }
+        await save.waitUntilEntered()
+        #expect(engine.cleanupVerificationAvailability().reasonCode == "mutation_in_progress")
+        requests.changingCredentials {
+            #expect(engine.cleanupVerificationAvailability().reasonCode == "mutation_in_progress")
+        }
+        #expect(engine.cleanupVerificationAvailability().reasonCode == "mutation_in_progress")
+        save.resolve()
+        await mutation.value
+        #expect(engine.cleanupVerificationAvailability().reasonCode != "mutation_in_progress")
+    }
+
+    @MainActor @Test func recorderKeepsFrozenVerificationPreferenceAcrossSettingsMutation() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("pennel-cleanup-recorder-\(UUID().uuidString)")
+        let engine = try PennelEngine.newPreview(dataDir: directory.path)
+        let recorder = NativeDictationRecorder(engine: engine, capture: FixtureCapture(), audio: FixtureAudioSession(), requestPermission: { true }, reserveHistory: {}, observeSystem: false)
+        try await recorder.start()
+        #expect(recorder.cleanupVerification?.enabled == false)
+        var settings = engine.settings()
+        settings.cleanupVerificationEnabled = true
+        try engine.updateSettings(settings: settings)
+        #expect(engine.cleanupVerificationAvailability().enabled)
+        #expect(recorder.cleanupVerification?.enabled == false)
+        recorder.cancel()
+        #expect(recorder.cleanupVerification == nil)
+        #expect(try engine.history(limit: 10).isEmpty)
+    }
+
     @MainActor @Test func inferenceRequestsRejectDuplicateAndOverCapacityWork() throws {
         let requests = NativeInferenceRequests()
         let first = try requests.begin(id: "first", fingerprint: "saved-config")

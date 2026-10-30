@@ -9,6 +9,7 @@ import { localizedFailure } from '../../errors';
 import { ownedMetadata, templateLabel } from '../../owned-labels';
 import { inferenceCopy } from '../../inference';
 import { InferencePanels } from './InferencePanel';
+import { CleanupVerificationPanel } from '../CleanupVerification';
 
 function useSettings() {
   const runtime = useRuntime();
@@ -132,6 +133,7 @@ export function DictationPanel() {
   const keyboardSave = async (patch: Record<string, unknown>) => { await save(patch); await keyboard.refresh(); };
   return <>
     <Section><Choice label={t('dictation.mode.title')} value={settings.mode} options={[{ value: 'fast', label: t('dictation.mode.fast') }, { value: 'clean', label: t('dictation.mode.clean') }]} onChange={(mode) => void save({ mode })} /><Choice label={t('dictation.language.title')} value={settings.language ?? ''} options={[{ value: '', label: t('common.automatic') }, { value: 'nl', label: t('dictation.language.dutch') }, { value: 'en', label: t('dictation.language.english') }, { value: 'fr', label: t('dictation.language.french') }, { value: 'de', label: t('dictation.language.german') }]} onChange={(language) => void save({ language: language || null })} /><Choice label={t('dictation.history.retention')} value={settings.history_retention_days} options={[30, 90, 365, 0].map((value) => ({ value, label: value ? t('dictation.history.days', { days: value }) : t('dictation.history.always') }))} onChange={(history_retention_days) => void save({ history_retention_days })} /></Section>
+    <CleanupVerificationPanel />
     <Section title={t('mobile.keyboard')} description={t('mobile.keyboard.setup')}><Choice label={t('mobile.keyboard.layout')} value={layout} options={[{ value: 'qwerty', label: 'QWERTY' }, { value: 'azerty', label: 'AZERTY' }]} onChange={(keyboard_layout) => void keyboardSave({ keyboard_layout })} /><Toggle title={t('mobile.keyboard.suggestions')} description={t('mobile.keyboard.suggestions_help')} value={suggestions} onChange={(keyboard_suggestions) => void keyboardSave({ keyboard_suggestions })} /><Notice>{t(snapshot?.session.full_access_seen ? 'mobile.keyboard.seen' : 'mobile.keyboard.unseen')}</Notice><Button title={t('mobile.open_settings')} subtle onPress={() => void run('open-settings', 'system.openSettings')} /><Notice>{t('mobile.keyboard.goal')}</Notice></Section>
     <Section title={t('mobile.quick_start')} description={t('mobile.quick_start_help')}><Choice label={t('mobile.session.duration')} value={duration} options={[300, 900, 3600].map((value) => ({ value, label: t('mobile.session.minutes', { count: value / 60 }) }))} onChange={(session_duration_seconds) => void keyboardSave({ session_duration_seconds })} /></Section>
   </>;

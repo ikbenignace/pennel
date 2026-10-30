@@ -8,6 +8,7 @@ export type InferenceCapability = 'decision' | 'reranking';
 export interface InferenceConfig { provider_id: string; protocol: InferenceProtocol; model: string; expected_model: string | null; upstream: string | null; max_input_bytes: number; timeout_secs: number }
 export interface InferenceProtocolInfo { protocol: InferenceProtocol; name: string; default_base_url: string; decision: boolean; reranking: boolean; extraction: boolean; requires_key: boolean }
 export interface InferenceAvailability { capability: InferenceCapability; configured: boolean; available: boolean; reason: string | null; provider_id: string | null; model: string | null; protocol: InferenceProtocol | null; endpoint: string | null }
+export interface CleanupVerificationAvailability { enabled: boolean; available: boolean; reason_code: string; provider_id: string | null; model: string | null; endpoint: string | null }
 export interface DecisionOption { id: string; description: string }
 export interface DecisionQuestion { id: string; kind: 'binary' | 'choice' | 'ordinal' | 'extract'; instructions: string; options: DecisionOption[] }
 export interface DecisionRequest { state: string; questions: DecisionQuestion[] }
@@ -32,6 +33,7 @@ export interface Settings {
   llm: ModelChoice;
   decision?: InferenceConfig | null;
   reranking?: InferenceConfig | null;
+  cleanup_verification_enabled: boolean;
   mode: 'fast' | 'clean';
   language: string | null;
   dictionary: string[];
@@ -69,8 +71,9 @@ export interface RuntimeSnapshot {
   kinds: ProviderKindInfo[];
   keys: Record<string, boolean>;
   inference_key_revisions?: Record<string, number>;
-  dictation: { phase: 'idle' | 'listening' | 'processing'; text: string | null; level: number; error: string | null; error_code?: string | null };
-  session: { phase: 'off' | 'ready' | 'listening' | 'processing'; expires_at_ms: number | null; full_access_seen: boolean; keyboard_enabled?: boolean; error: string | null; error_code?: string | null };
+  cleanup_verification?: CleanupVerificationAvailability;
+  dictation: { phase: 'idle' | 'listening' | 'processing'; text: string | null; level: number; error: string | null; error_code?: string | null; cleanup_verification?: CleanupVerificationAvailability | null };
+  session: { phase: 'off' | 'ready' | 'listening' | 'processing'; expires_at_ms: number | null; full_access_seen: boolean; keyboard_enabled?: boolean; error: string | null; error_code?: string | null; cleanup_verification?: CleanupVerificationAvailability | null };
   meeting: { phase: 'idle' | 'starting' | 'recording' | 'interrupted' | 'finishing' | 'error'; id: string | null; retained_id?: string | null; last_finished_id?: string | null; title: string; elapsed_secs: number; notes: string; transcript: Segment[]; pending: number; error: string | null; error_code?: string | null };
   cloud: CloudState;
   recognition_jobs: SpeakerJob[];
@@ -110,6 +113,7 @@ export interface MobileCommandResults {
   'dictation.start': RuntimeSnapshot;
   'dictation.stop': RuntimeSnapshot;
   'dictation.cancel': RuntimeSnapshot;
+  'dictation.verificationAvailability': CleanupVerificationAvailability;
   'dictation.history': HistoryEntry[];
   'dictation.retry': { text: string; history_id: string };
   'dictation.deleteHistory': void;
