@@ -32,9 +32,9 @@ Native captures use a separate app identity and only owned window IDs. Browser f
 
 ### Reviewed desktop candidate
 
-Desktop code revision: `ad4a4b1b388e2e6aa40d14f1a3f3a36860c98367`. The development capture executable's SHA-256 is `89275b1916dffa4e4c987157f5b8d63c89b362353d4956a30ee1a42756727b9f`; its ad-hoc bundle passed `codesign --verify --deep --strict`. Later evidence-only commits do not change desktop code.
+Desktop code revision: `f5092e8482cd52c44179caa847de3c54f762934c`. The development capture executable's SHA-256 is `4ff5edf99fa6acd90540e48800b0493f75ccca6b609eb6c83d411035a38dad59`; its ad-hoc bundle passed `codesign --verify --deep --strict`. Later evidence-only commits do not change desktop code.
 
-The [machine-readable receipt](evidence/macos-liquid-glass-2026-10-29/receipt.json) records four current native EN/NL light/dark captures and separates historical checks from the current search-spacing candidate. The retained padding candidate also exercised circular sidebar/search activation, fullscreen, the maximum sidebar at minimum window size, and real transparency/contrast preferences. Native and frontend states matched; the controls stayed visible with opaque fallbacks. Original settings and the original System Settings page were restored.
+The [machine-readable receipt](evidence/macos-liquid-glass-2026-10-29/receipt.json) records four current native EN/NL light/dark captures and separates historical checks from the current rounded-sheet candidate. The retained padding candidate also exercised circular sidebar/search activation, fullscreen, the maximum sidebar at minimum window size, and real transparency/contrast preferences. Native and frontend states matched; the controls stayed visible with opaque fallbacks. Original settings and the original System Settings page were restored.
 
 The requested minimum fixture size is 760×520. Native toolbar/layout adjustment can raise the measured viewport height; receipts retain the actual dimensions instead of assuming a fixed OS result. Footer actions remain contained and reachable.
 
@@ -71,3 +71,7 @@ Button shapes use translucent semantic fills, a hairline edge and a restrained h
 ### Search-field spacing — 30 October 2026
 
 The sidebar search field has a shared 36 point minimum height, 12 point leading icon inset and 8 point gap before text. A centered canonical SVG replaces the manually positioned pseudo-elements. The input and its existing search/focus handlers remain the same node. Frontend build/tests, EN/NL light/dark and minimum-width fixtures, required core/native checks and the packaged app passed. Actual typing/filtering and focus were checked with the sidebar at its 200 point minimum.
+
+### Rounded content sheets — 30 October 2026
+
+Workspace and Settings content use the existing 12 point panel radius. Their own scroll containers clip backgrounds to the curve. A continuous navigation-material backing behind the sheets makes all corners visible while avoiding a second tint layer in either sidebar. Layout dimensions and footer spacing stay unchanged. Frontend build/212 tests, 16 EN/NL light/dark/minimum-size fixtures and four native meeting/Settings captures passed.

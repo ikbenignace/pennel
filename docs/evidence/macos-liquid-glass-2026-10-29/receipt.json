@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "desktop_candidate_revision": "ad4a4b1b388e2e6aa40d14f1a3f3a36860c98367",
-  "binary_sha256": "89275b1916dffa4e4c987157f5b8d63c89b362353d4956a30ee1a42756727b9f",
+  "desktop_candidate_revision": "f5092e8482cd52c44179caa847de3c54f762934c",
+  "binary_sha256": "4ff5edf99fa6acd90540e48800b0493f75ccca6b609eb6c83d411035a38dad59",
   "identity": "dev.pennel.Pennel.capture.preview",
   "signing": "ad-hoc development bundle; codesign --verify --deep --strict passed",
   "host": {
@@ -15,6 +15,37 @@
   "native_captures": [
     {
       "case": "meeting-notes",
+      "locale": "en",
+      "appearance": "light",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "settings-overview",
       "locale": "en",
       "appearance": "light",
       "environment": {
@@ -76,39 +107,8 @@
       "activation_policy": 0
     },
     {
-      "case": "meeting-notes",
-      "locale": "nl",
-      "appearance": "light",
-      "environment": {
-        "material": "liquid_glass",
-        "appearance": "light",
-        "reduce_transparency": false,
-        "reduce_motion": false,
-        "increase_contrast": false,
-        "titlebar_height": 52.0,
-        "titlebar_controls_width": 79.0,
-        "focused": true
-      },
-      "frontend_environment": {
-        "material": "liquid_glass",
-        "appearance": "light",
-        "reduce_transparency": false,
-        "reduce_motion": false,
-        "increase_contrast": false,
-        "titlebar_height": 52.0,
-        "titlebar_controls_width": 79.0,
-        "focused": true
-      },
-      "viewport": [
-        980.0,
-        641.0
-      ],
-      "horizontal_overflow": false,
-      "activation_policy": 0
-    },
-    {
-      "case": "meeting-notes",
-      "locale": "nl",
+      "case": "settings-overview",
+      "locale": "en",
       "appearance": "dark",
       "environment": {
         "material": "liquid_glass",
@@ -733,5 +733,25 @@
       "original_os_settings_and_page": "restored"
     }
   },
-  "search_followup_date": "2026-10-30"
+  "search_followup_date": "2026-10-30",
+  "prior_search_candidate": {
+    "revision": "ad4a4b1b388e2e6aa40d14f1a3f3a36860c98367",
+    "binary_sha256": "89275b1916dffa4e4c987157f5b8d63c89b362353d4956a30ee1a42756727b9f"
+  },
+  "rounded_sheet_followup": {
+    "radius_token": "radius-panel",
+    "radius_pt": 12,
+    "surfaces": [
+      "workspace content",
+      "Settings content"
+    ],
+    "clipping": "rounded container clips child backgrounds; existing inner scroll areas retained",
+    "frontend_fixture_captures": 16,
+    "native_capture_count": 4,
+    "native_cases": [
+      "meeting-notes",
+      "settings-overview"
+    ],
+    "local_build_and_212_tests": "passed"
+  }
 }
