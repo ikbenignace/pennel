@@ -19,6 +19,8 @@ mod export;
 mod gesture;
 mod history;
 mod http;
+mod inference;
+mod inference_engine;
 mod live_dictation;
 mod llm;
 mod local_engine;
@@ -67,6 +69,14 @@ pub use error::PennelError;
 pub use export::MeetingExport;
 pub use gesture::{GestureAction, HotkeyGesture, KeyEdge};
 pub use history::{HistoryEntry, HistoryStatus};
+pub use inference::{
+    DecisionAnswer, DecisionOption, DecisionProbability, DecisionQuestion, DecisionQuestionKind,
+    DecisionRequest, DecisionResult, DecisionSpan, InferenceCancellation, InferenceCapability,
+    InferenceConfig, InferenceIdentity, InferenceProtocol, InferenceProtocolInfo, InferenceUsage,
+    RerankPassage, RerankRequest, RerankResult, RerankScore, inference_protocols,
+    new_inference_config,
+};
+pub use inference_engine::{InferenceAvailability, InferenceVerification};
 pub use live_dictation::{
     DictationPreviewMode, DictationPreviewObserver, DictationPreviewUpdate, LiveDictationSession,
 };

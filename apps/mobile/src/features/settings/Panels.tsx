@@ -7,6 +7,8 @@ import { Actions, Body, Button, Choice, Field, Notice, Row, Section, Toggle, con
 import { ModelVerification, selectedVerification, sameVerificationSelection, verificationPayload, type ModelTestResult, type VerificationTask } from '../../model-verification';
 import { localizedFailure } from '../../errors';
 import { ownedMetadata, templateLabel } from '../../owned-labels';
+import { inferenceCopy } from '../../inference';
+import { InferencePanels } from './InferencePanel';
 
 function useSettings() {
   const runtime = useRuntime();
@@ -17,6 +19,7 @@ function useSettings() {
 
 function ProviderEditor({ provider }: { provider: ProviderAccount }) {
   const { settings, snapshot, save, run, t, busy, language } = useSettings();
+  const inferenceLabels = inferenceCopy[language];
   const [name, setName] = useState(provider.name);
   const [baseUrl, setBaseUrl] = useState(provider.base_url);
   const [key, setKey] = useState('');
@@ -30,7 +33,7 @@ function ProviderEditor({ provider }: { provider: ProviderAccount }) {
     <Field label={t('common.name')} value={name} onChangeText={setName} />
     {usesUrl && <Field label={t('mobile.provider.base_url')} value={baseUrl} onChangeText={(value) => { setBaseUrl(value); setNotice(null); }} keyboardType="url" autoCapitalize="none" autoCorrect={false} />}
     {(name !== provider.name || baseUrl !== provider.base_url) && <Button title={t('common.save')} subtle busy={busy.has('settings-save')} onPress={() => void save({ providers: settings.providers.map((account) => account.id === provider.id ? { ...account, name: name.trim() || account.name, base_url: baseUrl.trim() } : account) })} />}
-    {kind?.requires_key && <><Notice>{t(snapshot?.keys[provider.id] ? 'mobile.provider.key_configured' : 'mobile.provider.key_missing')}</Notice><Field label={t('mobile.provider.key')} value={key} onChangeText={(value) => { setKey(value); setNotice(null); }} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off" textContentType="none" /><Button title={t('common.save')} subtle disabled={!key.trim()} busy={busy.has(`key-${provider.id}`)} onPress={() => { void run(`key-${provider.id}`, 'providers.setKey', { provider_id: provider.id, key: key.trim() }).then((value) => { if (value !== undefined) { setKey(''); setNotice({ kind: 'key' }); } }); }} /></>}
+    {(kind?.requires_key || provider.kind === 'custom') && <><Notice>{provider.kind === 'custom' ? inferenceLabels.customKeyHelp : t(snapshot?.keys[provider.id] ? 'mobile.provider.key_configured' : 'mobile.provider.key_missing')}</Notice><Field label={provider.kind === 'custom' ? inferenceLabels.optionalKey : t('mobile.provider.key')} value={key} onChangeText={(value) => { setKey(value); setNotice(null); }} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off" textContentType="none" /><Button title={t('common.save')} subtle disabled={!key.trim()} busy={busy.has(`key-${provider.id}`)} onPress={() => { void run(`key-${provider.id}`, 'providers.setKey', { provider_id: provider.id, key: key.trim() }).then((value) => { if (value !== undefined) { setKey(''); setNotice({ kind: 'key' }); } }); }} /></>}
     {notice && <Notice error={notice.kind === 'availability' && !notice.result.ok}>{notice.kind === 'key' ? t('mobile.provider.key_saved') : ownedMetadata(language, notice.result.message, notice.result.ok ? 'mobile.provider.test_success' : 'mobile.provider.test_failed')}</Notice>}
     {unsaved && <Notice>{t('mobile.provider.save_before_check')}</Notice>}
     <Actions><Button title={t('mobile.provider.test')} subtle disabled={kind?.availability.status !== 'available' || unsaved} busy={busy.has(`test-${provider.id}`)} onPress={() => { void run<ModelTestResult>(`test-${provider.id}`, 'providers.test', { provider_id: provider.id }).then((result) => { if (result) setNotice({ kind: 'availability', result: { ok: result.ok === true, message: result.message } }); }); }} /><Button title={t('common.delete')} subtle destructive onPress={() => confirm(t('common.delete'), t('mobile.provider.delete_help'), t('common.delete'), t('common.cancel'), () => void run('provider-remove', 'providers.remove', { provider_id: provider.id, id: provider.id }), true)} /></Actions>
@@ -117,7 +120,7 @@ export function ModelsPanel() {
   const { t, snapshot, busy } = useSettings();
   const router = useRouter();
   const testing = [...busy].some((key) => key.startsWith('verify-model-'));
-  return <><Section><Button title={t('mobile.provider.new')} subtle disabled={testing} onPress={() => router.push({ pathname: '/settings/[section]', params: { section: 'providers' } })} /></Section><TaskModel task="dictation_stt" label={t('mobile.provider.task.dictation')} speech /><TaskModel task="meeting_stt" label={t('mobile.provider.task.meetings')} speech /><TaskModel task="llm" label={t('mobile.provider.task.text')} speech={false} /><Section title={t('navigation.models')}><Notice>{snapshot?.capabilities.local_models?.reason || t('mobile.local_models')}</Notice></Section></>;
+  return <><Section><Button title={t('mobile.provider.new')} subtle disabled={testing} onPress={() => router.push({ pathname: '/settings/[section]', params: { section: 'providers' } })} /></Section><TaskModel task="dictation_stt" label={t('mobile.provider.task.dictation')} speech /><TaskModel task="meeting_stt" label={t('mobile.provider.task.meetings')} speech /><TaskModel task="llm" label={t('mobile.provider.task.text')} speech={false} /><InferencePanels /><Section title={t('navigation.models')}><Notice>{snapshot?.capabilities.local_models?.reason || t('mobile.local_models')}</Notice></Section></>;
 }
 
 export function DictationPanel() {

@@ -3,6 +3,23 @@ export type Appearance = 'system' | 'light' | 'dark';
 export type ProviderKind = 'open_ai' | 'open_router' | 'groq' | 'mistral' | 'ollama' | 'lm_studio' | 'custom' | 'local' | 'apple_speech' | 'apple_intelligence' | 'claude_code' | 'codex' | 'open_code' | 'copilot' | 'cursor_agent' | 'gemini_cli' | 'pennel_cloud';
 export interface Capability { status: 'available' | 'permission_required' | 'unsupported' | 'unavailable'; reason: string | null }
 export interface ModelChoice { provider_id: string; model: string }
+export type InferenceProtocol = 'open_router_decisions' | 'open_router_system_one' | 'type_safe' | 'perplexity' | 'mercury' | 'local_decider' | 'tei';
+export type InferenceCapability = 'decision' | 'reranking';
+export interface InferenceConfig { provider_id: string; protocol: InferenceProtocol; model: string; expected_model: string | null; upstream: string | null; max_input_bytes: number; timeout_secs: number }
+export interface InferenceProtocolInfo { protocol: InferenceProtocol; name: string; default_base_url: string; decision: boolean; reranking: boolean; extraction: boolean; requires_key: boolean }
+export interface InferenceAvailability { capability: InferenceCapability; configured: boolean; available: boolean; reason: string | null; provider_id: string | null; model: string | null; protocol: InferenceProtocol | null; endpoint: string | null }
+export interface DecisionOption { id: string; description: string }
+export interface DecisionQuestion { id: string; kind: 'binary' | 'choice' | 'ordinal' | 'extract'; instructions: string; options: DecisionOption[] }
+export interface DecisionRequest { state: string; questions: DecisionQuestion[] }
+export interface DecisionProbability { option_id: string; probability: number }
+export interface DecisionSpan { field_id: string; text: string; start_char: number; end_char: number; confidence: number | null }
+export interface DecisionAnswer { id: string; kind: DecisionQuestion['kind']; choice: string | null; value: number | null; probabilities: DecisionProbability[]; confidence: number | null; spans: DecisionSpan[]; not_stated: DecisionProbability[]; abstained: boolean }
+export interface InferenceIdentity { protocol: InferenceProtocol; endpoint: string; requested_model: string; requested_upstream: string | null; actual_model: string | null; actual_revision: string | null; actual_provider: string | null; request_id: string | null }
+export interface InferenceUsage { input_tokens: number | null; output_tokens: number | null; billed_cost_usd: number | null }
+export interface DecisionResult { answers: DecisionAnswer[]; identity: InferenceIdentity; usage: InferenceUsage }
+export interface RerankRequest { query: string; passages: { id: string; text: string }[] }
+export interface RerankResult { scores: { passage_id: string; score: number }[]; identity: InferenceIdentity; usage: InferenceUsage }
+export interface InferenceVerification { verified: boolean; message: string; identity: InferenceIdentity | null }
 export interface ProviderAccount { id: string; kind: ProviderKind; name: string; base_url: string }
 export interface ProviderKindInfo { kind: ProviderKind; label: string; requires_key: boolean; stt: boolean; llm: boolean; availability: Capability; default_base_url: string }
 export interface Settings {
@@ -13,6 +30,8 @@ export interface Settings {
   dictation_stt: ModelChoice;
   meeting_stt: ModelChoice;
   llm: ModelChoice;
+  decision?: InferenceConfig | null;
+  reranking?: InferenceConfig | null;
   mode: 'fast' | 'clean';
   language: string | null;
   dictionary: string[];
@@ -49,6 +68,7 @@ export interface RuntimeSnapshot {
   capabilities: Record<string, Capability>;
   kinds: ProviderKindInfo[];
   keys: Record<string, boolean>;
+  inference_key_revisions?: Record<string, number>;
   dictation: { phase: 'idle' | 'listening' | 'processing'; text: string | null; level: number; error: string | null; error_code?: string | null };
   session: { phase: 'off' | 'ready' | 'listening' | 'processing'; expires_at_ms: number | null; full_access_seen: boolean; keyboard_enabled?: boolean; error: string | null; error_code?: string | null };
   meeting: { phase: 'idle' | 'starting' | 'recording' | 'interrupted' | 'finishing' | 'error'; id: string | null; retained_id?: string | null; last_finished_id?: string | null; title: string; elapsed_secs: number; notes: string; transcript: Segment[]; pending: number; error: string | null; error_code?: string | null };
@@ -64,6 +84,12 @@ export type RecognitionSnapshot = SpeakerJob;
 export interface SyncReport { status: string; uploaded: number; downloaded: number; conflicts: number; last_success_ms: number | null; error: string | null }
 
 export interface MobileCommandResults {
+  'inference.protocols': InferenceProtocolInfo[];
+  'inference.availability': InferenceAvailability;
+  'inference.decide': DecisionResult;
+  'inference.rerank': RerankResult;
+  'inference.verify': InferenceVerification;
+  'inference.cancel': boolean;
   'meetings.list': MeetingInfo[];
   'meetings.read': MeetingDetail;
   'meetings.start': RuntimeSnapshot;

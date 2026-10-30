@@ -19,6 +19,7 @@ mod external_paste;
 mod foreground;
 mod gesture;
 mod hotkey;
+mod inference;
 mod keys;
 #[cfg(any(target_os = "macos", test))]
 mod legacy_migration;
@@ -1063,6 +1064,12 @@ fn main() {
             commands::save_history,
             commands::copy_history,
             commands::test_provider_task,
+            inference::inference_protocols,
+            inference::inference_availability,
+            inference::inference_decide,
+            inference::inference_rerank,
+            inference::verify_inference,
+            inference::cancel_inference,
             commands::delete_history,
             commands::open_log,
             commands::open_path,

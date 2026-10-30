@@ -1,0 +1,172 @@
+import { api, type InferenceCapability, type InferenceConfig, type InferenceProtocolInfo } from "../api";
+import { errorText, field, h, section, select } from "../dom";
+import { bindLocalization, getInterfaceLanguage, liveText, localizeBackendText } from "../i18n.ts";
+import { inferenceConfig, inferenceFingerprint, InferenceVerificationState } from "../inference-state.ts";
+import type { Context } from "../main";
+import { providerDestination } from "../processing-state";
+
+const copy = {
+  title_decision: ["Decision processing", "Beslissingen verwerken"],
+  title_reranking: ["Passage ranking", "Passages rangschikken"],
+  help: ["Optional connection for future smart features. Saving this choice does not change dictation or meetings.", "Optionele verbinding voor toekomstige slimme functies. Deze keuze verandert dicteren of vergaderingen niet."],
+  provider: ["Provider", "Provider"], format: ["API format", "API-indeling"], model: ["Model", "Model"],
+  expected: ["Expected returned model", "Verwacht antwoordmodel"], upstream: ["Upstream provider", "Uitvoerende provider"],
+  bytes: ["Max input bytes", "Maximale invoerbytes"], timeout: ["Timeout (seconds)", "Time-out (seconden)"],
+  advanced: ["Advanced", "Geavanceerd"], save: ["Save configuration", "Configuratie bewaren"], disable: ["Disable", "Uitschakelen"],
+  test: ["Test with sample", "Test met voorbeeld"], cancel: ["Cancel", "Annuleren"], testing: ["Processing the sample…", "Voorbeeld verwerken…"],
+  passed: ["The sample test passed.", "De voorbeeldtest is geslaagd."], failed: ["The sample test could not be completed.", "De voorbeeldtest kon niet worden uitgevoerd."],
+  disabled: ["Not configured", "Niet ingesteld"], configured: ["Configured; run the sample to verify.", "Ingesteld; test met het voorbeeld om te controleren."],
+  unavailable: ["Decision connections are unavailable in this build.", "Beslissingsverbindingen zijn niet beschikbaar in deze versie."],
+  manage: ["Manage providers", "Providers beheren"], need_provider: ["Add an OpenRouter or Custom server connection under Providers first.", "Voeg eerst een OpenRouter- of aangepaste serververbinding toe bij Providers."],
+  need_rerank_provider: ["Add a Custom server connection for TEI under Providers first.", "Voeg eerst een aangepaste serververbinding voor TEI toe bij Providers."],
+  sample: ["The test sends only synthetic example text to the selected server. It may incur provider charges.", "De test stuurt alleen fictieve voorbeeldtekst naar de gekozen server. De provider kan hiervoor kosten aanrekenen."],
+  missing: ["Choose a provider, API format and model. OpenRouter also requires an upstream provider.", "Kies een provider, API-indeling en model. OpenRouter vereist ook een uitvoerende provider."],
+  budgets: ["Use an input limit of 1–65,536 bytes and a timeout of 1–90 seconds.", "Gebruik een invoerlimiet van 1–65.536 bytes en een time-out van 1–90 seconden."],
+  unsaved: ["Save these changes before testing.", "Bewaar deze wijzigingen voor je test."],
+  missing_key: ["Add the API key to this connection under Providers before testing.", "Voeg de API-sleutel toe aan deze verbinding bij Providers voor je test."],
+  destination: ["Server", "Server"], actual_model: ["Returned model", "Antwoordmodel"], actual_provider: ["Returned provider", "Antwoordprovider"],
+  revision: ["Returned revision", "Antwoordrevisie"],
+  request: ["Request ID", "Aanvraag-ID"], unknown: ["Not reported", "Niet gerapporteerd"],
+} as const;
+type CopyKey = keyof typeof copy;
+const text = (key: CopyKey) => copy[key][getInterfaceLanguage() === "nl" ? 1 : 0];
+const label = (key: CopyKey) => liveText(() => text(key));
+
+export async function inferenceModelsView(ctx: Context): Promise<HTMLElement[]> {
+  const protocols = await api.inferenceProtocols().catch(() => []);
+  return Promise.all((["decision", "reranking"] as const).map((capability) => inferenceSection(ctx, capability, Array.isArray(protocols) ? protocols : [])));
+}
+
+async function inferenceSection(ctx: Context, capability: InferenceCapability, protocols: InferenceProtocolInfo[]): Promise<HTMLElement> {
+  const availableProtocols = protocols.filter((item) => item[capability]);
+  const eligible = ctx.info.settings.providers.filter((account) => account.kind === "custom" || (capability === "decision" && account.kind === "open_router"));
+  const saved = inferenceConfig(ctx.info, capability);
+  const first = eligible.find((account) => account.id === saved?.provider_id) ?? eligible[0];
+  const defaultProtocol = capability === "reranking" ? "tei" : first?.kind === "open_router" ? "open_router_decisions" : "type_safe";
+  const draft: InferenceConfig = saved ? structuredClone(saved) : { provider_id: first?.id ?? "", protocol: defaultProtocol, model: "", upstream: null, expected_model: null, max_input_bytes: 16_000, timeout_secs: 30 };
+  const state = new InferenceVerificationState();
+  let disposed = false;
+  let dirty = false;
+  let saving = false;
+  let errorMessage: string | null = null;
+  let fingerprint = inferenceFingerprint(ctx.info, capability);
+  let availability = protocols.length ? await api.inferenceAvailability(capability).catch(() => null) : null;
+  let availabilityGeneration = 0;
+  const notice = h("p", { class: "help", role: "status", "aria-live": "polite" });
+  const status = h("p", { class: "help", role: "status" });
+  const identity = h("div", { class: "help" });
+  const destination = h("p", { class: "help" });
+  const cancelRun = () => {
+    const id = state.invalidate();
+    if (id) void api.cancelInference(id).catch(() => {});
+  };
+  const changed = () => { dirty = true; errorMessage = null; cancelRun(); notice.textContent = ""; draw(); };
+  const provider = select(eligible.map((item) => [item.id, item.name]), draft.provider_id, (id) => {
+    draft.provider_id = id;
+    if (eligible.find((item) => item.id === id)?.kind === "open_router" && !draft.protocol.startsWith("open_router")) {
+      draft.protocol = "open_router_decisions";
+      protocol.value = draft.protocol;
+      advanced.open = !draft.upstream;
+    }
+    updateProtocolOptions(); changed();
+  }, "menu");
+  const protocol = select(availableProtocols.map((item) => [item.protocol, item.name]), draft.protocol, (value) => { draft.protocol = value; changed(); }, "menu");
+  function updateProtocolOptions() {
+    const account = eligible.find((item) => item.id === draft.provider_id);
+    for (const option of protocol.options) option.disabled = account?.kind === "open_router" && !option.value.startsWith("open_router");
+  }
+  updateProtocolOptions();
+  const input = (value: string, change: (value: string) => void, numeric = false) => {
+    const control = h("input", { type: numeric ? "number" : "text", value });
+    control.addEventListener("input", () => { change(control.value); changed(); });
+    return control;
+  };
+  const model = input(draft.model, (value) => { draft.model = value; });
+  const expected = input(draft.expected_model ?? "", (value) => { draft.expected_model = value.trim() || null; });
+  const upstream = input(draft.upstream ?? "", (value) => { draft.upstream = value.trim() || null; });
+  const bytes = input(String(draft.max_input_bytes), (value) => { draft.max_input_bytes = Number(value); }, true);
+  const timeout = input(String(draft.timeout_secs), (value) => { draft.timeout_secs = Number(value); }, true);
+  for (const [name, control] of [["model", model], ["expected_model", expected], ["upstream", upstream], ["max_input_bytes", bytes], ["timeout_secs", timeout]] as const) control.dataset.inferenceField = name;
+  bytes.min = "1"; bytes.max = "65536"; bytes.step = "1";
+  timeout.min = "1"; timeout.max = "90"; timeout.step = "1";
+  const save = h("button", { class: "btn", onclick: async () => {
+    if (saving) return;
+    if (!draft.provider_id || !draft.model.trim() || !availableProtocols.some((item) => item.protocol === draft.protocol) || (draft.protocol.startsWith("open_router") && !draft.upstream?.trim())) { errorMessage = text("missing"); draw(); return; }
+    if (!Number.isInteger(draft.max_input_bytes) || draft.max_input_bytes < 1 || draft.max_input_bytes > 65536 || !Number.isInteger(draft.timeout_secs) || draft.timeout_secs < 1 || draft.timeout_secs > 90) { errorMessage = text("budgets"); draw(); return; }
+    errorMessage = null; saving = true; draw();
+    try {
+      cancelRun();
+      const config = { ...draft, model: draft.model.trim() };
+      await ctx.save((settings) => { settings[capability] = config; });
+      if (!disposed) { dirty = false; ctx.rerender(); }
+    } catch (error) { if (!disposed) errorMessage = errorText(error); }
+    finally { saving = false; if (!disposed) draw(); }
+  } }, label("save"));
+  const disable = h("button", { class: "btn", onclick: async () => {
+    if (saving) return;
+    errorMessage = null; saving = true; draw();
+    cancelRun();
+    try { await ctx.save((settings) => { settings[capability] = null; }); if (!disposed) { dirty = false; ctx.rerender(); } }
+    catch (error) { if (!disposed) errorMessage = errorText(error); }
+    finally { saving = false; if (!disposed) draw(); }
+  } }, label("disable"));
+  const test = h("button", { class: "btn", onclick: async () => {
+    const id = crypto.randomUUID();
+    const current = inferenceFingerprint(ctx.info, capability);
+    if (!state.begin(id, current)) return;
+    errorMessage = null;
+    draw();
+    try {
+      const result = await api.verifyInference(capability, id);
+      if (!disposed && state.finish(id, inferenceFingerprint(ctx.info, capability), result)) draw();
+    } catch (error) {
+      if (!disposed && state.finish(id, inferenceFingerprint(ctx.info, capability), { verified: false, message: errorText(error), identity: null })) draw();
+    }
+  } }, label("test"));
+  const cancel = h("button", { class: "btn", onclick: () => { cancelRun(); errorMessage = null; notice.textContent = ""; draw(); } }, label("cancel"));
+  function draw() {
+    const current = inferenceConfig(ctx.info, capability);
+    const result = state.get(inferenceFingerprint(ctx.info, capability));
+    const account = ctx.info.settings.providers.find((item) => item.id === draft.provider_id);
+    const keyMissing = !!current && protocols.find((item) => item.protocol === current.protocol)?.requires_key && !ctx.info.keys[current.provider_id];
+    status.textContent = !protocols.length ? text("unavailable") : !current ? text("disabled") : keyMissing ? text("missing_key") : availability?.available ? text("configured") : localizeBackendText(availability?.reason ?? "");
+    destination.textContent = `${text("destination")}: ${providerDestination(account)}${!dirty && availability?.endpoint ? ` · ${availability.endpoint}` : ""}`;
+    test.disabled = saving || dirty || state.running || !current || !availability?.available || !!keyMissing;
+    cancel.hidden = !state.running;
+    disable.disabled = saving || !current;
+    save.disabled = saving || state.running || !eligible.length || !availableProtocols.length;
+    provider.disabled = saving || !eligible.length || !protocols.length;
+    protocol.disabled = saving || !availableProtocols.length;
+    for (const control of [model, expected, upstream, bytes, timeout]) control.disabled = saving || !eligible.length || !protocols.length;
+    notice.className = errorMessage || (result && !result.verified) ? "error" : "help";
+    if (errorMessage) notice.textContent = errorMessage;
+    else if (state.running) notice.textContent = text("testing");
+    else if (result) notice.textContent = result.verified ? text("passed") : localizeBackendText(result.message) || text("failed");
+    else if (dirty) notice.textContent = text("unsaved");
+    else notice.textContent = "";
+    identity.replaceChildren();
+    if (result?.identity) {
+      for (const [key, value] of [["actual_model", result.identity.actual_model], ["actual_provider", result.identity.actual_provider], ["revision", result.identity.actual_revision], ["request", result.identity.request_id]] as const) identity.append(h("p", {}, `${text(key)}: ${value ?? text("unknown")}`));
+    }
+  }
+  const advanced = h("details", {}, h("summary", {}, label("advanced")), field(label("expected"), expected), field(label("upstream"), upstream), field(label("bytes"), bytes), field(label("timeout"), timeout));
+  advanced.open = draft.protocol.startsWith("open_router") && !draft.upstream;
+  const root = section(label(capability === "decision" ? "title_decision" : "title_reranking"), label("help"), field(label("provider"), provider), field(label("format"), protocol), field(label("model"), model), advanced, destination, status,
+    !eligible.length ? h("p", { class: "help" }, label(capability === "reranking" ? "need_rerank_provider" : "need_provider")) : null,
+    h("button", { class: "text-button", onclick: () => ctx.navigate("providers") }, label("manage")),
+    h("div", { class: "row" }, save, disable), h("p", { class: "help" }, label("sample")), h("div", { class: "row" }, test, cancel), notice, identity);
+  root.dataset.inferenceCapability = capability;
+  ctx.onDispose(() => { disposed = true; cancelRun(); });
+  ctx.onInfoChange(() => {
+    const next = inferenceFingerprint(ctx.info, capability);
+    if (next === fingerprint) return;
+    fingerprint = next; cancelRun();
+    if (!dirty) { ctx.rerender(); return; }
+    const generation = ++availabilityGeneration;
+    void api.inferenceAvailability(capability).then((value) => { if (!disposed && generation === availabilityGeneration) { availability = value; draw(); } }).catch(() => {});
+    draw();
+  });
+  bindLocalization(root, draw);
+  draw();
+  return root;
+}
