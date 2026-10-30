@@ -58,6 +58,7 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: apps/desktop/src-tauri
           # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
           # the build script's output, which would then link against a missing directory.

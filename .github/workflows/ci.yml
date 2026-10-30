@@ -31,6 +31,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: core
           # sherpa-onnx-sys downloads its native libraries here; the cache prunes it but keeps
           # the build script's output, which would then link against a missing directory.
@@ -62,12 +63,15 @@ jobs:
         run: make core
       - name: Swift tests
         run: swift test --package-path apps/macos
+      - name: macOS platform tests
+        if: needs.changes.outputs.platform == 'true'
+        run: swift test --package-path apps/macos-platform
       - name: App bundle
         run: make app
 
   platform:
     needs: changes
-    if: needs.changes.outputs.platform == 'true'
+    if: needs.changes.outputs.platform == 'true' && needs.changes.outputs.legacy != 'true'
     runs-on: macos-15
     timeout-minutes: 15
     steps:
@@ -77,3 +81,15 @@ jobs:
           xcode-version: latest-stable
       - name: macOS platform tests
         run: swift test --package-path apps/macos-platform
+
+  required:
+    needs: [changes, build-and-test, platform]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check selected job results
+        env:
+          CI_NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 -B scripts/ci-status.py

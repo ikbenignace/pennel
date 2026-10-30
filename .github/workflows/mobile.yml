@@ -14,11 +14,33 @@ on:
       - "scripts/prepare-mobile-assets.sh"
       - "scripts/mobile-device-hub*.mjs"
       - "scripts/with-toolchain.sh"
+      - "scripts/ci-xcode-cache.py"
+      - "scripts/ci-xcodebuild.sh"
+      - "scripts/tests/test_ci_xcode_cache.py"
       - "Makefile"
       - ".github/workflows/mobile.yml"
   pull_request:
     paths: *paths
   workflow_dispatch:
+    inputs:
+      xcode_cache:
+        description: Compiler-cache experiment; ordinary CI keeps caching off
+        type: choice
+        options: ['off', 'cold', 'warm']
+        default: 'off'
+      repetitions:
+        description: Fresh runners for matched measurements (cold requires 1)
+        type: choice
+        options: ['1', '3']
+        default: '1'
+      cache_generation:
+        description: Immutable seed identifier shared by cold and warm runs
+        type: string
+        default: pilot-1
+
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: mobile-${{ github.ref }}
@@ -26,10 +48,27 @@ concurrency:
 
 jobs:
   ios-generated-build:
+    name: iOS generated build (${{ matrix.repetition }})
+    strategy:
+      fail-fast: false
+      matrix:
+        repetition: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.repetitions == '3' && '[1,2,3]' || '[1]') }}
     runs-on: macos-26
     timeout-minutes: 90
+    env:
+      PENNEL_VARIANT: preview
+      PENNEL_XCODE_CACHE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.xcode_cache || 'off' }}
+      CACHE_REPETITIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.repetitions || '1' }}
+      CACHE_GENERATION: ${{ github.event_name == 'workflow_dispatch' && inputs.cache_generation || 'pilot-1' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Validate compiler-cache pilot inputs
+        run: python3 -B scripts/ci-xcode-cache.py validate --mode "$PENNEL_XCODE_CACHE_MODE" --repetitions "$CACHE_REPETITIONS" --generation "$CACHE_GENERATION"
+      - name: Require available compiler-cache storage before a cold experiment
+        if: env.PENNEL_XCODE_CACHE_MODE == 'cold'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/ci-xcode-cache.py preflight
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -47,22 +86,41 @@ jobs:
         with:
           workspaces: core
           key: expo-mobile-lean
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
       - name: Install mobile dependencies
         working-directory: apps/mobile
         run: npm ci
       - name: Typecheck and regression tests
-        run: make mobile-test
-      - name: Generate and build the preview application
+        run: |
+          python3 -B -m unittest discover -s scripts/tests -p 'test_ci_xcode_cache.py'
+          python3 -B scripts/ci-xcode-cache.py time --phase typecheck-and-tests -- make mobile-test
+      - name: Generate and validate the preview workspace
         env:
-          PENNEL_VARIANT: preview
           CI: "1"
-        run: make mobile-ios
+        run: python3 -B scripts/ci-xcode-cache.py time --phase native-preparation -- make mobile-prebuild
+      - name: Fingerprint the native compiler-cache experiment
+        id: compiler-cache
+        run: python3 -B scripts/ci-xcode-cache.py prepare --mode "$PENNEL_XCODE_CACHE_MODE" --repetitions "$CACHE_REPETITIONS" --generation "$CACHE_GENERATION" --repetition '${{ matrix.repetition }}'
+      - name: Restore Xcode compilation cache
+        if: env.PENNEL_XCODE_CACHE_MODE != 'off'
+        id: restore-compiler-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.compiler-cache.outputs.directory }}
+          key: ${{ steps.compiler-cache.outputs.key }}
+          lookup-only: ${{ env.PENNEL_XCODE_CACHE_MODE == 'cold' }}
+      - name: Require a comparable cold or warm experiment
+        env:
+          EXACT_CACHE_HIT: ${{ steps.restore-compiler-cache.outputs.cache-hit }}
+        run: python3 -B scripts/ci-xcode-cache.py verify-restore --mode "$PENNEL_XCODE_CACHE_MODE" --hit "$EXACT_CACHE_HIT"
+      - name: Build the Release simulator application
+        env:
+          CI: "1"
+        run: python3 -B scripts/ci-xcode-cache.py time --phase release-simulator -- npm --prefix apps/mobile run build:ios
       - name: Build unsigned device candidate
-        working-directory: apps/mobile
         env:
           PENNEL_IOS_DESTINATION: generic/platform=iOS
-          PENNEL_VARIANT: preview
-        run: npm run build:ios
+        run: python3 -B scripts/ci-xcode-cache.py time --phase release-device -- npm --prefix apps/mobile run build:ios
       - name: Pick an available iPhone simulator
         run: |
           xcrun simctl list devices available --json > "$RUNNER_TEMP/pennel-simulators.json"
@@ -82,4 +140,30 @@ jobs:
               environment.write(f"IOS_DESTINATION=platform=iOS Simulator,id={device}\n")
           PY
       - name: Native runtime and keyboard regression tests
-        run: make mobile-native-test
+        run: python3 -B scripts/ci-xcode-cache.py time --phase debug-runtime-and-keyboard -- make mobile-native-test
+      - name: Check compiler-cache storage budget
+        if: success() && env.PENNEL_XCODE_CACHE_MODE == 'cold'
+        id: compiler-cache-budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/ci-xcode-cache.py budget
+      - name: Save Xcode compilation cache
+        if: success() && env.PENNEL_XCODE_CACHE_MODE == 'cold' && steps.compiler-cache-budget.outputs.save == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.compiler-cache.outputs.directory }}
+          key: ${{ steps.compiler-cache.outputs.key }}
+      - name: Report mobile phase and cache timings
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXACT_CACHE_HIT: ${{ steps.restore-compiler-cache.outputs.cache-hit }}
+        run: python3 -B scripts/ci-xcode-cache.py report --hit "$EXACT_CACHE_HIT"
+      - name: Upload mobile timing receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-ci-${{ env.PENNEL_XCODE_CACHE_MODE }}-${{ matrix.repetition }}
+          path: build/ci-performance/mobile.json
+          if-no-files-found: error
+          retention-days: 7
