@@ -1,7 +1,7 @@
 import { bindLocalization, getInterfaceLanguage, l, t, formatNumber } from "../i18n.ts";
 import { api, type AppInfo, type MeetingInfo, type MeetingRuntimeStatus, type Passage } from "../api";
 import { LatestRequest, SerialQueue } from "../async";
-import { askText, confirmDialog, h, showPopupMenu, snippet, type PopupMenuItem } from "../dom";
+import { textField, askText, confirmDialog, h, showPopupMenu, snippet, type PopupMenuItem } from "../dom";
 import { meetingDate, dayGroup } from "../meeting-labels.ts";
 export { meetingDate, dayGroup } from "../meeting-labels.ts";
 import { icon } from "../icons";
@@ -70,7 +70,7 @@ export class LibrarySidebar {
 
   constructor(private readonly host: LibraryHost) {
     const select = (section: WorkspaceRoute["section"]) => host.select ? host.select(section) : host.go(workspaceRoute(section));
-    this.search = h("input", { type: "search", placeholder: l("common.search"), "aria-label": l("meetings.search_label"), spellcheck: false });
+    this.search = textField({ type: "search", placeholder: l("common.search"), "aria-label": l("meetings.search_label"), spellcheck: false });
     this.search.addEventListener("input", () => {
       this.query = this.search.value;
       window.clearTimeout(this.searchTimer);

@@ -192,7 +192,7 @@
   async function invoke(command, args = {}) {
     calls.push(command);
     switch (command) {
-      case "app_info": return info();
+      case "app_info": if (options.app_info_fail) throw new Error("Synthetic startup failure"); if (options.app_info_delay_ms) await new Promise(resolve => setTimeout(resolve, options.app_info_delay_ms)); return info();
       case "save_settings": {
         settings = clone(args.settings);
         settings.ui_language = ["en", "nl", "system"].includes(settings.ui_language) ? settings.ui_language : "system";

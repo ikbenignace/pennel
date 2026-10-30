@@ -188,7 +188,6 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
             .visible(false);
             if mode != "prompt" {
                 builder = native_title_bar(builder)
-                    .zoom_hotkeys_enabled(true)
                     .min_inner_size(
                         fit.map_or(spec.minimum.0, |size| size.min_width),
                         fit.map_or(spec.minimum.1, |size| size.min_height),
@@ -255,10 +254,13 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     } else {
                         workspace::deliver(&handle, label);
                     }
-                    let _ = window.show();
-                    if workspace::take_focus(&handle, label) {
-                        let _ = window.set_focus();
-                    }
+                }
+                // Show the loading surface immediately; keep queued routes until listeners are ready.
+                let _ = window.show();
+                if workspace::take_focus(&handle, label) {
+                    let _ = window.set_focus();
+                }
+                if ready {
                     notify_visibility(&handle, label, true);
                 }
             }

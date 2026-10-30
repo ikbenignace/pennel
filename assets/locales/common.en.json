@@ -5,6 +5,7 @@
   "common.retry": "Try again",
   "common.save": "Save",
   "common.done": "Done",
+  "common.startup_error": "Pennel could not start.",
   "common.loading": "Loading…",
   "common.back": "Back",
   "navigation.back_to_work": "Back to your work",

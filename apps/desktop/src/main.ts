@@ -2,7 +2,7 @@ import "./styles.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, fixtureClient, listen, listenToWindow, type AppInfo, type MeetingFinished, type MeetingRuntimeStatus, type Settings, type UpdateInfo } from "./api";
 import { LatestRequest, SerialQueue, afterPaint, fillWhenReady, persistAll } from "./async";
-import { errorText, h, section, select } from "./dom";
+import { controlButton, errorText, h, section, select } from "./dom";
 import { dictationView, dictionaryView, stylesView } from "./views/dictation";
 import { historyView } from "./views/history";
 import { displayedMeetingSession, finishMeetingDrafts, flushMeetingDrafts, meetingView, meetingsView } from "./views/meetings";
@@ -324,7 +324,7 @@ async function settingsView(ctx: Context): Promise<HTMLElement> {
   const selected = tabs.find(([id]) => id === current) ?? tabs[0];
   const pane = h("section", { class: "settings-pane" });
   const positionKey = scrollKey(navigation.current);
-  const content = async () => [await selected[2](ctx), settingsFooter(ctx)];
+  const content = async () => [...(current === "overview" ? [] : [h("h2", { class: "settings-title" }, l(selected[1]))]), await selected[2](ctx), settingsFooter(ctx)];
   // A re-render of the same category keeps its old content until the new one is ready, so the
   // scroll position survives; a new category appears at once and fills in as its data arrives.
   if (rerendering) pane.append(...await content());
@@ -357,10 +357,9 @@ function appearanceView(ctx: Context): HTMLElement {
   bindLocalization(interfacePicker, updateLabels);
   ctx.onInfoChange((next) => { picker.value = next.settings.appearance; interfacePicker.value = next.settings.ui_language ?? "system"; });
   return h("div", {}, section(l("interface.language"), l("interface.language_help"), interfacePicker),
-    section(l("appearance.title"), l("appearance.help"), h("div", { class: "preference-row" }, h("span", {}, l("appearance.title")), picker),
-      h("p", { class: "help" }, l("appearance.zoom_help", () => ({ modifier: ctx.info.platform === "macos" ? "⌘" : "Ctrl" })))),
+    section(l("appearance.title"), l("appearance.help"), h("div", { class: "preference-row" }, h("span", {}, l("appearance.title")), picker)),
     section(l("intro.title"), l("intro.help"),
-      h("button", { class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "language") }, l("intro.open"))));
+      controlButton({ class: "btn onboarding-replay", onclick: () => api.showWindow("onboarding", "language") }, l("intro.open"))));
 }
 
 /** As in the original library, the main window opens on the newest meeting when none is chosen. */
@@ -495,13 +494,13 @@ function settingsFooter(ctx: Context) {
   const status = h("span", { class: "help", role: "status" }, liveText(() => message()));
   const showStatus = (next: () => string) => { message = next; status.textContent = message(); };
   bindLocalization(status, () => { status.textContent = message(); });
-  const install = h("button", { class: "btn", hidden: true, disabled: info.preview }, l("updates.install"));
+  const install = controlButton({ class: "btn", hidden: true, disabled: info.preview }, l("updates.install"));
   install.addEventListener("click", async () => {
     install.disabled = true; showStatus(() => t("updates.downloading"));
     try { await api.installUpdate(); showStatus(() => t("updates.installed")); }
     catch (error) { showStatus(() => errorText(error)); install.disabled = false; }
   });
-  const check = h("button", { class: "btn", disabled: info.preview, title: info.preview ? l("updates.preview_disabled") : null, onclick: async () => {
+  const check = controlButton({ class: "btn", disabled: info.preview, title: info.preview ? l("updates.preview_disabled") : null, onclick: async () => {
     check.disabled = true; showStatus(() => t("updates.checking"));
     try { const update: UpdateInfo = await api.checkForUpdates(); showStatus(() => update.available ? t("updates.available", { version: update.version ?? "" }) : t("updates.current")); install.hidden = !update.available; }
     catch (error) { showStatus(() => errorText(error)); }
@@ -557,6 +556,12 @@ function notifyVisibility() {
 
 async function boot() {
   document.body.dataset.window = mode;
+  if (mode !== "prompt") {
+    const languages = fixtureClient() && query.has("locale") ? [query.get("locale")!] : navigator.languages?.length ? navigator.languages : [navigator.language];
+    const supported = languages.map((value) => value?.split(/[-_]/)[0].toLowerCase()).find((value) => value === "en" || value === "nl");
+    setInterfaceLanguage(supported);
+    app.replaceChildren(h("div", { class: "startup-loading", role: "status" }, l("common.loading")));
+  }
   info = await api.info(); applyAppearance();
   setInterfaceLanguage(info.interface_language ?? "en");
   const updateTitle = () => { document.title = mode === "onboarding" ? t("window.onboarding") : mode === "prompt" ? "Pennel" : windowTitles[mode]; };
@@ -642,4 +647,10 @@ content.addEventListener("focusout", () => { window.setTimeout(() => { if (needs
 window.addEventListener("unhandledrejection", (event) => { event.preventDefault(); report(event.reason); });
 window.addEventListener("beforeunload", () => { sidebarPoll?.dispose(); runtimePoll?.dispose(); library?.dispose(); mounted?.cleanup.forEach((cleanup) => cleanup()); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (info) applyAppearance(); });
-void boot().catch(report);
+void boot().catch((error: unknown) => {
+  if (mode === "prompt") { report(error); return; }
+  app.replaceChildren(h("div", { class: "startup-error", role: "alert" },
+    h("p", {}, l("common.startup_error")),
+    h("p", { class: "help" }, errorText(error)),
+    controlButton({ onclick: () => location.reload() }, l("common.retry"))));
+});

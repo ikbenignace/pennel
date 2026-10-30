@@ -174,16 +174,35 @@ pub struct AppInfo {
     recording_app_ids: Vec<String>,
 }
 
-pub(crate) fn info(shared: &Shared) -> AppInfo {
+pub(crate) fn info(shared: &Shared) -> Result<AppInfo> {
+    static FIRST_INFO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+    let trace = FIRST_INFO.swap(false, std::sync::atomic::Ordering::Relaxed);
+    if trace {
+        LOG.info("initial app information: reading settings");
+    }
     let settings = shared.settings();
+    if trace {
+        LOG.info("initial app information: checking credential store");
+    }
     let keys = settings
         .providers
         .iter()
-        .map(|p| (p.id.clone(), shared.secrets.get(&p.id).is_some()))
-        .collect();
+        .map(|p| {
+            shared
+                .secrets
+                .has(&p.id)
+                .map(|present| (p.id.clone(), present))
+        })
+        .collect::<Result<HashMap<_, _>>>()?;
+    if trace {
+        LOG.info("initial app information: checking capabilities");
+    }
     let hotkey_error = shared.hotkey_error.lock().unwrap().clone();
     let capabilities = capabilities::snapshot(hotkey_error.as_deref()).localized();
-    AppInfo {
+    if trace {
+        LOG.info("initial app information: assembling state");
+    }
+    Ok(AppInfo {
         interface_language: settings
             .ui_language
             .resolve(&[shared.system_interface_language.code().to_owned()]),
@@ -215,13 +234,13 @@ pub(crate) fn info(shared: &Shared) -> AppInfo {
             .into_iter()
             .chain(pennel_core::browser_apps())
             .collect(),
-    }
+    })
 }
 
 #[tauri::command]
 pub async fn app_info(shared: State<'_, Arc<Shared>>) -> Result<AppInfo> {
     let shared = shared.inner().clone();
-    off_main("app_info", move || Ok(info(&shared))).await
+    off_main("app_info", move || info(&shared)).await
 }
 
 #[tauri::command]
@@ -281,7 +300,7 @@ fn apply_settings(mut settings: Settings, app: &AppHandle, shared: &Shared) -> R
         crate::owned_dictation::invalidate_external(app);
     }
     let _ = app.emit("settings-changed", ());
-    Ok(info(shared))
+    info(shared)
 }
 
 #[tauri::command]
@@ -304,7 +323,7 @@ pub async fn add_provider(kind: ProviderKind, shared: State<'_, Arc<Shared>>) ->
         }
         settings.providers.push(account);
         shared.engine.update_settings(settings).map_err(err)?;
-        Ok(info(&shared))
+        info(&shared)
     })
     .await
 }
@@ -318,7 +337,7 @@ pub async fn remove_provider(id: String, shared: State<'_, Arc<Shared>>) -> Resu
         settings.providers.retain(|p| p.id != id);
         shared.engine.update_settings(settings).map_err(err)?;
         let _ = shared.secrets.set(&id, "");
-        Ok(info(&shared))
+        info(&shared)
     })
     .await
 }
@@ -335,7 +354,7 @@ pub async fn set_key(
         let _inference_mutation = crate::inference::mutation();
         shared.secrets.set(&account, &key)?;
         let _ = app.emit("settings-changed", ());
-        Ok(info(&shared))
+        info(&shared)
     })
     .await
 }
@@ -507,7 +526,7 @@ pub async fn delete_model(id: String, shared: State<'_, Arc<Shared>>) -> Result<
     let shared = shared.inner().clone();
     off_main("delete_model", move || {
         shared.engine.delete_model(id).map_err(err)?;
-        Ok(info(&shared))
+        info(&shared)
     })
     .await
 }
@@ -1693,7 +1712,7 @@ mod tests {
         settings.language = Some("nl".into());
         settings.ui_language = pennel_core::InterfaceLanguagePreference::Dutch;
         shared.engine.update_settings(settings).unwrap();
-        let app = info(&shared);
+        let app = info(&shared).unwrap();
         assert_eq!(
             app.interface_language,
             pennel_core::InterfaceLanguage::Dutch

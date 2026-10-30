@@ -125,19 +125,21 @@ impl ModelEntry {
     }
 }
 
-/// whisper.cpp files Pennel offered before the catalog; still loadable, only listed once downloaded.
+/// whisper.cpp files offered alongside the catalog, including previously downloaded models.
 fn legacy_entries() -> Vec<ModelEntry> {
     let hf = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
     vec![
         ModelEntry {
             id: "whisper-large-v3-turbo-q5_0".into(),
             name: "Whisper large-v3 turbo (q5)".into(),
-            description: "Previously downloaded version".into(),
+            description: catalog::find("whisper-large-v3-turbo")
+                .map(|model| model.description.clone())
+                .unwrap_or_default(),
             size_bytes: 574_041_195,
             sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2".into(),
             url: format!("{hf}/ggml-large-v3-turbo-q5_0.bin"),
             scores: catalog::find("whisper-large-v3-turbo"),
-            legacy: true,
+            legacy: false,
             kind: ModelKind::Speech,
         },
         ModelEntry {
@@ -459,6 +461,7 @@ mod tests {
         assert!(
             legacy_entries()
                 .iter()
+                .filter(|entry| entry.legacy)
                 .all(|entry| entry.description == "Previously downloaded version")
         );
     }
@@ -554,6 +557,36 @@ mod tests {
                 .windows(2)
                 .all(|w| w[0].accuracy >= w[1].accuracy)
         );
+    }
+
+    #[test]
+    fn whisper_turbo_q5_is_available_before_download_and_keeps_existing_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ModelStore::new(dir.path());
+        let models = store.local_models(Some("nl"), true);
+        let model = models
+            .iter()
+            .find(|model| model.id == "whisper-large-v3-turbo-q5_0")
+            .expect("Q5 should be available to download");
+        assert!(!model.legacy);
+        assert_eq!(store.state(&model.id), ModelState::NotDownloaded);
+        let entry = store
+            .catalog
+            .iter()
+            .find(|entry| entry.id == model.id)
+            .unwrap();
+        assert!(entry.url.ends_with("ggml-large-v3-turbo-q5_0.bin"));
+        assert_eq!(
+            entry.sha256,
+            "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
+        );
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(
+            dir.path().join("models/whisper-large-v3-turbo-q5_0.bin"),
+            b"x",
+        )
+        .unwrap();
+        assert_eq!(store.state(&model.id), ModelState::Downloaded);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 import { bindLocalization, l, t, localizeBackendText } from "../i18n.ts";
 import { api, listen, type EnrollmentProgress, type ModelState, type SpeakerSetup, type VoiceProfile } from "../api";
-import { errorText, formatClock, h } from "../dom";
+import { controlButton, errorText, formatClock, h } from "../dom";
 import { afterPaint } from "../async";
 import { combinedProgress, enrollmentButton, enrollmentStatus, enrollmentStep, enrollmentTone, percent, speakerModelsReady, type DownloadProgress, type Enrollment } from "../speaker-state";
 
@@ -68,7 +68,7 @@ export class SpeakerModels {
 
 /** Download button, progress and cancel for the speaker models; redraw with `update`. */
 export function speakerDownload(models: SpeakerModels) {
-  const button = h("button", { class: "btn", onclick: () => { void models.download(); } }, speakerDownloadLabel());
+  const button = controlButton({ class: "btn", onclick: () => { void models.download(); } }, speakerDownloadLabel());
   const progress = h("progress", { class: "engine-download-progress", "aria-label": l("settings.voice.download_label"), max: 1, value: 0 });
   const caption = h("span", {});
   const cancel = h("button", { class: "text-button", onclick: () => models.cancel() }, l("onboarding.cancel_download"));
@@ -93,7 +93,7 @@ export function speakerDownload(models: SpeakerModels) {
 export class EnrollmentPanel {
   readonly element: HTMLElement;
   private state: Enrollment = { phase: "idle" };
-  private readonly button = h("button", { class: "btn primary enrollment-record" });
+  private readonly button = controlButton({ class: "btn primary enrollment-record" });
   private readonly status = h("p", { class: "help enrollment-status", role: "status", "aria-live": "polite" });
   private stopListening: (() => void) | null = null;
   private disposed = false;
@@ -179,8 +179,8 @@ export function enrollmentDialog(text: string): Promise<VoiceProfile | null> {
     const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = h("dialog", { class: "editor-dialog enrollment-dialog", "aria-modal": "true", "aria-labelledby": "enrollment-title" });
     let learned: VoiceProfile | null = null;
-    const done = h("button", { class: "btn primary", disabled: true, onclick: () => close() }, l("onboarding.done"));
-    const cancel = h("button", { class: "btn", onclick: () => close() }, l("common.cancel"));
+    const done = controlButton({ class: "btn primary", disabled: true, onclick: () => close() }, l("onboarding.done"));
+    const cancel = controlButton({ class: "btn", onclick: () => close() }, l("common.cancel"));
     const panel = new EnrollmentPanel(text, (profile) => { learned = profile; done.disabled = false; }, () => { cancel.disabled = panel.busy; });
     const close = () => {
       panel.dispose(); dialog.close(); dialog.remove();

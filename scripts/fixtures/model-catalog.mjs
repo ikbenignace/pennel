@@ -17,6 +17,9 @@ export function visualModels(catalog, source, language = "nl") {
       languages: model.languages, recommended: recommended.includes(model.id), legacy: false,
     };
   });
+  // The older whisper.cpp Q5 file is exposed separately from the catalog's Q8 file.
+  const turbo = models.find(model => model.id === "whisper-large-v3-turbo");
+  if (turbo) models.push({ ...turbo, id: "whisper-large-v3-turbo-q5_0", name: "Whisper large-v3 turbo (q5)", size_bytes: 574041195, recommended: false, legacy: false });
   const rank = model => { const index = recommended.indexOf(model.id); return index < 0 ? Number.MAX_SAFE_INTEGER : index; };
   return models.sort((a, b) => rank(a) - rank(b) || Number(b.accuracy !== null) - Number(a.accuracy !== null) || (b.accuracy ?? 0) - (a.accuracy ?? 0) || b.speed - a.speed);
 }
