@@ -28,6 +28,14 @@ impl Default for Secrets {
 }
 
 impl Secrets {
+    /// Captures never share the installed Preview's Keychain service.
+    pub fn for_capture() -> Self {
+        Self {
+            service: "dev.pennel.Pennel.capture.preview",
+            ..Self::new(true)
+        }
+    }
+
     pub fn new(preview: bool) -> Self {
         let service = match (cfg!(target_os = "macos"), preview) {
             (true, false) => "dev.pennel.Pennel",
@@ -182,6 +190,15 @@ impl SecretStore for Secrets {
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    #[test]
+    fn native_capture_never_uses_installed_preview_credentials() {
+        let capture = Secrets::for_capture();
+        assert_ne!(capture.service, Secrets::new(true).service);
+        assert_ne!(capture.service, Secrets::new(false).service);
+        assert!(capture.service.ends_with(".preview"));
+        assert!(capture.migrate_legacy(&[]).is_err());
+    }
 
     #[test]
     fn verification_revision_changes_only_after_successful_credential_writes() {

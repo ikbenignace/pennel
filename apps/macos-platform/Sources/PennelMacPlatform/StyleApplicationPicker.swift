@@ -44,18 +44,38 @@ func applyStyleApplicationPickerLabels(_ panel: NSOpenPanel, title: String, prom
 }
 
 @MainActor
-func pickStyleApplication(title: String, prompt: String) throws -> StyleApplicationSelection? {
-    let panel = NSOpenPanel()
+func pickStyleApplication(
+    title: String,
+    prompt: String,
+    owner: NSWindow,
+    panel suppliedPanel: NSOpenPanel? = nil,
+    present: ((NSOpenPanel, NSWindow, @escaping (NSApplication.ModalResponse) -> Void) -> Void)? = nil
+) async throws -> StyleApplicationSelection? {
+    guard StyleApplicationPickerState.panel == nil, owner.attachedSheet == nil else { return nil }
+    let panel = suppliedPanel ?? NSOpenPanel()
+    let previousResponder = owner.firstResponder
     applyStyleApplicationPickerLabels(panel, title: title, prompt: prompt)
     StyleApplicationPickerState.panel = panel
-    defer { if StyleApplicationPickerState.panel === panel { StyleApplicationPickerState.panel = nil } }
+    defer {
+        if StyleApplicationPickerState.panel === panel { StyleApplicationPickerState.panel = nil }
+        if let view = previousResponder as? NSView, view.window === owner { owner.makeFirstResponder(view) }
+    }
     panel.allowedContentTypes = [.applicationBundle]
     panel.canChooseFiles = true
     panel.canChooseDirectories = false
     panel.allowsMultipleSelection = false
     panel.treatsFilePackagesAsDirectories = false
     panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-    guard panel.runModal() == .OK, let url = panel.url else { return nil }
+    let response = await withCheckedContinuation { continuation in
+        let finish: (NSApplication.ModalResponse) -> Void = { continuation.resume(returning: $0) }
+        if let present { present(panel, owner, finish) }
+        else { panel.beginSheetModal(for: owner, completionHandler: finish) }
+    }
+    return try styleApplicationSelection(response: response, url: panel.url)
+}
+
+func styleApplicationSelection(response: NSApplication.ModalResponse, url: URL?) throws -> StyleApplicationSelection? {
+    guard response == .OK, let url else { return nil }
     guard url.isFileURL, url.pathExtension.lowercased() == "app", let bundle = Bundle(url: url) else {
         throw StyleApplicationPickerError.invalidApplication
     }

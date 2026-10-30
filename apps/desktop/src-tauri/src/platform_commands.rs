@@ -241,6 +241,7 @@ pub fn mark_lines(enhanced: String, notes: String) -> Vec<MarkedLine> {
 #[tauri::command]
 pub async fn choose_meetings_dir(
     app: AppHandle,
+    window: tauri::WebviewWindow,
     shared: State<'_, Arc<Shared>>,
 ) -> Result<Option<String>, String> {
     if shared.preview {
@@ -252,6 +253,7 @@ pub async fn choose_meetings_dir(
     tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
+            .set_parent(&window)
             .set_title(crate::ui::message("Choose the meeting folder"))
             .blocking_pick_folder()
             .map(|file| {

@@ -23,10 +23,12 @@ unsafe extern "C" {
     fn pennel_mac_request_permission(kind: *const c_char) -> bool;
     fn pennel_mac_foreground() -> *mut c_char;
     fn pennel_mac_pick_style_application(
+        owner: *mut c_void,
         title: *const c_char,
         prompt: *const c_char,
-        error: *mut *mut c_char,
-    ) -> *mut c_char;
+        sink: TextSink,
+        context: *mut c_void,
+    );
     fn pennel_mac_localize_style_application_picker(title: *const c_char, prompt: *const c_char);
     fn pennel_mac_app_identity(id: *const c_char, points: i32) -> *mut c_char;
     fn pennel_mac_external_target_start();
@@ -123,6 +125,7 @@ unsafe extern "C" {
     );
     fn pennel_mac_hide_panel(window: *mut c_void);
     fn pennel_mac_set_accessory();
+    fn pennel_mac_product_windows_visible(visible: bool);
 }
 
 fn c_string(value: &str) -> Result<CString, String> {
@@ -191,22 +194,16 @@ pub fn app_identity(id: &str, points: i32) -> Option<crate::app_identity::AppIde
     serde_json::from_value(unsafe { take_json(pennel_mac_app_identity(id.as_ptr(), points)) }).ok()
 }
 
-pub fn pick_style_application() -> Result<Option<crate::style_application::StyleApplication>, String>
-{
-    let mut error = ptr::null_mut();
+pub fn pick_style_application(
+    window: &tauri::WebviewWindow,
+) -> Result<Option<crate::style_application::StyleApplication>, String> {
+    let owner = window.ns_window().map_err(|error| error.to_string())?;
     let (title, prompt) = crate::style_application::picker_labels(crate::ui::language());
     let title = c_string(&title)?;
     let prompt = c_string(&prompt)?;
-    let selected = unsafe {
-        take_string(pennel_mac_pick_style_application(
-            title.as_ptr(),
-            prompt.as_ptr(),
-            &mut error,
-        ))
-    };
-    if let Some(error) = unsafe { take_string(error) } {
-        return Err(error);
-    }
+    let selected = wait_text(|sink, context| unsafe {
+        pennel_mac_pick_style_application(owner, title.as_ptr(), prompt.as_ptr(), sink, context)
+    })?;
     serde_json::from_str(
         selected
             .as_deref()
@@ -785,6 +782,10 @@ pub unsafe fn hide_panel(window: *mut c_void) {
 
 pub fn set_accessory() {
     unsafe { pennel_mac_set_accessory() };
+}
+
+pub fn product_windows_visible(visible: bool) {
+    unsafe { pennel_mac_product_windows_visible(visible) };
 }
 
 #[cfg(test)]

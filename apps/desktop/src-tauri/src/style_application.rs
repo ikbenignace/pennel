@@ -18,18 +18,22 @@ pub(crate) fn picker_labels(language: pennel_core::InterfaceLanguage) -> (String
 }
 
 #[tauri::command]
-pub async fn pick_style_application(app: AppHandle) -> Result<Option<StyleApplication>, String> {
+pub async fn pick_style_application(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<Option<StyleApplication>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         #[cfg(target_os = "macos")]
         {
             let _ = app;
-            crate::macos::pick_style_application()
+            crate::macos::pick_style_application(&window)
         }
         #[cfg(not(target_os = "macos"))]
         {
             let dialog = app
                 .dialog()
                 .file()
+                .set_parent(&window)
                 .set_title(picker_labels(crate::ui::language()).0);
             #[cfg(windows)]
             let dialog = dialog.add_filter(crate::ui::message("Apps"), &["exe"]);

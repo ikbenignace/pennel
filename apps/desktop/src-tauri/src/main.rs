@@ -13,6 +13,8 @@ mod clipboard;
 mod clipboard_system;
 mod cloud;
 mod commands;
+mod desktop_commands;
+mod desktop_environment;
 mod diagnostics;
 mod dictation;
 mod external_paste;
@@ -79,6 +81,12 @@ fn is_preview(app: &AppHandle) -> bool {
 }
 
 fn data_dir(app: &AppHandle) -> tauri::Result<PathBuf> {
+    #[cfg(target_os = "macos")]
+    if let Some(directory) = capture::data_directory(app).map_err(|error| {
+        tauri::Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, error))
+    })? {
+        return Ok(directory);
+    }
     let name = if is_preview(app) {
         "Pennel Preview"
     } else {
@@ -138,6 +146,16 @@ fn present(app: &AppHandle, presentation: workspace::Presentation) {
 }
 
 pub fn notify_visibility(app: &AppHandle, label: &str, visible: bool) {
+    #[cfg(target_os = "macos")]
+    if matches!(label, "main" | "onboarding") {
+        let product_visible = visible
+            || app.webview_windows().iter().any(|(other, window)| {
+                other != label
+                    && matches!(other.as_str(), "main" | "onboarding")
+                    && window.is_visible().unwrap_or(false)
+            });
+        macos::product_windows_visible(product_visible);
+    }
     let _ = app.emit_to(
         label,
         "workspace-visibility-changed",
@@ -194,6 +212,10 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     )
                     .center();
             }
+            #[cfg(target_os = "macos")]
+            if label == "main" {
+                builder = builder.transparent(true);
+            }
             if mode == "prompt" {
                 builder = builder
                     .decorations(false)
@@ -218,6 +240,11 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                 if let Ok(pointer) = window.ns_window() {
                     unsafe {
                         macos::configure_panel(pointer, true);
+                        if let Err(error) = desktop_environment::attach(&window, true) {
+                            LOG.error(format!("native prompt material unavailable: {error}"));
+                        }
+                        apply_appearance(&handle);
+                        capture::prepare(&handle, &window);
                         macos::show_panel_at_top_right(
                             pointer,
                             spec.size.0,
@@ -241,6 +268,13 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     crate::pill::show_without_focus(&window);
                 }
             } else {
+                if label == "main"
+                    && let Err(error) = desktop_environment::attach(&window, false)
+                {
+                    LOG.error(format!("native workspace material unavailable: {error}"));
+                }
+                #[cfg(target_os = "macos")]
+                capture::prepare(&handle, &window);
                 let ready = handle
                     .state::<ExitState>()
                     .sync
@@ -256,6 +290,8 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
                     }
                 }
                 // Show the loading surface immediately; keep queued routes until listeners are ready.
+                #[cfg(target_os = "macos")]
+                macos::product_windows_visible(true);
                 let _ = window.show();
                 if workspace::take_focus(&handle, label) {
                     let _ = window.set_focus();
@@ -268,15 +304,14 @@ pub fn show_window(app: &AppHandle, kind: &str, tab: Option<&str>) {
     });
 }
 
-/// Product windows keep the system title bar and its title. On macOS the bar is transparent over the
-/// webview so the sidebar and paper colour run to the top edge, as in the native reference app.
+/// Native controls remain in their system positions; the frontend reserves their measured inset.
 fn native_title_bar<'a, R: tauri::Runtime, M: Manager<R>>(
     builder: tauri::WebviewWindowBuilder<'a, R, M>,
 ) -> tauri::WebviewWindowBuilder<'a, R, M> {
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(false);
+        .hidden_title(true);
     builder
 }
 
@@ -378,6 +413,7 @@ pub fn apply_appearance(app: &AppHandle) {
     };
     for window in app.webview_windows().into_values() {
         let _ = window.set_theme(theme);
+        desktop_environment::apply_appearance(&window, theme);
     }
 }
 
@@ -443,6 +479,8 @@ pub fn frontend_ready(app: &AppHandle, label: &str) {
         apply_appearance(app);
         if let Some(window) = app.get_webview_window(label) {
             fit_window_to_work_area(app, &window);
+            #[cfg(target_os = "macos")]
+            macos::product_windows_visible(true);
             let _ = window.show();
             if workspace::take_focus(app, label) {
                 let _ = window.set_focus();
@@ -801,8 +839,15 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
     let dir = data_dir(&handle)?;
     let preview = is_preview(&handle);
+    #[cfg(target_os = "macos")]
+    let capture_profile = capture::enabled(&handle)
+        && handle.config().identifier == "dev.pennel.Pennel.capture.preview";
+    #[cfg(not(target_os = "macos"))]
+    let capture_profile = false;
     app.manage(owned_dictation::Sessions::default());
-    external_paste::start_tracking();
+    if !capture_profile {
+        external_paste::start_tracking();
+    }
     app.manage(call_detection::DetectionState::default());
     #[cfg(target_os = "macos")]
     {
@@ -839,7 +884,11 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         engine.set_system_language_model(Arc::new(AppleLanguageModel));
     }
     let (tx, rx) = mpsc::channel();
-    let secrets = Arc::new(secrets::Secrets::new(preview));
+    let secrets = Arc::new(if capture_profile {
+        secrets::Secrets::for_capture()
+    } else {
+        secrets::Secrets::new(preview)
+    });
     engine.set_secret_store(secrets.clone())?;
     #[cfg(target_os = "macos")]
     let migration_warning = if preview {
@@ -902,22 +951,24 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(pill::Snapshot::default());
     dictation::spawn(handle.clone(), shared.clone(), rx, tx.clone());
 
-    let (hotkey_tx, hotkey_rx) = mpsc::channel();
     let settings = shared.settings();
-    match Listener::start(settings.hotkey, hotkey_tx) {
-        Ok(listener) => *shared.hotkey.lock().unwrap() = Some(listener),
-        Err(e) => {
-            LOG.error(format!("shortcut inactive: {e}"));
-            *shared.hotkey_error.lock().unwrap() = Some(e);
-        }
-    }
-    std::thread::spawn(move || {
-        for event in hotkey_rx {
-            if tx.send(dictation::Msg::Hotkey(event)).is_err() {
-                return;
+    if !capture_profile {
+        let (hotkey_tx, hotkey_rx) = mpsc::channel();
+        match Listener::start(settings.hotkey, hotkey_tx) {
+            Ok(listener) => *shared.hotkey.lock().unwrap() = Some(listener),
+            Err(e) => {
+                LOG.error(format!("shortcut inactive: {e}"));
+                *shared.hotkey_error.lock().unwrap() = Some(e);
             }
         }
-    });
+        std::thread::spawn(move || {
+            for event in hotkey_rx {
+                if tx.send(dictation::Msg::Hotkey(event)).is_err() {
+                    return;
+                }
+            }
+        });
+    }
     LOG.info(format!(
         "shortcut active={} · dictation {}/{} · cleanup {}/{} · language {} · mode {:?}",
         shared.hotkey_error.lock().unwrap().is_none(),
@@ -940,9 +991,11 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     });
 
     build_tray(&handle, &shared)?;
-    record_shortcut::install(&handle)?;
-    record_shortcut::refresh(&handle, &shared);
-    call_detection::spawn(handle.clone(), shared.clone());
+    if !capture_profile {
+        record_shortcut::install(&handle)?;
+        record_shortcut::refresh(&handle, &shared);
+        call_detection::spawn(handle.clone(), shared.clone());
+    }
     capabilities::spawn_probe(&handle);
     platform_commands::spawn_update_checks(&handle);
     if shared.migration_warning.is_none() {
@@ -1012,6 +1065,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(setup)
+        .on_menu_event(|app, event| desktop_commands::dispatch(app, event.id().as_ref()))
         .on_window_event(|window, event| {
             if let WindowEvent::ScaleFactorChanged { .. } = event
                 && let Some(webview) = window.app_handle().get_webview_window(window.label())
@@ -1020,6 +1074,11 @@ fn main() {
             }
             if let WindowEvent::Focused(false) = event {
                 owned_dictation::focus_lost(window.app_handle(), window.label());
+            }
+            if let WindowEvent::Destroyed = event
+                && let Some(webview) = window.app_handle().get_webview_window(window.label())
+            {
+                desktop_environment::teardown(&webview);
             }
             if let WindowEvent::CloseRequested { api, .. } = event
                 && matches!(
@@ -1050,6 +1109,10 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            desktop_environment::desktop_environment,
+            desktop_commands::set_desktop_command_state,
+            #[cfg(target_os = "macos")]
+            capture::capture_snapshot,
             commands::app_info,
             commands::save_settings,
             commands::add_provider,

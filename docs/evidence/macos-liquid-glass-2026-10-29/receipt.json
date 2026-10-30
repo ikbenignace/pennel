@@ -1,0 +1,757 @@
+{
+  "schema": 1,
+  "desktop_candidate_revision": "f5092e8482cd52c44179caa847de3c54f762934c",
+  "binary_sha256": "4ff5edf99fa6acd90540e48800b0493f75ccca6b609eb6c83d411035a38dad59",
+  "identity": "dev.pennel.Pennel.capture.preview",
+  "signing": "ad-hoc development bundle; codesign --verify --deep --strict passed",
+  "host": {
+    "os": "27.0.1",
+    "xcode": "27.0 (27A266a)",
+    "architecture": "arm64",
+    "model": "Mac16,8"
+  },
+  "capture_method": "Owned native macOS application windows; synthetic data, dedicated capture identity, and owned synthetic native backdrop",
+  "capture_clock": "2026-10-25T09:00:00Z",
+  "native_captures": [
+    {
+      "case": "meeting-notes",
+      "locale": "en",
+      "appearance": "light",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "settings-overview",
+      "locale": "en",
+      "appearance": "light",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "meeting-notes",
+      "locale": "en",
+      "appearance": "dark",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    },
+    {
+      "case": "settings-overview",
+      "locale": "en",
+      "appearance": "dark",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "dark",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        980.0,
+        641.0
+      ],
+      "horizontal_overflow": false,
+      "activation_policy": 0
+    }
+  ],
+  "live_preferences_initial_candidate": [
+    {
+      "name": "reduce-transparency",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": true,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": true,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      }
+    },
+    {
+      "name": "increase-contrast",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": true,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": true,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      }
+    },
+    {
+      "name": "reduce-motion",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": true,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": true,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      }
+    },
+    {
+      "name": "fullscreen",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 0.0,
+        "titlebar_controls_width": 0.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 0.0,
+        "titlebar_controls_width": 0.0,
+        "focused": true
+      }
+    },
+    {
+      "name": "minimum-window",
+      "binary_sha256": "e685913a1c49048ead9a97421b851046b9a43cdfaac61f3be60430fd8f187e73",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 32.0,
+        "titlebar_controls_width": 69.0,
+        "focused": true
+      }
+    }
+  ],
+  "live_preferences_note": "Earlier motion and picker checks are retained as implementation-stage support. The padding candidate separately exercised real Reduce Transparency/Increase Contrast, circular sidebar/search activation, fullscreen and maximum-sidebar minimum-size layout. Original OS preferences and System Settings view were restored.",
+  "local_checks": {
+    "core_tests": {
+      "passed": 622,
+      "ignored": 5
+    },
+    "legacy_swift_tests": 53,
+    "desktop_frontend_tests": 212,
+    "desktop_backend_tests": 217,
+    "macos_platform_tests": 112,
+    "packaging_tests": 50,
+    "theme_tests": 12,
+    "mobilekit_tests": 64,
+    "mobile_ui_tests": 46,
+    "mobile_typecheck": "passed"
+  },
+  "remaining": [
+    "older-macOS visual acceptance",
+    "visible inactive-window visual acceptance",
+    "Windows/Linux device execution",
+    "human VoiceOver and OS enlarged-text acceptance",
+    "generated/native iPhone CI after palette compatibility fix",
+    "final hosted CI and review/merge"
+  ],
+  "control_metrics": {
+    "sidebar-width": 230,
+    "sidebar-min-width": 200,
+    "sidebar-max-width": 320,
+    "toolbar-height": 52,
+    "toolbar-button-size": 36,
+    "toolbar-glyph-size": 18,
+    "toolbar-group-gap": 12,
+    "control-height": 28,
+    "search-field-height": 36,
+    "sidebar-row-height": 32
+  },
+  "live_padding_candidate": [
+    {
+      "name": "padded-fullscreen",
+      "binary_sha256": "7ab0bea411b99282a2867061b54ead02aa5a32846c57744f2c5c53dc55c7a542",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 0.0,
+        "titlebar_controls_width": 0.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 0.0,
+        "titlebar_controls_width": 0.0,
+        "focused": true
+      },
+      "viewport": [
+        1512.0,
+        949.0
+      ],
+      "scroll_width": 1512.0
+    },
+    {
+      "name": "padded-minimum-sidebar320",
+      "binary_sha256": "7ab0bea411b99282a2867061b54ead02aa5a32846c57744f2c5c53dc55c7a542",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        760.0,
+        520.0
+      ],
+      "scroll_width": 760.0
+    },
+    {
+      "name": "padded-reduce-transparency",
+      "binary_sha256": "7ab0bea411b99282a2867061b54ead02aa5a32846c57744f2c5c53dc55c7a542",
+      "environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": true,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": true,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        760.0,
+        540.0
+      ],
+      "scroll_width": 760.0
+    },
+    {
+      "name": "padded-increase-contrast",
+      "binary_sha256": "7ab0bea411b99282a2867061b54ead02aa5a32846c57744f2c5c53dc55c7a542",
+      "environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": true,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "opaque",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": true,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        760.0,
+        540.0
+      ],
+      "scroll_width": 760.0
+    },
+    {
+      "name": "padded-settings-restored",
+      "binary_sha256": "7ab0bea411b99282a2867061b54ead02aa5a32846c57744f2c5c53dc55c7a542",
+      "environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "frontend_environment": {
+        "material": "liquid_glass",
+        "appearance": "light",
+        "reduce_transparency": false,
+        "reduce_motion": false,
+        "increase_contrast": false,
+        "titlebar_height": 52.0,
+        "titlebar_controls_width": 79.0,
+        "focused": true
+      },
+      "viewport": [
+        760.0,
+        540.0
+      ],
+      "scroll_width": 760.0
+    }
+  ],
+  "visual_fixture_checks": "44 final EN/NL light/dark padding captures, including minimum width and maximum sidebar",
+  "native_chrome": "Empty public unified NSToolbar provides window geometry; action controls stay in the frontend. No manual traffic-light positioning or new private API.",
+  "earlier_candidate_smoke": {
+    "native_app_picker_sheet": "attached sheet observed in native AX tree",
+    "picker_escape_focus": "returned to Add app button in native AX tree",
+    "hidden_focus": {
+      "material": "liquid_glass",
+      "appearance": "light",
+      "reduce_transparency": false,
+      "reduce_motion": false,
+      "increase_contrast": false,
+      "titlebar_height": 32.0,
+      "titlebar_controls_width": 69.0,
+      "focused": false
+    },
+    "after_close_activation_policy": 1,
+    "desktop_candidate_revision": "22ca99fcc63d56605572da33fccfed2cb222ba6b",
+    "binary_sha256": "54b0459b43da4f976f4145c267acde5888629cade13cf97d3a554ad39e0c57fd"
+  },
+  "final_candidate_smoke": {
+    "search_height_pt": 36,
+    "icon_inset_pt": 12,
+    "icon_text_gap_pt": 8,
+    "narrow_sidebar_width_pt": 200,
+    "focus_typing_and_filtering": "passed in actual app; synthetic Project query retained only matching library row",
+    "native_capture_count": 4,
+    "frontend_layout_capture_count": 12
+  },
+  "prior_padding_candidate": {
+    "revision": "3b4fc0b47ec2e093cb86df59bfb2fee9ffb8dc06",
+    "binary_sha256": "7ab0bea411b99282a2867061b54ead02aa5a32846c57744f2c5c53dc55c7a542",
+    "native_captures": [
+      {
+        "case": "meeting-notes",
+        "locale": "en",
+        "appearance": "light",
+        "environment": {
+          "material": "liquid_glass",
+          "appearance": "light",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "frontend_environment": {
+          "material": "liquid_glass",
+          "appearance": "light",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "viewport": [
+          980.0,
+          641.0
+        ],
+        "horizontal_overflow": false,
+        "activation_policy": 0
+      },
+      {
+        "case": "settings-overview",
+        "locale": "en",
+        "appearance": "light",
+        "environment": {
+          "material": "liquid_glass",
+          "appearance": "light",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "frontend_environment": {
+          "material": "liquid_glass",
+          "appearance": "light",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "viewport": [
+          980.0,
+          641.0
+        ],
+        "horizontal_overflow": false,
+        "activation_policy": 0
+      },
+      {
+        "case": "meeting-notes",
+        "locale": "en",
+        "appearance": "dark",
+        "environment": {
+          "material": "liquid_glass",
+          "appearance": "dark",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "frontend_environment": {
+          "material": "liquid_glass",
+          "appearance": "dark",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "viewport": [
+          980.0,
+          641.0
+        ],
+        "horizontal_overflow": false,
+        "activation_policy": 0
+      },
+      {
+        "case": "settings-overview",
+        "locale": "en",
+        "appearance": "dark",
+        "environment": {
+          "material": "liquid_glass",
+          "appearance": "dark",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "frontend_environment": {
+          "material": "liquid_glass",
+          "appearance": "dark",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "viewport": [
+          980.0,
+          641.0
+        ],
+        "horizontal_overflow": false,
+        "activation_policy": 0
+      },
+      {
+        "case": "meeting-notes",
+        "locale": "nl",
+        "appearance": "light",
+        "environment": {
+          "material": "liquid_glass",
+          "appearance": "light",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "frontend_environment": {
+          "material": "liquid_glass",
+          "appearance": "light",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "viewport": [
+          980.0,
+          641.0
+        ],
+        "horizontal_overflow": false,
+        "activation_policy": 0
+      },
+      {
+        "case": "settings-overview",
+        "locale": "nl",
+        "appearance": "light",
+        "environment": {
+          "material": "liquid_glass",
+          "appearance": "light",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "frontend_environment": {
+          "material": "liquid_glass",
+          "appearance": "light",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "viewport": [
+          980.0,
+          641.0
+        ],
+        "horizontal_overflow": false,
+        "activation_policy": 0
+      },
+      {
+        "case": "meeting-notes",
+        "locale": "nl",
+        "appearance": "dark",
+        "environment": {
+          "material": "liquid_glass",
+          "appearance": "dark",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "frontend_environment": {
+          "material": "liquid_glass",
+          "appearance": "dark",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "viewport": [
+          980.0,
+          641.0
+        ],
+        "horizontal_overflow": false,
+        "activation_policy": 0
+      },
+      {
+        "case": "settings-overview",
+        "locale": "nl",
+        "appearance": "dark",
+        "environment": {
+          "material": "liquid_glass",
+          "appearance": "dark",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "frontend_environment": {
+          "material": "liquid_glass",
+          "appearance": "dark",
+          "reduce_transparency": false,
+          "reduce_motion": false,
+          "increase_contrast": false,
+          "titlebar_height": 52.0,
+          "titlebar_controls_width": 79.0,
+          "focused": true
+        },
+        "viewport": [
+          980.0,
+          641.0
+        ],
+        "horizontal_overflow": false,
+        "activation_policy": 0
+      }
+    ],
+    "smoke": {
+      "sidebar_circle_activation": "passed in running app",
+      "search_circle_restores_sidebar_and_focus": "passed in running app",
+      "fullscreen_and_restore": "passed in running app",
+      "minimum_window_with_maximum_sidebar": "passed; actual dimensions in live_padding_candidate",
+      "real_transparency_and_contrast": "passed; native/frontend flags matched and controls stayed visible",
+      "original_os_settings_and_page": "restored"
+    }
+  },
+  "search_followup_date": "2026-10-30",
+  "prior_search_candidate": {
+    "revision": "ad4a4b1b388e2e6aa40d14f1a3f3a36860c98367",
+    "binary_sha256": "89275b1916dffa4e4c987157f5b8d63c89b362353d4956a30ee1a42756727b9f"
+  },
+  "rounded_sheet_followup": {
+    "radius_token": "radius-panel",
+    "radius_pt": 12,
+    "surfaces": [
+      "workspace content",
+      "Settings content"
+    ],
+    "clipping": "rounded container clips child backgrounds; existing inner scroll areas retained",
+    "frontend_fixture_captures": 16,
+    "native_capture_count": 4,
+    "native_cases": [
+      "meeting-notes",
+      "settings-overview"
+    ],
+    "local_build_and_212_tests": "passed"
+  }
+}
