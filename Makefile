@@ -1,10 +1,13 @@
-.PHONY: core test desktop desktop-preview desktop-test packaging-test theme theme-check mobile-core mobile-prebuild mobile-test mobile-ios mobile-native-test
+.PHONY: core test verify-core desktop desktop-preview desktop-test packaging-test theme theme-check mobile-core mobile-prebuild mobile-test mobile-ios mobile-native-test
 
 core:
 	scripts/with-toolchain.sh cargo build --manifest-path core/Cargo.toml --release --lib
 
-test: core
+test:
 	scripts/with-toolchain.sh cargo test --manifest-path core/Cargo.toml
+
+verify-core: core
+	$(MAKE) test
 
 desktop: theme
 	cd apps/desktop && npm ci && ../../scripts/with-toolchain.sh npx tauri build
