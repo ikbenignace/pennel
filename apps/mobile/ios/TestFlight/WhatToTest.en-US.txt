@@ -1,0 +1,1 @@
+Verify that your notes and settings survive the update. Test dictation, meeting recording, typing with the Pennel keyboard in another app, widgets, and launch with your Mac development server stopped. Report startup, microphone or keyboard issues. If you receive several builds of this candidate, verify the update path; the app source is unchanged.
