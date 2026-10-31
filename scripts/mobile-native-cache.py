@@ -21,6 +21,7 @@ import xml.etree.ElementTree as ET
 
 
 APPLE_TEAM = "B538Q2K76C"
+APP_STORE_TEAM = "4dc89f53-aed3-450a-9094-b1251bf1dbe3"
 BUNDLE_ID = "app.pennel.ios.preview"
 APP_GROUP = "group.app.pennel.preview"
 EXPECTED_TARGETS = {"Pennel": BUNDLE_ID, "PennelKeyboard": BUNDLE_ID + ".keyboard",
@@ -305,7 +306,7 @@ def store(root, cache_root, context, source_sha, inspector=None):
 
 
 def validate_cloud_environment(environment):
-    expected = {"CI_XCODE_CLOUD": "TRUE", "CI_TEAM_ID": APPLE_TEAM, "CI_BUNDLE_ID": BUNDLE_ID,
+    expected = {"CI_XCODE_CLOUD": "TRUE", "CI_TEAM_ID": APP_STORE_TEAM, "CI_BUNDLE_ID": BUNDLE_ID,
                 "CI_XCODE_SCHEME": "Pennel", "CI_XCODEBUILD_ACTION": "archive",
                 "PENNEL_APPLE_DECLARATIONS_CONFIRMED": "1"}
     for name, value in expected.items():

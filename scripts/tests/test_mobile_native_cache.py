@@ -210,12 +210,12 @@ class CloudIdentityTests(unittest.TestCase):
                 settings[name] = original
 
     def test_cloud_environment_rejects_nonarchive_other_team_and_other_branch(self):
-        env = {"CI_XCODE_CLOUD": "TRUE", "CI_TEAM_ID": cache.APPLE_TEAM,
+        env = {"CI_XCODE_CLOUD": "TRUE", "CI_TEAM_ID": cache.APP_STORE_TEAM,
                "CI_BUNDLE_ID": cache.BUNDLE_ID, "CI_XCODE_SCHEME": "Pennel",
                "CI_XCODEBUILD_ACTION": "archive", "CI_BRANCH": "codex/ios-testflight",
                "PENNEL_APPLE_DECLARATIONS_CONFIRMED": "1"}
         cache.validate_cloud_environment(env)
-        for name, wrong in (("CI_TEAM_ID", "OTHER"), ("CI_BUNDLE_ID", "app.pennel.ios"),
+        for name, wrong in (("CI_TEAM_ID", "OTHER"), ("CI_TEAM_ID", cache.APPLE_TEAM), ("CI_BUNDLE_ID", "app.pennel.ios"),
                             ("CI_XCODEBUILD_ACTION", "build"), ("CI_BRANCH", "main")):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 cache.validate_cloud_environment({**env, name: wrong})
