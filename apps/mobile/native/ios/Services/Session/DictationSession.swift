@@ -94,7 +94,8 @@ final class DictationSession {
             store: HandoffStore(directory: AppPaths.handoffDirectory),
             activity: SystemSessionActivity(),
             durationSource: { SessionClock.Duration.stored().rawValue },
-            meeting: { MeetingRuntime.shared })
+            meeting: { MeetingRuntime.shared },
+            observeCommands: !AppPaths.isQAProfile)
     }
 
     /// Nothing runs while the app is suspended, so a result that outlived its lifetime is removed at launch.

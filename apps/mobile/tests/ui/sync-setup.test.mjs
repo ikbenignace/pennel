@@ -46,6 +46,9 @@ test('a new Add device visit ignores historical terminal sessions and other role
   assert.equal(restorableLink({ ...old, phase: 'waiting_approval' }, 'trusted_device'), null);
   const pending = { ...old, phase: 'awaiting_approval', role: 'trusted_device' };
   assert.equal(restorableLink(pending, 'trusted_device'), pending);
+  assert.equal(restorableLink(old, 'new_device', 'old'), old);
+  assert.equal(restorableLink(old, 'new_device', 'other'), null);
+  assert.equal(restorableLink(old, 'trusted_device', 'old'), null);
 });
 
 test('recovery display and confirmation are hidden after signout, account change or rotation', () => {
