@@ -65,13 +65,13 @@ Replacing entries/staging artifacts preserves previous release inputs. Retain co
 
 ```sh
 python3 -B -m unittest discover -s scripts/tests -p 'test_mobile*.py'
-bash -n scripts/build-mobile-core-ios.sh scripts/build-keyboard-core-ios.sh scripts/xcode-cloud-post-clone.sh scripts/xcode-cloud-pre-xcodebuild.sh
+bash -n scripts/build-mobile-core-ios.sh scripts/build-keyboard-core-ios.sh scripts/xcode-cloud-post-clone.sh scripts/xcode-cloud-pre-xcodebuild.sh scripts/xcode-cloud-post-xcodebuild.sh
 actionlint .github/workflows/mobile-testflight.yml .github/workflows/mobile.yml .github/workflows/ci.yml
 ```
 
 Run existing mobile type/unit, clean/repeated generation, frozen-pod ownership and native checks. Compare device/simulator Swift/header/modulemap bytes. Verify the signed archive's team, identifiers, entitlements, versions and embedded extensions.
 
-The publisher retains validation/publication/snapshot receipts as Actions artifacts. Cloud phase receipts are build/testflight/cloud-timings.json; retain them with logs, archives and dSYMs before Apple's retention expires. Measure queue and Apple processing separately. Compare one cold and three matched warm observations against equivalent controls. Comparing a single archive with the entire QA job does not establish compiler speed.
+The publisher retains validation/publication/snapshot receipts as Actions artifacts. Cloud phase receipts are build/testflight/cloud-timings.json; the post-archive hook emits the same receipt as PENNEL_TESTFLIGHT_TIMINGS in downloadable Cloud logs. Retain logs, archives and dSYMs before Apple's retention expires. Measure queue and Apple processing separately. Compare one cold and three matched warm observations against equivalent controls. Comparing a single archive with the entire QA job does not establish compiler speed.
 
 Install and update through TestFlight on both iPhones; start without Metro and exercise dictation, keyboard and widgets. A development archive or simulator does not establish TestFlight acceptance.
 

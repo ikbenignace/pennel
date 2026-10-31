@@ -33,7 +33,7 @@ FIXED_FILES = {
     "Pennel.xcodeproj/project.pbxproj", "Pennel.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
     "Pennel.xcodeproj/xcshareddata/xcschemes/Pennel.xcscheme",
     "Pennel.xcworkspace/contents.xcworkspacedata", "ci_scripts/ci_post_clone.sh",
-    "ci_scripts/ci_pre_xcodebuild.sh", "TestFlight/WhatToTest.en-US.txt",
+    "ci_scripts/ci_pre_xcodebuild.sh", "ci_scripts/ci_post_xcodebuild.sh", "TestFlight/WhatToTest.en-US.txt",
 }
 REQUIRED_FILES = {
     "Pennel/AppDelegate.swift", "Pennel/Info.plist", "Pennel/Pennel.entitlements",
@@ -45,7 +45,7 @@ REQUIRED_FILES = {
 INPUT_FILES = {
     "apps/mobile/package.json", "apps/mobile/package-lock.json", "apps/mobile/app.config.ts",
     "apps/mobile/Podfile.lock", "scripts/mobile-testflight-snapshot.py",
-    "scripts/xcode-cloud-post-clone.sh", "scripts/xcode-cloud-pre-xcodebuild.sh",
+    "scripts/xcode-cloud-post-clone.sh", "scripts/xcode-cloud-pre-xcodebuild.sh", "scripts/xcode-cloud-post-xcodebuild.sh",
 }
 WORKSPACE = '''<?xml version="1.0" encoding="UTF-8"?>
 <Workspace version="1.0">
@@ -299,7 +299,8 @@ def prepare(root, source, receipt, notes_file=None):
     if not (root / IOS / ".xcode.env").exists():
         write_output(root, IOS / ".xcode.env", 'export NODE_BINARY=$(command -v node)\n')
     for hook, canonical in [("ci_post_clone.sh", "xcode-cloud-post-clone.sh"),
-                            ("ci_pre_xcodebuild.sh", "xcode-cloud-pre-xcodebuild.sh")]:
+                            ("ci_pre_xcodebuild.sh", "xcode-cloud-pre-xcodebuild.sh"),
+                            ("ci_post_xcodebuild.sh", "xcode-cloud-post-xcodebuild.sh")]:
         wrapper = ('#!/bin/sh\nset -eu\n'
                    'root="${CI_PRIMARY_REPOSITORY_PATH:-$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)}"\n'
                    f'exec /bin/bash "$root/scripts/{canonical}"\n')

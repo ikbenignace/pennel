@@ -17,3 +17,7 @@ fi
 started="$SECONDS"
 python3 "$helper" prepare-build --root "$root" --build-number "${CI_BUILD_NUMBER:?The Xcode Cloud build number is required}"
 python3 "$helper" record --root "$root" --phase archive-identity --elapsed "$((SECONDS - started))"
+python3 - "$root/build/testflight/archive-start.json" <<'PY'
+import json,pathlib,sys,time
+pathlib.Path(sys.argv[1]).write_text(json.dumps({"started": time.time()})+"\n")
+PY

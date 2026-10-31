@@ -10,7 +10,7 @@ on:
       - "assets/locales/**"
       - "scripts/build-mobile-*.sh"
       - "scripts/build-keyboard-core-ios.sh"
-      - "scripts/tests/test_mobile_core_build.py"
+      - "scripts/tests/test_mobile*.py"
       - "scripts/mobile-testflight-*.py"
       - "scripts/mobile-native-cache.py"
       - "scripts/xcode-cloud-*.sh"
@@ -99,9 +99,7 @@ jobs:
       - name: Typecheck and regression tests
         run: |
           python3 -B -m unittest discover -s scripts/tests -p 'test_ci_xcode_cache.py'
-          python3 -B -m unittest discover -s scripts/tests -p 'test_mobile_core_build.py'
-          python3 -B -m unittest discover -s scripts/tests -p 'test_mobile_testflight*.py'
-          python3 -B -m unittest discover -s scripts/tests -p 'test_mobile_native_cache.py'
+          python3 -B -m unittest discover -s scripts/tests -p 'test_mobile*.py'
           python3 -B scripts/ci-xcode-cache.py time --phase typecheck-and-tests -- make mobile-test
       - name: Generate and validate the preview workspace
         env:

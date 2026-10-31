@@ -27,7 +27,7 @@ class SnapshotTests(unittest.TestCase):
         for relative in ["apps/mobile/package.json", "apps/mobile/package-lock.json",
                          "apps/mobile/app.config.ts", "apps/mobile/plugins/with-pennel.cjs",
                          "apps/mobile/plugins/pod_helpers.rb", "scripts/mobile-testflight-snapshot.py",
-                         "scripts/xcode-cloud-post-clone.sh", "scripts/xcode-cloud-pre-xcodebuild.sh"]:
+                         "scripts/xcode-cloud-post-clone.sh", "scripts/xcode-cloud-pre-xcodebuild.sh", "scripts/xcode-cloud-post-xcodebuild.sh"]:
             self.write(relative, "fixture source\n")
         self.write("apps/mobile/Podfile.lock", "PODS:\n  - Expo (58.0.19)\nCOCOAPODS: 1.17.0\n")
         self.git("init", "-q")
@@ -236,7 +236,8 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(entry.attrib["buildForArchiving"], "YES")
         self.assertEqual(entry.find("BuildableReference").attrib["BlueprintIdentifier"], "13B07F861A680F5B00A75B9A")
         for hook, canonical in [("ci_post_clone.sh", "xcode-cloud-post-clone.sh"),
-                                ("ci_pre_xcodebuild.sh", "xcode-cloud-pre-xcodebuild.sh")]:
+                                ("ci_pre_xcodebuild.sh", "xcode-cloud-pre-xcodebuild.sh"),
+                                ("ci_post_xcodebuild.sh", "xcode-cloud-post-xcodebuild.sh")]:
             wrapper = self.ios / "ci_scripts" / hook
             self.assertTrue(os.access(wrapper, os.X_OK))
             content = wrapper.read_text()
