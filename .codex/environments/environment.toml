@@ -1,0 +1,41 @@
+version = 1
+name = "Pennel lightweight"
+
+[setup]
+script = ""
+
+[[actions]]
+name = "Install desktop dependencies"
+icon = "tool"
+command = "npm --prefix apps/desktop ci"
+
+[[actions]]
+name = "Install mobile dependencies"
+icon = "tool"
+command = "npm --prefix apps/mobile ci"
+
+[[actions]]
+name = "Run core tests"
+icon = "test"
+command = "make test"
+
+[[actions]]
+name = "Verify release core and tests"
+icon = "test"
+command = "make verify-core"
+
+[[actions]]
+name = "Run desktop frontend tests"
+icon = "test"
+command = "npm --prefix apps/desktop test"
+
+[[actions]]
+name = "Run mobile JavaScript checks"
+icon = "test"
+command = "npm --prefix apps/mobile run typecheck && npm --prefix apps/mobile run test:plugins && npm --prefix apps/mobile run test:widgets && npm --prefix apps/mobile run test:ui"
+
+[[actions]]
+name = "Build iOS explicitly"
+icon = "debug"
+command = 'if command -v worktree-storage >/dev/null 2>&1; then worktree-storage run -- make mobile-ios; elif [ -x "$HOME/.local/bin/worktree-storage" ]; then "$HOME/.local/bin/worktree-storage" run -- make mobile-ios; else make mobile-ios; fi'
+platform = "darwin"

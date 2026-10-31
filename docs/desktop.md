@@ -301,12 +301,14 @@ Every Intel Core processor since Haswell (2013) and every AMD processor since Ze
 Verify shared Rust and affected native integrations:
 
 ```sh
-make core && make test
+make verify-core
 swift test --package-path apps/macos-platform
 make packaging-test
 ```
 
-`make core` builds the Rust library and `make test` runs its tests. Mobile native preparation generates its own matched lean Rust framework and bindings directly in ignored mobile artifacts. The embedded Mac platform library has no SwiftUI interface or second Rust engine.
+For everyday core work, `make test` runs the ordinary Rust test profile without an unconditional release-library build. `make core` explicitly builds the release library. `make verify-core` runs that release build followed by the tests and stops if either step fails; use it when validating the release core or affected FFI/packaging integration. The [lightweight Codex environment](../.codex/README.md) leaves dependency installation and native builds explicit.
+
+Mobile native preparation generates its own matched lean Rust framework and bindings directly in ignored mobile artifacts. The embedded Mac platform library has no SwiftUI interface or second Rust engine.
 
 ### Local model catalog
 
