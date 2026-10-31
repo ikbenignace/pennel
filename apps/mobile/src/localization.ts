@@ -13,6 +13,7 @@ import settingsNl from '../../../assets/locales/settings.nl.json' with { type: '
 import onboardingEn from '../../../assets/locales/onboarding.en.json' with { type: 'json' };
 import onboardingNl from '../../../assets/locales/onboarding.nl.json' with { type: 'json' };
 import type { InterfaceLanguage } from './domain.ts';
+import { syncCopy } from './sync-copy.ts';
 
 export const mobileCopy = {
   en: {
@@ -228,8 +229,8 @@ export const mobileCopy = {
 } satisfies Record<InterfaceLanguage, Record<string, string>>;
 
 export const dictionaries: Record<InterfaceLanguage, Record<string, string>> = {
-  en: { ...commonEn, ...meetingsEn, ...dictationEn, ...accountEn, ...providersEn, ...settingsEn, ...onboardingEn, ...mobileCopy.en },
-  nl: { ...commonNl, ...meetingsNl, ...dictationNl, ...accountNl, ...providersNl, ...settingsNl, ...onboardingNl, ...mobileCopy.nl },
+  en: { ...commonEn, ...meetingsEn, ...dictationEn, ...accountEn, ...providersEn, ...settingsEn, ...onboardingEn, ...mobileCopy.en, ...syncCopy.en },
+  nl: { ...commonNl, ...meetingsNl, ...dictationNl, ...accountNl, ...providersNl, ...settingsNl, ...onboardingNl, ...mobileCopy.nl, ...syncCopy.nl },
 };
 
 export function resolveLanguage(setting: 'system' | InterfaceLanguage, locales: readonly string[]): InterfaceLanguage {

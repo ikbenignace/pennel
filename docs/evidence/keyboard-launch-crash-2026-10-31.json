@@ -1,0 +1,196 @@
+{
+  "schema": 1,
+  "date": "2026-10-31",
+  "issue": "https://github.com/pennel-app/pennel/issues/81",
+  "pull_request": "https://github.com/pennel-app/pennel/pull/80",
+  "source_revision": "28040eaaa6c01f1a70e4bedb55ad4a693aea4081",
+  "cause": {
+    "exception": "EXC_BREAKPOINT / SIGTRAP",
+    "queue": "com.apple.TextInput.lexicon-request",
+    "symbol": "closure #1 in KeyboardViewController.loadSuggestions()",
+    "failed_keyboard_uuid": "B1D37159-C0B7-3B3D-8396-42CA1A8FCAA5",
+    "failure": "UIKit invoked a closure with inherited MainActor isolation on its lexicon worker queue."
+  },
+  "fix": {
+    "callback": "@Sendable (UILexicon) -> Void",
+    "lexicon_reads_and_application": "Task { @MainActor in ... }",
+    "entry_limit": 2048,
+    "late_result_guards": [
+      "weak controller",
+      "weak typing model",
+      "visible keyboard",
+      "current model identity",
+      "suggestions enabled"
+    ]
+  },
+  "toolchain": {
+    "xcode": "27.0 (27A266a)",
+    "ios_sdk": "27.0",
+    "swift_language_mode": "6",
+    "argent": "0.31.0"
+  },
+  "automated": {
+    "typecheck": "passed",
+    "plugin_tests": 10,
+    "widget_tests": 7,
+    "mobile_ui_tests": 94,
+    "mobilekit_tests": 76,
+    "prebuild": "clean / non-clean / non-clean / clean; final clean",
+    "pod_graph_checks": 6,
+    "hosted_keyboard_tests": 6,
+    "new_lexicon_regressions": 4,
+    "hosted_runtime_service_tests": 100,
+    "release_simulator": "passed; arm64",
+    "release_device": "passed; arm64; unsigned before signing",
+    "independent_source_review": "no findings; controller late-result guards inspected statically"
+  },
+  "commands": [
+    "/Users/landerparren/.local/bin/worktree-storage run -- env PENNEL_VARIANT=preview make mobile-test",
+    "/Users/landerparren/.local/bin/worktree-storage run -- env CI=1 PENNEL_VARIANT=preview make mobile-prebuild",
+    "/Users/landerparren/.local/bin/worktree-storage run -- env CI=1 PENNEL_VARIANT=preview npm --prefix apps/mobile run build:ios",
+    "/Users/landerparren/.local/bin/worktree-storage run -- env CI=1 PENNEL_VARIANT=preview PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios",
+    "/Users/landerparren/.local/bin/worktree-storage run -- env CI=1 PENNEL_VARIANT=preview make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=D01BA00B-81A5-4AEA-BEA8-1551BB6D14CB'",
+    "python3 build/mobile/ux-2026-10-30/sign-preview.py --output-dir build/mobile/ux-2026-10-30/keyboard-startup-2026-10-31",
+    "python3 build/mobile/ux-2026-10-30/package-preview.py --output-dir build/mobile/ux-2026-10-30/keyboard-startup-2026-10-31",
+    "xcrun devicectl device install app --device <physical-iPhone-UDID> build/mobile/ux-2026-10-30/keyboard-startup-2026-10-31/PackagedPreview/Payload/Pennel.app"
+  ],
+  "artifact": {
+    "directory": "build/mobile/ux-2026-10-30/keyboard-startup-2026-10-31",
+    "ipa": "Pennel-Preview-mobile-sync-keyboard-ux.ipa",
+    "sha256": "a193774f27cf243b110fdec6cb636209039784448d5f4bd28724a2473e5b15b9",
+    "bytes": 19318471,
+    "keyboard_uuid": "CF0AD166-AE6D-386E-8461-1CD4FD46203F",
+    "team": "B538Q2K76C",
+    "signing_authority": "Apple Development: Lander Parren (C2PC5BFY7J)",
+    "app_group": "group.app.pennel.preview",
+    "bundle_ids": [
+      "app.pennel.ios.preview",
+      "app.pennel.ios.preview.keyboard",
+      "app.pennel.ios.preview.widgets"
+    ],
+    "nested_signatures_verified": true,
+    "package_extraction_verified": true,
+    "installed_in_place": true,
+    "unsigned_products_preserved": true
+  },
+  "physical": {
+    "device": "iPhone 16 Pro",
+    "os": "iOS 27.0.1 (24A446)",
+    "transport": "USB",
+    "checked_at_utc": "2026-10-31T10:34:25Z",
+    "cases": [
+      {
+        "host": "Pennel Preview search",
+        "full_access": true,
+        "suggestions": true,
+        "app_state": "running",
+        "selection": true,
+        "type_and_delete": true,
+        "switch_away_and_back": true
+      },
+      {
+        "host": "Pennel Preview search",
+        "full_access": true,
+        "suggestions": false,
+        "app_state": "running",
+        "selection": true,
+        "type_and_delete": true,
+        "toggle_back_on": true
+      },
+      {
+        "host": "Spotlight",
+        "full_access": false,
+        "suggestions": true,
+        "app_state": "not_running",
+        "selection": true,
+        "type_and_delete": true
+      },
+      {
+        "host": "Spotlight",
+        "full_access": false,
+        "suggestions": false,
+        "app_state": "not_running",
+        "selection": true,
+        "type_and_delete": true,
+        "toggle_back_on": true
+      },
+      {
+        "host": "Spotlight",
+        "full_access": false,
+        "suggestions": true,
+        "app_state": "not_running",
+        "picker_reselections": 3,
+        "keyboard_remains_selected": true
+      },
+      {
+        "host": "Pennel Preview search",
+        "full_access": false,
+        "suggestions": true,
+        "app_state": "running",
+        "selection": true,
+        "type_and_delete": true
+      },
+      {
+        "host": "Pennel Preview search",
+        "full_access": false,
+        "suggestions": false,
+        "app_state": "running",
+        "selection": true,
+        "type_and_delete": true
+      },
+      {
+        "host": "Spotlight",
+        "full_access": true,
+        "suggestions": true,
+        "app_state": "not_running",
+        "selection": true,
+        "type_and_delete": true
+      },
+      {
+        "host": "Spotlight",
+        "full_access": true,
+        "suggestions": false,
+        "app_state": "not_running",
+        "selection": true,
+        "type_and_delete": true
+      },
+      {
+        "host": "Spotlight",
+        "full_access": true,
+        "suggestions": true,
+        "app_state": "not_running",
+        "picker_reselections": 3,
+        "keyboard_remains_selected": true
+      }
+    ],
+    "permissions_and_preferences_restored": {
+      "full_access": true,
+      "local_suggestions": true
+    },
+    "crash_reports": {
+      "before": 26,
+      "after": 26,
+      "new_or_modified": 0,
+      "comparison": "filenames, modification timestamps and sizes"
+    },
+    "app_state_evidence": "Spotlight process snapshot contains the keyboard extension and no Pennel main process.",
+    "data_preservation": {
+      "installation": "in-place; no uninstall or data reset",
+      "documents_entries": 46,
+      "documents_regular_files": 31,
+      "documents_all_preserved": true,
+      "documents_sizes_and_modification_times_unchanged": true,
+      "content_hashes": "not collected; preservation comparison is metadata, not a complete content-integrity proof"
+    },
+    "microphone_recordings_started": 0,
+    "provider_inference_started": 0
+  },
+  "logs_directory": "build/mobile/keyboard-crash-2026-10-31",
+  "remaining": [
+    "hosted CI for the final head",
+    "review / merge of PR #80",
+    "keyboard-only dictation cold start",
+    "broader supported-iPhone / iOS acceptance",
+    "performance / accessibility / App Review acceptance"
+  ]
+}

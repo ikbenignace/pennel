@@ -26,6 +26,10 @@ export class RuntimeStore {
   accept = (snapshot: RuntimeSnapshot): void => {
     if (!Number.isSafeInteger(snapshot.revision) || snapshot.revision < 0) return;
     if (this.state.snapshot && snapshot.revision < this.state.snapshot.revision) return;
+    if (snapshot.revision === this.state.snapshot?.revision) {
+      if (this.state.connecting) this.update({ connecting: false });
+      return;
+    }
     this.update({ snapshot, connecting: false });
   };
 

@@ -22,3 +22,13 @@ apps/mobile/build/
 apps/mobile/modules/pennel-mobile/generated/
 apps/mobile/native/ios/MobileKit/.build/
 apps/mobile/native/ios/MobileKit/.swiftpm/
+
+# Preserve ignored build artifacts in checkouts that predate shell retirement.
+apps/macos/.build/
+apps/macos/Sources/PennelCore/
+apps/macos/Frameworks/
+apps/ios/Frameworks/
+apps/ios/PennelCore/
+apps/ios/build/
+apps/ios/PennelMobileKit/.build/
+apps/ios/PennelMobileKit/Generated/

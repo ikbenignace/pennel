@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { AppState, useColorScheme } from 'react-native';
+import { AccessibilityInfo, AppState, useColorScheme } from 'react-native';
 import { getLocales } from 'expo-localization';
 import PennelMobile from '../modules/pennel-mobile';
 import type { MobileCommand } from '../modules/pennel-mobile';
@@ -40,6 +40,17 @@ export function useRuntime() {
     try { return await store.run<T>(key, method, payload); } catch { return undefined; }
   }, [store]);
   return { ...state, store, language, theme, t, run };
+}
+
+export function useReducedMotion() {
+  const [reduced, setReduced] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { if (alive) setReduced(enabled); });
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
+    return () => { alive = false; listener.remove(); };
+  }, []);
+  return reduced;
 }
 
 export function useQuery<T>(method: MobileCommand, payload: Record<string, unknown> = {}, enabled = true) {

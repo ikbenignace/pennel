@@ -1,7 +1,9 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
+use zeroize::Zeroizing;
 
 use super::http::{agent, error_from, send_json};
 use super::{REFRESH_ACCOUNT, SecretStore};
@@ -85,6 +87,7 @@ pub struct Session {
     http: ureq::Agent,
     access: Mutex<Option<AccessToken>>,
     login: Mutex<LoginFlow>,
+    identity_epoch: AtomicU64,
 }
 
 fn invalid(what: &str) -> PennelError {
@@ -117,6 +120,7 @@ impl Session {
             http: agent(REQUEST_TIMEOUT_SECS),
             access: Mutex::new(None),
             login: Mutex::new(LoginFlow::default()),
+            identity_epoch: AtomicU64::new(0),
         }
     }
 
@@ -138,6 +142,10 @@ impl Session {
         let mut access = self.access.lock().unwrap();
         self.end_session_locked(&mut access);
         self.secrets.set(super::VAULT_KEY_ACCOUNT.into(), None);
+        self.secrets.set(super::VAULT_OWNER_ACCOUNT.into(), None);
+        self.secrets.set(super::BACKUP_PENDING_ACCOUNT.into(), None);
+        self.secrets
+            .set(super::VAULT_VALIDATION_ACCOUNT.into(), None);
     }
 
     // Callers hold `access`, so an in-flight refresh cannot write a rotated token afterwards.
@@ -146,6 +154,7 @@ impl Session {
     fn end_session_locked(&self, access: &mut Option<AccessToken>) {
         self.secrets.set(REFRESH_ACCOUNT.into(), None);
         *access = None;
+        self.identity_epoch.fetch_add(1, Ordering::AcqRel);
     }
 
     pub fn access_token(&self) -> Result<String, PennelError> {
@@ -202,7 +211,7 @@ impl Session {
     }
 
     /// Authenticated request; a 401 triggers one forced refresh in case the access token was revoked early.
-    fn call(
+    pub(crate) fn call(
         &self,
         method: &str,
         path: &str,
@@ -235,6 +244,7 @@ impl Session {
         locale: Option<&str>,
     ) -> Result<CloudLoginStart, PennelError> {
         let generation = self.login.lock().unwrap().invalidate();
+        self.identity_epoch.fetch_add(1, Ordering::AcqRel);
         let mut request = json!({ "device_name": device_name, "platform": platform });
         if let Some(locale) = locale {
             let locale = match locale {
@@ -273,6 +283,7 @@ impl Session {
     /// Invalidates queued and in-flight login work without waiting for HTTP or token refresh.
     pub fn cancel_login(&self) {
         self.login.lock().unwrap().invalidate();
+        self.identity_epoch.fetch_add(1, Ordering::AcqRel);
     }
 
     pub fn login_poll(&self, device_code: &str) -> Result<CloudLoginPoll, PennelError> {
@@ -325,6 +336,7 @@ impl Session {
             let mut login = self.login.lock().unwrap();
             login.check_poll(generation, device_code)?;
             self.secrets.set(REFRESH_ACCOUNT.into(), Some(refresh));
+            self.identity_epoch.fetch_add(1, Ordering::AcqRel);
             *stored_access = Some(AccessToken {
                 value: access,
                 expires_at: Instant::now() + Duration::from_secs(lifetime),
@@ -354,6 +366,51 @@ impl Session {
             limit_tokens: number(limits, "tokens_per_month"),
             limit_storage_bytes: number(limits, "storage_bytes"),
         })
+    }
+
+    pub(crate) fn identity(&self) -> Result<(String, String), PennelError> {
+        let (_, body) = self.call("GET", "/v1/whoami", None)?;
+        Ok((
+            text(&body, "user_id", "identity")?,
+            text(&body, "device_id", "identity")?,
+        ))
+    }
+
+    pub(crate) fn generation(&self) -> u64 {
+        self.identity_epoch.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn install_link_tokens(
+        &self,
+        expected: u64,
+        body: &Value,
+    ) -> Result<(), PennelError> {
+        let value = text(body, "access_token", "connection")?;
+        let refresh = Zeroizing::new(text(body, "refresh_token", "connection")?);
+        let lifetime = body
+            .get("expires_in")
+            .and_then(Value::as_u64)
+            .filter(|n| (1..=86_400).contains(n))
+            .ok_or_else(|| invalid("connection"))?;
+        let mut access = self.access.lock().unwrap();
+        let _login = self.login.lock().unwrap();
+        if self.generation() != expected || self.signed_in() {
+            return Err(PennelError::Cancelled);
+        }
+        super::store_verified(self.secrets.as_ref(), REFRESH_ACCOUNT, &refresh)?;
+        *access = Some(AccessToken {
+            value,
+            expires_at: Instant::now() + Duration::from_secs(lifetime),
+        });
+        Ok(())
+    }
+
+    pub(crate) fn clear_link_tokens(&self, expected_refresh: &str) {
+        let mut access = self.access.lock().unwrap();
+        if self.secrets.get(REFRESH_ACCOUNT.into()).as_deref() == Some(expected_refresh) {
+            self.secrets.set(REFRESH_ACCOUNT.into(), None);
+            *access = None;
+        }
     }
 
     pub fn devices(&self) -> Result<Vec<CloudDevice>, PennelError> {

@@ -9,6 +9,29 @@ public enum KeyboardPreferences {
     public static let suggestionsKey = "keyboardSuggestionsEnabled"
     public static let dictionaryKey = "keyboardDictionary"
     public static let languageKey = "keyboardInterfaceLanguage"
+    public static let feedbackKey = "keyboardFeedbackEnabled"
+    public static let typingFeedbackKey = "keyboardTypingFeedbackEnabled"
+
+    public static func feedbackEnabled(in defaults: UserDefaults?) -> Bool {
+        defaults?.object(forKey: feedbackKey) as? Bool ?? true
+    }
+
+    public static func setFeedbackEnabled(_ enabled: Bool, in defaults: UserDefaults?) {
+        defaults?.set(enabled, forKey: feedbackKey)
+    }
+
+    public static func typingFeedbackEnabled(in defaults: UserDefaults?) -> Bool {
+        defaults?.bool(forKey: typingFeedbackKey) ?? false
+    }
+
+    public static func setTypingFeedbackEnabled(_ enabled: Bool, in defaults: UserDefaults?) {
+        defaults?.set(enabled, forKey: typingFeedbackKey)
+    }
+
+    public static func mirrorFeedback(from shared: UserDefaults?, to local: UserDefaults?) {
+        setFeedbackEnabled(feedbackEnabled(in: shared), in: local)
+        setTypingFeedbackEnabled(typingFeedbackEnabled(in: shared), in: local)
+    }
 
     public static func suggestionsEnabled(in defaults: UserDefaults?) -> Bool {
         defaults?.bool(forKey: suggestionsKey) ?? false
@@ -57,9 +80,12 @@ public enum KeyboardPreferences {
     }
 }
 
+public enum KeyboardFailureRecovery: Equatable, Sendable { case recordAgain, checkSettings }
+
 public struct KeyboardCopy: Sendable {
     public enum Key: CaseIterable, Sendable {
         case fullAccess, settings, ready, listening, processing, retry, insertLast, sessionOff, manualStart
+        case stopDictation, recordAgain, checkAgain, setupDictation, hideHelp, accentedLetters, dismissAccents, showDictation, showTyping
         case space, returnKey, go, search, send, next, done, join, route, continueKey
         case shift, capsLock, delete, numbers, symbols, letters, showNumbers, showSymbols, showLetters, nextKeyboard, cancel, microphone
         case suggestions, suggestionsOff, suggestionsPrivacy, insertSuggestion
@@ -68,6 +94,11 @@ public struct KeyboardCopy: Sendable {
     public let language: KeyboardInterfaceLanguage
 
     public init(language: KeyboardInterfaceLanguage) { self.language = language }
+
+    public func recoveryAction(code: String?, message: String?) -> KeyboardFailureRecovery {
+        let code = code ?? Self.legacyFailureCode(message)
+        return ["provider_auth", "http_401", "http_403", "missing_api_key", "model_not_downloaded", "microphone_denied", "auth", "not_signed_in", "access", "vault_locked", "storage"].contains(code) ? .checkSettings : .recordAgain
+    }
 
     public func failure(code: String?, message: String?) -> String {
         let aliases = ["not_signed_in": "auth", "http_401": "provider_auth", "http_403": "provider_auth"]
@@ -129,8 +160,26 @@ public struct KeyboardCopy: Sendable {
         case (.dutch, .insertLast): "Laatste dictaat invoegen"
         case (.english, .sessionOff): "Session off"
         case (.dutch, .sessionOff): "Sessie uit"
-        case (.english, .manualStart): "Open Pennel and tap Start session."
-        case (.dutch, .manualStart): "Open Pennel en tik op Start sessie."
+        case (.english, .manualStart): "Open Pennel → Dictation → Start session, then return here."
+        case (.dutch, .manualStart): "Open Pennel → Dicteren → Start sessie en kom daarna hier terug."
+        case (.english, .stopDictation): "Stop dictation"
+        case (.dutch, .stopDictation): "Stop dicteren"
+        case (.english, .recordAgain): "Record again"
+        case (.dutch, .recordAgain): "Opnieuw opnemen"
+        case (.english, .checkAgain): "Check again"
+        case (.dutch, .checkAgain): "Opnieuw controleren"
+        case (.english, .setupDictation): "Set up keyboard dictation"
+        case (.dutch, .setupDictation): "Toetsenborddicteren instellen"
+        case (.english, .hideHelp): "Hide help"
+        case (.dutch, .hideHelp): "Uitleg sluiten"
+        case (.english, .accentedLetters): "Accented letters"
+        case (.dutch, .accentedLetters): "Letters met accenten"
+        case (.english, .dismissAccents): "Close accented letters"
+        case (.dutch, .dismissAccents): "Accentletters sluiten"
+        case (.english, .showDictation): "Show dictation controls"
+        case (.dutch, .showDictation): "Dicteerknoppen tonen"
+        case (.english, .showTyping): "Show letter keyboard"
+        case (.dutch, .showTyping): "Lettertoetsenbord tonen"
         case (.english, .space): "space"
         case (.dutch, .space): "spatie"
         case (.english, .returnKey): "return"

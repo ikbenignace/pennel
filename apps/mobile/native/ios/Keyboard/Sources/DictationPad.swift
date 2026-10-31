@@ -4,6 +4,7 @@ import SwiftUI
 struct DictationPad: View {
     let model: KeyboardModel
     let openSettings: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: Brand.Spacing.s2) {
@@ -20,7 +21,9 @@ struct DictationPad: View {
                     .font(.figtree(Brand.FontSize.content, weight: .medium))
                     .foregroundStyle(Brand.foreground.color)
                     .multilineTextAlignment(.center)
-                Button(model.copy.text(.retry)) { model.retry() }
+                Button(model.primaryActionLabel) {
+                    if model.recoveryAction == .recordAgain { model.recordAgain() } else { model.retry() }
+                }
                     .buttonStyle(PadButtonStyle())
             case .sessionOff:
                 pill(label: model.copy.text(.sessionOff))
@@ -36,6 +39,8 @@ struct DictationPad: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 22))
                             .foregroundStyle(Brand.muted.color)
+                            .frame(width: Brand.Spacing.s10 + Brand.Spacing.s1, height: Brand.Spacing.s10 + Brand.Spacing.s1)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel(model.copy.text(.cancel))
                 }
@@ -43,11 +48,19 @@ struct DictationPad: View {
                 pill(label: nil)
                 HStack(spacing: Brand.Spacing.s3) {
                     caption(model.copy.text(.processing))
-                    Button { model.cancel() } label: { Image(systemName: "xmark.circle.fill") }
+                    Button { model.cancel() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .frame(width: Brand.Spacing.s10 + Brand.Spacing.s1, height: Brand.Spacing.s10 + Brand.Spacing.s1)
+                            .contentShape(Rectangle())
+                    }
                         .accessibilityLabel(model.copy.text(.cancel))
                 }
             }
-            if model.lastResult != nil, model.pad != .listening, model.pad != .processing {
+            if let preview = model.lastResultPreview, model.pad != .listening, model.pad != .processing {
+                Text(preview)
+                    .font(.figtree(Brand.FontSize.content))
+                    .foregroundStyle(Brand.muted.color)
+                    .lineLimit(2)
                 Button(model.copy.text(.insertLast)) { model.insertLast() }
                     .buttonStyle(PadButtonStyle())
             }
@@ -82,24 +95,24 @@ struct DictationPad: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: model.pad == .processing)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: model.pad == .processing)
         .frame(height: 76)
         .padding(.horizontal, Brand.Spacing.s6)
         .contentShape(Capsule())
-        .onTapGesture { model.tapPill() }
-        .onLongPressGesture(minimumDuration: 0.3, maximumDistance: 60) {
-            model.holdBegan()
-        } onPressingChanged: { pressing in
-            if !pressing { model.holdEnded() }
+        .accessibilityHidden(true)
+        .overlay {
+            KeyboardDictationGesture(label: model.primaryActionLabel,
+                hint: model.pad == .sessionOff ? model.copy.text(.manualStart) : "",
+                enabled: model.primaryActionEnabled, holdEnabled: model.pad == .ready,
+                tap: model.tapPill, holdBegan: model.holdBegan, holdEnded: model.holdEnded)
+                .padding(.horizontal, Brand.Spacing.s6)
         }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(label ?? model.copy.text(.ready))
-        .accessibilityHint(model.pad == .sessionOff ? model.copy.text(.manualStart) : "")
     }
 }
 
 private struct Bars: View {
     let level: Float
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { proxy in
@@ -113,7 +126,7 @@ private struct Bars: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.easeOut(duration: 0.12), value: level)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: level)
         }
     }
 }
@@ -124,7 +137,7 @@ struct PadButtonStyle: ButtonStyle {
             .font(.figtree(Brand.FontSize.content, weight: .semibold))
             .foregroundStyle(Brand.buttonText.color)
             .padding(.horizontal, Brand.Spacing.s5)
-            .frame(minHeight: 40)
+            .frame(minHeight: Brand.Spacing.s10 + Brand.Spacing.s1)
             .background(Brand.button.color.opacity(configuration.isPressed ? 0.8 : 1), in: Capsule())
     }
 }

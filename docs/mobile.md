@@ -309,6 +309,36 @@ Clean/repeated generation and pod ownership, matched simulator and unsigned-devi
 
 Synthetic/mock quality and timing do not establish semantic model qualification or live stop-to-result latency. Physical iPhone behavior, signed upgrades, keyboard cold start, installed Windows/Linux workflows, Cloud deployment and App Review remain separate gates. No paid inference, model download, real dictation or production credential change was performed.
 
+## Mobile workflows, device connection and feedback — 30 October 2026
+
+Implementation: [app #77](https://github.com/pennel-app/pennel/issues/77), [PR #80](https://github.com/pennel-app/pennel/pull/80), [product contract](mobile-ux-implementation.md), and [machine-readable receipt](evidence/mobile-ux-2026-10-30.json). The shared core owns setup/provisioning and cryptography, native code owns capture, QR scanning and haptics, and Expo/Tauri own their product interfaces. Existing local use, providers, notes, transcripts, recovery and keyboard destination guards are retained. The following evidence applies to PR #80's pre-retirement candidate `724cad6`, not the combined shell-retirement integration; retired build targets are historical.
+
+The candidate adds task-led resumable first use, an outcome-first meeting view, native pickers/actions, preserved reading/question drafts, virtualized library/history, truthful interruption state, and native feedback. App haptics default on; typing feedback is separately optional and defaults off. The keyboard keeps typing reachable during setup/error guidance, previews retained results, supports accented input and announces its actual action.
+
+Sync setup distinguishes a first library, an existing locked library, backup acknowledgment and a validated retained key. Trusted-device connection supports QR/manual input, explicit approval and sign-in plus access to the existing encrypted library. Device provisioning journals verified local writes and handles cancellation, identity changes, token rotation and process restart. Recovery confirmation binds the displayed code to the account/library revision. Production admission remains gated on protocol, deployment and device acceptance; the companion server change defaults device linking to off.
+
+| Validation | Local result |
+| --- | --- |
+| `make core && make test && make app` | Current-main integration passes: 703 Rust tests, seven existing ignored; Mac smoke tests and reference build pass |
+| Desktop `npm ci`, `npm run build`, `npm test`; desktop Rust tests | 231 frontend and 224 backend tests pass on the integrated candidate |
+| Core Rust formatting/Clippy; lean Cloud tests and examples | Pass with warnings denied; 142 focused Cloud tests pass |
+| `make mobile-test` and final `npm run test:ui` | Typecheck, six plugin, seven widget, 94 final controller and 76 Swift helper tests pass |
+| `make mobile-prebuild` | Actual clean/repeated non-clean generation and six pod/source ownership checks pass |
+| `npm --prefix apps/mobile run native:prepare` | Matched device/simulator libraries and Swift bindings; Core source/binding hashes recorded |
+| `npm --prefix apps/mobile run build:ios`, with simulator and `PENNEL_IOS_DESTINATION='generic/platform=iOS'` | Both unsigned Release builds pass, including the final callback-route correction |
+| `make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=7B0CD7FD-879B-49FF-BCD0-DA64090BD209'` | 40 hosted runtime/setup tests and two keyboard tests pass, including actual PNG QR decode/opaque quiet zone and practice ownership |
+| `make ios-test` on that same assigned test simulator | 67 retained native-service and two keyboard integration tests pass |
+
+Owned iOS 26.5 simulator checks show English/dark and Dutch/light setup, native settings/feedback controls and read-first synthetic meeting content. The real completion URL initially exposed an Expo Router unmatched route; the final native-intent mapping and workspace anchor were then verified by a cold `pennel-preview://sync` launch with a back destination. The three synthetic meeting/notes/transcript file hashes survive in-place simulator updates. The Hub text-size selector was exercised and restored; maximum accessibility sizing, full VoiceOver traversal and physical keyboard gestures remain acceptance work.
+
+![Dutch sync setup after cold return](evidence/mobile-ux-2026-10-30/sync-nl-light.png)
+
+![Native feedback preferences](evidence/mobile-ux-2026-10-30/feedback-en-dark.png)
+
+The signed Preview package for app/UI revision `c5f69ad` is retained under ignored `build/mobile/ux-2026-10-30/verified/`, with exact package/signature/Core manifests. Its IPA is 19,317,102 bytes, SHA-256 `5cf8464857219c9f90480c03c82de858464b1d2fc1a61c82ce9f9b9c4d7c59bc`. Existing Preview app/keyboard/widget identities and App Group are preserved; nested signatures pass individual and deep/strict checks after package extraction. Earlier artifact sets, unsigned products, symbols, Xcode build trees, logs and QA remain retained.
+
+An earlier candidate was installed and launched in place on the physical iPhone 16 Pro/iOS 27.0.1. Argent rejected UI automation because that connection was wireless rather than USB. This establishes install/launch only: the final package, physical haptics, cold keyboard start, gesture/VoiceOver behavior, latency/memory/battery, actual camera-based two-device connection, Cloud deployment and App Review are not accepted by this receipt. No microphone recording, real login email, provider inference, production deployment or credential replacement was initiated for these checks. The private Cloud repository retains its server/protocol/source-matched local interoperability evidence.
+
 ## Legacy shell retirement — 30 October 2026
 
 Code candidate [`b690035`](https://github.com/pennel-app/pennel/commit/b69003591b9e23c711515dbdae4072ac84636924), based on `e6f02b2`, removes both old product shells under [#75](https://github.com/pennel-app/pennel/issues/75). All 26 active service files, original MobileKit source files, keyboard sources and native widget layouts retain their previous bytes. The package now owns its ActivityKit attributes directly. Native service tests run in the generated Expo host; only assertions about retired SwiftUI screens and obsolete fake intent routing were removed. The generated host's actual intent modes, titles and shortcut extraction are tested.
@@ -351,3 +381,43 @@ The checks exposed and verified fixes for the moved helper test's brand path, st
 The Mac Preview app passed strict signature verification and its DMG passed integrity verification; it is not a notarized distribution. Actionlint 1.7.12 and current Markdown file-link checks passed. Twelve owned desktop captures covered EN/NL and light/dark with no fixture runtime errors. The actual mobile Release preview rendered its existing QA meeting and native tabs on iPhone 17 / iOS 26.5, including light/dark appearance; the original app preference was restored. Both app and extensions retain preview identities; actual product plists confirm `app.pennel.ios.preview`, `group.app.pennel.preview` and the independent preview Keychain service. Production configuration remains covered by variant tests. No retired source tree was recreated by generation or builds.
 
 Physical-phone capture, keyboard cold start/resources, signed upgrades, live Sparkle transition, deployed Cloud, Windows/Linux installed-package acceptance and App Review remain open in their owning issues. Local checks and screenshots do not satisfy those gates. Android remains gated on iPhone acceptance. Hosted CI and review/merge status are recorded in the cleanup PR and issue separately.
+
+## Keyboard launch crash — 31 October 2026
+
+Tracked in [#81](https://github.com/pennel-app/pennel/issues/81), related to [#39](https://github.com/pennel-app/pennel/issues/39) and [#77 / PR #80](https://github.com/pennel-app/pennel/pull/80). Fix commit: `28040eaaa6c01f1a70e4bedb55ad4a693aea4081`. The [verification receipt](evidence/keyboard-launch-crash-2026-10-31.json) records commands, artifact identity and the device matrix; complete local logs remain under ignored `build/mobile/keyboard-crash-2026-10-31/`.
+
+The physical iPhone crash reports identified a Swift 6 actor-isolation trap in `KeyboardViewController.loadSuggestions()`, on `com.apple.TextInput.lexicon-request`, before the old main-queue dispatch could execute. The production callback now has an explicitly `@Sendable` boundary and enters `Task { @MainActor in ... }` before reading UIKit lexicon entries or applying suggestions. It retains the 2,048-entry cap and rejects results for dismissed, replaced or disabled typing models through weak captures and current-state guards. Four hosted regressions cover worker and main-actor callback delivery and assert actor isolation inside both UIKit getters and result application; they also verify mapping, empty results and the cap. Strict Swift 6 remains enabled.
+
+The existing generated project still referenced retired native source paths, so the candidate was regenerated from canonical Expo sources before building. From the repository root, the following commands passed; all ran with the `/Users/landerparren/.local/bin/worktree-storage run --` prefix:
+
+```sh
+env PENNEL_VARIANT=preview make mobile-test
+env CI=1 PENNEL_VARIANT=preview make mobile-prebuild
+env CI=1 PENNEL_VARIANT=preview npm --prefix apps/mobile run build:ios
+env CI=1 PENNEL_VARIANT=preview PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios
+env CI=1 PENNEL_VARIANT=preview make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=D01BA00B-81A5-4AEA-BEA8-1551BB6D14CB'
+```
+
+Passed: TypeScript, 10 plugin, seven widget, 94 mobile UI and 76 MobileKit tests; clean/repeated non-clean generation and six actual pod/source ownership checks; both ARM64 Release builds; **100 hosted runtime/service and six keyboard tests**, including the four new regressions, on iOS 26.5. The builds used Xcode 27.0 / SDK 27.0. Core, desktop, Cloud, public APIs and stored-data formats are unchanged by this fix.
+
+The personally signed Preview was produced and verified using the retained signing/packaging scripts:
+
+```sh
+python3 build/mobile/ux-2026-10-30/sign-preview.py --output-dir build/mobile/ux-2026-10-30/keyboard-startup-2026-10-31
+python3 build/mobile/ux-2026-10-30/package-preview.py --output-dir build/mobile/ux-2026-10-30/keyboard-startup-2026-10-31
+```
+
+The IPA in that directory is 19,318,471 bytes, SHA-256 `a193774f27cf243b110fdec6cb636209039784448d5f4bd28724a2473e5b15b9`. Its keyboard UUID is `CF0AD166-AE6D-386E-8461-1CD4FD46203F`. App, keyboard and widget signatures use the personal **Lander Parren** team `B538Q2K76C`; existing Preview identifiers and `group.app.pennel.preview` are preserved. Nested/strict signature and extracted-package checks pass. The verified extracted `.app` was installed with `devicectl device install app`, without uninstalling or resetting data. All 46 Documents entries (31 regular files) retain their original sizes and modification times; this is metadata evidence rather than a complete content-hash comparison.
+
+On the connected **iPhone 16 Pro / iOS 27.0.1**, actual Pennel key taps and deletion succeeded in the app's search field and Spotlight. Every combination below passed:
+
+| Full Access | Local suggestions | App running: own search field | App not running: Spotlight |
+| --- | --- | --- | --- |
+| On | On | Pass | Pass |
+| On | Off | Pass | Pass |
+| Off | On | Pass | Pass |
+| Off | Off | Pass | Pass |
+
+Switching away and selecting Pennel again works. The recorded Spotlight picker flow passed three repeated reselections with Full Access off and three with it on; Pennel remained selected with suggestions enabled. A device process snapshot confirms that only the keyboard extension, not the containing Pennel process, was running during the final Spotlight checks. The baseline and final crash listings both contain 26 reports, with no new or modified report. Full Access and local suggestions were restored to their original enabled values; synthetic search text was deleted. No microphone capture or provider inference was started.
+
+Argent was updated to 0.31.0 at the user's request. Its live server and Codex configuration explicitly select the personal team for the automation runner. Hosted CI, review and merge remain tracked in PR #80. This device receipt accepts the reported keyboard-selection crash fix; keyboard-only dictation cold start, other supported devices/OS versions, resource/accessibility qualification and App Review remain separate gates.

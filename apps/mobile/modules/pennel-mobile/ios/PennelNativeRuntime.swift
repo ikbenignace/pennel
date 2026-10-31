@@ -18,6 +18,7 @@ public final class PennelNativeRuntime {
     private var timer: Timer?
     private var observations: [NSObjectProtocol] = []
     private var cachedAccount: CloudAccount?
+    private var pendingRecovery: NativeRecoveryDisplay?
     private var pendingLogin: CloudLoginStart?
     private var loginExpiry: Date?
     private let loginGeneration = NativeLoginGeneration()
@@ -82,10 +83,10 @@ public final class PennelNativeRuntime {
         if listeners.isEmpty { timer?.invalidate(); timer = nil }
     }
 
-    public func startDictation() async throws {
+    public func startDictation(practice: Bool = false, navigate: Bool = true) async throws {
         _ = try bootstrap()
-        AppRouter.shared.requestDictation()
-        try await dictation.start()
+        if !practice && navigate { AppRouter.shared.requestDictation() }
+        try await dictation.start(practice: practice)
         publish()
     }
 
@@ -101,11 +102,11 @@ public final class PennelNativeRuntime {
 
     public func stopSession() { DictationSession.shared.stop(); publish() }
 
-    public func startMeeting(title: String) async throws {
+    public func startMeeting(title: String, navigate: Bool = true) async throws {
         _ = try bootstrap()
         guard await MicCapture.requestPermission() else { throw PennelBridgeError("microphone_denied", "Allow microphone access in Settings.") }
         try await MeetingRuntime.shared.start(title: title)
-        AppRouter.shared.requestLiveMeeting()
+        if navigate { AppRouter.shared.requestLiveMeeting() }
         publish()
     }
 
@@ -116,9 +117,20 @@ public final class PennelNativeRuntime {
     }
 
     public func open(_ url: URL) -> Bool {
+        if Self.acceptsSyncReturn(url, scheme: Bundle.main.object(forInfoDictionaryKey: "PennelURLScheme") as? String) {
+            requestNavigation("sync")
+            publish()
+            return true
+        }
         guard DictationSession.isStartLink(url) else { return false }
         Task { try? await startSession() }
         return true
+    }
+
+    nonisolated static func acceptsSyncReturn(_ url: URL, scheme: String?) -> Bool {
+        guard let scheme, ["pennel", "pennel-preview"].contains(scheme) else { return false }
+        return url.scheme == scheme && url.host == "sync" && url.path.isEmpty && url.query == nil
+            && url.fragment == nil && url.user == nil && url.password == nil && url.port == nil
     }
 
     public func invoke(method: String, payload: String) async throws -> String {
@@ -136,9 +148,25 @@ public final class PennelNativeRuntime {
         case "system.openSettings":
             if let url = URL(string: UIApplication.openSettingsURLString) { await UIApplication.shared.open(url) }
             return "null"
-        case "dictation.start": try await startDictation(); return try snapshot()
-        case "dictation.stop": await dictation.stop(); return try snapshot()
-        case "dictation.cancel": dictation.cancel(); return try snapshot()
+        case "ui.feedback":
+            guard let event = FeedbackEvent(rawValue: try input.required("event")), event != .keyPress else { throw PennelBridgeError("invalid_request", "Unknown feedback event.") }
+            HapticFeedback.play(event)
+            return "null"
+        case "dictation.start": try await startDictation(practice: input.flag("practice"), navigate: false); return try snapshot()
+        case "dictation.stop":
+            if let id = input.values["session_id"] as? String { try await dictation.stopPractice(sessionID: id) }
+            else {
+                guard !dictation.isPractice else { throw PennelBridgeError("dictation_owned", "Finish practice in its own screen.") }
+                await dictation.stop()
+            }
+            return try snapshot()
+        case "dictation.cancel":
+            if let id = input.values["session_id"] as? String { try dictation.cancelPractice(sessionID: id) }
+            else {
+                guard !dictation.isPractice else { throw PennelBridgeError("dictation_owned", "Cancel practice in its own screen.") }
+                dictation.cancel()
+            }
+            return try snapshot()
         case "dictation.verificationAvailability": return try BridgeJSON.encode(BridgeJSON.cleanupVerification(engine.cleanupVerificationAvailability()))
         case "dictation.copy":
             guard let text = input.values["text"] as? String else { throw PennelBridgeError("invalid_request", "Missing text.") }
@@ -278,7 +306,7 @@ public final class PennelNativeRuntime {
             let interruption = interruptionMessage(id: id)
             let interruptionCode = interruptionCode(id: id)
             return try await background { try Self.meetingJSON($0, id: id, interruption: interruption, interruptionCode: interruptionCode) }
-        case "meetings.start": try await startMeeting(title: input.text("title")); return try snapshot()
+        case "meetings.start": try await startMeeting(title: input.text("title"), navigate: false); return try snapshot()
         case "meetings.stop":
             if let id = input.values["id"] as? String {
                 let runtime = MeetingRuntime.shared
@@ -505,6 +533,7 @@ public final class PennelNativeRuntime {
 extension PennelNativeRuntime {
     private func cloud(_ method: String, _ input: BridgePayload) async throws -> String {
         let engine = model.engine
+        let identity = loginGeneration.current
         switch method {
         case "cloud.status":
             let generation = loginGeneration.current
@@ -513,11 +542,72 @@ extension PennelNativeRuntime {
                 if loginGeneration.isCurrent(generation) { cachedAccount = account }
             } else { cachedAccount = nil }
             return try BridgeJSON.encode(cloudState())
+        case "cloud.setup":
+            return try await background { try BridgeJSON.encode(NativeCloudViews.setup($0.cloudSyncSetup())) }
+        case "cloud.prepareSync":
+            let code = try await Task.detached { try engine.cloudSyncPrepare() }.value
+            guard loginGeneration.isCurrent(identity) else { throw PennelError.Cancelled }
+            let display = try await recoveryDisplay(code, identity: identity)
+            model.reloadSettings()
+            return try BridgeJSON.encode(display)
+        case "cloud.activateSync", "cloud.resumeSync":
+            guard UserDefaults.standard.object(forKey: CloudAccountModel.confirmedKey) as? Bool != false else {
+                throw PennelBridgeError("recovery_unconfirmed", "Save your recovery code before starting sync.")
+            }
+            try await Task.detached {
+                if method == "cloud.resumeSync" { try engine.cloudSyncResume() }
+                else { try engine.cloudSyncActivate() }
+            }.value
+            guard loginGeneration.isCurrent(identity) else { throw PennelError.Cancelled }
+            model.reloadSettings()
+            CloudSyncRunner.shared.poke()
+            return "null"
+        case "cloud.pendingRecovery":
+            guard let pending = pendingRecovery, pending.identity == identity, engine.cloudSignedIn() else {
+                pendingRecovery = nil
+                return try BridgeJSON.encode(NativeRecoveryDisplay.empty(epoch: accountEpoch()))
+            }
+            let context = try await validatedRecoveryContext(pending)
+            guard loginGeneration.isCurrent(identity), pendingRecovery?.token == pending.token else { throw PennelError.Cancelled }
+            guard context == pending.context else {
+                pendingRecovery = nil
+                return try BridgeJSON.encode(NativeRecoveryDisplay.empty(epoch: accountEpoch()))
+            }
+            return try BridgeJSON.encode(pending.payload(epoch: accountEpoch()))
+        case "cloud.linkView": return try BridgeJSON.encode(NativeCloudViews.link(engine.cloudLinkView()))
+        case "cloud.linkStart", "cloud.linkJoin", "cloud.linkPoll", "cloud.linkApprove", "cloud.linkCancel":
+            let role = try NativeCloudViews.role(input.text("role", default: "new_device"))
+            let name = input.text("device_name", default: UserDefaults.standard.string(forKey: "pennel.mobile.deviceName") ?? "iPhone")
+            let code = method == "cloud.linkJoin" ? try input.required("code") : ""
+            let value = try await Task.detached {
+                switch method {
+                case "cloud.linkStart": return try engine.cloudLinkStart(role: role, deviceName: name, platform: "ios")
+                case "cloud.linkJoin": return try engine.cloudLinkJoin(code: code, role: role, deviceName: name, platform: "ios")
+                case "cloud.linkApprove": return try engine.cloudLinkApprove()
+                case "cloud.linkCancel": return try engine.cloudLinkCancel()
+                default: return try engine.cloudLinkPoll()
+                }
+            }.value
+            guard loginGeneration.isCurrent(identity) else { throw PennelError.Cancelled }
+            if value.phase == .complete {
+                pendingRecovery = nil
+                model.reloadSettings()
+                let account = try? await Task.detached { try engine.cloudAccount() }.value
+                guard loginGeneration.isCurrent(identity) else { throw PennelError.Cancelled }
+                cachedAccount = account
+                UserDefaults.standard.set(true, forKey: CloudAccountModel.confirmedKey)
+                CloudSyncRunner.shared.poke()
+            }
+            return try BridgeJSON.encode(NativeCloudViews.link(value))
+        case "cloud.scanConnectionCode":
+            let code = try await NativeConnectionScanner.scan(language: uiLanguage())
+            return try BridgeJSON.encode(["code": code])
         case "cloud.loginStart":
             let generation = loginGeneration.begin()
             pendingLogin = nil
             loginExpiry = nil
             cachedAccount = nil
+            pendingRecovery = nil
             let name = input.text("device_name", default: UserDefaults.standard.string(forKey: "pennel.mobile.deviceName") ?? "iPhone")
             let locale = uiLanguage()
             engine.cloudLoginCancel()
@@ -566,6 +656,7 @@ extension PennelNativeRuntime {
             let value = try await background { try $0.cloudLogout(); return "null" }
             cachedAccount = nil
             pendingLogin = nil
+            pendingRecovery = nil
             UserDefaults.standard.removeObject(forKey: CloudAccountModel.confirmedKey)
             UserDefaults.standard.removeObject(forKey: Self.automaticConsent)
             model.reloadSettings()
@@ -581,10 +672,11 @@ extension PennelNativeRuntime {
                 try engine.cloudSyncDisable()
                 return nil
             }.value
-            if code != nil { UserDefaults.standard.set(false, forKey: CloudAccountModel.confirmedKey) }
+            guard loginGeneration.isCurrent(identity) else { throw PennelError.Cancelled }
+            let display = try await recoveryDisplay(code, identity: identity)
             model.reloadSettings()
             CloudSyncRunner.shared.poke()
-            return try BridgeJSON.encode(["recovery_code": BridgeJSON.optional(code)])
+            return try BridgeJSON.encode(display)
         case "cloud.devices": return try await background { try BridgeJSON.encode($0.cloudDevices().map(BridgeJSON.device)) }
         case "cloud.renameDevice":
             let id = try input.required("id")
@@ -595,26 +687,47 @@ extension PennelNativeRuntime {
             return try await background { try $0.cloudRevokeDevice(id: id); return "null" }
         case "cloud.recoveryCreate", "cloud.recoveryReset":
             let reset = method == "cloud.recoveryReset"
-            let enabled = model.settings.cloudSync
             let code = try await Task.detached {
                 if reset { return try engine.cloudSyncReset() }
-                return try (enabled ? engine.cloudSyncNewRecoveryCode() : engine.cloudSyncEnable())
+                let setup = try engine.cloudSyncSetup()
+                if setup.phase == .newLibrary { return try engine.cloudSyncPrepare() ?? "" }
+                return try engine.cloudSyncNewRecoveryCode()
             }.value
-            UserDefaults.standard.set(false, forKey: CloudAccountModel.confirmedKey)
+            guard loginGeneration.isCurrent(identity) else { throw PennelError.Cancelled }
+            guard !code.isEmpty else { throw PennelBridgeError("vault_locked", "Unlock your encrypted library first.") }
+            let display = try await recoveryDisplay(code, identity: identity)
             model.reloadSettings()
             CloudSyncRunner.shared.poke()
-            return try BridgeJSON.encode(["recovery_code": code])
+            return try BridgeJSON.encode(display)
         case "cloud.recoveryUnlock":
             let code = try input.required("code")
             let result = try await background { try $0.cloudSyncUnlock(code: code); return "null" }
+            guard loginGeneration.isCurrent(identity) else { throw PennelError.Cancelled }
+            pendingRecovery = nil
             UserDefaults.standard.set(true, forKey: CloudAccountModel.confirmedKey)
             model.reloadSettings()
             CloudSyncRunner.shared.poke()
             return result
-        case "cloud.recoveryConfirm": UserDefaults.standard.set(true, forKey: CloudAccountModel.confirmedKey); return "null"
-        case "cloud.recoveryCopy": copy(try input.required("code"), secret: true); return "null"
+        case "cloud.recoveryConfirm":
+            let token = try input.required("confirmation_token")
+            guard let pending = pendingRecovery, pending.matches(token: token, identity: identity), engine.cloudSignedIn() else { throw PennelBridgeError("recovery_unconfirmed", "This recovery display changed. Open the current code before confirming.") }
+            do { try await Task.detached { try engine.cloudRecoveryConfirm(code: pending.code, context: pending.context) }.value }
+            catch {
+                discardStaleRecovery(error, pending: pending)
+                throw error
+            }
+            guard loginGeneration.isCurrent(identity), pendingRecovery?.token == token else { throw PennelError.Cancelled }
+            UserDefaults.standard.set(true, forKey: CloudAccountModel.confirmedKey)
+            pendingRecovery = nil
+            model.reloadSettings()
+            CloudSyncRunner.shared.poke()
+            return "null"
+        case "cloud.recoveryCopy":
+            let code = try await recoveryCode(input, identity: identity)
+            copy(code, secret: true)
+            return "null"
         case "cloud.recoveryPrint":
-            let code = try input.required("code")
+            let code = try await recoveryCode(input, identity: identity)
             let printer = UIPrintInteractionController.shared
             let info = UIPrintInfo.printInfo()
             info.jobName = "Pennel Cloud recovery code"
@@ -632,6 +745,7 @@ extension PennelNativeRuntime {
             let result = try await background { try $0.cloudDeleteAccount(); return "null" }
             cachedAccount = nil
             pendingLogin = nil
+            pendingRecovery = nil
             model.reloadSettings()
             UserDefaults.standard.removeObject(forKey: CloudAccountModel.confirmedKey)
             UserDefaults.standard.removeObject(forKey: Self.automaticConsent)
@@ -779,6 +893,16 @@ extension PennelNativeRuntime {
             guard let value = suggestions as? Bool else { throw PennelBridgeError("invalid_request", "Invalid keyboard suggestion preference.") }
             nextSuggestions = value
         }
+        var nextFeedback: Bool?
+        if let feedback = requested.removeValue(forKey: "haptic_feedback") {
+            guard let value = feedback as? Bool else { throw PennelBridgeError("invalid_request", "Invalid feedback preference.") }
+            nextFeedback = value
+        }
+        var nextTypingFeedback: Bool?
+        if let feedback = requested.removeValue(forKey: "keyboard_haptics") {
+            guard let value = feedback as? Bool else { throw PennelBridgeError("invalid_request", "Invalid typing feedback preference.") }
+            nextTypingFeedback = value
+        }
         var nextDuration: SessionClock.Duration?
         if let duration = requested.removeValue(forKey: "session_duration_seconds") {
             guard let seconds = duration as? Double, let value = SessionClock.Duration(rawValue: seconds) else { throw PennelBridgeError("invalid_request", "Unknown session duration.") }
@@ -803,6 +927,12 @@ extension PennelNativeRuntime {
             else { UserDefaults.standard.removeObject(forKey: Self.automaticConsent) }
             nextLayout?.store(in: keyboard)
             if let nextSuggestions { KeyboardPreferences.setSuggestionsEnabled(nextSuggestions, in: keyboard) }
+            if let nextFeedback { KeyboardPreferences.setFeedbackEnabled(nextFeedback, in: keyboard) }
+            if let nextTypingFeedback {
+                KeyboardPreferences.setTypingFeedbackEnabled(nextTypingFeedback, in: keyboard)
+                KeyboardPreferences.setTypingFeedbackEnabled(nextTypingFeedback, in: UserDefaults.standard)
+            }
+            KeyboardPreferences.mirrorFeedback(from: keyboard, to: UserDefaults.standard)
             nextDuration?.store()
             self.model.reloadSettings()
             self.publishKeyboardPreferences()
@@ -851,6 +981,7 @@ extension PennelNativeRuntime {
         let signedIn = model.engine.cloudSignedIn()
         var state: [String: Any] = [
             "signed_in": signedIn, "account": signedIn ? BridgeJSON.optional(cachedAccount.map(BridgeJSON.account)) : NSNull(),
+            "account_epoch": accountEpoch(), "recovery_display_token": signedIn ? BridgeJSON.optional(pendingRecovery?.token) : NSNull(),
             "syncing": CloudSyncRunner.shared.isRunning, "sync_enabled": model.settings.cloudSync,
             "status": report["status"] ?? "off", "report": report,
             "recovery_confirmed": UserDefaults.standard.object(forKey: CloudAccountModel.confirmedKey) as? Bool != false,
@@ -934,7 +1065,7 @@ extension PennelNativeRuntime {
             "cleanup_verification": BridgeJSON.cleanupVerification(model.engine.cleanupVerificationAvailability()),
             "capabilities": capabilities(), "kinds": kindCatalog(),
             "keys": Dictionary(uniqueKeysWithValues: model.settings.providers.map { ($0.id, Keychain.hasKey(for: $0.id)) }),
-            "dictation": ["phase": dictation.phase.rawValue, "text": dictation.text, "level": dictation.level, "error": BridgeJSON.optional(dictation.error), "error_code": BridgeJSON.optional(dictation.errorCode), "cleanup_verification": BridgeJSON.optional(dictation.cleanupVerification.map(BridgeJSON.cleanupVerification))] as [String: Any],
+            "dictation": ["phase": dictation.phase.rawValue, "text": dictation.text, "level": dictation.level, "session_id": BridgeJSON.optional(dictation.sessionID), "practice": dictation.isPractice, "result_session_id": BridgeJSON.optional(dictation.resultSessionID), "error": BridgeJSON.optional(dictation.error), "error_code": BridgeJSON.optional(dictation.errorCode), "cleanup_verification": BridgeJSON.optional(dictation.cleanupVerification.map(BridgeJSON.cleanupVerification))] as [String: Any],
             "session": ["phase": session.phase.rawValue, "expires_at_ms": BridgeJSON.optional(session.expiresAt.map { $0.timeIntervalSince1970 * 1_000 }),
                         "full_access_seen": KeyboardFullAccess.seen(in: KeyboardLayout.groupDefaults), "error": BridgeJSON.optional(session.startError), "error_code": BridgeJSON.optional(session.startErrorCode), "cleanup_verification": BridgeJSON.optional(session.cleanupVerificationAvailability.map(BridgeJSON.cleanupVerification))] as [String: Any],
             "meeting": ["phase": phase(runtime.phase), "id": BridgeJSON.optional(runtime.activeMeetingId), "title": runtime.title,
@@ -963,6 +1094,8 @@ extension PennelNativeRuntime {
         settings["cloud_speaker_automatic_consent"] = consent
         settings["keyboard_layout"] = KeyboardLayout.stored(in: KeyboardLayout.groupDefaults).rawValue
         settings["keyboard_suggestions"] = KeyboardPreferences.suggestionsEnabled(in: KeyboardLayout.groupDefaults)
+        settings["haptic_feedback"] = KeyboardPreferences.feedbackEnabled(in: KeyboardLayout.groupDefaults)
+        settings["keyboard_haptics"] = KeyboardPreferences.typingFeedbackEnabled(in: KeyboardLayout.groupDefaults)
         settings["session_duration_seconds"] = SessionClock.Duration.stored().rawValue
         return settings
     }
@@ -1016,6 +1149,50 @@ extension PennelNativeRuntime {
                 self.publish()
             }
         })
+    }
+
+    private func accountEpoch() -> String { "\(loginGeneration.current):\(model.engine.cloudSignedIn() ? 1 : 0)" }
+
+    private func recoveryDisplay(_ code: String?, identity: UInt64) async throws -> [String: Any] {
+        guard let code else { return NativeRecoveryDisplay.empty(epoch: accountEpoch()) }
+        let engine = model.engine
+        let context = try await Task.detached { try engine.cloudRecoveryCodeContext(code: code) }.value
+        guard loginGeneration.isCurrent(identity), engine.cloudSignedIn() else { throw PennelError.Cancelled }
+        let display = NativeRecoveryDisplay(code: code, context: context, identity: identity)
+        pendingRecovery = display
+        UserDefaults.standard.set(false, forKey: CloudAccountModel.confirmedKey)
+        return display.payload(epoch: accountEpoch())
+    }
+
+    private func recoveryCode(_ input: BridgePayload, identity: UInt64) async throws -> String {
+        let token = try input.required("confirmation_token")
+        guard let pending = pendingRecovery, pending.matches(token: token, identity: identity), model.engine.cloudSignedIn() else {
+            throw PennelBridgeError("recovery_unconfirmed", "This recovery display changed. Open the current code again.")
+        }
+        let context = try await validatedRecoveryContext(pending)
+        guard loginGeneration.isCurrent(identity), pendingRecovery?.token == token, context == pending.context else {
+            throw PennelBridgeError("recovery_unconfirmed", "This recovery code changed. Open the current code again.")
+        }
+        return pending.code
+    }
+
+    private func validatedRecoveryContext(_ pending: NativeRecoveryDisplay) async throws -> String {
+        let engine = model.engine
+        do { return try await Task.detached { try engine.cloudRecoveryCodeContext(code: pending.code) }.value }
+        catch {
+            discardStaleRecovery(error, pending: pending)
+            throw error
+        }
+    }
+
+    private func discardStaleRecovery(_ error: Error, pending: NativeRecoveryDisplay) {
+        guard loginGeneration.isCurrent(pending.identity), pendingRecovery?.token == pending.token,
+              let error = error as? PennelError else { return }
+        switch error {
+        case .VaultLocked, .NotSignedIn: pendingRecovery = nil
+        case .Cloud(let code, _) where ["recovery_code", "recovery_changed", "generation"].contains(code): pendingRecovery = nil
+        default: break
+        }
     }
 }
 

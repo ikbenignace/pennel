@@ -391,6 +391,7 @@ pub(crate) mod fake {
         after_get: Mutex<Option<Hook>>,
         before_put: Mutex<Option<Hook>>,
         failing_gets: std::sync::atomic::AtomicBool,
+        failing_vault_puts: std::sync::atomic::AtomicBool,
     }
 
     impl FakeApi {
@@ -403,6 +404,7 @@ pub(crate) mod fake {
                 after_get: Mutex::new(None),
                 before_put: Mutex::new(None),
                 failing_gets: std::sync::atomic::AtomicBool::new(false),
+                failing_vault_puts: std::sync::atomic::AtomicBool::new(false),
             }
         }
 
@@ -417,6 +419,11 @@ pub(crate) mod fake {
 
         pub(crate) fn set_offline(&self, offline: bool) {
             self.server.lock().unwrap().offline = offline;
+        }
+
+        pub(crate) fn fail_vault_puts(&self, fail: bool) {
+            self.failing_vault_puts
+                .store(fail, std::sync::atomic::Ordering::SeqCst);
         }
 
         pub(crate) fn set_storage_limit(&self, bytes: Option<usize>) {
@@ -467,6 +474,14 @@ pub(crate) mod fake {
             kdf: &Kdf,
             create: bool,
         ) -> Result<(), PennelError> {
+            if self
+                .failing_vault_puts
+                .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                return Err(PennelError::Network {
+                    message: "fixture vault transport failed".into(),
+                });
+            }
             let mut server = self.server.lock().unwrap();
             Self::check(&server)?;
             if generation != server.generation {

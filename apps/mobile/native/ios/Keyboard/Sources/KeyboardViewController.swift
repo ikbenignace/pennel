@@ -14,6 +14,7 @@ final class KeyboardViewController: UIInputViewController {
     private var isVisible = false
     private var installedFullAccess = false
     private var heightConstraint: NSLayoutConstraint?
+    private var contentHeight: CGFloat?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -57,6 +58,7 @@ final class KeyboardViewController: UIInputViewController {
         host = nil
         typing = nil
         model = nil
+        contentHeight = nil
     }
 
     override func textWillChange(_ textInput: (any UITextInput)?) { invalidateContext() }
@@ -88,6 +90,7 @@ final class KeyboardViewController: UIInputViewController {
         let typing = KeyboardTypingModel(copy: copy, suggestionsEnabled: KeyboardPreferences.suggestionsEnabled(in: defaults))
         self.typing = typing
         if hasFullAccess {
+            KeyboardPreferences.mirrorFeedback(from: defaults, to: UserDefaults.standard)
             KeyboardPreferences.setSuggestionsEnabled(typing.suggestionsEnabled, in: UserDefaults.standard)
             KeyboardPreferences.publish(dictionary: [], interfaceLanguage: language.rawValue, in: UserDefaults.standard)
         }
@@ -97,7 +100,8 @@ final class KeyboardViewController: UIInputViewController {
             hasFullAccess: hasFullAccess,
             client: HandoffClient(store: store),
             context: { [weak self] in self?.insertionContext }, copy: copy,
-            onResult: { [weak self] in self?.insert($0) })
+            onFeedback: { [weak self] in self?.playFeedback($0) },
+            onResult: { [weak self] in self?.insert($0, typingFeedback: false) })
         self.model = model
         let layout = KeyboardLayout.stored(in: defaults)
         if hasFullAccess { layout.store(in: UserDefaults.standard) }
@@ -113,7 +117,13 @@ final class KeyboardViewController: UIInputViewController {
             delete: { [weak self] in self?.delete() },
             space: { [weak self] in self?.insertSpace() },
             insertSuggestion: { [weak self] in self?.insertSuggestion($0) },
-            toggleSuggestions: { [weak self] in self?.toggleSuggestions() })
+            toggleSuggestions: { [weak self] in self?.toggleSuggestions() },
+            feedback: { [weak self] in self?.playFeedback($0) },
+            heightChanged: { [weak self] height in
+                guard let self else { return }
+                self.contentHeight = height
+                self.updateHeight()
+            })
         updateTypingContext()
         loadSuggestions()
         if let host {
@@ -146,11 +156,12 @@ final class KeyboardViewController: UIInputViewController {
         model?.contextDidChange()
     }
 
-    private func insert(_ text: String) {
+    private func insert(_ text: String, typingFeedback: Bool = true) {
         guard isVisible else { return }
         invalidateContext()
         typing?.state.insertedCharacter()
         textDocumentProxy.insertText(text)
+        if typingFeedback { playFeedback(.keyPress) }
         updateTypingContext()
     }
 
@@ -172,6 +183,7 @@ final class KeyboardViewController: UIInputViewController {
             textDocumentProxy.deleteBackward()
             textDocumentProxy.insertText(text)
         }
+        playFeedback(.keyPress)
         updateTypingContext()
     }
 
@@ -186,12 +198,14 @@ final class KeyboardViewController: UIInputViewController {
         for _ in prefix { textDocumentProxy.deleteBackward() }
         typing.state.insertedCharacter()
         textDocumentProxy.insertText(suggestion + " ")
+        playFeedback(.keyPress)
         updateTypingContext()
     }
 
     private func toggleSuggestions() {
         guard let typing else { return }
         typing.suggestionsEnabled.toggle()
+        playFeedback(.selection)
         let defaults = hasFullAccess ? KeyboardLayout.groupDefaults : UserDefaults.standard
         KeyboardPreferences.setSuggestionsEnabled(typing.suggestionsEnabled, in: defaults)
         KeyboardPreferences.setSuggestionsEnabled(typing.suggestionsEnabled, in: UserDefaults.standard)
@@ -207,14 +221,11 @@ final class KeyboardViewController: UIInputViewController {
             return
         }
         let words = hasFullAccess ? KeyboardPreferences.dictionary(in: KeyboardLayout.groupDefaults) : []
-        requestSupplementaryLexicon { [weak self] lexicon in
-            let entries = lexicon.entries.prefix(2_048).map { KeyboardLexiconEntry(input: $0.userInput, replacement: $0.documentText) }
-            DispatchQueue.main.async {
-                guard let self, let current = self.typing, current === typing, current.suggestionsEnabled else { return }
-                current.setLexicon(entries, words: words)
-                self.updateTypingContext()
-            }
-        }
+        requestSupplementaryLexicon(completion: KeyboardLexiconCompletion.make { [weak self, weak typing] entries in
+            guard let self, self.isVisible, let typing, self.typing === typing, typing.suggestionsEnabled else { return }
+            typing.setLexicon(entries, words: words)
+            self.updateTypingContext()
+        })
     }
 
     private func updateTypingContext() {
@@ -253,9 +264,14 @@ final class KeyboardViewController: UIInputViewController {
     private func updateHeight() {
         let row = max(Brand.Spacing.s10 + Brand.Spacing.s1,
                       min(UIFontMetrics.default.scaledValue(for: Brand.Spacing.s10 + Brand.Spacing.s1), Brand.Spacing.s10 + Brand.Spacing.s8))
-        let suggestions = typing?.suggestionsEnabled == true ? Brand.Spacing.s8 : 0
+        let suggestions = typing?.suggestionsEnabled == true ? Brand.Spacing.s10 + Brand.Spacing.s1 : 0
         let recovery = model?.lastResult == nil ? 0 : Brand.Spacing.s5
-        let desired = row * 5 + Brand.Spacing.s2 * 4 + suggestions + recovery
+        let desired = contentHeight ?? (row * 5 + Brand.Spacing.s2 * 4 + suggestions + recovery)
         if abs((heightConstraint?.constant ?? 0) - desired) > 0.5 { heightConstraint?.constant = desired }
+    }
+
+    private func playFeedback(_ event: FeedbackEvent) {
+        guard isVisible else { return }
+        HapticFeedback.play(event, in: hasFullAccess ? KeyboardLayout.groupDefaults : UserDefaults.standard)
     }
 }

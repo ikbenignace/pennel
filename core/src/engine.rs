@@ -118,6 +118,8 @@ pub struct PennelEngine {
     /// Set while a pass held the state; the next pass records them.
     pending_device: Mutex<Option<String>>,
     pending_confirm: Mutex<bool>,
+    pub(crate) cloud_link: Mutex<crate::cloud::link::LinkFlow>,
+    pub(crate) link_journal_gate: Mutex<()>,
     #[cfg(test)]
     sync_api_override: Mutex<Option<Arc<dyn SyncApi>>>,
     preview: bool,
@@ -321,6 +323,13 @@ impl PennelEngine {
         platform: String,
         locale: Option<String>,
     ) -> Result<CloudLoginStart, PennelError> {
+        if crate::cloud::link::has_pending(self) {
+            return Err(PennelError::Cloud {
+                code: "pairing_pending".into(),
+                message: "Finish or cancel the current device connection before signing in again."
+                    .into(),
+            });
+        }
         let _identity = crate::speaker_jobs::speaker_identity_guard();
         let _gate = self.meeting_gate.lock().unwrap();
         self.ensure_cloud_identity_mutable()?;
@@ -336,6 +345,13 @@ impl PennelEngine {
     pub fn cloud_login_poll(&self, device_code: String) -> Result<CloudLoginPoll, PennelError> {
         let _identity = crate::speaker_jobs::speaker_identity_guard();
         let _gate = self.meeting_gate.lock().unwrap();
+        if crate::cloud::link::has_pending(self) {
+            return Err(PennelError::Cloud {
+                code: "pairing_pending".into(),
+                message: "Finish or cancel the current device connection before signing in again."
+                    .into(),
+            });
+        }
         self.ensure_cloud_identity_mutable()?;
         self.cloud_session()?.login_poll(&device_code)
     }
@@ -355,6 +371,12 @@ impl PennelEngine {
 
     /// Meeting files stay; only what this device knew about the cloud is forgotten.
     pub fn cloud_logout(&self) -> Result<(), PennelError> {
+        if crate::cloud::link::has_pending(self) {
+            self.cloud_link_cancel()?;
+            if crate::cloud::link::has_pending(self) {
+                return Err(PennelError::Cloud {code:"pairing_pending".into(),message:"The device connection could not be cancelled yet. Try again after unlocking this device.".into()});
+            }
+        }
         let _identity = crate::speaker_jobs::speaker_identity_guard();
         self.ensure_cloud_identity_mutable()?;
         {
@@ -387,6 +409,12 @@ impl PennelEngine {
     }
 
     pub fn cloud_delete_account(&self) -> Result<(), PennelError> {
+        if crate::cloud::link::has_pending(self) {
+            self.cloud_link_cancel()?;
+            if crate::cloud::link::has_pending(self) {
+                return Err(PennelError::Cloud {code:"pairing_pending".into(),message:"Finish or cancel the current device connection before deleting the account.".into()});
+            }
+        }
         let _identity = crate::speaker_jobs::speaker_identity_guard();
         self.ensure_cloud_identity_mutable()?;
         {
@@ -420,13 +448,21 @@ impl PennelEngine {
         let _gate = self.sync_gate.lock().unwrap();
         let api = self.signed_in_sync_api()?;
         let vault = api.vault()?;
-        let (Some(wrapped), Some(kdf)) = (vault.wrapped, vault.kdf) else {
+        let (Some(wrapped), Some(kdf)) = (&vault.wrapped, &vault.kdf) else {
             return Err(PennelError::Cloud {
                 code: "vault_missing".into(),
                 message: "No vault exists yet.".into(),
             });
         };
-        let key = crypto::unwrap(&wrapped, &kdf, &code)?;
+        let key = crypto::unwrap(wrapped, kdf, &code)?;
+        if kdf.key_check.is_none() {
+            let store = self.secret_store().ok_or(PennelError::NotSignedIn)?;
+            crate::cloud::store_verified(
+                store.as_ref(),
+                crate::cloud::VAULT_VALIDATION_ACCOUNT,
+                &crate::cloud::setup::validation_marker(&key, &vault),
+            )?;
+        }
         self.adopt_vault(&key, vault.generation)
     }
 
@@ -492,6 +528,9 @@ impl PennelEngine {
     /// Without a pass since start-up, whether a vault exists is unknown: no key reads as
     /// `NeedsSetup` until a pass asks the server.
     pub fn cloud_sync_last(&self) -> SyncReport {
+        if crate::cloud::link::has_pending(self) {
+            return self.report(SyncStatus::Pending);
+        }
         let status = if !self.settings().cloud_sync {
             SyncStatus::Off
         } else if !self.cloud_signed_in() {
@@ -1360,7 +1399,7 @@ impl PennelEngine {
         *self.sync_api_override.lock().unwrap() = Some(api);
     }
 
-    fn sync_api(&self) -> Result<Arc<dyn SyncApi>, PennelError> {
+    pub(crate) fn sync_api(&self) -> Result<Arc<dyn SyncApi>, PennelError> {
         #[cfg(test)]
         if let Some(api) = self.sync_api_override.lock().unwrap().clone() {
             return Ok(api);
@@ -1368,14 +1407,14 @@ impl PennelEngine {
         Ok(Arc::new(HttpSyncApi::new(self.cloud_session()?)))
     }
 
-    fn signed_in_sync_api(&self) -> Result<Arc<dyn SyncApi>, PennelError> {
+    pub(crate) fn signed_in_sync_api(&self) -> Result<Arc<dyn SyncApi>, PennelError> {
         if !self.cloud_signed_in() {
             return Err(PennelError::NotSignedIn);
         }
         self.sync_api()
     }
 
-    fn with_sync_state<T>(
+    pub(crate) fn with_sync_state<T>(
         &self,
         query: impl FnOnce(&SyncState) -> Result<T, PennelError>,
     ) -> Result<T, PennelError> {
@@ -1423,15 +1462,15 @@ impl PennelEngine {
         }
     }
 
-    fn vault_key(&self) -> Option<VaultKey> {
+    pub(crate) fn vault_key(&self) -> Option<VaultKey> {
         self.secret_store()?
             .get(VAULT_KEY_ACCOUNT.into())
             .and_then(|encoded| VaultKey::from_b64(&encoded))
     }
 
-    fn adopt_vault(&self, key: &VaultKey, generation: u32) -> Result<(), PennelError> {
+    pub(crate) fn adopt_vault(&self, key: &VaultKey, generation: u32) -> Result<(), PennelError> {
         let secrets = self.secret_store().ok_or(PennelError::NotSignedIn)?;
-        secrets.set(VAULT_KEY_ACCOUNT.into(), Some(key.to_b64()));
+        crate::cloud::store_verified(secrets.as_ref(), VAULT_KEY_ACCOUNT, &key.to_b64())?;
         self.with_sync_state(|state| {
             state.use_vault(&crypto::vault_check(key))?;
             state.set_generation(generation)
@@ -1440,14 +1479,14 @@ impl PennelEngine {
         self.set_cloud_sync(true)
     }
 
-    fn set_cloud_sync(&self, enabled: bool) -> Result<(), PennelError> {
+    pub(crate) fn set_cloud_sync(&self, enabled: bool) -> Result<(), PennelError> {
         self.update_settings_with(|mut settings| {
             settings.cloud_sync = enabled;
             Ok(settings)
         })
     }
 
-    fn report(&self, status: SyncStatus) -> SyncReport {
+    pub(crate) fn report(&self, status: SyncStatus) -> SyncReport {
         SyncReport {
             status,
             uploaded: 0,
@@ -1462,6 +1501,9 @@ impl PennelEngine {
 
     fn sync_pass(&self, recording: &[String]) -> SyncReport {
         let _gate = self.sync_gate.lock().unwrap();
+        if crate::cloud::link::has_pending(self) {
+            return self.report(SyncStatus::Pending);
+        }
         let mut recording = recording.to_vec();
         recording.extend(
             self.active_sessions
@@ -1650,7 +1692,7 @@ impl PennelEngine {
         self.update_settings_locked(next)
     }
 
-    fn ensure_cloud_identity_mutable(&self) -> Result<(), PennelError> {
+    pub(crate) fn ensure_cloud_identity_mutable(&self) -> Result<(), PennelError> {
         if self.has_active_session() {
             return Err(PennelError::Storage {
                 message: "Finish recording before changing the Pennel Cloud account.".into(),
@@ -1937,6 +1979,8 @@ impl PennelEngine {
             deleted_meetings: Mutex::new(Vec::new()),
             pending_device: Mutex::new(None),
             pending_confirm: Mutex::new(false),
+            cloud_link: Mutex::new(crate::cloud::link::LinkFlow::default()),
+            link_journal_gate: Mutex::new(()),
             #[cfg(test)]
             sync_api_override: Mutex::new(None),
             preview,

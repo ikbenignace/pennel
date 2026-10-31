@@ -5,8 +5,8 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use pennel_core::{
-    CloudAccount, CloudDevice, CloudLoginPoll, CloudLoginStart, MeetingSyncState, PennelError,
-    Settings, SyncItemState, SyncReport, SyncStatus,
+    CloudAccount, CloudDevice, CloudLinkRole, CloudLinkView, CloudLoginPoll, CloudLoginStart,
+    CloudSyncSetup, MeetingSyncState, PennelError, Settings, SyncItemState, SyncReport, SyncStatus,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -39,6 +39,10 @@ impl From<PennelError> for CloudError {
             PennelError::VaultLocked => "vault_locked".to_owned(),
             PennelError::NotSignedIn => "not_signed_in".to_owned(),
             PennelError::Cloud { code, .. } => code.clone(),
+            PennelError::Storage { .. } => "storage".to_owned(),
+            PennelError::Network { .. } => "network".to_owned(),
+            PennelError::Cancelled => "cancelled".to_owned(),
+            PennelError::Http { status, .. } => format!("http_{status}"),
             _ => "error".to_owned(),
         };
         Self {
@@ -481,6 +485,152 @@ pub async fn cloud_sync_enable(app: AppHandle, shared: State<'_, Arc<Shared>>) -
     poke(&app);
     settings_changed(&app);
     Ok(code)
+}
+
+#[tauri::command]
+pub async fn cloud_sync_setup(shared: State<'_, Arc<Shared>>) -> Result<CloudSyncSetup> {
+    let shared = shared.inner().clone();
+    blocking(move || shared.engine.cloud_sync_setup().map_err(err)).await
+}
+
+#[tauri::command]
+pub async fn cloud_sync_prepare(
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<Option<String>> {
+    let shared = shared.inner().clone();
+    let code = blocking(move || shared.engine.cloud_sync_prepare().map_err(err)).await?;
+    settings_changed(&app);
+    Ok(code)
+}
+
+#[tauri::command]
+pub async fn cloud_sync_activate(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    let shared = shared.inner().clone();
+    blocking(move || shared.engine.cloud_sync_activate().map_err(err)).await?;
+    settings_changed(&app);
+    poke(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn cloud_recovery_code_context(
+    code: String,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<String> {
+    let shared = shared.inner().clone();
+    blocking(move || shared.engine.cloud_recovery_code_context(code).map_err(err)).await
+}
+
+#[tauri::command]
+pub async fn cloud_recovery_confirm(
+    code: String,
+    context: String,
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<()> {
+    let shared = shared.inner().clone();
+    blocking(move || {
+        shared
+            .engine
+            .cloud_recovery_confirm(code, context)
+            .map_err(err)
+    })
+    .await?;
+    settings_changed(&app);
+    poke(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn cloud_sync_resume(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()> {
+    let shared = shared.inner().clone();
+    blocking(move || shared.engine.cloud_sync_resume().map_err(err)).await?;
+    settings_changed(&app);
+    poke(&app);
+    Ok(())
+}
+
+fn link_role(role: &str) -> Result<CloudLinkRole> {
+    match role {
+        "new_device" => Ok(CloudLinkRole::NewDevice),
+        "trusted_device" => Ok(CloudLinkRole::TrustedDevice),
+        _ => Err(CloudError::other("Unknown device connection role.")),
+    }
+}
+
+fn link_changed(app: &AppHandle, view: &CloudLinkView) {
+    if matches!(&view.phase, pennel_core::CloudLinkPhase::Complete) {
+        settings_changed(app);
+        poke(app);
+    }
+}
+
+#[tauri::command]
+pub async fn cloud_link_start(
+    role: String,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<CloudLinkView> {
+    let role = link_role(&role)?;
+    let shared = shared.inner().clone();
+    blocking(move || {
+        shared
+            .engine
+            .cloud_link_start(role, device_name(), platform().into())
+            .map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn cloud_link_join(
+    code: String,
+    role: String,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<CloudLinkView> {
+    let role = link_role(&role)?;
+    let shared = shared.inner().clone();
+    blocking(move || {
+        shared
+            .engine
+            .cloud_link_join(code, role, device_name(), platform().into())
+            .map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn cloud_link_poll(
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<CloudLinkView> {
+    let shared = shared.inner().clone();
+    let view = blocking(move || shared.engine.cloud_link_poll().map_err(err)).await?;
+    link_changed(&app, &view);
+    Ok(view)
+}
+
+#[tauri::command]
+pub async fn cloud_link_view(shared: State<'_, Arc<Shared>>) -> Result<CloudLinkView> {
+    let shared = shared.inner().clone();
+    blocking(move || Ok(shared.engine.cloud_link_view())).await
+}
+
+#[tauri::command]
+pub async fn cloud_link_approve(
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+) -> Result<CloudLinkView> {
+    let shared = shared.inner().clone();
+    let view = blocking(move || shared.engine.cloud_link_approve().map_err(err)).await?;
+    link_changed(&app, &view);
+    Ok(view)
+}
+
+#[tauri::command]
+pub async fn cloud_link_cancel(shared: State<'_, Arc<Shared>>) -> Result<CloudLinkView> {
+    let shared = shared.inner().clone();
+    blocking(move || shared.engine.cloud_link_cancel().map_err(err)).await
 }
 
 #[tauri::command]

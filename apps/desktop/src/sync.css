@@ -1,0 +1,6 @@
+.device-link-qr { display: block; width: min(100%, 208px); height: auto; margin-block: var(--space-4); background: white; }
+.device-link-code { font-family: var(--ui); font-size: var(--font-title); font-weight: 600; letter-spacing: .08em; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+.device-link-entry { min-width: 0; width: min(100%, 24ch); text-transform: uppercase; }
+.account-management { margin-top: var(--space-6); }
+.account-management > summary { padding-block: var(--space-3); font-weight: 500; }
+.account-management > .pane-section { margin-top: var(--space-5); }
