@@ -45,7 +45,7 @@ Off is the initial typing default. Existing explicit opt-in maps to Gentle; Cris
 | Recording/result/error | Acknowledged transition only; no speculative success |
 | Background/polling | None |
 
-The current soft `0.4` baseline, the same prepared pulse, light, rigid and off are experiments. Equal UIKit intensities are not equal physical strength, and `.soft` does not establish an ideal typing feel. The app preview's bridge preparation is best effort; a baseline sample means no explicit preparation, not guaranteed cold hardware.
+The soft `0.4` baseline, the same prepared pulse, light `0.35`, original rigid `0.25` and off remain comparison controls. Physical feedback on the test iPhone found the light/original-rigid candidates weak or absent and Gentle unsuitable. Daily Crisp now requests rigid `0.65` through the same shared preview/keyboard policy; the user reported it distinct and comfortable. The original rigid control remains separately labelled, and no preference is silently enabled. Equal UIKit intensities are not equal physical strength, and `.soft` does not establish an ideal typing feel. The app preview's bridge preparation is best effort; a baseline sample means no explicit preparation, not guaranteed cold hardware.
 
 Keep recording suppression intact. No audio-session category or haptic-during-recording policy is changed to force feedback. Compare first-after-idle and rapid typing, one/two thumbs, cases/grips, extended writing, cancelled touches, gestures, Full Access, VoiceOver, actual recording, Bluetooth and interruptions. Software timestamps describe requests; physical onset needs external sensing. A simulator/screenshot cannot establish feel. Core Haptics remains a later experiment only if it earns its additional lifecycle/resource cost.
 
@@ -73,7 +73,7 @@ env CI=1 PENNEL_VARIANT=preview PENNEL_IOS_DESTINATION='generic/platform=iOS' np
 env CI=1 PENNEL_VARIANT=preview make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=<verified-device>'
 ```
 
-Run large native commands through the personal worktree-storage guard. Core, desktop frontend/backend and affected macOS service checks also apply to vocabulary/public-interface changes. Personal Preview signing only; preserve existing app/keyboard/widget identities and data. The final receipt in `docs/mobile.md` distinguishes code, automated checks, installed candidate and acceptance evidence. The personally signed normal candidate `a089c94` is installed on the test iPhone; its physical correction/undo, switching, reappearance and Full Access checks pass. Haptic feel and comparative quality remain unmeasured.
+Run large native commands through the personal worktree-storage guard. Core, desktop frontend/backend and affected macOS service checks also apply to vocabulary/public-interface changes. Personal Preview signing only; preserve existing app/keyboard/widget identities and data. The final receipt in `docs/mobile.md` distinguishes code, automated checks, installed candidate and acceptance evidence. The personally signed normal candidate `7fad205` is installed on the test iPhone; its physical correction/undo, switching, reappearance and Full Access checks pass. The user accepted its stronger Crisp pulse as distinct and comfortable; broader comparative quality, timing, energy and long-session comfort remain unmeasured.
 
 ### Isolated intent-routing investigation
 

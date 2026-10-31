@@ -48,7 +48,7 @@ The personally signed diagnostic Preview at `3bb2ad3` compiled the probe into bo
 
 Both receipts identify `app.pennel.ios.preview.keyboard`, `isExtension: true` and `recordingStarted: false`. The Settings host remained visible. The process check before termination matched only the installed Preview app, and the after check confirmed its main process was absent. `SIGTERM` is not evidence of the user's app-switcher force-quit behavior. Complete private process snapshots remain local; the [public receipt](evidence/keyboard-experience-2026-10-31.json) contains only the relevant aggregate result.
 
-This narrows the result to the tested button/intent declaration on that OS and device. It does not prove that every supported system action has the same routing, that background microphone capture is permitted, or that the full #39 interaction is impossible. The normal flag-off candidate at `a089c94` was personally signed and reinstalled afterward; its artifact and final device checks are recorded separately in the final receipt.
+This narrows the result to the tested button/intent declaration on that OS and device. It does not prove that every supported system action has the same routing, that background microphone capture is permitted, or that the full #39 interaction is impossible. The normal flag-off candidates, including the final `7fad205`, were personally signed and reinstalled afterward; its artifact and final device checks are recorded separately in the final receipt.
 
 Remaining signed-device investigation:
 
