@@ -221,14 +221,11 @@ final class KeyboardViewController: UIInputViewController {
             return
         }
         let words = hasFullAccess ? KeyboardPreferences.dictionary(in: KeyboardLayout.groupDefaults) : []
-        requestSupplementaryLexicon { [weak self] lexicon in
-            let entries = lexicon.entries.prefix(2_048).map { KeyboardLexiconEntry(input: $0.userInput, replacement: $0.documentText) }
-            DispatchQueue.main.async {
-                guard let self, let current = self.typing, current === typing, current.suggestionsEnabled else { return }
-                current.setLexicon(entries, words: words)
-                self.updateTypingContext()
-            }
-        }
+        requestSupplementaryLexicon(completion: KeyboardLexiconCompletion.make { [weak self, weak typing] entries in
+            guard let self, self.isVisible, let typing, self.typing === typing, typing.suggestionsEnabled else { return }
+            typing.setLexicon(entries, words: words)
+            self.updateTypingContext()
+        })
     }
 
     private func updateTypingContext() {
