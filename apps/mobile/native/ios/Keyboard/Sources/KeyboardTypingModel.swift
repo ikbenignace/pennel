@@ -114,6 +114,7 @@ final class KeyboardTypingModel {
     @ObservationIgnored private var permitsAutocorrection = true
     @ObservationIgnored private var wordTouches: [TypingPoint] = []
     @ObservationIgnored private var wordKeys: [TypingKey] = []
+    @ObservationIgnored private var interruptedEdit: KeyboardSnippet?
 
     init(copy: KeyboardCopy, suggestionsEnabled: Bool, defaults: UserDefaults? = nil,
          learningDefaults: UserDefaults? = nil, writableDefaults: UserDefaults? = nil,
@@ -139,6 +140,7 @@ final class KeyboardTypingModel {
         snippets = Array(snippets.prefix(64))
         let hidden = Set(learningDefaults?.stringArray(forKey: "keyboardHiddenSnippetIDs") ?? [])
         snippets.removeAll { hidden.contains($0.id) }
+        if let interruptedEdit { snippets.insert(interruptedEdit, at: 0) }
     }
 
     func setLexicon(_ entries: [KeyboardLexiconEntry], words: [String]) {
@@ -256,6 +258,11 @@ final class KeyboardTypingModel {
     }
 
     func deleteSnippet(_ snippet: KeyboardSnippet) {
+        if snippet.id == interruptedEdit?.id {
+            interruptedEdit = nil
+            reloadPreferences()
+            return
+        }
         let stored = KeyboardPreferences.snippets(in: writableDefaults).filter { $0.id != snippet.id }
         KeyboardPreferences.setSnippets(stored, in: writableDefaults)
         if defaults !== writableDefaults {
@@ -263,6 +270,12 @@ final class KeyboardTypingModel {
             if !hidden.contains(snippet.id) { hidden.append(snippet.id) }
             learningDefaults?.set(Array(hidden.suffix(64)), forKey: "keyboardHiddenSnippetIDs")
         }
+        reloadPreferences()
+    }
+
+    func retainInterruptedEdit(_ text: String) {
+        guard !text.isEmpty, text.count <= 4_098 else { return }
+        interruptedEdit = KeyboardSnippet(title: copy.language == .dutch ? "Onderbroken bewerking (tijdelijk)" : "Interrupted edit (temporary)", text: text)
         reloadPreferences()
     }
 

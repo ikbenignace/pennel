@@ -277,12 +277,20 @@ final class KeyboardViewController: UIInputViewController {
                                                                after: textDocumentProxy.documentContextAfterInput)
         else { return false }
         clearCorrection()
-        var transaction: KeyboardCorrectionTransaction?
+        var outcome = KeyboardBoundaryEditOutcome.notApplicable
         performEdit {
-            transaction = KeyboardBoundaryEditor.apply(original: replacement.original, replacement: replacement.text,
+            outcome = KeyboardBoundaryEditor.apply(original: replacement.original, replacement: replacement.text,
                 delimiter: delimiter, proxy: textDocumentProxy, lifetime: lifetime)
         }
-        guard let transaction, let context = insertionContext, let bound = transaction.bound(to: context) else { return false }
+        if let interrupted = outcome.interruptedTransaction {
+            typing.retainInterruptedEdit(interrupted.restoredText)
+            return outcome.consumesKey
+        }
+        guard let transaction = outcome.completedTransaction else { return outcome.consumesKey }
+        guard let context = insertionContext, let bound = transaction.bound(to: context) else {
+            typing.retainInterruptedEdit(transaction.restoredText)
+            return outcome.consumesKey
+        }
         typing.resetTouches()
         correction = bound
         typing.correctionOriginal = replacement.original
@@ -301,11 +309,15 @@ final class KeyboardViewController: UIInputViewController {
         else { clearCorrection(); return false }
         clearCorrection()
         let originGeneration = generation
-        var restored = false
+        var outcome = KeyboardBoundaryEditOutcome.notApplicable
         performEdit {
-            restored = KeyboardBoundaryEditor.undo(correction, proxy: textDocumentProxy, lifetime: lifetime, generation: originGeneration)
+            outcome = KeyboardBoundaryEditor.undo(correction, proxy: textDocumentProxy, lifetime: lifetime, generation: originGeneration)
         }
-        guard restored else { return false }
+        if let interrupted = outcome.interruptedTransaction {
+            typing?.retainInterruptedEdit(interrupted.restoredText)
+            return outcome.consumesKey
+        }
+        guard outcome.completedTransaction != nil else { return outcome.consumesKey }
         typing?.reject(original: correction.original, replacement: correction.replacement)
         typing?.resetTouches()
         typing?.learnAccepted(correction.original, previous: KeyboardTypingContext.previousToken(before: textDocumentProxy.documentContextBeforeInput))
@@ -345,15 +357,16 @@ final class KeyboardViewController: UIInputViewController {
         if edit == .insert(" "), applyBoundaryReplacement(delimiter: " ") { return }
         clearCorrection()
         typing.resetTouches()
+        var outcome = KeyboardPrefixEditOutcome.completed
         performEdit {
             switch edit {
             case .insert(let text): textDocumentProxy.insertText(text)
             case .replacePreviousCharacter(let text):
-                textDocumentProxy.deleteBackward()
-                textDocumentProxy.insertText(text)
+                outcome = KeyboardBoundaryEditor.replacePrefix(" ", with: text, proxy: textDocumentProxy)
             }
         }
-        playFeedback(.keyPress)
+        if outcome.isInterrupted { typing.retainInterruptedEdit(" ") }
+        if outcome.isCompleted { playFeedback(.keyPress) }
     }
 
     private func insertSuggestion(_ suggestion: String) {
@@ -368,11 +381,20 @@ final class KeyboardViewController: UIInputViewController {
             before: textDocumentProxy.documentContextBeforeInput, after: textDocumentProxy.documentContextAfterInput,
             document: textDocumentProxy.documentIdentifier, lifetime: lifetime)
         let previous = KeyboardTypingContext.previousToken(before: textDocumentProxy.documentContextBeforeInput)
+        let originDocument = textDocumentProxy.documentIdentifier
+        var outcome = KeyboardPrefixEditOutcome.notApplicable
         performEdit {
-            for _ in prefix { textDocumentProxy.deleteBackward() }
-            typing.state.insertedCharacter()
-            textDocumentProxy.insertText(suggestion + " ")
+            outcome = KeyboardBoundaryEditor.replacePrefix(prefix, with: suggestion + " ", proxy: textDocumentProxy)
         }
+        guard outcome.isCompleted else {
+            if outcome.isInterrupted { typing.retainInterruptedEdit(prefix + " ") }
+            return
+        }
+        guard textDocumentProxy.documentIdentifier == originDocument else {
+            typing.retainInterruptedEdit(prefix + " ")
+            return
+        }
+        typing.state.insertedCharacter()
         typing.learnAccepted(suggestion, previous: previous)
         typing.resetTouches()
         correction = insertionContext.flatMap { transaction?.bound(to: $0) }
@@ -405,8 +427,11 @@ final class KeyboardViewController: UIInputViewController {
         clearCorrection()
         typing?.resetTouches()
         typing?.state.resetSpacing()
-        performEdit { for _ in 0..<count { textDocumentProxy.deleteBackward() } }
-        playFeedback(.selection)
+        let removed = String((textDocumentProxy.documentContextBeforeInput ?? "").suffix(count))
+        var outcome = KeyboardPrefixEditOutcome.notApplicable
+        performEdit { outcome = KeyboardBoundaryEditor.replacePrefix(removed, with: "", proxy: textDocumentProxy) }
+        if outcome.isInterrupted { typing?.retainInterruptedEdit(removed) }
+        if outcome.isCompleted { playFeedback(.selection) }
     }
 
     private func insertSwipe(_ gesture: KeyboardSwipeGesture) {
@@ -504,11 +529,18 @@ final class KeyboardViewController: UIInputViewController {
                                    selectedText: textDocumentProxy.selectedText, document: textDocumentProxy.documentIdentifier, lifetime: lifetime)
         else { typing?.writingCanRestore = false; return }
         writingRestoration = nil
+        var outcome = KeyboardPrefixEditOutcome.notApplicable
         performEdit {
-            for _ in restoration.replacement { textDocumentProxy.deleteBackward() }
-            textDocumentProxy.insertText(restoration.original)
+            outcome = KeyboardBoundaryEditor.replacePrefix(restoration.replacement, with: restoration.original,
+                                                           proxy: textDocumentProxy)
         }
         typing?.writingCanRestore = false
+        guard outcome.isCompleted else {
+            if outcome.isInterrupted { typing?.retainInterruptedEdit(restoration.original) }
+            typing?.writingStatus = localized("The insertion point changed. The original is in temporary snippets.",
+                                              "Het invoegpunt is veranderd. Het origineel staat bij tijdelijke fragmenten.")
+            return
+        }
         typing?.writingStatus = localized("Original text restored.", "Oorspronkelijke tekst hersteld.")
         playFeedback(.selection)
     }
@@ -543,7 +575,7 @@ final class KeyboardViewController: UIInputViewController {
         value["undoPermitted"] = correction?.permits(before: before, after: after,
             document: proxy.documentIdentifier, lifetime: lifetime, generation: generation) == true
         do {
-            let folder = directory.appendingPathComponent("Library/Caches/PennelKeyboardQA", isDirectory: true)
+            let folder = directory.deletingLastPathComponent().appendingPathComponent("Library/Caches/PennelKeyboardQA", isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
             try data.write(to: folder.appendingPathComponent("keyboard-context-probe.json"), options: .atomic)

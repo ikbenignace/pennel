@@ -158,4 +158,23 @@ struct KeyboardTypingIntegrationTests {
         #expect(await settled(model))
         #expect(model.replacementAtBoundary(before: "Teh teh", after: nil) == nil)
     }
+
+    @Test func interrupted_edit_original_is_explicitly_recoverable_without_persistent_storage() throws {
+        let name = "pennel-interrupted-edit-\(UUID())"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let model = KeyboardTypingModel(copy: KeyboardCopy(language: .english), suggestionsEnabled: true,
+            defaults: defaults, learningDefaults: defaults, spelling: TypingTestSpelling())
+        model.retainInterruptedEdit("teh ")
+        let recovered = try #require(model.snippets.first)
+        #expect(recovered.text == "teh ")
+        #expect(recovered.keyword.isEmpty)
+        #expect(KeyboardPreferences.snippets(in: defaults).isEmpty)
+        #expect(defaults.object(forKey: KeyboardPreferences.snippetsKey) == nil)
+        model.reloadPreferences()
+        #expect(model.snippets.first?.id == recovered.id)
+        model.deleteSnippet(recovered)
+        #expect(model.snippets.isEmpty)
+        #expect(defaults.object(forKey: KeyboardPreferences.snippetsKey) == nil)
+    }
 }
