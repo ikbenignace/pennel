@@ -5,6 +5,7 @@ core:
 
 test: core
 	scripts/with-toolchain.sh cargo test --manifest-path core/Cargo.toml
+	scripts/with-toolchain.sh cargo test --manifest-path core/keyboard/Cargo.toml
 
 desktop: theme
 	cd apps/desktop && npm ci && ../../scripts/with-toolchain.sh npx tauri build
