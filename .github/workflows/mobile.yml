@@ -11,6 +11,11 @@ on:
       - "scripts/build-mobile-*.sh"
       - "scripts/build-keyboard-core-ios.sh"
       - "scripts/tests/test_mobile_core_build.py"
+      - "scripts/mobile-testflight-*.py"
+      - "scripts/mobile-native-cache.py"
+      - "scripts/xcode-cloud-*.sh"
+      - "scripts/tests/test_mobile_testflight*.py"
+      - "scripts/tests/test_mobile_native_cache.py"
       - "scripts/prepare-mobile-assets.sh"
       - "scripts/mobile-device-hub*.mjs"
       - "scripts/with-toolchain.sh"
@@ -19,6 +24,7 @@ on:
       - "scripts/tests/test_ci_xcode_cache.py"
       - "Makefile"
       - ".github/workflows/mobile.yml"
+      - ".github/workflows/mobile-testflight.yml"
   pull_request:
     paths: *paths
   workflow_dispatch:
@@ -94,6 +100,8 @@ jobs:
         run: |
           python3 -B -m unittest discover -s scripts/tests -p 'test_ci_xcode_cache.py'
           python3 -B -m unittest discover -s scripts/tests -p 'test_mobile_core_build.py'
+          python3 -B -m unittest discover -s scripts/tests -p 'test_mobile_testflight*.py'
+          python3 -B -m unittest discover -s scripts/tests -p 'test_mobile_native_cache.py'
           python3 -B scripts/ci-xcode-cache.py time --phase typecheck-and-tests -- make mobile-test
       - name: Generate and validate the preview workspace
         env:

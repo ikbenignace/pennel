@@ -37,7 +37,8 @@ mobile-core:
 mobile-prebuild: mobile-core
 	cd apps/mobile && npm run test:prebuild
 	cd apps/mobile && npm run prebuild:clean
-	cd apps/mobile/ios && pod install
+	cp apps/mobile/Podfile.lock apps/mobile/ios/Podfile.lock
+	cd apps/mobile/ios && pod install --deployment
 	cd apps/mobile && npm run test:pods
 
 mobile-test:
