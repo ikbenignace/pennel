@@ -381,3 +381,43 @@ The checks exposed and verified fixes for the moved helper test's brand path, st
 The Mac Preview app passed strict signature verification and its DMG passed integrity verification; it is not a notarized distribution. Actionlint 1.7.12 and current Markdown file-link checks passed. Twelve owned desktop captures covered EN/NL and light/dark with no fixture runtime errors. The actual mobile Release preview rendered its existing QA meeting and native tabs on iPhone 17 / iOS 26.5, including light/dark appearance; the original app preference was restored. Both app and extensions retain preview identities; actual product plists confirm `app.pennel.ios.preview`, `group.app.pennel.preview` and the independent preview Keychain service. Production configuration remains covered by variant tests. No retired source tree was recreated by generation or builds.
 
 Physical-phone capture, keyboard cold start/resources, signed upgrades, live Sparkle transition, deployed Cloud, Windows/Linux installed-package acceptance and App Review remain open in their owning issues. Local checks and screenshots do not satisfy those gates. Android remains gated on iPhone acceptance. Hosted CI and review/merge status are recorded in the cleanup PR and issue separately.
+
+## Keyboard launch crash — 31 October 2026
+
+Tracked in [#81](https://github.com/pennel-app/pennel/issues/81), related to [#39](https://github.com/pennel-app/pennel/issues/39) and [#77 / PR #80](https://github.com/pennel-app/pennel/pull/80). Fix commit: `28040eaaa6c01f1a70e4bedb55ad4a693aea4081`. The [verification receipt](evidence/keyboard-launch-crash-2026-10-31.json) records commands, artifact identity and the device matrix; complete local logs remain under ignored `build/mobile/keyboard-crash-2026-10-31/`.
+
+The physical iPhone crash reports identified a Swift 6 actor-isolation trap in `KeyboardViewController.loadSuggestions()`, on `com.apple.TextInput.lexicon-request`, before the old main-queue dispatch could execute. The production callback now has an explicitly `@Sendable` boundary and enters `Task { @MainActor in ... }` before reading UIKit lexicon entries or applying suggestions. It retains the 2,048-entry cap and rejects results for dismissed, replaced or disabled typing models through weak captures and current-state guards. Four hosted regressions cover worker and main-actor callback delivery and assert actor isolation inside both UIKit getters and result application; they also verify mapping, empty results and the cap. Strict Swift 6 remains enabled.
+
+The existing generated project still referenced retired native source paths, so the candidate was regenerated from canonical Expo sources before building. From the repository root, the following commands passed; all ran with the `/Users/landerparren/.local/bin/worktree-storage run --` prefix:
+
+```sh
+env PENNEL_VARIANT=preview make mobile-test
+env CI=1 PENNEL_VARIANT=preview make mobile-prebuild
+env CI=1 PENNEL_VARIANT=preview npm --prefix apps/mobile run build:ios
+env CI=1 PENNEL_VARIANT=preview PENNEL_IOS_DESTINATION='generic/platform=iOS' npm --prefix apps/mobile run build:ios
+env CI=1 PENNEL_VARIANT=preview make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=D01BA00B-81A5-4AEA-BEA8-1551BB6D14CB'
+```
+
+Passed: TypeScript, 10 plugin, seven widget, 94 mobile UI and 76 MobileKit tests; clean/repeated non-clean generation and six actual pod/source ownership checks; both ARM64 Release builds; **100 hosted runtime/service and six keyboard tests**, including the four new regressions, on iOS 26.5. The builds used Xcode 27.0 / SDK 27.0. Core, desktop, Cloud, public APIs and stored-data formats are unchanged by this fix.
+
+The personally signed Preview was produced and verified using the retained signing/packaging scripts:
+
+```sh
+python3 build/mobile/ux-2026-10-30/sign-preview.py --output-dir build/mobile/ux-2026-10-30/keyboard-startup-2026-10-31
+python3 build/mobile/ux-2026-10-30/package-preview.py --output-dir build/mobile/ux-2026-10-30/keyboard-startup-2026-10-31
+```
+
+The IPA in that directory is 19,318,471 bytes, SHA-256 `a193774f27cf243b110fdec6cb636209039784448d5f4bd28724a2473e5b15b9`. Its keyboard UUID is `CF0AD166-AE6D-386E-8461-1CD4FD46203F`. App, keyboard and widget signatures use the personal **Lander Parren** team `B538Q2K76C`; existing Preview identifiers and `group.app.pennel.preview` are preserved. Nested/strict signature and extracted-package checks pass. The verified extracted `.app` was installed with `devicectl device install app`, without uninstalling or resetting data. All 46 Documents entries (31 regular files) retain their original sizes and modification times; this is metadata evidence rather than a complete content-hash comparison.
+
+On the connected **iPhone 16 Pro / iOS 27.0.1**, actual Pennel key taps and deletion succeeded in the app's search field and Spotlight. Every combination below passed:
+
+| Full Access | Local suggestions | App running: own search field | App not running: Spotlight |
+| --- | --- | --- | --- |
+| On | On | Pass | Pass |
+| On | Off | Pass | Pass |
+| Off | On | Pass | Pass |
+| Off | Off | Pass | Pass |
+
+Switching away and selecting Pennel again works. The recorded Spotlight picker flow passed three repeated reselections with Full Access off and three with it on; Pennel remained selected with suggestions enabled. A device process snapshot confirms that only the keyboard extension, not the containing Pennel process, was running during the final Spotlight checks. The baseline and final crash listings both contain 26 reports, with no new or modified report. Full Access and local suggestions were restored to their original enabled values; synthetic search text was deleted. No microphone capture or provider inference was started.
+
+Argent was updated to 0.31.0 at the user's request. Its live server and Codex configuration explicitly select the personal team for the automation runner. Hosted CI, review and merge remain tracked in PR #80. This device receipt accepts the reported keyboard-selection crash fix; keyboard-only dictation cold start, other supported devices/OS versions, resource/accessibility qualification and App Review remain separate gates.
