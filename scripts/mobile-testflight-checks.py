@@ -41,11 +41,18 @@ class GitHub:
         if body is not None:
             command.extend(['--input', '-'])
             payload = json.dumps(body)
-        result = subprocess.run(command, input=payload, text=True, capture_output=True)
-        if result.returncode:
-            # gh diagnostics may contain remote payloads; keep credential-bearing output out of receipts.
-            raise RuntimeError(f'GitHub API {method} {endpoint.split("?")[0]} failed (exit {result.returncode})')
-        return json.loads(result.stdout) if result.stdout.strip() else {}
+        for attempt in range(3):
+            result = subprocess.run(command, input=payload, text=True, capture_output=True)
+            if not result.returncode:
+                return json.loads(result.stdout) if result.stdout.strip() else {}
+            matched = re.search(r'\(HTTP ([0-9]{3})\)', result.stderr)
+            status = int(matched[1]) if matched else None
+            transient = status == 429 or (status is not None and status >= 500) or (status is None and result.returncode == 1)
+            if method != 'GET' or not transient or attempt == 2:
+                # Keep remote payloads and credential-bearing diagnostics out of receipts.
+                detail = f'HTTP {status}' if status else f'exit {result.returncode}'
+                raise RuntimeError(f'GitHub API {method} {endpoint.split("?")[0]} failed ({detail})')
+            time.sleep(2 ** attempt)
 
     def post(self, endpoint, body=None):
         return self.request(endpoint, 'POST', body or {})

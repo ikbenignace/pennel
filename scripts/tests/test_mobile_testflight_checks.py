@@ -2,6 +2,8 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 SPEC = importlib.util.spec_from_file_location('testflight_checks', Path(__file__).parents[1] / 'mobile-testflight-checks.py')
@@ -107,6 +109,21 @@ class ChecksTests(unittest.TestCase):
         for value in ['https://github.com/a/b', 'codex/ios-testflight', 'refs/heads/codex/ios-testflight', '../bad']:
             with self.subTest(value=value), self.assertRaises(ValueError):
                 MODULE.validate_ref(value)
+
+    def test_transient_read_retries_without_losing_successful_checks(self):
+        failure = SimpleNamespace(returncode=1, stdout='', stderr='gh: service unavailable (HTTP 503)')
+        success = SimpleNamespace(returncode=0, stdout='{"ok": true}', stderr='')
+        with patch.object(MODULE.subprocess, 'run', side_effect=[failure, success]) as command, patch.object(MODULE.time, 'sleep'):
+            self.assertEqual(MODULE.GitHub('pennel-app/pennel').request('actions/workflows/ci.yml/runs'), {'ok': True})
+            self.assertEqual(command.call_count, 2)
+
+    def test_mutating_calls_and_permission_errors_are_not_blindly_retried(self):
+        for method, status in [('POST', 503), ('GET', 403)]:
+            failure = SimpleNamespace(returncode=1, stdout='', stderr=f'gh: refused (HTTP {status})')
+            with self.subTest(method=method), patch.object(MODULE.subprocess, 'run', return_value=failure) as command:
+                with self.assertRaisesRegex(RuntimeError, str(status)):
+                    MODULE.GitHub('pennel-app/pennel').request('actions/workflows/ci.yml/dispatches', method, {})
+                self.assertEqual(command.call_count, 1)
 
 
 if __name__ == '__main__':
