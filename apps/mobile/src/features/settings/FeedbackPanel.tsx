@@ -22,7 +22,7 @@ const copy = {
     trialDisabled: 'Choose Gentle or Crisp first to try a sample on the keyboard.',
     trialActive: 'A temporary keyboard feel is selected. Choose a daily feel above or end the trial to return to it.', endTrial: 'End keyboard trial',
     unavailable: 'Haptic previews are available on a supported iPhone.',
-    profiles: { baseline: 'Soft tap · standard timing', prepared: 'Soft tap · early preparation', light: 'Light tap', rigid: 'Crisp tap', off: 'No haptics' },
+    profiles: { baseline: 'Soft tap · standard timing', prepared: 'Soft tap · early preparation', light: 'Light tap', rigid: 'Original crisp tap', off: 'No haptics' },
   },
   nl: {
     title: 'Feedback', app: 'Haptische feedback', appHelp: 'Voel belangrijke opnameacties, resultaten en verbindingswijzigingen.',
@@ -36,7 +36,7 @@ const copy = {
     trialDisabled: 'Kies eerst Zacht of Duidelijk om een voorbeeld op het toetsenbord te proberen.',
     trialActive: 'Er is een tijdelijk toetsenbordgevoel gekozen. Kies hierboven een dagelijks gevoel of beëindig de proef om terug te keren.', endTrial: 'Toetsenbordproef stoppen',
     unavailable: 'Trillingsvoorbeelden zijn beschikbaar op een ondersteunde iPhone.',
-    profiles: { baseline: 'Zachte tik · gewone timing', prepared: 'Zachte tik · vroeg voorbereid', light: 'Lichte tik', rigid: 'Duidelijke tik', off: 'Geen trillingen' },
+    profiles: { baseline: 'Zachte tik · gewone timing', prepared: 'Zachte tik · vroeg voorbereid', light: 'Lichte tik', rigid: 'Oorspronkelijke scherpe tik', off: 'Geen trillingen' },
   },
 };
 

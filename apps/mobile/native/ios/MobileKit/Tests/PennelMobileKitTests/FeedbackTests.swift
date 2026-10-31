@@ -111,7 +111,7 @@ struct FeedbackTests {
 
     @Test func keyboard_action_feedback_remains_independent_and_uses_acknowledged_events() {
         let typingOnly = KeyboardFeedbackPreferences(actionFeedbackEnabled: false, typingStyle: .crisp)
-        #expect(KeyboardFeedbackPolicy.pulse(for: .keyPress, preferences: typingOnly) == .impact(style: .rigid, intensity: 0.25))
+        #expect(KeyboardFeedbackPolicy.pulse(for: .keyPress, preferences: typingOnly) == .impact(style: .rigid, intensity: 0.65))
         for event in FeedbackEvent.allCases where event != .keyPress {
             #expect(KeyboardFeedbackPolicy.pulse(for: event, preferences: typingOnly) == nil)
         }
@@ -141,6 +141,14 @@ struct FeedbackTests {
         #expect(!KeyboardFeedbackPreviewProfile.off.preparesFeedback)
         #expect(KeyboardFeedbackPreviewProfile.off.pulse == nil)
         #expect(KeyboardFeedbackPreviewProfile(rawValue: "unknown") == nil)
+    }
+
+    @Test func daily_crisp_is_distinct_from_the_original_rigid_comparison_control() {
+        #expect(KeyboardFeedbackPolicy.previewPulse(for: .rigid) == .impact(style: .rigid, intensity: 0.25))
+        #expect(KeyboardFeedbackPreviewProfile.crisp.pulse != KeyboardFeedbackPreviewProfile.rigid.pulse)
+        #expect(KeyboardFeedbackPolicy.typingPulse(for: .crisp, trialProfile: .rigid)
+            == KeyboardFeedbackPreviewProfile.rigid.pulse)
+        #expect(KeyboardFeedbackPolicy.typingPulse(for: .gentle) == .impact(style: .soft, intensity: 0.4))
     }
 
     @Test func temporary_trials_expire_without_reading_extending_or_rewriting_them() {

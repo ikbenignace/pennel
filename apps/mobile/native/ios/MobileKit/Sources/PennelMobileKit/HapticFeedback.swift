@@ -48,7 +48,7 @@ public enum KeyboardFeedbackPolicy {
         switch style {
         case .off: return nil
         case .gentle: return .impact(style: .soft, intensity: 0.4)
-        case .crisp: return .impact(style: .rigid, intensity: 0.25)
+        case .crisp: return .impact(style: .rigid, intensity: 0.65)
         }
     }
 
