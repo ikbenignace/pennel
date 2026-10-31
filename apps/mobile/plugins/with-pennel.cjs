@@ -29,7 +29,8 @@ function writePlist(file, value) {
 }
 
 function patchPodfile(content) {
-  const declaration = "  pod 'PennelMobileKit', :path => '../../ios/PennelMobileKit'";
+  const declaration = "  pod 'PennelMobileKit', :path => '../native/ios/MobileKit'";
+  content = content.replace(/^\s*pod 'PennelMobileKit', :path => '[^']*'\r?\n/gm, '');
   content = content.replace(/\n  # BEGIN PENNEL RUNTIME TESTS[\s\S]*?  # END PENNEL RUNTIME TESTS\n?/g, '\n');
   for (const target of ['Pennel', widgetName]) {
     const targetStart = new RegExp(`(target ['\"]${target}['\"] do\\n)`);
@@ -66,11 +67,10 @@ function patchAppDelegateSwift(contents) {
 
 function prepareNativeFiles(config, options) {
   const ios = config.modRequest.platformProjectRoot;
-  const root = path.resolve(config.modRequest.projectRoot, '../..');
   const native = path.join(ios, 'PennelNative');
   prepareNativeSources(config.modRequest.projectRoot);
   fs.mkdirSync(native, { recursive: true });
-  const keyboardInfo = plist.parse(fs.readFileSync(path.join(root, 'apps/ios/PennelKeyboard/Info.plist'), 'utf8'));
+  const keyboardInfo = plist.parse(fs.readFileSync(path.join(config.modRequest.projectRoot, 'native/ios/Keyboard/Info.plist'), 'utf8'));
   Object.assign(keyboardInfo, variantInfo(options), {
     CFBundleDisplayName: options.production ? 'Pennel' : 'Pennel Preview',
     CFBundleDevelopmentRegion: 'en',
@@ -98,6 +98,30 @@ function prepareNativeFiles(config, options) {
 
 function targetsNamed(project, name) {
   return realEntries(project.pbxNativeTargetSection()).filter(([, target]) => unquote(target.name) === name);
+}
+
+function removeLegacyKeyboardSources(project) {
+  const objects = project.hash.project.objects;
+  const legacy = /^\.\.\/\.\.\/ios\/(?:PennelKeyboard\/(?:Sources|Model)\/|PennelKeyboardTests\/).*\.swift$/;
+  const references = new Set(realEntries(objects.PBXFileReference)
+    .filter(([, file]) => unquote(file.sourceTree) === 'SOURCE_ROOT' && legacy.test(unquote(file.path)))
+    .map(([id]) => id));
+  if (!references.size) return;
+  const builds = new Set(realEntries(objects.PBXBuildFile).filter(([, file]) => references.has(unquote(file.fileRef))).map(([id]) => id));
+  for (const entries of Object.values(objects)) {
+    for (const [, entry] of realEntries(entries)) {
+      if (entry.files) entry.files = entry.files.filter((file) => !builds.has(file.value));
+      if (entry.children) entry.children = entry.children.filter((child) => !references.has(child.value));
+    }
+  }
+  for (const id of builds) {
+    delete objects.PBXBuildFile[id];
+    delete objects.PBXBuildFile[`${id}_comment`];
+  }
+  for (const id of references) {
+    delete objects.PBXFileReference[id];
+    delete objects.PBXFileReference[`${id}_comment`];
+  }
 }
 
 function removeTargets(project, name) {
@@ -205,6 +229,7 @@ function swiftFiles(directory) {
 
 function configureProject(config, options) {
   const project = config.modResults;
+  removeLegacyKeyboardSources(project);
   const ios = config.modRequest.platformProjectRoot;
   const workspace = config.modRequest.projectRoot;
   const root = path.resolve(workspace, '../..');
@@ -240,11 +265,11 @@ function configureProject(config, options) {
   }
   const appIntents = path.join(workspace, 'native/ios/App');
   for (const file of swiftFiles(appIntents)) addFileToPhase(project, app[0], relative(file), 'PBXSourcesBuildPhase', 'sourcecode.swift');
-  const keyboardFiles = [...swiftFiles(path.join(root, 'apps/ios/PennelKeyboard/Sources')), ...swiftFiles(path.join(root, 'apps/ios/PennelKeyboard/Model'))];
+  const keyboardFiles = [...swiftFiles(path.join(workspace, 'native/ios/Keyboard/Sources')), ...swiftFiles(path.join(workspace, 'native/ios/Keyboard/Model'))];
   for (const file of keyboardFiles) addFileToPhase(project, keyboard[0], relative(file), 'PBXSourcesBuildPhase', 'sourcecode.swift');
-  for (const file of [...swiftFiles(path.join(root, 'apps/ios/PennelKeyboard/Model')), ...swiftFiles(path.join(root, 'apps/ios/PennelKeyboardTests'))]) addFileToPhase(project, test[0], relative(file), 'PBXSourcesBuildPhase', 'sourcecode.swift');
+  for (const file of [...swiftFiles(path.join(workspace, 'native/ios/Keyboard/Model')), ...swiftFiles(path.join(workspace, 'native/ios/KeyboardTests'))]) addFileToPhase(project, test[0], relative(file), 'PBXSourcesBuildPhase', 'sourcecode.swift');
   for (const file of swiftFiles(path.join(workspace, 'native/ios/Tests'))) addFileToPhase(project, runtimeTest[0], relative(file), 'PBXSourcesBuildPhase', 'sourcecode.swift');
-  for (const file of swiftFiles(path.join(root, 'apps/ios/PennelWidgets/Sources')).filter((file) => path.basename(file) !== 'PennelWidgets.swift')) addFileToPhase(project, widget[0], relative(file), 'PBXSourcesBuildPhase', 'sourcecode.swift');
+  for (const file of swiftFiles(path.join(workspace, 'native/ios/Widgets'))) addFileToPhase(project, widget[0], relative(file), 'PBXSourcesBuildPhase', 'sourcecode.swift');
   for (const target of [keyboard, widget]) {
     for (const name of ['Figtree-Regular.ttf', 'Figtree-Medium.ttf', 'Figtree-SemiBold.ttf']) addFileToPhase(project, target[0], relative(path.join(root, 'assets/brand/fonts', name)), 'PBXResourcesBuildPhase', 'file');
   }
@@ -325,4 +350,4 @@ function withPennel(config, options) {
 }
 
 module.exports = withPennel;
-module.exports._test = { afterExistingMod, patchPodfile, variantInfo, patchAppDelegateSwift, removeTargets, targetsNamed, configureProject, configurations };
+module.exports._test = { afterExistingMod, patchPodfile, variantInfo, patchAppDelegateSwift, removeLegacyKeyboardSources, removeTargets, targetsNamed, configureProject, configurations };

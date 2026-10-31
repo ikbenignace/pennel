@@ -19,4 +19,4 @@ https://github.com/k2-fsa/sherpa-onnx — speaker segmentation, voiceprints and 
 
 ## Figtree, Instrument Serif (SIL OFL 1.1)
 
-See `apps/macos/Resources/Fonts/`.
+See [Figtree's license](assets/brand/fonts/Figtree-OFL.txt) and [Instrument Serif's license](assets/brand/fonts/InstrumentSerif-OFL.txt).

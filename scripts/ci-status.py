@@ -12,14 +12,12 @@ def failures(needs):
     if changes.get('result') != 'success':
         errors.append('Change selection did not succeed')
     outputs = changes.get('outputs', {})
-    for flag in ('core', 'legacy', 'platform'):
+    for flag in ('core', 'platform'):
         if outputs.get(flag) not in ('true', 'false'):
             errors.append(f'Missing or invalid {flag} selection')
-    if outputs.get('core') == 'true' and outputs.get('legacy') != 'true':
-        errors.append('Core checks require the macOS/core build job')
     required = {
-        'build-and-test': outputs.get('legacy') == 'true',
-        'platform': outputs.get('platform') == 'true' and outputs.get('legacy') != 'true',
+        'build-and-test': outputs.get('core') == 'true',
+        'platform': outputs.get('platform') == 'true' and outputs.get('core') != 'true',
     }
     for job, selected in required.items():
         result = needs.get(job, {}).get('result')

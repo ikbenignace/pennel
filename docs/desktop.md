@@ -1,6 +1,6 @@
 # Shared Pennel desktop app
 
-`apps/desktop/` hosts one Tauri 2 application for Mac, Windows and Linux. Its TypeScript/Vite interface links through Rust commands to one `PennelEngine`. The native Mac presentation remains a comparison/recovery build during migration; it is not the shared application's host.
+`apps/desktop/` hosts one Tauri 2 application for Mac, Windows and Linux. Its TypeScript/Vite interface links through Rust commands to one `PennelEngine`. The legacy SwiftUI Mac shell is retired under [cleanup #75](https://github.com/pennel-app/pennel/issues/75). The embedded macOS platform library remains the owner of Apple integrations; packaged-device and signed-upgrade acceptance remain separate.
 
 The main window **Pennel** hosts the meeting library and Settings. Its compact toolbar keeps **New recording**, sidebar visibility and Find available. The library sidebar keeps Dictation, Meetings, History and Settings beside search, meeting questions and meetings grouped by date. An active or unfinished recording replaces the new-recording action with a route back to that exact session; it does not start another capture. Settings opens inside the same main window from the tray/menu, in-app links or `Cmd/Ctrl+,`. Its back action returns to the previous meeting or recording, preserving drafts, the selected view and reading position. History and Dictation use the same workspace window. The recording prompt and nonactivating dictation pill remain separate. Platform-specific features stay visible with capability/permission explanations.
 
@@ -10,7 +10,7 @@ Task-local setup is a dialog over the initiating view, with connection details k
 
 ## Appearance and first use
 
-**System / Systeem**, **Light / Licht** and **Dark / Donker** use the shared semantic tokens in `assets/brand/tokens.json`: warm paper and ink with a barely darker sidebar. `make theme` generates the CSS and native Swift values; `make theme-check` checks that the committed outputs match. Figtree carries navigation, controls and reading content on every platform. Instrument Serif carries large titles and the wordmark. The floating pill has separate fixed colors so changing window appearance does not invert it.
+**System / Systeem**, **Light / Licht** and **Dark / Donker** use the shared semantic tokens in `assets/brand/tokens.json`: warm paper and ink with a barely darker sidebar. `make theme` generates the desktop CSS, pill metrics and shared SVG icons; `make theme-check` checks that the committed outputs match. Figtree carries navigation, controls and reading content on every platform. Instrument Serif carries large titles and the wordmark. The floating pill has separate fixed colors so changing window appearance does not invert it.
 
 Webview zoom shortcuts are disabled. Enlarged-text fixtures exercise responsive layout, but do not establish OS text-size or human accessibility acceptance. On macOS, native Liquid Glass backs navigation and toolbar surfaces on version 26 and newer; older versions use system vibrancy. Reduce Transparency and Increase Contrast select opaque backing, and Reduce Motion suppresses transitions. Reading and editing content stays opaque. See the [macOS material audit, visual references and verification](macos-liquid-glass.md).
 
@@ -38,7 +38,7 @@ The shared desktop app supports **English** and **Nederlands** on macOS, Windows
 
 Changing the interface preference saves and relabels open desktop windows, menus and recording overlays immediately. It does not reload a webview, replace active text fields, stop a recording, or change speech recognition, provider/model choices, prompts, template contents, transcripts or notes. Existing profiles keep their onboarding progress, and language remains available when reopening the introduction.
 
-Translations live in the shared `assets/locales/` catalogs. Frontend `l()`/`liveText()` values explicitly mark app-owned text and attributes for in-place updates; raw user content is never matched or scanned for translation. Rust resolves preferences and supplies localized native UI metadata. Application-owned diagnostics and canonical defaults use English; the catalogs retain older Dutch error aliases. Unmodified built-in names follow the interface, while default summary headings follow the meeting language and custom template content stays literal. See the [language policy](language-policy.md). No remote translation service or extra dependency is used. The frozen native Mac UI remains a comparison shell.
+Translations live in the shared `assets/locales/` catalogs. Frontend `l()`/`liveText()` values explicitly mark app-owned text and attributes for in-place updates; raw user content is never matched or scanned for translation. Rust resolves preferences and supplies localized native UI metadata. Application-owned diagnostics and canonical defaults use English; the catalogs retain older Dutch error aliases. Unmodified built-in names follow the interface, while default summary headings follow the meeting language and custom template content stays literal. See the [language policy](language-policy.md). No remote translation service or extra dependency is used. Historical native Mac UI source remains available in Git.
 
 ## Mac menu bar lifecycle
 
@@ -117,7 +117,7 @@ Recording uses `idle → starting → recording → stopping → finalizing → 
 
 This table describes implemented paths, not completed hardware certification. Call classification is heuristic. Safari/WebKit attribution, app helper variants, device routes and real meetings remain acceptance cases.
 
-The iPhone app (native SwiftUI on the same core, see `docs/ios.md`) shows the same settings sections. These are visible but switched off there, with the reason shown in the app:
+The [Expo iPhone app](mobile.md) uses the same Rust core and exposes the corresponding settings capabilities. These are visible but switched off there, with the reason shown in the app:
 
 | Capability on iPhone | Reason shown |
 | --- | --- |
@@ -185,11 +185,11 @@ automatic feature or hosted Pennel Cloud decision service is included.
 
 ### Pennel Cloud
 
-The shared app has an **Account** tab (last in Settings) with login, usage, meeting sync, the recovery code, devices and account deletion, plus a **Pennel Cloud** provider card. The native Mac reference app shows only a disabled **Account** tab and a disabled Pennel Cloud provider card, both reading "Beschikbaar in de nieuwe Pennel-app"; this is a recorded parity gap, not a hidden feature.
+The shared app has an **Account** tab (last in Settings) with login, usage, meeting sync, the recovery code, devices and account deletion, plus a **Pennel Cloud** provider card. The retired Mac shell's disabled Account/provider surfaces are historical migration context.
 
 The shared Account tab has controls beyond the original plan: **Nu synchroniseren**, **Herstelcode maken**, **Verwijderingen bevestigen** (the mass-delete brake: a sync that would remove many files waits for confirmation) and a notice while a shown recovery code has not been confirmed.
 
-**Claude-toegang** (Account tab, below the recovery code): a switch, off by default on every computer, that lets Claude search and read this computer's meetings through Pennel Cloud's MCP server. While signed in and switched on, `ClaudeAccessRunner` (`src-tauri/src/claude_access.rs`) keeps a long poll open and answers each relayed tool call with the core's read-only `claude_access_answer`; signing out or deleting the account switches it off. The section shows the connection status and the connector URL and `claude mcp add` command to copy. Same on every platform; the legacy Mac app has no equivalent (recorded gap, like the rest of the Account tab). Protocol and privacy rules: [claude-access.md](claude-access.md).
+**Claude-toegang** (Account tab, below the recovery code): a switch, off by default on every computer, that lets Claude search and read this computer's meetings through Pennel Cloud's MCP server. While signed in and switched on, `ClaudeAccessRunner` (`src-tauri/src/claude_access.rs`) keeps a long poll open and answers each relayed tool call with the core's read-only `claude_access_answer`; signing out or deleting the account switches it off. The section shows the connection status and the connector URL and `claude mcp add` command to copy. Same on every desktop platform. Protocol and privacy rules: [claude-access.md](claude-access.md).
 
 What is synced: text files in the meeting folders (Markdown notes, transcripts) and `.templates`. Audio is not synced. Content is end-to-end encrypted ("end-to-end versleuteld") on the device before upload, with a recovery code to restore the vault on another device. The server can see the number of objects, their sizes, times and which device uploads.
 
@@ -256,11 +256,11 @@ Known dictation exclusion intervals are retained locally and silenced before rep
 
 Canonical meetings use `~/Pennel` or the configured library. Previews pin their library to `<preview data>/Meetings`, reject external paths/symlink escapes, and do not migrate native credentials. `tauri.preview.conf.json` changes the bundle identity to `dev.pennel.Pennel.preview`; debug builds are also isolated.
 
-For permission-bearing Mac previews, both bundlers reuse an existing certificate through `scripts/preview-signing-identity.py`. Explicit `APPLE_SIGNING_IDENTITY` or `PENNEL_SIGN_IDENTITY` takes precedence; otherwise the selector retains a still-valid certificate SHA in ignored `build/preview-signing-identity.sha1`, then tries the known local certificates or an existing Apple Development identity. With no suitable certificate it reports the ad-hoc fallback. It never creates/imports a certificate or changes certificate trust. Canonical native signing selection is unchanged.
+For permission-bearing Mac previews, the shared bundler reuses an existing certificate through `scripts/preview-signing-identity.py`. Explicit `APPLE_SIGNING_IDENTITY` or `PENNEL_SIGN_IDENTITY` takes precedence; otherwise the selector retains a still-valid certificate SHA in ignored `build/preview-signing-identity.sha1`, then tries the known local certificates or an existing Apple Development identity. With no suitable certificate it reports the ad-hoc fallback. It never creates/imports a certificate or changes certificate trust. Existing signing identities are retained.
 
 Updating an allowed preview with ad-hoc signing changes its designated requirement and can invalidate microphone, speech and Accessibility approvals. macOS can show an old Accessibility switch as enabled while rejecting the new signature; the obsolete entry then needs to be replaced before granting the current app access. Preserve the preview's signing identity on subsequent builds. Debug/release bundles that share the preview identifier must not both remain registered with Launch Services when selecting the app in privacy settings.
 
-Mac shortcut readiness requires a healthy event tap, not just a non-null tap handle or saved permission. Both Mac monitors verify their own tap identity, full requested event mask, port validity and enabled state, then recover registration after permission changes or listener failure. A partially authorized tap is discarded. Native local previews accept `PENNEL_SIGN_IDENTITY` to reuse a stable existing signing certificate.
+Mac shortcut readiness requires a healthy event tap, not just a non-null tap handle or saved permission. The Mac monitor verifies its own tap identity, full requested event mask, port validity and enabled state, then recover registration after permission changes or listener failure. A partially authorized tap is discarded. Local previews accept `PENNEL_SIGN_IDENTITY` to reuse a stable existing signing certificate.
 
 Core startup obtains an exclusive data lease, validates the migration journal and takes a consistent settings/SQLite/failed-audio snapshot before normalization or retention. Existing data snapshots live under `migration-backup-v1`; `migration.json` records startup migration. Library leases and active-session guards prevent conflicting writers and folder moves. These files support recovery and are not a substitute for user backups.
 
@@ -280,7 +280,7 @@ make desktop-test
 
 `make desktop-preview` installs locked frontend dependencies and builds isolated preview packages. On Mac it builds the app-only Tauri package and creates `build/Pennel Preview.dmg` with `hdiutil`, so preview packaging also works without an interactive Finder session. `make desktop-test` builds the frontend and runs backend tests; run `npm test` as well for frontend regression coverage. `make desktop` builds canonical packages. Installer output is under `apps/desktop/src-tauri/target[/<target>]/release/bundle/` unless a debug build was requested.
 
-Mac canonical packages preserve the existing bundle identity, data directory and Keychain service. Do not run a canonical shared Mac build alongside the native reference against the same data. Use `make app-preview` for `build/Pennel Native Preview.app`, with separate data and credentials, when comparing the two interfaces. `make theme-check` verifies their generated shared theme tokens. See [redesign acceptance](redesign-acceptance.md) for screenshot, package and device evidence.
+Mac canonical packages preserve the existing bundle identity, data directory and Keychain service, including upgrade handling for older installations. Use `make desktop-preview` for isolated data and credentials; do not run an older canonical app against the same data. `make theme-check` verifies the generated shared desktop tokens and icons. See [redesign acceptance](redesign-acceptance.md) for current capture commands and historical comparison evidence.
 
 For hot reload:
 
@@ -296,15 +296,15 @@ Distributable Windows/Linux x64 builds in CI and the release helper compile the 
 
 Every Intel Core processor since Haswell (2013) and every AMD processor since Zen (2017) meets the baseline, which covers the Core and Ryzen processors that Windows 11 supports. Some Pentium Gold, Celeron and Atom processors on that list lack AVX. Before a local speech model or the older Sortformer speaker model loads, the core checks the processor (`core/src/cpu_support.rs`). On a processor without these features, the **Lokaal** provider and local model downloads are shown disabled with "Deze processor is te oud voor lokale modellen. Kies een cloudprovider.", and a load attempt returns that reason instead of crashing on an illegal instruction. Speaker recognition uses the prebuilt ONNX Runtime, which selects its instruction set at run time, so it stays available. Runtime CPU dispatch for ggml (`dynamic-backends` in transcribe-cpp-sys) would also cover those processors, but it needs a shared library plus per-ISA modules in every installer. It is not used yet.
 
-Keep the native comparison build working:
+Verify shared Rust and affected native integrations:
 
 ```sh
-make core && make test && make app
+make core && make test
 swift test --package-path apps/macos-platform
 make packaging-test
 ```
 
-`make core` generates `apps/macos/Frameworks/` and `apps/macos/Sources/PennelCore/`. The embedded Mac platform library has no SwiftUI interface or second Rust engine.
+`make core` builds the Rust library and `make test` runs its tests. Mobile native preparation generates its own matched lean Rust framework and bindings directly in ignored mobile artifacts. The embedded Mac platform library has no SwiftUI interface or second Rust engine.
 
 ### Local model catalog
 
@@ -312,10 +312,10 @@ Local recognition uses [transcribe.cpp](https://github.com/handy-computer/transc
 
 ### Repository layout
 
-- `core/` — shared product logic, runtime state machines and stores; UniFFI also serves the native reference.
+- `core/` — shared product logic, runtime state machines and stores; UniFFI serves the mobile native runtime.
 - `apps/desktop/` — shared Tauri interface, Rust host and Windows/Linux adapters.
 - `apps/macos-platform/` — embedded Swift services for Apple APIs.
-- `apps/macos/` — native comparison and recovery application.
+- `apps/mobile/` — Expo interface, native iPhone services/extensions and generated-app plugins; see [mobile ownership](mobile.md#native-ownership).
 - `assets/brand/` — shared design guide, icons and fonts.
 - `scripts/` — build, capture, inspection, release preparation and acceptance tools.
 
@@ -333,6 +333,6 @@ The [usability and adoption study kit](ux-adoption.md) prepares two formative ro
 
 Pennel Cloud is built in the shared app and awaits device acceptance (see open-items T11-T13); the Linux clipboard paths for the recovery code have not been exercised on a Linux device.
 
-Before replacing the native Mac app or switching website downloads, pass real Mac/Windows/X11/Wayland desktop, migration, signed-update and performance acceptance. The prepared legacy Sparkle archive/appcast provides the native-to-shared transition; the shared app uses the Tauri updater. Public release availability and distribution claims must follow those results.
+Retiring the old source shell does not establish real Mac/Windows/X11/Wayland desktop, migration, signed-update or performance acceptance. Run those gates against the actual distributed candidates. The prepared legacy Sparkle archive/appcast provides the native-to-shared transition; the shared app uses the Tauri updater. Public release availability and distribution claims must follow those results.
 
 The look retains Pennel's warm reading surfaces, Instrument Serif titles and real app icons. macOS chrome retains the shared Figtree typography, a compact integrated command row and accent source-list icons. Choices use restrained segmented controls, switches and native popup menus. `scripts/capture-desktop-windows.sh` captures the dedicated capture build's own windows over an owned synthetic backdrop, using isolated fixture data; `scripts/capture-desktop-reference.mjs` renders frontend fixtures headless. The [macOS audit](macos-liquid-glass.md) records Apple Notes/Finder references, layer ownership and native-material limits.

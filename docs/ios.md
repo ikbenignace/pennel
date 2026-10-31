@@ -1,11 +1,10 @@
-# Pennel for iPhone
+# Historical native iPhone implementation
 
-This page records the retained SwiftUI iPhone implementation and its shared native services. The
-[Expo mobile migration](mobile.md) reuses the same Rust core and services; the SwiftUI shell remains
-the comparison until generated-app, upgrade and real-device acceptance pass. Shared keyboard changes
-described below also apply to the Expo candidate.
+The SwiftUI shell and hand-written Xcode project described here were retired under [cleanup #75](https://github.com/pennel-app/pennel/issues/75) on 30 October 2026. This page preserves the old implementation, build receipts and draft review/privacy notes as historical context. Its old paths, targets, labels and measurements are not current build or submission instructions. [Pre-retirement source](https://github.com/pennel-app/pennel/tree/e6f02b2cd178b541dcbfcdb46125336c762dbf07/apps/ios) remains in Git.
 
-## Build
+Use [Expo mobile development and acceptance](mobile.md) for the active app, native ownership and current commands. Native services, MobileKit, keyboard and widget helpers now live under `apps/mobile/native/ios/`. Device, signed-upgrade, keyboard cold-start, deployed Cloud and store acceptance remain open. Revalidate the draft App Review and privacy notes below against the actual submitted Expo candidate.
+
+## Historical build (retired)
 
 ```sh
 make ios-core   # XCFramework (ios-arm64 + ios-arm64-simulator) and Swift bindings

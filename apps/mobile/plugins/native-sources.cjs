@@ -18,21 +18,16 @@ function link(source, destination, directory = false) {
 }
 
 function prepareNativeSources(workspace) {
-  const root = path.resolve(workspace, '../..');
   const generated = path.join(workspace, 'modules/pennel-mobile/generated/ios');
-  const helperGenerated = path.join(root, 'apps/ios/PennelMobileKit/Generated');
   // CocoaPods ignores source patterns escaping the pod root. These links keep one canonical edited source.
   fs.rmSync(generated, { recursive: true, force: true });
-  fs.rmSync(helperGenerated, { recursive: true, force: true });
   for (const file of serviceFiles) {
-    const source = path.join(root, 'apps/ios/Pennel/Sources', file);
+    const source = path.join(workspace, 'native/ios/Services', file);
     if (!fs.existsSync(source)) throw new Error(`Required native service source is missing: ${file}`);
     link(source, path.join(generated, 'Services', file));
   }
   link(path.join(workspace, 'artifacts/ios/PennelCore/pennel_core.swift'), path.join(generated, 'Bindings/pennel_core.swift'));
   link(path.join(workspace, 'artifacts/ios/PennelCoreFFI.xcframework'), path.join(generated, 'PennelCoreFFI.xcframework'), true);
-  const shared = path.join(workspace, 'native/ios/MobileKit');
-  for (const name of fs.readdirSync(shared).filter((name) => name.endsWith('.swift')).sort()) link(path.join(shared, name), path.join(helperGenerated, name));
   return generated;
 }
 

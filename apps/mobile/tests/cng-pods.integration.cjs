@@ -102,7 +102,7 @@ test('actual Pennel compile sources include all canonical services and generated
   }
   const staged = path.join(root, 'modules/pennel-mobile/generated/ios/Services/AppModel.swift');
   assert(fs.lstatSync(staged).isSymbolicLink(), 'reused source stays linked to canonical authority');
-  assert.equal(fs.realpathSync(staged), path.resolve(root, '../ios/Pennel/Sources/AppModel.swift'));
+  assert.equal(fs.realpathSync(staged), path.join(root, 'native/ios/Services/AppModel.swift'));
   for (const mode of ['debug', 'release']) {
     const config = fs.readFileSync(path.join(support, `Pods-Pennel/Pods-Pennel.${mode}.xcconfig`), 'utf8');
     const linker = config.split('\n').filter((line) => line.startsWith('OTHER_LDFLAGS =')).join('\n');
@@ -113,9 +113,10 @@ test('actual Pennel compile sources include all canonical services and generated
 test('MobileKit really compiles shared ActivityKit attributes from one canonical source', () => {
   const sources = compileSources(graph(), 'PennelMobileKit');
   assert(sources.some((source) => source.endsWith('PennelActivityAttributes.swift')));
-  const staged = path.resolve(root, '../ios/PennelMobileKit/Generated/PennelActivityAttributes.swift');
-  assert(fs.lstatSync(staged).isSymbolicLink());
-  assert.equal(fs.realpathSync(staged), path.join(root, 'native/ios/MobileKit/PennelActivityAttributes.swift'));
+  const source = path.join(root, 'native/ios/MobileKit/Sources/PennelMobileKit/PennelActivityAttributes.swift');
+  assert(fs.lstatSync(source).isFile());
+  assert(!fs.lstatSync(source).isSymbolicLink());
+  assert(!fs.existsSync(path.join(root, 'native/ios/MobileKit/Generated')));
 });
 
 test('owned Swift remains strict 6 while undeclared SDK pods use stock Swift 5', () => {

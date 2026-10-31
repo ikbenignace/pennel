@@ -11,6 +11,33 @@ const workspace = path.resolve(__dirname, '..');
 const objects = (section = {}) => Object.entries(section).filter(([key]) => !key.endsWith('_comment'));
 const unquote = (value) => String(value ?? '').replace(/^"|"$/g, '');
 
+function addLegacyKeyboardReferences() {
+  const file = path.join(workspace, 'ios/Pennel.xcodeproj/project.pbxproj');
+  const project = xcode.project(file);
+  project.parseSync();
+  const graph = project.hash.project.objects;
+  const native = objects(graph.PBXGroup).find(([, group]) => unquote(group.name) === 'PennelNative')[1];
+  for (const [source, targets] of [
+    ['../../ios/PennelKeyboard/Sources/KeyboardRoot.swift', ['PennelKeyboard']],
+    ['../../ios/PennelKeyboard/Model/KeyboardModel.swift', ['PennelKeyboard', 'PennelKeyboardTests']],
+    ['../../ios/PennelKeyboardTests/KeyboardModelTests.swift', ['PennelKeyboardTests']],
+  ]) {
+    const reference = project.generateUuid();
+    graph.PBXFileReference[reference] = { isa: 'PBXFileReference', lastKnownFileType: 'sourcecode.swift', path: JSON.stringify(source), sourceTree: 'SOURCE_ROOT' };
+    graph.PBXFileReference[`${reference}_comment`] = path.basename(source);
+    native.children.push({ value: reference, comment: path.basename(source) });
+    for (const name of targets) {
+      const [, target] = targetsNamed(project, name)[0];
+      const phase = target.buildPhases.map(({ value }) => graph.PBXSourcesBuildPhase[value]).find(Boolean);
+      const build = project.generateUuid();
+      graph.PBXBuildFile[build] = { isa: 'PBXBuildFile', fileRef: reference };
+      graph.PBXBuildFile[`${build}_comment`] = `${path.basename(source)} in Sources`;
+      phase.files.push({ value: build, comment: `${path.basename(source)} in Sources` });
+    }
+  }
+  fs.writeFileSync(file, project.writeSync());
+}
+
 function snapshot() {
   const project = xcode.project(path.join(workspace, 'ios/Pennel.xcodeproj/project.pbxproj'));
   project.parseSync();
@@ -47,6 +74,13 @@ function snapshot() {
   assert.equal(groups.length, 1, 'unique SDK widget source group');
   const keyboard = targets.find(({ name }) => name === 'PennelKeyboard');
   assert(keyboard.phases.some(({ files }) => files.some((file) => file.endsWith('KeyboardViewController.swift'))));
+  const runtime = targets.find(({ name }) => name === 'PennelRuntimeTests');
+  for (const file of fs.readdirSync(path.join(workspace, 'native/ios/Tests')).filter((file) => file.endsWith('.swift'))) {
+    assert(runtime.phases.some(({ kind, files }) => kind === 'PBXSourcesBuildPhase' && files.some((source) => source.endsWith(`/native/ios/Tests/${file}`))), `hosted runtime test membership for ${file}`);
+  }
+  for (const target of targets) for (const phase of target.phases) {
+    for (const file of phase.files) assert.doesNotMatch(file, /^\.\.\/\.\.\/ios\//, 'native compile ownership does not reach a retired application');
+  }
   const widget = targets.find(({ name }) => name === 'ExpoWidgetsTarget');
   assert(widget.phases.some(({ files }) => files.some((file) => file.endsWith('PennelIntents.swift'))));
   assert(widget.phases.some(({ files }) => files.some((file) => file.endsWith('RecordingLiveActivity.swift'))));
@@ -70,6 +104,7 @@ test('clean and repeated non-clean Prebuild retain equivalent Pennel target owne
   const run = (script) => execFileSync('npm', ['run', script], { cwd: workspace, stdio: 'pipe', timeout: 60_000, env: { ...process.env, CI: '1', PENNEL_VARIANT: 'preview' } });
   run('prebuild:clean');
   const initial = snapshot();
+  addLegacyKeyboardReferences();
   run('prebuild');
   assert.deepEqual(snapshot(), initial);
   run('prebuild');

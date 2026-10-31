@@ -3,12 +3,35 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 artifacts="$root/apps/mobile/artifacts/ios"
+export IPHONEOS_DEPLOYMENT_TARGET=26.0
+device_target=aarch64-apple-ios
+sim_target=aarch64-apple-ios-sim
+device_dir="$root/core/target/$device_target/release"
+sim_dir="$root/core/target/$sim_target/release"
+bindings="$root/build/bindings-ios"
+framework="$artifacts/PennelCoreFFI.xcframework"
 
-PENNEL_SKIP_MAC_BINDINGS_CHECK=1 "$root/scripts/build-core-ios.sh"
+for target in "$device_target" "$sim_target"; do
+  cargo build --manifest-path "$root/core/Cargo.toml" --release --target "$target" --lib --no-default-features
+done
+
+rm -rf "$bindings"
+# Bindgen reads crate metadata from its working directory; use the matching lean library.
+(cd "$root/core" && cargo run --quiet --no-default-features --bin uniffi-bindgen -- \
+  generate --library "$sim_dir/libpennel_core.dylib" --language swift --out-dir "$bindings")
+
+mkdir -p "$bindings/headers"
+mv "$bindings/pennel_coreFFI.h" "$bindings/headers/"
+mv "$bindings/pennel_coreFFI.modulemap" "$bindings/headers/module.modulemap"
+rm -rf "$framework"
+mkdir -p "$artifacts"
+xcodebuild -create-xcframework \
+  -library "$device_dir/libpennel_core.a" -headers "$bindings/headers" \
+  -library "$sim_dir/libpennel_core.a" -headers "$bindings/headers" \
+  -output "$framework" >/dev/null
+
 mkdir -p "$artifacts/PennelCore"
-cp "$root/apps/ios/PennelCore/pennel_core.swift" "$artifacts/PennelCore/"
-rm -rf "$artifacts/PennelCoreFFI.xcframework"
-cp -R "$root/apps/ios/Frameworks/PennelCoreFFI.xcframework" "$artifacts/"
+cp "$bindings/pennel_core.swift" "$artifacts/PennelCore/"
 python3 - "$root" "$artifacts" <<'PY'
 import hashlib,json,pathlib,subprocess,sys
 root,artifacts=map(pathlib.Path,sys.argv[1:])

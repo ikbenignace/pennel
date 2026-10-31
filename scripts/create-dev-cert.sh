@@ -34,4 +34,4 @@ keychain="$HOME/Library/Keychains/login.keychain-db"
 security import "$tmp/cert.p12" -k "$keychain" -P pennel -T /usr/bin/codesign
 security add-trusted-cert -r trustRoot -p codeSign -k "$keychain" "$tmp/cert.pem"
 
-echo "created \"$name\"; build with: PENNEL_SIGN_IDENTITY=\"$name\" make app"
+echo "created \"$name\"; build with: APPLE_SIGNING_IDENTITY=\"$name\" make desktop"

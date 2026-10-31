@@ -2,10 +2,7 @@
 .playwright-mcp/
 core/target/
 build/
-apps/macos/.build/
 apps/macos-platform/.build/
-apps/macos/Sources/PennelCore/
-apps/macos/Frameworks/
 .DS_Store
 branding/
 build/release/
@@ -13,10 +10,6 @@ apps/desktop/node_modules/
 apps/desktop/dist/
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
-apps/ios/Frameworks/
-apps/ios/PennelCore/
-apps/ios/build/
-apps/ios/PennelMobileKit/.build/
 core/speakers/target/
 output/localization-2026-10-26/
 apps/mobile/node_modules/
@@ -27,4 +20,5 @@ apps/mobile/artifacts/
 apps/mobile/dist/
 apps/mobile/build/
 apps/mobile/modules/pennel-mobile/generated/
-apps/ios/PennelMobileKit/Generated/
+apps/mobile/native/ios/MobileKit/.build/
+apps/mobile/native/ios/MobileKit/.swiftpm/
