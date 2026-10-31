@@ -33,7 +33,7 @@ struct KeyboardTypingIntegrationTests {
         #expect(await settled(model))
         #expect(model.suggestions.contains("the"))
         #expect(model.replacementAtBoundary(before: "Please type teh", after: "")?.text == "the")
-        #expect(model.replacementAtBoundary(before: "Please type teh", after: nil) == nil)
+        #expect(model.replacementAtBoundary(before: "Please type teh", after: nil)?.text == "the")
         #expect(model.replacementAtBoundary(before: "Please type teh", after: "word") == nil)
     }
 
@@ -135,5 +135,27 @@ struct KeyboardTypingIntegrationTests {
         #expect(model.replacementAtBoundary(before: ";sig", after: "")?.text == "Kind regards, Lander")
         model.update(before: ";sig", capitalization: .none, assistanceAllowed: false, autocorrectionAllowed: false)
         #expect(model.replacementAtBoundary(before: ";sig", after: "") == nil)
+    }
+
+    @Test func missing_after_context_allows_only_current_known_prefix_corrections() async {
+        let spelling = TypingTestSpelling()
+        let model = KeyboardTypingModel(copy: KeyboardCopy(language: .english), suggestionsEnabled: true, spelling: spelling)
+        model.update(before: "Teh teh", capitalization: .none)
+        #expect(await settled(model))
+        #expect(model.replacementAtBoundary(before: "Teh teh", after: nil)?.text == "the")
+        #expect(model.replacementAtBoundary(before: "Other teh", after: nil) == nil)
+        #expect(model.replacementAtBoundary(before: nil, after: nil) == nil)
+        #expect(model.replacementAtBoundary(before: "Teh teh", after: "nical") == nil)
+        model.update(before: "Teh Teh", capitalization: .none)
+        #expect(await settled(model))
+        #expect(model.replacementAtBoundary(before: "Teh Teh", after: nil) == nil)
+        spelling.validTokens = ["teh"]
+        model.update(before: "Teh teh", capitalization: .none)
+        #expect(await settled(model))
+        #expect(model.replacementAtBoundary(before: "Teh teh", after: nil) == nil)
+        spelling.validTokens = []
+        model.update(before: "Teh teh", capitalization: .none, autocorrectionAllowed: false)
+        #expect(await settled(model))
+        #expect(model.replacementAtBoundary(before: "Teh teh", after: nil) == nil)
     }
 }

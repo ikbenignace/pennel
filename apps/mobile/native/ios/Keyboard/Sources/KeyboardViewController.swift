@@ -254,7 +254,7 @@ final class KeyboardViewController: UIInputViewController {
     private func validateTransientEdits() {
         let proxy = textDocumentProxy
         if let correction, !correction.permits(before: proxy.documentContextBeforeInput, after: proxy.documentContextAfterInput,
-                                               document: proxy.documentIdentifier, lifetime: lifetime) { clearCorrection() }
+                                               document: proxy.documentIdentifier, lifetime: lifetime, generation: generation) { clearCorrection() }
         if let selection = writingSelection,
            !selection.permits(selectedText: proxy.selectedText, before: proxy.documentContextBeforeInput,
                               after: proxy.documentContextAfterInput, document: proxy.documentIdentifier, lifetime: lifetime) {
@@ -269,21 +269,22 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func applyBoundaryReplacement(delimiter: String) -> Bool {
+        #if PENNEL_KEYBOARD_FEASIBILITY
+        writeContextProbe(stage: "boundary")
+        #endif
         guard let typing,
               let replacement = typing.replacementAtBoundary(before: textDocumentProxy.documentContextBeforeInput,
-                                                               after: textDocumentProxy.documentContextAfterInput),
-              let transaction = KeyboardCorrectionTransaction(
-                original: replacement.original, replacement: replacement.text, delimiter: delimiter,
-                before: textDocumentProxy.documentContextBeforeInput, after: textDocumentProxy.documentContextAfterInput,
-                document: textDocumentProxy.documentIdentifier, lifetime: lifetime)
+                                                               after: textDocumentProxy.documentContextAfterInput)
         else { return false }
         clearCorrection()
+        var transaction: KeyboardCorrectionTransaction?
         performEdit {
-            for _ in replacement.original { textDocumentProxy.deleteBackward() }
-            textDocumentProxy.insertText(replacement.text + delimiter)
+            transaction = KeyboardBoundaryEditor.apply(original: replacement.original, replacement: replacement.text,
+                delimiter: delimiter, proxy: textDocumentProxy, lifetime: lifetime)
         }
+        guard let transaction, let context = insertionContext, let bound = transaction.bound(to: context) else { return false }
         typing.resetTouches()
-        correction = transaction
+        correction = bound
         typing.correctionOriginal = replacement.original
         playFeedback(.keyPress)
         return true
@@ -291,15 +292,20 @@ final class KeyboardViewController: UIInputViewController {
 
     @discardableResult
     private func undoCorrection(feedback: Bool) -> Bool {
+        #if PENNEL_KEYBOARD_FEASIBILITY
+        writeContextProbe(stage: "undo")
+        #endif
         guard isVisible, let correction,
               correction.permits(before: textDocumentProxy.documentContextBeforeInput, after: textDocumentProxy.documentContextAfterInput,
-                                 document: textDocumentProxy.documentIdentifier, lifetime: lifetime)
+                                 document: textDocumentProxy.documentIdentifier, lifetime: lifetime, generation: generation)
         else { clearCorrection(); return false }
         clearCorrection()
+        let originGeneration = generation
+        var restored = false
         performEdit {
-            for _ in 0..<correction.replacementCharacterCount { textDocumentProxy.deleteBackward() }
-            textDocumentProxy.insertText(correction.restoredText)
+            restored = KeyboardBoundaryEditor.undo(correction, proxy: textDocumentProxy, lifetime: lifetime, generation: originGeneration)
         }
+        guard restored else { return false }
         typing?.reject(original: correction.original, replacement: correction.replacement)
         typing?.resetTouches()
         typing?.learnAccepted(correction.original, previous: KeyboardTypingContext.previousToken(before: textDocumentProxy.documentContextBeforeInput))
@@ -369,8 +375,8 @@ final class KeyboardViewController: UIInputViewController {
         }
         typing.learnAccepted(suggestion, previous: previous)
         typing.resetTouches()
-        correction = transaction
-        typing.correctionOriginal = transaction?.original
+        correction = insertionContext.flatMap { transaction?.bound(to: $0) }
+        typing.correctionOriginal = correction?.original
         playFeedback(.keyPress)
     }
 
@@ -518,6 +524,32 @@ final class KeyboardViewController: UIInputViewController {
     private func localized(_ english: String, _ dutch: String) -> String {
         typing?.copy.language == .dutch ? dutch : english
     }
+
+    #if PENNEL_KEYBOARD_FEASIBILITY
+    private func writeContextProbe(stage: String) {
+        guard Bundle.main.bundleIdentifier == "app.pennel.ios.preview.keyboard", hasFullAccess,
+              let directory = HandoffStore.groupDirectory, let typing else { return }
+        let proxy = textDocumentProxy
+        let before = proxy.documentContextBeforeInput
+        let after = proxy.documentContextAfterInput
+        var value = typing.boundaryProbe(before: before, after: after)
+        value["stage"] = stage
+        value["at"] = Date().timeIntervalSince1970
+        value["generation"] = generation
+        value["fullAccess"] = hasFullAccess
+        value["hostExplicitlyDisablesAutocorrection"] = proxy.autocorrectionType == .no
+        value["selectionLength"] = proxy.selectedText.map { $0.prefix(4_097).count } ?? 0
+        value["undoAvailable"] = correction != nil
+        value["undoPermitted"] = correction?.permits(before: before, after: after,
+            document: proxy.documentIdentifier, lifetime: lifetime, generation: generation) == true
+        do {
+            let folder = directory.appendingPathComponent("Library/Caches/PennelKeyboardQA", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+            try data.write(to: folder.appendingPathComponent("keyboard-context-probe.json"), options: .atomic)
+        } catch {}
+    }
+    #endif
 
     private func updateWritingAvailability() {
         guard let typing else { return }

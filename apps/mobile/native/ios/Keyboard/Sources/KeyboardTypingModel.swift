@@ -89,7 +89,7 @@ final class KeyboardTypingModel {
     private(set) var currentPrefix = ""
     private(set) var candidateRevision: UInt64 = 0
     let copy: KeyboardCopy
-    var predictionsReady: Bool { response != nil && responseToken == currentPrefix }
+    var predictionsReady: Bool { response != nil && responseToken == currentPrefix && responseRevision == candidateRevision }
 
     @ObservationIgnored private let spelling: any KeyboardSpellingProviding
     @ObservationIgnored private var defaults: UserDefaults?
@@ -100,6 +100,12 @@ final class KeyboardTypingModel {
     @ObservationIgnored private var personalWords: [String] = []
     @ObservationIgnored private var response: TypingResponse?
     @ObservationIgnored private var responseToken = ""
+    @ObservationIgnored private var currentBeforeContext: String?
+    @ObservationIgnored private var responseBeforeContext: String?
+    @ObservationIgnored private var responseRevision: UInt64?
+    #if PENNEL_KEYBOARD_FEASIBILITY
+    @ObservationIgnored private var probeWordValidity: Bool?
+    #endif
     @ObservationIgnored private var previousToken: String?
     @ObservationIgnored private var rejectedToken: String?
     @ObservationIgnored private var rejectedCandidates: [String] = []
@@ -145,6 +151,7 @@ final class KeyboardTypingModel {
                 assistanceAllowed: Bool = true, autocorrectionAllowed: Bool = true, selectionIsEmpty: Bool = true) {
         state.updateCapitalization(before: before, mode: capitalization)
         currentPrefix = KeyboardTypingContext.token(before: before)
+        currentBeforeContext = before.map { String($0.suffix(128)) }
         previousToken = KeyboardTypingContext.previousToken(before: before).flatMap { Self.isEngineWord($0) ? $0 : nil }
         permitsAssistance = assistanceAllowed && before?.hasSuffix(currentPrefix) == true
         permitsAutocorrection = autocorrectionAllowed
@@ -157,6 +164,13 @@ final class KeyboardTypingModel {
         candidateRevision &+= 1
         predictionTask?.cancel()
         predictionTask = nil
+        response = nil
+        responseToken = ""
+        responseBeforeContext = nil
+        responseRevision = nil
+        #if PENNEL_KEYBOARD_FEASIBILITY
+        probeWordValidity = nil
+        #endif
     }
 
     func recordTouch(_ gesture: KeyboardSwipeGesture) {
@@ -173,9 +187,11 @@ final class KeyboardTypingModel {
 
     func replacementAtBoundary(before: String?, after: String?) -> (text: String, original: String)? {
         let token = KeyboardTypingContext.token(before: before)
-        guard permitsAssistance, selectionIsEmpty,
+        guard permitsAssistance, selectionIsEmpty, predictionsReady,
               token == currentPrefix, token == responseToken,
-              after != nil, after?.first.map({ !$0.isLetter && !$0.isNumber }) ?? true,
+              before?.hasSuffix(token) == true,
+              before.map({ String($0.suffix(128)) }) == responseBeforeContext,
+              after?.first.map({ !$0.isLetter && !$0.isNumber }) ?? true,
               let text = response?.automaticReplacement, text != token else { return nil }
         switch response?.replacementKind {
         case .snippet:
@@ -186,6 +202,28 @@ final class KeyboardTypingModel {
         }
         return (text, token)
     }
+
+    #if PENNEL_KEYBOARD_FEASIBILITY
+    func boundaryProbe(before: String?, after: String?) -> [String: Any] {
+        ["cacheReady": predictionsReady,
+         "replacementAvailable": response?.automaticReplacement != nil,
+         "wordValidityKnown": probeWordValidity != nil,
+         "wordValid": probeWordValidity ?? false,
+         "hostAllowsAutocorrection": permitsAutocorrection,
+         "assistanceAllowed": permitsAssistance,
+         "autocorrectionEnabled": autocorrectionEnabled,
+         "selectionIsEmpty": selectionIsEmpty,
+         "tokenMatchesResponse": currentPrefix == responseToken,
+         "tokenIsBeforeSuffix": before?.hasSuffix(currentPrefix) == true,
+         "currentTokenLength": currentPrefix.count,
+         "candidateCount": response?.candidates.count ?? 0,
+         "requestFailed": response?.error != nil,
+         "beforeIsNil": before == nil,
+         "afterIsNil": after == nil,
+         "beforeLength": before?.count ?? 0,
+         "afterLength": after?.count ?? 0]
+    }
+    #endif
 
     func reject(original: String, replacement: String) {
         rejectedToken = original
@@ -237,9 +275,13 @@ final class KeyboardTypingModel {
         let token = currentPrefix
         let revision = candidateRevision
         let previous = previousToken
+        let requestedBefore = currentBeforeContext
         response = nil
         responseToken = ""
         suggestions = []
+        #if PENNEL_KEYBOARD_FEASIBILITY
+        probeWordValidity = nil
+        #endif
         predictionTask = Task { @MainActor [weak self] in
             await Task.yield()
             guard let self, !Task.isCancelled, self.candidateRevision == revision else { return }
@@ -286,6 +328,11 @@ final class KeyboardTypingModel {
             guard !Task.isCancelled, self.candidateRevision == revision, self.currentPrefix == token else { return }
             self.response = result
             self.responseToken = token
+            self.responseBeforeContext = requestedBefore
+            self.responseRevision = revision
+            #if PENNEL_KEYBOARD_FEASIBILITY
+            self.probeWordValidity = spelling.validInAnyLanguage
+            #endif
             if self.suggestionsEnabled { self.suggestions = result.candidates.map(\.text) }
         }
     }

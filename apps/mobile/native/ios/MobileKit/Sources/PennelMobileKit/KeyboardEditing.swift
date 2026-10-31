@@ -45,30 +45,39 @@ public struct KeyboardCorrectionTransaction: Sendable {
     public let document: UUID
     public let lifetime: UUID
     private let expectedBefore: String
-    private let expectedAfter: String
+    private let expectedAfter: String?
+    private var contextGeneration: UInt64?
 
     public init?(original: String, replacement: String, delimiter: String, before: String?, after: String?,
                  document: UUID, lifetime: UUID) {
-        guard !original.isEmpty, original.count <= 128, replacement.count <= 4_096,
-              delimiter.count <= 2, let before, let after, before.hasSuffix(original) else { return nil }
+        guard !original.isEmpty, original.count <= 128, !replacement.isEmpty, replacement.count <= 4_096,
+              delimiter.count <= 2, let before, before.hasSuffix(original) else { return nil }
         self.original = original
         self.replacement = replacement
         self.delimiter = delimiter
         self.document = document
         self.lifetime = lifetime
         expectedBefore = String(before.dropLast(original.count).suffix(96)) + replacement + delimiter
-        expectedAfter = String(after.prefix(96))
+        expectedAfter = after.map { String($0.prefix(96)) }
     }
 
     public var replacementCharacterCount: Int { replacement.count + delimiter.count }
     public var restoredText: String { original + delimiter }
 
-    public func permits(before: String?, after: String?, document: UUID, lifetime: UUID) -> Bool {
-        guard self.document == document, self.lifetime == lifetime, let before, let after else { return false }
+    public func bound(to context: KeyboardInsertionContext) -> Self? {
+        guard context.document == document, context.lifetime == lifetime else { return nil }
+        var transaction = self
+        transaction.contextGeneration = context.generation
+        return transaction
+    }
+
+    public func permits(before: String?, after: String?, document: UUID, lifetime: UUID, generation: UInt64? = nil) -> Bool {
+        guard self.document == document, self.lifetime == lifetime, let before,
+              contextGeneration == nil || contextGeneration == generation else { return false }
         guard before.count >= replacementCharacterCount else { return false }
         let visibleCount = min(before.count, expectedBefore.count)
         return before.suffix(visibleCount) == expectedBefore.suffix(visibleCount)
-            && String(after.prefix(96)) == expectedAfter
+            && after.map { String($0.prefix(96)) } == expectedAfter
     }
 }
 

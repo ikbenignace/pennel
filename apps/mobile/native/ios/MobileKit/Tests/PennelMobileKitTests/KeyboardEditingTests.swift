@@ -86,8 +86,28 @@ struct KeyboardEditingTests {
         #expect(!KeyboardTypingContext.permitsManualReplacement(token: "teh", before: "(teh)", after: nil))
         #expect(!KeyboardTypingContext.permitsManualReplacement(token: "teh", before: nil, after: nil))
         #expect(!KeyboardTypingContext.permitsManualReplacement(token: "teh", before: "Type teh", after: "word"))
-        #expect(KeyboardCorrectionTransaction(original: "teh", replacement: "the", delimiter: " ", before: "Type teh",
-            after: nil, document: UUID(), lifetime: UUID()) == nil)
+        let document = UUID()
+        let lifetime = UUID()
+        let correction = KeyboardCorrectionTransaction(original: "teh", replacement: "the", delimiter: " ", before: "Type teh",
+            after: nil, document: document, lifetime: lifetime)
+        #expect(correction?.permits(before: "Type the ", after: nil, document: document, lifetime: lifetime) == true)
+        #expect(correction?.permits(before: "Type the ", after: "", document: document, lifetime: lifetime) == false)
+    }
+
+    @Test func missing_following_context_keeps_prefix_proof_and_generation_required_for_undo() {
+        let document = UUID()
+        let lifetime = UUID()
+        let original = KeyboardCorrectionTransaction(original: "teh", replacement: "the", delimiter: " ",
+            before: "Teh teh", after: nil, document: document, lifetime: lifetime)
+        let bound = original?.bound(to: KeyboardInsertionContext(document: document, lifetime: lifetime, generation: 12))
+        #expect(bound?.permits(before: "Teh the ", after: nil, document: document, lifetime: lifetime, generation: 12) == true)
+        #expect(bound?.permits(before: "Teh the ", after: nil, document: document, lifetime: lifetime, generation: 13) == false)
+        #expect(bound?.permits(before: "Teh the ", after: nil, document: document, lifetime: lifetime) == false)
+        #expect(bound?.permits(before: "Other the ", after: nil, document: document, lifetime: lifetime, generation: 12) == false)
+        #expect(bound?.permits(before: "Teh the ", after: " changed", document: document, lifetime: lifetime, generation: 12) == false)
+        #expect(original?.bound(to: KeyboardInsertionContext(document: UUID(), lifetime: lifetime, generation: 12)) == nil)
+        #expect(KeyboardCorrectionTransaction(original: "teh", replacement: "the", delimiter: " ",
+            before: nil, after: nil, document: document, lifetime: lifetime) == nil)
     }
 }
 
