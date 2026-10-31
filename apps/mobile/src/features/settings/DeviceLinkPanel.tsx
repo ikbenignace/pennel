@@ -48,12 +48,13 @@ export function DeviceLinkPanel() {
         ownedRequest.current = null;
         setOtherConnection(linkIsPending(value.phase));
       } else {
-        setView(restorableLink(value, role, ownedRequest.current));
-        setOtherConnection(linkIsPending(value.phase) && value.role !== role);
+        const restored = restorableLink(value, role, store.getSnapshot().snapshot?.cloud, ownedRequest.current);
+        setView(restored);
+        setOtherConnection(linkIsPending(value.phase) && restored === null);
       }
     }).catch((error) => { if (epoch === contextEpoch.current && revision === actionRevision.current) setNotice(failure(error)); });
     return () => { contextEpoch.current += 1; actionRevision.current += 1; };
-  }, [role, snapshot?.cloud.account_epoch, store]);
+  }, [role, snapshot?.cloud.account_epoch, snapshot?.cloud.account?.email, snapshot?.cloud.signed_in, store]);
   const perform = async (key: string, method: MobileCommand, payload?: Record<string, unknown>) => {
     if (activeOperation.current && method !== 'cloud.linkCancel') return;
     const epoch = contextEpoch.current;
