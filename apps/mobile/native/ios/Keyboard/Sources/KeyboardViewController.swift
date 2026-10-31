@@ -157,8 +157,10 @@ final class KeyboardViewController: UIInputViewController {
         let layout = KeyboardLayout.stored(in: defaults)
         layout.store(in: UserDefaults.standard)
         if hasFullAccess { KeyboardFullAccess.markSeen(in: KeyboardLayout.groupDefaults) }
+        // iOS 27 can raise an Objective-C exception querying the switch-key requirement during host reconnection.
+        // Keep the public globe control available without reading that transitional document interface.
         let root = KeyboardRoot(
-            model: model, typing: typing, layout: layout, showsGlobe: needsInputModeSwitchKey,
+            model: model, typing: typing, layout: layout, showsGlobe: true,
             inputModeTarget: inputModeTarget,
             openSettings: { [weak self] in
                 guard let self else { return }
