@@ -1,6 +1,6 @@
 # Openstaande punten
 
-**Huidig werk:** volg de [Pennel-roadmap](https://github.com/orgs/pennel-app/projects/1) voor desktop, iPhone, Cloud en website. De [desktoproadmap](desktop-roadmap.md) bewaart de tien toestel- en releaseacceptatietaken met bronverwijzingen en acceptatiecriteria. Een organisatie-eigenaar moet het bord nog [publiek maken](https://github.com/pennel-app/pennel/issues/25); tot dan kan lidmaatschap nodig zijn om het te bekijken. De historische lijst hieronder blijft als context bewaard.
+**Huidig werk:** volg de [Pennel-roadmap](https://github.com/orgs/pennel-app/projects/1) voor desktop, iPhone, Cloud en website. De [desktoproadmap](desktop-roadmap.md) bewaart de tien toestel- en releaseacceptatietaken met bronverwijzingen en acceptatiecriteria. Een organisatie-eigenaar moet het bord nog [publiek maken](https://github.com/pennel-app/pennel/issues/25); tot dan kan lidmaatschap nodig zijn om het te bekijken. De historische lijst hieronder blijft als context bewaard. De oude SwiftUI-appschillen zijn verwijderd onder [opschoning #75](https://github.com/pennel-app/pennel/issues/75); de actieve iPhone-app en gedeelde native diensten staan in de [Expo-handleiding](mobile.md). Dit sluit geen toestel- of releaseacceptatie af.
 
 Historische native Mac-baseline: 2026-10-24, na fase 3a–3f. De gedeelde Tauri-app voor Mac, Windows en Linux is daarnaast geïmplementeerd; zie [migratie en bewijs](shared-app-migration.md). Onderstaande toestelvragen blijven acceptatiepunten totdat ze met de kandidaatpakketten zijn uitgevoerd.
 
@@ -19,7 +19,7 @@ Update 2026-10-25: de gedeelde app heeft tijdelijke dicteerherstelitems, duurzam
 | T7 | Lange dictaten opkuisen met je huidige model (`inception/mercury-3`) | Time-out is nu dynamisch (15 s + 1 s per 50 tekens, max 90 s) |
 | T8 | Windows 11: echte calls, klembord/plakken, sneltoetsen, echoverwerking en installatie | Cross-checks en unit tests bewijzen geen uitvoering op een Windows-toestel |
 | T9 | Linux X11 én Wayland: call-audio, codecs, compositor-sneltoets en klembordfallback | Codec- en synthetische audioservertests bewijzen geen desktop-/toestelgedrag |
-| T10 | Bestaande installatie upgraden/herstellen, ondertekende update en een opname van zestig minuten | Vervanging van de native app en publieke uitrol wachten op deze pakketacceptatie |
+| T10 | Bestaande installatie upgraden/herstellen, ondertekende update en een opname van zestig minuten | Migratie van bestaande installaties en releaseclaims vereisen deze pakketacceptatie |
 | T11 | Twee computers, zelfde account: meeting opnemen op de ene, verschijnt op de andere | Synchronisatie is alleen met tests en een gesimuleerde server geverifieerd |
 | T12 | Kluis opnieuw beginnen en herstelcode op een tweede toestel | Herstelflow is nog niet op twee echte toestellen doorlopen |
 | T13 | Dicteren en samenvatten via Pennel Cloud zonder eigen sleutel | Gehoste modellen zijn nog niet end-to-end op een toestel bevestigd |

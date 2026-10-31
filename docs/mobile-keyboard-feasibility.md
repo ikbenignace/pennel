@@ -1,6 +1,6 @@
 # iPhone keyboard: implementation and feasibility evidence
 
-Date: 27 October 2026. Tracking: [keyboard improvement #39](https://github.com/pennel-app/pennel/issues/39), [Expo migration #42](https://github.com/pennel-app/pennel/issues/42), [device acceptance #18](https://github.com/pennel-app/pennel/issues/18), [signing/review #20](https://github.com/pennel-app/pennel/issues/20).
+Evidence date: 27 October 2026; reproduction paths updated for shell retirement on 30 October 2026. Tracking: [keyboard improvement #39](https://github.com/pennel-app/pennel/issues/39), [Expo migration #42](https://github.com/pennel-app/pennel/issues/42), [device acceptance #18](https://github.com/pennel-app/pennel/issues/18), [signing/review #20](https://github.com/pennel-app/pennel/issues/20).
 
 ## Current conclusion
 
@@ -31,7 +31,7 @@ The UIKit-free `KeyboardSessionModel`, typing state, preferences, and delivery g
 
 ### App Intents candidate
 
-The guarded compiler/process-routing probe is `apps/ios/PennelKeyboard/Feasibility/KeyboardRecordingIntentProbe.swift`. It declares an `AudioRecordingIntent` with background supported modes and a SwiftUI `Button(intent:)`. With `PENNEL_KEYBOARD_FEASIBILITY` defined, both declarations typecheck under the iOS application-extension restriction. The probe is outside the production keyboard source directories and is disabled without that compilation flag.
+The guarded compiler/process-routing probe is `apps/mobile/native/ios/Keyboard/Feasibility/KeyboardRecordingIntentProbe.swift`. It declares an `AudioRecordingIntent` with background supported modes and a SwiftUI `Button(intent:)`. With `PENNEL_KEYBOARD_FEASIBILITY` defined, both declarations typecheck under the iOS application-extension restriction. The probe is outside the production keyboard source directories and is disabled without that compilation flag.
 
 The probe never requests microphone permission, starts capture, or reports recording success. If deliberately installed in a signed test harness, it writes only a bundle/process receipt with `recordingStarted: false` to the configured App Group. That receipt can establish where `perform()` ran; it cannot establish containing-app wakeup or microphone eligibility.
 
@@ -80,20 +80,20 @@ Test on supported iOS 26 and iOS 27 devices, recording exact patch versions. Inc
 From the repository root, with Xcode selected:
 
 ```sh
-swift test --package-path apps/ios/PennelMobileKit
+swift test --package-path apps/mobile/native/ios/MobileKit
 probe_sdk_path="$(xcrun --sdk iphoneos --show-sdk-path)"
 probe_build_dir="$(mktemp -d -t pennel-keyboard-probe)"
 xcrun swiftc -parse-as-library -swift-version 6 -target arm64-apple-ios26.0 \
   -sdk "$probe_sdk_path" -application-extension -emit-module -enable-testing \
   -module-name PennelMobileKit -emit-module-path "$probe_build_dir/PennelMobileKit.swiftmodule" \
-  apps/ios/PennelMobileKit/Sources/PennelMobileKit/*.swift
+  apps/mobile/native/ios/MobileKit/Sources/PennelMobileKit/*.swift
 xcrun swiftc -typecheck -parse-as-library -swift-version 6 -target arm64-apple-ios26.0 \
   -sdk "$probe_sdk_path" -application-extension -I "$probe_build_dir" -module-name PennelKeyboard \
-  apps/ios/PennelKeyboard/Model/*.swift apps/ios/PennelKeyboard/Sources/*.swift
+  apps/mobile/native/ios/Keyboard/Model/*.swift apps/mobile/native/ios/Keyboard/Sources/*.swift
 xcrun swiftc -typecheck -parse-as-library -swift-version 6 -target arm64-apple-ios26.0 \
   -sdk "$probe_sdk_path" -application-extension -I "$probe_build_dir" \
   -DPENNEL_KEYBOARD_FEASIBILITY -module-name PennelKeyboardIntentProbe \
-  apps/ios/PennelKeyboard/Feasibility/KeyboardRecordingIntentProbe.swift
+  apps/mobile/native/ios/Keyboard/Feasibility/KeyboardRecordingIntentProbe.swift
 ```
 
 Observed toolchain: Xcode 27.0 (27A266a), iPhoneOS SDK 27.0, Swift 6.4. Deployment target for these checks: iOS 26.0. These commands typecheck source; they do not produce signed-device or runtime acceptance.

@@ -1,5 +1,7 @@
 # macOS native materials and interaction audit
 
+Historical commands that mention `make app`, the old iOS targets or retired SwiftUI shells refer to the dated candidates recorded below. Those targets were removed under [cleanup #75](https://github.com/pennel-app/pennel/issues/75); current builds use the [desktop](desktop.md#build-and-test) and [mobile](mobile.md#build-and-verification) workflows.
+
 This follow-up to [#65](https://github.com/pennel-app/pennel/issues/65) retains Tauri and the TypeScript/Vite frontend. It is based on desktop polish PR #66. The previous Chromium fixtures and the running Preview window showed opaque navigation surfaces, fixed titlebar offsets, incomplete inactive-window states and no Reduce Transparency or Increase Contrast integration.
 
 ## Implementation ownership

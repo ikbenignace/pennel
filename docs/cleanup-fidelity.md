@@ -1,5 +1,7 @@
 # Cleanup fidelity evidence
 
+Historical commands that mention `make app`, the old iOS targets or retired SwiftUI shells refer to the dated candidates recorded below. Those targets were removed under [cleanup #75](https://github.com/pennel-app/pennel/issues/75); current builds use the [desktop](desktop.md#build-and-test) and [mobile](mobile.md#build-and-verification) workflows.
+
 Issue [#60](https://github.com/pennel-app/pennel/issues/60) replaces output-word overlap with conservative ordered-content safeguards. The optional semantic verifier remains disabled by default, with an empty production qualification registry. Configuring a decision connection or passing its synthetic sample does not qualify automatic cleanup.
 
 The guard permits punctuation, formatting, unambiguous hesitation removal, exact dictionary case/accent/spacing correspondence, English/Dutch cardinal integers 0–999 becoming equal digits, and bounded explicit corrections. Signs, numeric separators, dates, units, negation, questions and word order remain protected. Dictionary spacing cannot erase grammatical, numeric, temporal or location-word boundaries: a saved `nowhere` cannot turn `now here` into a different statement. Literal also protects code punctuation and identifier spelling. Ambiguous normalization, guessed spellings, larger spoken numbers and broader paraphrases retain raw text; these limits favor preservation over polish.

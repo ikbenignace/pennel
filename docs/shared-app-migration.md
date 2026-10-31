@@ -1,8 +1,8 @@
 # Shared Pennel application
 
-Pennel's shared desktop implementation targets Apple Silicon/macOS 14.4+, Windows 11 x64 and Linux x86-64. One TypeScript/Tauri interface and Rust product runtime use native services where required. The SwiftUI application remains a comparison/recovery build until the replacement passes packaged device acceptance.
+Pennel's shared desktop implementation targets Apple Silicon/macOS 14.4+, Windows 11 x64 and Linux x86-64. One TypeScript/Tauri interface and Rust product runtime use native services where required. The SwiftUI application shell was retired by the user-approved [cleanup #75](https://github.com/pennel-app/pennel/issues/75). The Apple platform service library, existing-installation migration and Sparkle transition remain part of the shared app; packaged-device and signed-upgrade acceptance remain open.
 
-This document distinguishes implementation, scoped automated checks and release acceptance. Code existence, a configured CI job or a browser screenshot is not production evidence.
+This document distinguishes implementation, scoped automated checks and release acceptance. Dated native-reference results below are historical; their removed build targets are not current instructions. The [pre-retirement Mac shell](https://github.com/pennel-app/pennel/tree/e6f02b2cd178b541dcbfcdb46125336c762dbf07/apps/macos) remains available in Git. Code existence, a configured CI job or a browser screenshot is not production evidence.
 
 ## Apple models and preview verification — 2026-10-25
 
@@ -52,7 +52,7 @@ Run from the app repository root. Generated evidence stays under ignored `build/
 | Core Rust | `scripts/with-toolchain.sh cargo test --manifest-path core/Cargo.toml --lib`; fmt and clippy as required by project guidance | Core tests cover lifecycle/detection/storage/timestamp cases; Linux x64 logs under `build/linux-full-logs/core-tests.log` and `core-clippy.log` |
 | Tauri Rust | `scripts/with-toolchain.sh cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`; corresponding fmt/clippy checks | Mac host logs: `build/desktop-tests-final.log`, `build/desktop-clippy-final.log`; these do not establish Windows/Linux desktop behavior |
 | Swift platform | `swift test --package-path apps/macos-platform` | Synthetic archives, timeline gaps, clipboard/lifetime/window helpers and status inspection; no microphone/system recording during tests |
-| Native reference | `make core && make test && make app` | `build/native-reference-final-check.log`; generated bindings and reference app remain buildable |
+| Historical native reference | Inspect the [pre-retirement source](https://github.com/pennel-app/pennel/tree/e6f02b2cd178b541dcbfcdb46125336c762dbf07/apps/macos) and retained receipt | `build/native-reference-final-check.log` records the original build; the shell and its build commands are retired |
 | Frontend | `cd apps/desktop && npm ci && npm test && npm run build` | Async/save/draft/navigation regression tests and production frontend build; browser harness uses IPC fixtures |
 | Mac preview package | Build with `tauri.preview.conf.json`; inspect with `scripts/verify-desktop-bundle.py` | `build/mac-preview-inspection-final.json`: valid arm64 ad-hoc preview signature; separate actual UI run in `build/mac-native-smoke.json`. No Developer ID/notarization or call/device acceptance |
 | Visual comparison | Inspect application-window captures and shared-view harness | `build/visual-parity/`; platform-labelled web fixtures do not imply native Windows/Linux execution |
@@ -63,11 +63,11 @@ Run from the app repository root. Generated evidence stays under ignored `build/
 
 The Linux codec receipt records the exact captured test result and synthetic probe output as a summary with reproduction sources; it is not an invented full stdout log. The synthetic PulseAudio probe uses no physical microphone or user audio.
 
-The website checkout separately prepares a typed Mac/Windows/Linux artifact map and qualified-download helper. Its `latestRelease` remains null and Windows/Linux availability copy stays unchanged. The website's release handoff documentation describes the separate publication step.
+At the original migration baseline, the website checkout separately prepared a typed Mac/Windows/Linux artifact map and qualified-download helper. Its `latestRelease` was null and Windows/Linux availability copy stayed unchanged. The website's release handoff documentation describes the separate publication step.
 
 ## Acceptance before native replacement or publication
 
-Run the following against the actual candidate packages, preserving the previously installed application and data for recovery:
+Shell retirement is a source-ownership decision, not completion of the acceptance gates below. Run them against the actual candidate packages, preserving the previously installed application and data for recovery:
 
 - Mac and Windows: Teams/Zoom/browser Meet, both audio tracks, permission denial/recovery, speakers/headphones and device switches; repeat dictation immediately after a meeting.
 - X11 Linux: global gestures, selection and guarded paste, foreground styles, browser/native call observations, monitor audio, installed codec/helper dependencies and overlays.
@@ -86,4 +86,4 @@ The production updater manifest requires accepted Mac, Windows and Linux AppImag
 
 Missing codecs/helpers, unsupported OS features and denied permissions remain visible with reasons. Apple Speech and EventKit are Mac-specific; Linux has no echo processing and native Wayland input restrictions remain explicit. Existing media/diarization limits and three-hour decode bound remain documented.
 
-No accounts, billing, telemetry, cloud synchronization or mobile app were added by this migration. Existing native Mac/Sparkle artifacts and site claims remain separate from the unpublished shared release.
+The initial desktop migration added no accounts, billing, telemetry, cloud synchronization or mobile app. Later mobile and distribution work has separate evidence in the [mobile guide](mobile.md) and [release guide](releasing.md); historical native/Sparkle receipts do not establish current release acceptance.

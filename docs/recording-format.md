@@ -1,5 +1,7 @@
 # Meeting recordings and provenance
 
+Historical commands that mention `make app`, the old iOS targets or retired SwiftUI shells refer to the dated candidates recorded below. Those targets were removed under [cleanup #75](https://github.com/pennel-app/pennel/issues/75); current builds use the [desktop](desktop.md#build-and-test) and [mobile](mobile.md#build-and-verification) workflows.
+
 New desktop recordings keep `meeting.md`, `transcript.md` and `notes.md` at the top of the existing `YYYY-MM-DD HHmm Title` folder. Microphone and computer audio are `audio/microphone.m4a` and `audio/system.m4a`. An iPhone room recording uses `audio/room.m4a`; its physical source is `room_microphone`, even though the transcript uses the Others speaker role. Audio remains AAC at 16 kHz mono.
 
 Existing meetings are not migrated. The shared core resolves legacy `ik.m4a` and `anderen.m4a` names as well as the new layout. Adapters use that resolver for availability, playback, speaker recognition and retranscription. Retention covers both layouts. The stable `pennel_id` survives folder/title changes. A copied folder without hidden metadata can still resolve its fixed audio filenames; ambiguous mixtures and paths escaping the meeting are refused.

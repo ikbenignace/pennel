@@ -90,6 +90,43 @@ class ReleaseConfigurationTests(unittest.TestCase):
                 self.assertEqual(signing_env["TAURI_SIGNING_PRIVATE_KEY_PATH"], str(path))
 
 
+class LegacySparkleTests(unittest.TestCase):
+    def test_tool_directory_must_be_explicit(self):
+        with mock.patch.dict("os.environ", {}, clear=True), mock.patch.object(release, "run") as run:
+            with self.assertRaisesRegex(ValueError, "PENNEL_SPARKLE_BIN is required"):
+                release.prepare_sparkle(Path("Pennel.app"), "0.2.0", Path("output"))
+            run.assert_not_called()
+
+    def test_missing_generator_fails_before_packaging(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.dict("os.environ", {"PENNEL_SPARKLE_BIN": temporary}, clear=True), mock.patch.object(release, "run") as run:
+                with self.assertRaisesRegex(ValueError, "generate_appcast"):
+                    release.prepare_sparkle(Path("Pennel.app"), "0.2.0", Path(temporary))
+                run.assert_not_called()
+
+    def test_external_generator_preserves_legacy_archive_and_account(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            tools = output / "existing Sparkle tools"
+            tools.mkdir()
+            generator = tools / "generate_appcast"
+            generator.write_text("existing external tool")
+            archive = output / "Pennel-0.2.0.zip"
+
+            def package(*args, **kwargs):
+                if args[0] == "ditto":
+                    Path(args[-1]).write_bytes(b"candidate archive")
+
+            with mock.patch.dict("os.environ", {"PENNEL_SPARKLE_BIN": str(tools)}, clear=True), mock.patch.object(release, "run", side_effect=package) as run:
+                release.prepare_sparkle(Path("Pennel.app"), "0.2.0", output)
+                self.assertEqual((output / "legacy-sparkle" / archive.name).read_bytes(), archive.read_bytes())
+                self.assertEqual(run.call_args.args, (
+                    generator, "--account", "pennel", "--download-url-prefix",
+                    "https://github.com/pennel-app/pennel/releases/download/v0.2.0/",
+                    "--link", "https://pennel.app", "-o", output / "appcast.xml", output / "legacy-sparkle",
+                ))
+
+
 class PortableNativeBuildTests(unittest.TestCase):
     def test_x86_64_v3_baseline_applies_only_to_non_mac_x64_distribution_targets(self):
         original = {"TRANSCRIBE_CMAKE_ARGS": '-DCUSTOM="a path"', "CMAKE_ARGS": "-DOTHER=ON", "PATH": "/existing/tools"}

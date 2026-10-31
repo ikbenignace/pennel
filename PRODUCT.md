@@ -6,7 +6,7 @@
 
 web
 
-Pennel is a desktop product. The shared Tauri interface targets macOS, Windows and Linux, with native services behind one Rust core. A native SwiftUI Mac application remains available for comparison and recovery until shared packaged-app acceptance passes.
+Pennel has shared desktop and mobile interfaces above one Rust core. Tauri targets macOS, Windows and Linux; Expo owns the iPhone UI with native services and generated native projects. Android follows iPhone acceptance. The old SwiftUI app shells are retired; historical source and visual evidence remain in Git.
 
 ## Users
 
@@ -29,7 +29,7 @@ Local speech models and user-chosen providers share the same product logic. No a
 
 ## Capabilities and Constraints
 
-Providers, processing, dictation history, meeting lifecycle, search, cited questions, templates, exports and model management belong in the Rust core. Tauri is the product interface and uses native capture, clipboard, focus, permissions and credential services. Swift remains behind Apple integrations; the frozen native application remains a buildable comparison and recovery reference.
+Providers, processing, dictation history, meeting lifecycle, search, cited questions, templates, exports and model management belong in the Rust core. Tauri owns desktop UI and Expo owns mobile UI, using native capture, clipboard, focus, permissions and credential services. Swift remains behind Apple integrations and lightweight extensions. Retiring the old application shells does not close packaged-app, physical-device or signed-upgrade acceptance.
 
 One main window hosts Dictation, Meetings, History and Settings, with persistent section and recording entry points. Section switches preserve the dictation-pad text, selected meeting, History recovery target and relevant reading position. Settings stays inside that window and returns to the previous work with its draft and selected view intact. The dictation pill never activates; onboarding, the recording prompt and pill keep their dedicated presentation. Settings opens to task readiness, remembers its last category, and keeps detailed model/provider configuration available through advanced categories. Setup detours return to the originating task with its context intact.
 
@@ -47,9 +47,9 @@ English and Dutch are equal interface languages, selected independently of speec
 
 ## Evidence on Hand
 
-- The Rust core, shared desktop app and SwiftUI reference are the implementation sources.
-- `assets/brand/tokens.json` defines the shared design system, with generated CSS and Swift values.
-- `assets/ui/icons/manifest.json` defines identical bundled interface glyphs for both renderers.
+- The Rust core, shared desktop/mobile apps and their native service modules are the implementation sources.
+- `assets/brand/tokens.json` defines the shared design system, with generated desktop CSS and pill metrics. Mobile native branding remains in MobileKit and is checked against the canonical assets.
+- `assets/ui/icons/manifest.json` defines the bundled shared desktop interface glyphs.
 - `docs/shared-app-migration.md` separates implementation, automated checks, packaged builds and outstanding device acceptance.
 - `DESIGN.md` records the approved visual and interaction contract. Design approval does not certify shipped behavior or hardware acceptance.
 
