@@ -164,3 +164,19 @@ export async function checkConnectionAvailabilityLoginRace() {
     api.cloudLinkAvailability = original;
   }
 }
+
+export async function checkDelayedAccountEntry() {
+  const state = fixture();
+  const { t } = await import("/src/i18n.ts");
+  const account = document.querySelector('[data-settings-category="account"]');
+  assert(account && account.getAttribute("aria-current") !== "page", "Start this regression from another Settings category.");
+  account.click();
+  await until(() => document.querySelector('.settings-pane .settings-loading[role="status"]'), "Delayed account metadata did not expose its owned loading state.");
+  await until(() => state.calls.includes("cloud_sync_setup"), "Account did not request sync setup.");
+  await until(() => button(t("account.setup.create")), "Account stayed loading after device availability and delayed sync setup completed.");
+  assert(document.querySelector('[data-settings-category="account"][aria-current="page"]'), "Finishing metadata navigated away from Account.");
+  assert(!document.querySelector(".settings-pane .settings-loading"), "Account retained the loading placeholder beside its completed content.");
+  assert(state.calls.filter(command => command === "cloud_link_availability").length === 1, "Overlapping Account renders repeated the availability request.");
+  assert(!state.calls.includes("cloud_sync_prepare") && !state.calls.includes("cloud_link_start"), "Rendering Account performed a setup or connection mutation.");
+  assert(!state.unknown.length, `Unknown commands: ${state.unknown.join(", ")}`);
+}

@@ -408,7 +408,9 @@
       case "cloud_account": if (!signedIn) throw notSignedIn(); return clone(cloudAccount);
       case "cloud_devices": if (!signedIn) throw notSignedIn(); return clone(cloudDevices);
       case "claude_access": case "set_claude_access": return { enabled: Boolean(options.claude), status: options.claude ? { kind: "connected", last_request_ms: now - 2 * 60_000 } : { kind: "off" }, mcp_url: "https://api.pennel.app/mcp" };
-      case "cloud_sync_setup": return syncSetup();
+      case "cloud_sync_setup":
+        if (options.cloud_sync_setup_delay_ms) await new Promise(resolve => setTimeout(resolve, options.cloud_sync_setup_delay_ms));
+        return syncSetup();
       case "cloud_sync_prepare":
         if (!signedIn) throw notSignedIn();
         if (syncSetupPhase === "locked") throw { code: "vault_locked", message: "Enter your recovery code." };
@@ -428,6 +430,7 @@
       case "cloud_sync_new_recovery_code": recoveryCode = "QAFI-XTUR-E111-1111-1111-1111"; return recoveryCode;
       case "cloud_sync_reset": signedIn = true; settings.cloud_sync = true; syncSetupPhase = "active"; recoveryCode = "QAFI-XTUR-E222-2222-2222-2222"; return recoveryCode;
       case "cloud_link_availability":
+        if (options.link_availability_delay_ms) await new Promise(resolve => setTimeout(resolve, options.link_availability_delay_ms));
         if (options.link_availability_error) throw { code: options.link_availability_error, message: "Synthetic service access failure." };
         return { available: options.link_available !== false, reason_code: options.link_available === false ? options.link_reason || "pairing_unavailable" : null };
       case "cloud_link_view": return clone(deviceLink);
