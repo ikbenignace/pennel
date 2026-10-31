@@ -26,6 +26,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       buildNumber: '1',
       entitlements: { 'com.apple.security.application-groups': [groupIdentifier] },
       infoPlist: {
+        // The owner-confirmed internal Preview excludes France; see docs/mobile-testflight.md.
+        ...(testFlight ? { ITSAppUsesNonExemptEncryption: false } : {}),
         CFBundleDisplayName: production ? 'Pennel' : 'Pennel Preview',
         NSMicrophoneUsageDescription: 'Pennel uses your microphone for dictation and meeting recordings you start.',
         NSCameraUsageDescription: 'Pennel uses your camera to scan a temporary device connection code. You can enter the code instead.',
