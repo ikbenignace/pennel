@@ -49,6 +49,8 @@ Before archiving, the hook validates Preview signing/namespaces and applies **CI
 
 Membership includes 25 compute hours/month. Check usage and start selected candidates; do not subscribe to paid capacity automatically.
 
+The existing free macos-26 Actions image provides Xcode 26.6 rather than 27. Mobile QA explicitly pins that available version and Rust 1.99.1; the distribution archive is additionally validated locally and in Cloud with Xcode 27.0. CocoaPods execution explicitly selects the canonical lock's gem version. The two Expo evaluated podspecs containing absolute checkout paths use a narrowly scoped location-independent checksum; actual scripts/download paths and every other pod checksum remain unchanged.
+
 ## Archive preparation and reuse
 
 ```sh

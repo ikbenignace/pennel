@@ -2684,7 +2684,7 @@ SPEC CHECKSUMS:
   ExpoLinking: 0937be9faa1580dee244062cc4c5a77732dc2c4d
   ExpoLocalization: ed930f5d68e7b3c2073a04787358839e1a8e1680
   ExpoLogBox: 624d64042d73abe0dc230a24b1a9f835adb2cec9
-  ExpoModulesCore: 333df1a5f2a6d0bf1c64d2655e0179aab868cbb7
+  ExpoModulesCore: 7d32378bb051e72e1b5a1607f0b74ce7942257aa
   ExpoModulesJSI: d9f7f7a1625c1a29cb116a6c264f1752230d4783
   ExpoModulesWorklets: 208e6112a0467df1cc21530e280d650a3adf6261
   ExpoModulesWorkletsAdapter: 74a84fa619c35a99c6444317fa62111dcf46f695
@@ -2693,7 +2693,7 @@ SPEC CHECKSUMS:
   ExpoStatusBar: 56aa9746e1bee4d8adbab12f4d7efc97000ac49f
   ExpoSystemUI: 7f794f868bd10f62788f85bf169bc8ca45fbe736
   ExpoUI: ee7843da6bf0b16255f3f5c5de69c3cd4f956cd6
-  ExpoWidgets: 4a4e688a39d146ac6926ffe7e60210ff423031eb
+  ExpoWidgets: 92459484d85ed76db677f80db70ceb9624ce0188
   EXUpdatesInterface: 1c6a522d0eb0485f4de3fa55d0316288763b3f10
   fast_float: 7c925d1cebf8328d4018d061f49377e9f887e3b4
   FBLazyVector: fdebac2dfe9c53bca49f8218fbdf1e24e36c8be0

@@ -72,7 +72,7 @@ if not match: raise SystemExit('The canonical CocoaPods version is missing')
 print(match[1])
 PY
 )" || return
-  if ! command -v pod >/dev/null || [ "$(pod --version 2>/dev/null | tail -1)" != "$pod_version" ]; then
+  if ! command -v pod >/dev/null || [ "$(pod "_${pod_version}_" --version 2>/dev/null | tail -1)" != "$pod_version" ]; then
     if ! command -v ruby >/dev/null || ! ruby -e 'exit(Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.1") ? 0 : 1)'; then
       brew list ruby >/dev/null 2>&1 || brew install ruby || return
       tool_prefix="$(brew --prefix ruby)" || return
@@ -82,7 +82,8 @@ PY
     gem_directory="$(ruby -e 'puts Gem.user_dir')" || return
     export PATH="$gem_directory/bin:$PATH"
   fi
-  [ "$(pod --version 2>/dev/null | tail -1)" = "$pod_version" ] || return
+  [ "$(pod "_${pod_version}_" --version 2>/dev/null | tail -1)" = "$pod_version" ] || return
+  export PENNEL_COCOAPODS_VERSION="$pod_version"
 
   python3 - "$root/apps/mobile/ios/.xcode.env.local" "$(command -v node)" <<'PY'
 import pathlib,shlex,sys
@@ -106,6 +107,6 @@ fi
 python3 "$helper" record --root "$root" --phase native-cache-result --elapsed 0 --cache-hit "$cache_hit"
 phase native-links node "$root/apps/mobile/plugins/native-sources.cjs"
 cmp "$root/apps/mobile/Podfile.lock" "$root/apps/mobile/ios/Podfile.lock"
-install_pods() { (cd "$root/apps/mobile/ios" && pod install --deployment); }
+install_pods() { (cd "$root/apps/mobile/ios" && pod "_${PENNEL_COCOAPODS_VERSION:?}_" install --deployment); }
 phase pod-install install_pods
 phase generated-seal python3 "$helper" seal-pods --root "$root"
