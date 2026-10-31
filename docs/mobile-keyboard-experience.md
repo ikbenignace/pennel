@@ -73,7 +73,7 @@ env CI=1 PENNEL_VARIANT=preview PENNEL_IOS_DESTINATION='generic/platform=iOS' np
 env CI=1 PENNEL_VARIANT=preview make mobile-native-test IOS_DESTINATION='platform=iOS Simulator,id=<verified-device>'
 ```
 
-Run large native commands through the personal worktree-storage guard. Core, desktop frontend/backend and affected macOS service checks also apply to vocabulary/public-interface changes. Personal Preview signing only; preserve existing app/keyboard/widget identities and data. The final receipt in `docs/mobile.md` distinguishes code, automated checks, installed candidate and acceptance evidence.
+Run large native commands through the personal worktree-storage guard. Core, desktop frontend/backend and affected macOS service checks also apply to vocabulary/public-interface changes. Personal Preview signing only; preserve existing app/keyboard/widget identities and data. The final receipt in `docs/mobile.md` distinguishes code, automated checks, installed candidate and acceptance evidence. The personally signed normal candidate `a089c94` is installed on the test iPhone; its physical correction/undo, switching, reappearance and Full Access checks pass. Haptic feel and comparative quality remain unmeasured.
 
 ### Isolated intent-routing investigation
 
@@ -84,6 +84,8 @@ env CI=1 PENNEL_VARIANT=preview PENNEL_KEYBOARD_FEASIBILITY=1 npm --prefix apps/
 ```
 
 The flag registers the probe in app and keyboard compilation and shows a clearly labelled QA button only in the exact Preview keyboard bundle. Production rejects the flag. It writes a process/bundle receipt with `recordingStarted: false`, never requests microphone permission, starts capture or forces an app URL. Test cold/resident/suspended/terminated/force-quit states and inspect the actual route. A successful receipt proves only execution placement. Restore a normal flag-off build afterward. Recording eligibility, repeated restart, user-visible app switching and App Review remain separate gates.
+
+On 31 October 2026, the personally signed `3bb2ad3` diagnostic candidate was tested on iPhone 16 Pro / iOS 27.0.1 over USB. Actual public button invocations ran in the keyboard extension both in Pennel's practice field and in Settings after targeted termination of the containing app. The latter left the main app absent and Settings visible; both receipts report no recording. This specific route did not establish containing-app wakeup or microphone eligibility. It is not a user force-quit test or a general impossibility result. See the [feasibility evidence](mobile-keyboard-feasibility.md#signed-process-routing-result--31-october-2026) and [candidate receipt](evidence/keyboard-experience-2026-10-31.json).
 
 ## Primary research references
 
